@@ -9,7 +9,10 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "node --test --experimental-test-isolation=none tests/*.test.ts",
+    "test:smoke:accounts": "node scripts/smoke-account-security.mjs",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.tests.json --noEmit"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
@@ -79,6 +82,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "2.9.1",
     "@types/node": "^22.16.5",
@@ -102,5 +106,8 @@
     "overrides": {
       "entities": "4.5.0"
     }
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

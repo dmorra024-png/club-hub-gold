@@ -20,6 +20,7 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
+import { clearClubCache } from "@/lib/club";
 
 function NotFoundComponent() {
   return (
@@ -27,7 +28,12 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-display text-gradient-neon text-glow-neon">404</h1>
         <p className="mt-4 text-muted-foreground">Página no encontrada.</p>
-        <a href="/" className="mt-6 inline-block px-6 py-2 bg-gradient-neon text-primary-foreground rounded-md uppercase tracking-widest text-xs font-display">Inicio</a>
+        <a
+          href="/"
+          className="mt-6 inline-block px-6 py-2 bg-gradient-neon text-primary-foreground rounded-md uppercase tracking-widest text-xs font-display"
+        >
+          Inicio
+        </a>
       </div>
     </div>
   );
@@ -45,9 +51,14 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <h1 className="font-display text-2xl text-neon text-glow-neon">Error</h1>
         <p className="mt-2 text-muted-foreground text-sm">{error.message}</p>
         <button
-          onClick={() => { router.invalidate(); reset(); }}
+          onClick={() => {
+            router.invalidate();
+            reset();
+          }}
           className="mt-6 px-6 py-2 bg-gradient-neon text-primary-foreground rounded-md uppercase tracking-widest text-xs font-display"
-        >Reintentar</button>
+        >
+          Reintentar
+        </button>
       </div>
     </div>
   );
@@ -59,7 +70,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "SNOOP — Club access in Spain" },
-      { name: "description", content: "Snoop · App de gestión para clubes sociales de cannabis en España." },
+      {
+        name: "description",
+        content: "Snoop · App de gestión para clubes sociales de cannabis en España.",
+      },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
@@ -77,8 +91,9 @@ const RECOVERY_REDIRECT = `(function(){try{
   var h=l.hash.replace(/^#/,'');
   var q=l.search.replace(/^\\?/,'');
   var p=new URLSearchParams(h), s=new URLSearchParams(q);
-  var isRecovery=p.get('type')==='recovery'||s.get('type')==='recovery'||!!p.get('access_token')||!!s.get('token_hash')||!!s.get('code')&&s.get('type')==='recovery';
-  var hasErr=(p.get('error_code')||s.get('error_code'))&&(p.get('type')==='recovery'||s.get('type')==='recovery');
+  var type=p.get('type')||s.get('type');
+  var isRecovery=type==='recovery'||type==='invite';
+  var hasErr=(p.get('error_code')||s.get('error_code'))&&isRecovery;
   if(isRecovery||hasErr){l.replace('/reset-password'+l.search+l.hash);}
 }catch(e){}})();`;
 
@@ -101,7 +116,14 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    let previousUserId: string | null | undefined;
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const userId = session?.user.id ?? null;
+      if (event === "SIGNED_OUT" || (previousUserId !== undefined && userId !== previousUserId)) {
+        queryClient.clear();
+        clearClubCache();
+      }
+      previousUserId = userId;
       if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
         router.invalidate();
         if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
@@ -113,7 +135,17 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      <Toaster theme="dark" position="top-right" toastOptions={{ style: { background: "oklch(0.12 0.015 150)", color: "oklch(0.96 0.01 150)", border: "1px solid oklch(0.3 0.05 150 / 0.4)" } }} />
+      <Toaster
+        theme="dark"
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: "oklch(0.12 0.015 150)",
+            color: "oklch(0.96 0.01 150)",
+            border: "1px solid oklch(0.3 0.05 150 / 0.4)",
+          },
+        }}
+      />
     </QueryClientProvider>
   );
 }

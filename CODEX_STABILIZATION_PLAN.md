@@ -23,3 +23,12 @@ Non usare dati reali nei test; non cancellare utenti, documenti, storico o produ
 
 ## Done
 Build green, integrazioni AI operative su provider indipendente in ambiente di prova, flussi core testati con account multipli e RLS, report dei limiti residui, procedura self-hosting senza Lovable.
+
+## Avanzamento: revisione sicurezza account
+
+La revisione sul ramo `codex/stabilize-independent-club` corregge inviti, password,
+revoca delle membership e protezione dei profili/ruoli. Test e procedura di
+collaudo, inclusi i limiti non ancora verificati, sono documentati in
+[`docs/ACCOUNT_SECURITY_REVIEW.md`](docs/ACCOUNT_SECURITY_REVIEW.md).
+Questa revisione non completa le attività funzionali, AI, PWA o indipendenza
+runtime previste dal piano. Nessuna migrazione è stata applicata a dati reali.
