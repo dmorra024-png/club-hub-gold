@@ -44,3 +44,7 @@ Il piano complessivo non è dichiarato completato né pronto al deployment.
 ## Avanzamento: incassi associativi, AI e PWA mobile
 
 Registro incassi autonomo implementato, AI collegata alle schermate e autorizzazioni provider/documenti separate, aggiornamenti PWA su conferma e correzioni del QR mobile. Risultati nativi, istruzioni e blocchi esterni nella [revisione della candidata](docs/RELEASE_CANDIDATE_REVIEW.md). Nessun merge o deployment eseguito.
+
+## Avanzamento: collaudo gratuito Cloudflare/Supabase
+
+Implementati target workerd, adapter Workers AI gratuito con autorizzazioni separate, inviti manuali monouso e correzioni di inventario, cataloghi, PWA e documenti multi-club. Configurazioni, esiti e sole operazioni esterne sono nella [consegna pilota gratuita](docs/FREE_PILOT.md). Nessuna risorsa remota o pubblicazione è stata effettuata.

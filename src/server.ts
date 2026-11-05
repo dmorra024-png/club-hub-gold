@@ -39,6 +39,11 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const path = new URL(request.url).pathname;
+    if (
+      /^\/(?:\.env(?:[./]|$)|\.dev\.vars|\.sandbox(?:\/|$)|\.git(?:\/|$)|wrangler\.json)/.test(path)
+    )
+      return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

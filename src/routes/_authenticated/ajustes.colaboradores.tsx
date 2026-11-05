@@ -43,6 +43,7 @@ function ColaboradoresPage() {
   const [list, setList] = useState<Collaborator[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [accountLink, setAccountLink] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
@@ -77,6 +78,7 @@ function ColaboradoresPage() {
     e.preventDefault();
     setErr(null);
     setMsg(null);
+    setAccountLink(null);
     setBusy(true);
     try {
       const result = await addCollaborator({
@@ -84,10 +86,13 @@ function ColaboradoresPage() {
       });
       setEmail("");
       setFullName("");
+      setAccountLink(result.invitation_url ?? null);
       setMsg(
-        result.invited
-          ? "Colaborador creado. Invitación enviada por email."
-          : "Acceso añadido a la cuenta existente. Su contraseña no ha cambiado.",
+        result.invitation_url
+          ? "Invitación preparada. Comparte el enlace de un solo uso únicamente con su titular."
+          : result.invited
+            ? "Colaborador creado. Invitación enviada por email."
+            : "Acceso añadido a la cuenta existente. Su contraseña no ha cambiado.",
       );
       await refresh();
     } catch (e: unknown) {
@@ -100,6 +105,7 @@ function ColaboradoresPage() {
   async function onSavePerms(role_id: string, permissions: Perm[]) {
     setErr(null);
     setMsg(null);
+    setAccountLink(null);
     try {
       await savePermissions({ data: { role_id, permissions } });
       setMsg("Permisos actualizados");
@@ -118,6 +124,7 @@ function ColaboradoresPage() {
       return;
     setErr(null);
     setMsg(null);
+    setAccountLink(null);
     try {
       await removeCollaborator({ data: { role_id } });
       setMsg("Acceso al club revocado");
@@ -130,9 +137,15 @@ function ColaboradoresPage() {
   async function onPasswordReset(role_id: string) {
     setErr(null);
     setMsg(null);
+    setAccountLink(null);
     try {
-      await sendPasswordReset({ data: { role_id } });
-      setMsg("Email de recuperación enviado. Solo el titular puede elegir su nueva contraseña.");
+      const result = await sendPasswordReset({ data: { role_id } });
+      setAccountLink(result.recovery_url ?? null);
+      setMsg(
+        result.recovery_url
+          ? "Enlace de recuperación preparado para su titular."
+          : "Email de recuperación enviado. Solo el titular puede elegir su nueva contraseña.",
+      );
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "No se ha podido completar la operación");
     }
@@ -151,6 +164,18 @@ function ColaboradoresPage() {
       title="Colaboradores"
       subtitle="Crea cuentas con permisos específicos para tu equipo"
     >
+      {accountLink && (
+        <label className="block mb-4 text-sm text-neon">
+          Enlace de un solo uso — solo para su titular
+          <input
+            aria-label="Enlace de un solo uso"
+            readOnly
+            value={accountLink}
+            onFocus={(e) => e.target.select()}
+            className="w-full bg-input border border-neon/30 rounded p-2 mt-2"
+          />
+        </label>
+      )}
       {err && (
         <div className="mb-4 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 p-3 text-sm">
           {err}

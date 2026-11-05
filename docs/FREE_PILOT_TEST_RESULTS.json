@@ -1,0 +1,327 @@
+{
+  "date": "2026-11-05",
+  "timezone": "Europe/Madrid",
+  "branch": "codex/stabilize-independent-club",
+  "source_base": "86cf5743a2707a7768095001462edfadeec830f9",
+  "database": "Dedicated local Supabase; synthetic records only",
+  "runtime": "Cloudflare workerd via pinned Wrangler 4.157.0",
+  "public_deployment_performed": false,
+  "hosted_supabase_project_created": false,
+  "remote_ai_inference_performed": false,
+  "security_psg_touched": false,
+  "checks": {
+    "unit": {
+      "PASS": 79,
+      "FAIL": 0
+    },
+    "typescript": {
+      "status": "PASS"
+    },
+    "node_build": {
+      "status": "PASS"
+    },
+    "cloudflare_build": {
+      "status": "PASS"
+    },
+    "cloudflare_dry_run": {
+      "status": "PASS",
+      "upload_KiB": 2879.55,
+      "gzip_KiB": 840.59
+    },
+    "worker_authentication": {
+      "PASS": 6,
+      "FAIL": 0
+    },
+    "client_secret_scan": {
+      "status": "PASS",
+      "public_artifacts_checked": 55
+    },
+    "pilot_missing_configuration_guard": {
+      "status": "PASS",
+      "detail": "Build refuses to use historical project settings if dedicated pilot configuration is missing."
+    }
+  },
+  "native_administration": [
+    {
+      "name": "Accesso nativo e schermata principale dopo login",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Creazione quota associativa dalla UI e persistenza",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Registrazione manuale socio e blocco doppio clic",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Ricerca anagrafica con accenti IT/ES",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Modifica anagrafica rifiuta nome vuoto senza scrivere",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Modifica anagrafica valida e rilettura dal database",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Rinnovo quota: annullamento e conferma",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Carnet QR del socio: immagine UI decodificata localmente",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Storage documenti sintetici: upload e URL firmato",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Invito dipendente dalla UI senza password temporanea (email o link monouso)",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Dipendenti: modifica permessi, recupero e revoca preservano l'identità",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Permessi nativi: dipendente senza gestione soci non può modificarli",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Permessi nativi: editor autorizzato e isolamento altro club",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Ruoli: PostgREST rifiuta escalation diretta del dipendente",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Cassa base senza ordini: rifiuto importo negativo",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Cassa base senza ordini: apertura e chiusura con conteggio",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Report: errore dati visibile invece di statistiche a zero",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Quote incassate: UI conferma, annullamento, storico e operatore",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Incassi: idempotenza concorrente, storico immutabile e isolamento club",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Incassi: report giornalieri/mensili e storico con confini Madrid",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Super Admin: selezione esplicita club e nessuna mescolanza nei report",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Catalogo e genetica informativa: creazione manuale e inventario atomico",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Super Admin: creazione club e account amministratore dalla UI",
+      "status": "PASS",
+      "level": "native local Supabase + browser/API"
+    },
+    {
+      "name": "Dettatura vocale reale AI IT/ES",
+      "status": "BLOCKED",
+      "detail": "Credenziali provider reale e dispositivo/microfono non disponibili; test dei contratti locali riportati separatamente."
+    },
+    {
+      "name": "Android fisico",
+      "status": "BLOCKED",
+      "detail": "Nessun dispositivo fisico collegato; test PWA Chromium mobile separato."
+    }
+  ],
+  "mobile": [
+    {
+      "name": "PWA manifest, installability, offline and public cache (Chromium Pixel 7)",
+      "status": "PASS"
+    },
+    {
+      "name": "Pixel 7: native local login and mobile administration navigation",
+      "status": "PASS"
+    },
+    {
+      "name": "Pixel 7: camera denial and manual member search remain usable",
+      "status": "PASS"
+    },
+    {
+      "name": "Pixel 7: synthetic camera grant, preview and track cleanup",
+      "status": "PASS"
+    },
+    {
+      "name": "Pixel 7: offline page and recovery to authenticated online app",
+      "status": "PASS"
+    },
+    {
+      "name": "PWA update waits for explicit consent and preserves active form",
+      "status": "PASS"
+    },
+    {
+      "name": "iPhone 13: native local login and mobile administration navigation",
+      "status": "PASS"
+    },
+    {
+      "name": "iPhone 13: camera denial and manual member search remain usable",
+      "status": "PASS"
+    },
+    {
+      "name": "iPhone 13: synthetic camera grant, preview and track cleanup",
+      "status": "PASS"
+    },
+    {
+      "name": "iPhone layout: Apple metadata and Safari installation guidance",
+      "status": "PASS"
+    },
+    {
+      "name": "iPhone 13: offline page and recovery to authenticated online app",
+      "status": "PASS"
+    },
+    {
+      "name": "Physical Android / iPhone installation, actual Safari/WebKit and hardware microphone/camera",
+      "status": "BLOCKED",
+      "detail": "No physical devices connected; WebKit executable absent. iPhone case is Chromium viewport/user-agent emulation, not Safari certification."
+    }
+  ],
+  "local_ai_integration": [
+    {
+      "name": "AI authenticated status hides credentials and disables documents/browser vendors",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "AI it: authenticated audio transport and validated field extraction",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "AI it: form compilation requires manual save and accepts manual corrections",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "AI es: authenticated audio transport and validated field extraction",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "AI es: form compilation requires manual save and accepts manual corrections",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "Voice administrative command it-IT: actual MediaRecorder with synthetic microphone",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "Voice administrative command es-ES: actual MediaRecorder with synthetic microphone",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "Document processing blocked server-side before contacting provider",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "Unavailable AI falls back to Italian/Spanish local parser without writes",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "Microphone denial keeps manual form usable",
+      "status": "PASS",
+      "level": "Native local Auth + test double AI provider"
+    },
+    {
+      "name": "Real spoken Italian/Spanish accuracy and actual microphone",
+      "status": "BLOCKED",
+      "detail": "Local provider returns synthetic fixtures; real credentials and physical devices unavailable."
+    }
+  ],
+  "worker_harness": [
+    {
+      "name": "workerd-security",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "workerd-administration",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "workerd-mobile",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "Private configuration inaccessible",
+      "status": "PASS"
+    }
+  ],
+  "external_blockers": [
+    {
+      "name": "Hosted Supabase Free project and Cloudflare Free account",
+      "status": "BLOCKED",
+      "detail": "No dedicated credentials or cloud project available; only local setup and migration package prepared."
+    },
+    {
+      "name": "Real Workers AI inference",
+      "status": "BLOCKED",
+      "detail": "Official model schemas/pricing verified; remote model execution and IT/ES recognition accuracy not tested."
+    },
+    {
+      "name": "Workers Free CPU limit on deployed service",
+      "status": "BLOCKED",
+      "detail": "Local workerd/dry-run does not certify the 10ms remote Free limit."
+    },
+    {
+      "name": "Physical Android/iPhone and Safari",
+      "status": "BLOCKED",
+      "detail": "No devices or WebKit executable available; mobile cases use Chromium emulation."
+    },
+    {
+      "name": "Original brand assets",
+      "status": "BLOCKED",
+      "detail": "Original PNGs still missing; existing graphics have not been replaced."
+    }
+  ]
+}

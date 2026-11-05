@@ -16,6 +16,7 @@ function SnoopAdmin() {
   const [clubs, setClubs] = useState<Awaited<ReturnType<typeof listClubs>>>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [accountLink, setAccountLink] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const loadClubs = useServerFn(listClubs);
@@ -55,6 +56,7 @@ function SnoopAdmin() {
     e.preventDefault();
     setErr(null);
     setMsg(null);
+    setAccountLink(null);
     setBusy(true);
     try {
       await addClub({
@@ -82,6 +84,7 @@ function SnoopAdmin() {
     e.preventDefault();
     setErr(null);
     setMsg(null);
+    setAccountLink(null);
     setBusy(true);
     try {
       const result = await addClubAdmin({
@@ -89,10 +92,13 @@ function SnoopAdmin() {
       });
       setAdminEmail("");
       setAdminName("");
+      setAccountLink(result.invitation_url ?? null);
       setMsg(
-        result.invited
-          ? "Administrador creado. Invitación enviada por email."
-          : "Acceso de administrador añadido. La contraseña existente no ha cambiado.",
+        result.invitation_url
+          ? "Invitación preparada. Comparte el enlace de un solo uso únicamente con su titular."
+          : result.invited
+            ? "Administrador creado. Invitación enviada por email."
+            : "Acceso de administrador añadido. La contraseña existente no ha cambiado.",
       );
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "No se ha podido completar la operación");
@@ -111,6 +117,18 @@ function SnoopAdmin() {
 
   return (
     <SnoopLayout title="Snoop Admin" subtitle="Crea clubs y sus administradores">
+      {accountLink && (
+        <label className="block mb-4 text-sm text-neon">
+          Enlace de un solo uso — solo para su titular
+          <input
+            aria-label="Enlace de un solo uso"
+            readOnly
+            value={accountLink}
+            onFocus={(e) => e.target.select()}
+            className="w-full bg-input border border-neon/30 rounded p-2 mt-2"
+          />
+        </label>
+      )}
       {err && (
         <div className="mb-4 rounded-md border border-red-500/40 bg-red-500/10 text-red-300 p-3 text-sm">
           {err}
@@ -160,6 +178,7 @@ function SnoopAdmin() {
             <label className="block">
               <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim mb-1">Club</div>
               <select
+                aria-label="Club"
                 value={adminClubId}
                 onChange={(e) => setAdminClubId(e.target.value)}
                 className="w-full bg-input border border-neon/25 rounded-md px-3 py-2 text-sm text-foreground"

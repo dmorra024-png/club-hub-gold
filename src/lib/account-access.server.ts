@@ -66,6 +66,19 @@ export async function findUserByEmail(admin: Client, email: string) {
   throw new Error("No se ha podido completar la búsqueda de la cuenta");
 }
 
+function manualAccountUrl(
+  properties: { action_link: string; hashed_token?: string },
+  type: "invite" | "recovery",
+) {
+  const token =
+    properties.hashed_token || new URL(properties.action_link).searchParams.get("token");
+  if (!token) throw new Error("No se pudo preparar el enlace de un solo uso");
+  const url = new URL(accountRedirectUrl());
+  // Fragment never travels in HTTP request URLs, access logs or Referer headers.
+  url.hash = new URLSearchParams({ token_hash: token, type }).toString();
+  return url.href;
+}
+
 export async function resolveInvitedAccount(
   admin: Client,
   input: { email: string; full_name: string },
@@ -73,6 +86,21 @@ export async function resolveInvitedAccount(
   const email = input.email.trim().toLowerCase();
   const existing = await findUserByEmail(admin, email);
   if (existing) return { userId: existing.id, invited: false };
+  if (process.env.SNOOP_INVITATION_DELIVERY === "manual") {
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: { redirectTo: accountRedirectUrl(), data: { full_name: input.full_name } },
+    });
+    if (error) throw error;
+    if (!data.user || !data.properties?.action_link)
+      throw new Error("No se pudo generar la invitación");
+    return {
+      userId: data.user.id,
+      invited: true,
+      invitationUrl: manualAccountUrl(data.properties, "invite"),
+    };
+  }
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: accountRedirectUrl(),
     data: { full_name: input.full_name },
@@ -142,6 +170,16 @@ export async function requestClubPasswordReset(admin: Client, clubId: string, ro
   const { data, error: userError } = await admin.auth.admin.getUserById(role.user_id);
   if (userError) throw userError;
   if (!data.user?.email) throw new Error("La cuenta no tiene email");
+  if (process.env.SNOOP_INVITATION_DELIVERY === "manual") {
+    const { data: link, error } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email: data.user.email,
+      options: { redirectTo: accountRedirectUrl() },
+    });
+    if (error || !link.properties?.action_link)
+      throw new Error("No se pudo generar la recuperación");
+    return { recoveryUrl: manualAccountUrl(link.properties, "recovery") };
+  }
   const { error: resetError } = await admin.auth.resetPasswordForEmail(data.user.email, {
     redirectTo: accountRedirectUrl(),
   });

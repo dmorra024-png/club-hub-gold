@@ -1,3 +1,4 @@
+import { guardWorkerOutput } from "./scripts/lib/cloudflare-compat.mjs";
 import { defineConfig, loadEnv } from "vite";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
@@ -24,16 +25,61 @@ export default defineConfig(({ command, mode }) => {
       throw new Error("Sandbox requires the dedicated local backend on port 54321.");
     }
   }
+  const cloudflare = process.env.SNOOP_RUNTIME === "cloudflare";
+  if (mode === "pilot") {
+    if (
+      !existsSync(".env.pilot.local") ||
+      env.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot" ||
+      !/^[a-z]{20}$/.test(env.SNOOP_SUPABASE_PROJECT_REF ?? "")
+    )
+      throw new Error(
+        "Configure the dedicated SNOOP Free project in .env.pilot.local; existing project settings will not be used.",
+      );
+    for (const key of [
+      "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "APP_URL",
+    ])
+      if (!env[key] || /REPLACE_|YOUR_/.test(env[key]))
+        throw new Error(`Missing dedicated SNOOP pilot setting: ${key}`);
+    if (env.VITE_SUPABASE_PUBLISHABLE_KEY !== env.SUPABASE_PUBLISHABLE_KEY)
+      throw new Error("Browser and server must use the same dedicated SNOOP publishable key");
+    const expected = `https://${env.SNOOP_SUPABASE_PROJECT_REF}.supabase.co`;
+    if (
+      env.VITE_SUPABASE_URL !== expected ||
+      env.SUPABASE_URL !== expected ||
+      !env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      !env.SUPABASE_SERVICE_ROLE_KEY
+    )
+      throw new Error("Dedicated SNOOP project URLs/keys are missing or inconsistent");
+  }
   const preview = env.DEV_PREVIEW_ORIGIN ? new URL(env.DEV_PREVIEW_ORIGIN) : undefined;
   for (const name of Object.keys(env)) {
-    if (/^(SUPABASE_|AI_|EMAIL_|APP_URL$)/.test(name) && process.env[name] === undefined)
+    if (/^(SUPABASE_|AI_|EMAIL_|SNOOP_|APP_URL$)/.test(name) && process.env[name] === undefined)
       process.env[name] = env[name];
   }
   return {
     plugins: [
       tailwindcss(),
       tanstackStart({ server: { entry: "server" } }),
-      command === "build" && nitro({ preset: "node-server" }),
+      command === "build" &&
+        nitro({
+          preset: cloudflare ? "cloudflare-module" : "node-server",
+          ...(cloudflare
+            ? {
+                minify: true,
+                cloudflare: { nodeCompat: true },
+                hooks: {
+                  "rollup:before": (nitro) => {
+                    nitro.hooks.hook("compiled", async () => {
+                      await guardWorkerOutput(nitro.options.output.serverDir);
+                    });
+                  },
+                },
+              }
+            : {}),
+        }),
       react(),
     ],
     resolve: {

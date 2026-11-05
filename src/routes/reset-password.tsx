@@ -73,7 +73,7 @@ function ResetPassword() {
         }
 
         // Invitations and recovery links both let the account owner choose a password.
-        const tokenHash = url.searchParams.get("token_hash");
+        const tokenHash = url.searchParams.get("token_hash") || hash.get("token_hash");
         const type = url.searchParams.get("type") || hash.get("type");
         if (tokenHash) {
           if (type !== "recovery" && type !== "invite") {

@@ -1,7 +1,7 @@
 /* global self, caches */
 // Only public installation resources. No member data, photos, application HTML,
 // auth tokens, APIs or server-function results enter the cache.
-const CACHE = "clubhub-public-v2";
+const CACHE = "clubhub-public-v3";
 const PUBLIC = [
   "/offline.html",
   "/manifest.webmanifest",
@@ -10,7 +10,33 @@ const PUBLIC = [
   "/icons/app-maskable-512.png",
 ];
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PUBLIC)));
+  event.waitUntil(
+    caches.open(CACHE).then((cache) =>
+      Promise.all(
+        PUBLIC.map(async (path) => {
+          const response = await fetch(path, { credentials: "omit", cache: "reload" });
+          const target = new URL(response.url);
+          if (
+            !response.ok ||
+            target.origin !== self.location.origin ||
+            (target.pathname !== path &&
+              !(path === "/offline.html" && target.pathname === "/offline"))
+          )
+            throw new Error("Invalid public installation resource");
+          // Workers Static Assets can canonicalize offline.html to /offline. A cached
+          // redirected Response cannot satisfy an offline navigation's manual mode.
+          await cache.put(
+            path,
+            new Response(response.body, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers,
+            }),
+          );
+        }),
+      ),
+    ),
+  );
 });
 self.addEventListener("activate", (event) => {
   event.waitUntil(

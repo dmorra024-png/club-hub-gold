@@ -346,3 +346,37 @@ test("recovery propagates provider failure instead of reporting success", async 
   });
   await assert.rejects(requestClubPasswordReset(f.client, "club-a", "role-1"), /rate limit/);
 });
+
+test("free pilot manual invitation uses one-time Auth link without email or plaintext password", async () => {
+  const previous = process.env.SNOOP_INVITATION_DELIVERY;
+  process.env.SNOOP_INVITATION_DELIVERY = "manual";
+  process.env.APP_URL = "https://snoop.example.test";
+  try {
+    const { client: admin, calls } = fixture();
+    (admin.auth.admin as any).generateLink = async (input: any) => {
+      assert.equal(input.type, "invite");
+      assert.equal(input.options.redirectTo, "https://snoop.example.test/reset-password");
+      return {
+        data: {
+          user: { id: "manual-invite" },
+          properties: { action_link: "https://auth.example.test/verify?token=synthetic-one-time" },
+        },
+        error: null,
+      };
+    };
+    const result = await resolveInvitedAccount(admin, {
+      email: "new@example.test",
+      full_name: "Persona Demo",
+    });
+    assert.equal(result.userId, "manual-invite");
+    assert.ok(result.invitationUrl);
+    const inviteUrl = new URL(result.invitationUrl);
+    assert.equal(inviteUrl.origin, "https://snoop.example.test");
+    assert.equal(inviteUrl.search, "");
+    assert.equal(new URLSearchParams(inviteUrl.hash.slice(1)).get("type"), "invite");
+    assert.ok(!calls.some((c) => c.method === "invite"));
+  } finally {
+    if (previous === undefined) delete process.env.SNOOP_INVITATION_DELIVERY;
+    else process.env.SNOOP_INVITATION_DELIVERY = previous;
+  }
+});

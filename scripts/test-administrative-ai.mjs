@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
@@ -16,13 +17,39 @@ const env = Object.fromEntries(
 );
 assert.equal(env.SUPABASE_URL, "http://127.0.0.1:54321");
 assert.equal(env.VITE_SUPABASE_URL, "/sandbox-api");
-const credentials = JSON.parse(await readFile(join(work, "test-credentials.json"), "utf8"));
+let credentials = JSON.parse(await readFile(join(work, "test-credentials.json"), "utf8"));
 assert.equal(credentials.email, "admin.demo@example.test");
 const api = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+// Isolate this suite from registrations performed by other simultaneous suites.
+const runId = Date.now().toString(36);
+const clubResult = await api
+  .from("clubs")
+  .insert({ name: "AI sintetica " + runId, slug: "ai-" + runId })
+  .select("id")
+  .single();
+if (clubResult.error) throw clubResult.error;
+const aiClub = clubResult.data.id;
+credentials = {
+  email: `ai.${runId}@example.test`,
+  password: randomBytes(24).toString("base64url"),
+};
+const userResult = await api.auth.admin.createUser({
+  ...credentials,
+  email_confirm: true,
+  user_metadata: { full_name: "AI Synthetic Administrator" },
+});
+if (userResult.error) throw userResult.error;
+const roleResult = await api
+  .from("user_roles")
+  .insert({ user_id: userResult.data.user.id, club_id: aiClub, role: "admin", permissions: [] });
+if (roleResult.error) throw roleResult.error;
 const counts = async () => {
-  const r = await api.from("members").select("id", { count: "exact", head: true });
+  const r = await api
+    .from("members")
+    .select("id", { count: "exact", head: true })
+    .eq("club_id", aiClub);
   if (r.error) throw r.error;
   return r.count;
 };

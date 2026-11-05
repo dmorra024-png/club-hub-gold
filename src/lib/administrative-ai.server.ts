@@ -1,6 +1,15 @@
+import {
+  authorizeWorkersAi,
+  workersAiBinding,
+  workersAiFetch,
+  transcribeWorkersAudio,
+  FREE_TEXT_MODEL,
+} from "./workers-ai.server.ts";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-export function aiConfiguration(purpose: "administrative" | "documents" = "administrative") {
+export function aiConfiguration(
+  purpose: "administrative" | "documents" | "catalog" = "administrative",
+) {
   if (process.env.AI_EXTERNAL_PROCESSING_ENABLED !== "true") {
     throw new Error(
       "AI externa desactivada. Configura AI_EXTERNAL_PROCESSING_ENABLED y revisa el tratamiento de datos.",
@@ -42,7 +51,19 @@ export const providerFetch: typeof fetch = (input, init) =>
       : AbortSignal.timeout(30_000),
   });
 
-export function administrativeModel(purpose: "administrative" | "documents" = "administrative") {
+export function administrativeModel(
+  purpose: "administrative" | "documents" | "catalog" = "administrative",
+) {
+  if (process.env.AI_PROVIDER === "cloudflare") {
+    authorizeWorkersAi(purpose);
+    return createOpenAICompatible({
+      name: "snoop-workers-ai",
+      apiKey: "binding-not-a-secret",
+      baseURL: "https://snoop-workers-ai.invalid/v1",
+      fetch: workersAiFetch(workersAiBinding()),
+      supportsStructuredOutputs: true,
+    })(FREE_TEXT_MODEL);
+  }
   const config = aiConfiguration(purpose);
   const provider = createOpenAICompatible({
     name: "administrative-ai",
@@ -59,7 +80,8 @@ export async function transcribeAdministrativeAudio(input: {
   mimeType: string;
   language?: "it" | "es";
 }) {
-  const config = aiConfiguration();
+  if (process.env.AI_PROVIDER === "cloudflare") authorizeWorkersAi();
+  const config = process.env.AI_PROVIDER === "cloudflare" ? null : aiConfiguration();
   if (!/^(audio\/(webm|mp4|mpeg|wav|ogg|x-wav))(;codecs=[a-z0-9,-]+)?$/i.test(input.mimeType))
     throw new Error("Formato de audio no compatible");
   if (
@@ -70,6 +92,8 @@ export async function transcribeAdministrativeAudio(input: {
     throw new Error("Audio inválido o demasiado grande");
   const bytes = Buffer.from(input.audioBase64, "base64");
   if (bytes.toString("base64") !== input.audioBase64) throw new Error("Audio base64 inválido");
+  if (!config)
+    return transcribeWorkersAudio(workersAiBinding(), input.audioBase64, input.language || "es");
   const mime = input.mimeType.split(";")[0];
   const ext = mime.split("/")[1].replace("mpeg", "mp3").replace("x-wav", "wav");
   const body = new FormData();
@@ -90,6 +114,8 @@ export async function transcribeAdministrativeAudio(input: {
 }
 
 export async function administrativeSpeech(text: string) {
+  if (process.env.AI_PROVIDER === "cloudflare")
+    throw new Error("Voz sintética no verificada en el perfil gratuito. Usa la interfaz manual.");
   const config = aiConfiguration();
   if (!text.trim() || text.length > 800) throw new Error("Texto de voz inválido");
   const response = await providerFetch(`${config.baseURL}/audio/speech`, {
@@ -117,14 +143,20 @@ export async function administrativeSpeech(text: string) {
 export function administrativeAiStatus() {
   let available = false;
   try {
-    aiConfiguration();
+    if (process.env.AI_PROVIDER === "cloudflare") {
+      authorizeWorkersAi();
+      workersAiBinding();
+    } else aiConfiguration();
     available = true;
   } catch {
     /* No credentials or details in public status. */
   }
   return {
     available,
-    documents: available && process.env.AI_DOCUMENT_PROCESSING_ENABLED === "true",
+    documents:
+      available &&
+      process.env.AI_PROVIDER !== "cloudflare" &&
+      process.env.AI_DOCUMENT_PROCESSING_ENABLED === "true",
     browserSpeech: available && process.env.AI_BROWSER_SPEECH_ENABLED === "true",
   };
 }

@@ -83,7 +83,7 @@ export const createClubAdmin = createServerFn({ method: "POST" })
     if (cErr) throw cErr;
 
     const { resolveInvitedAccount, addClubRole } = await import("./account-access.server");
-    const { userId, invited } = await resolveInvitedAccount(supabaseAdmin, data);
+    const { userId, invited, invitationUrl } = await resolveInvitedAccount(supabaseAdmin, data);
 
     await addClubRole(supabaseAdmin, {
       user_id: userId,
@@ -98,7 +98,7 @@ export const createClubAdmin = createServerFn({ method: "POST" })
       ],
     });
 
-    return { user_id: userId, email: data.email, invited };
+    return { user_id: userId, email: data.email, invited, invitation_url: invitationUrl };
   });
 
 // ─── Admin: collaborators ─────────────────────────────────────────
@@ -157,7 +157,7 @@ export const createCollaborator = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { resolveInvitedAccount, addClubRole } = await import("./account-access.server");
-    const { userId, invited } = await resolveInvitedAccount(supabaseAdmin, data);
+    const { userId, invited, invitationUrl } = await resolveInvitedAccount(supabaseAdmin, data);
 
     await addClubRole(supabaseAdmin, {
       user_id: userId,
@@ -166,7 +166,7 @@ export const createCollaborator = createServerFn({ method: "POST" })
       permissions: data.permissions,
     });
 
-    return { user_id: userId, email: data.email, invited };
+    return { user_id: userId, email: data.email, invited, invitation_url: invitationUrl };
   });
 
 export const updateCollaboratorPermissions = createServerFn({ method: "POST" })
@@ -194,8 +194,8 @@ export const requestCollaboratorPasswordReset = createServerFn({ method: "POST" 
     const { requireClubAdmin, requestClubPasswordReset } = await import("./account-access.server");
     const clubId = await requireClubAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await requestClubPasswordReset(supabaseAdmin, clubId, data.role_id);
-    return { ok: true };
+    const result = await requestClubPasswordReset(supabaseAdmin, clubId, data.role_id);
+    return { ok: true, recovery_url: result?.recoveryUrl };
   });
 
 export const deleteCollaborator = createServerFn({ method: "POST" })

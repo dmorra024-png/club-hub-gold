@@ -28,6 +28,7 @@ const client = (key) =>
 const admin = client(env.SUPABASE_SERVICE_ROLE_KEY);
 const run = Date.now().toString(36);
 const results = [];
+const manualInvites = process.env.SNOOP_TEST_MANUAL_INVITES === "true";
 let member;
 let quota;
 let clubId;
@@ -254,26 +255,57 @@ try {
       const response = await fetch(signed.signedUrl);
       assert.equal(response.status, 200);
       assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+      const scoped = `clubs/${clubId}/members/${member.id}/synthetic-private.png`;
+      check(
+        await api.storage.from("snoop-docs").upload(scoped, bytes, { contentType: "image/png" }),
+      );
+      check(await api.storage.from("snoop-docs").createSignedUrl(scoped, 60));
+      const foreignClub = check(
+        await admin
+          .from("clubs")
+          .insert({ name: "Documenti Demo " + run, slug: "docs-" + run })
+          .select("id")
+          .single(),
+      );
+      const foreign = await actor("docs-foreign", foreignClub.id, ["manage_members"]);
+      for (const target of [path, scoped]) {
+        assert.ok((await foreign.api.storage.from("snoop-docs").createSignedUrl(target, 60)).error);
+        assert.ok(
+          (
+            await foreign.api.storage
+              .from("snoop-docs")
+              .update(target, bytes, { contentType: "image/png" })
+          ).error,
+        );
+      }
     });
   }
-  await record("Invito dipendente dalla UI senza password temporanea", async () => {
-    await page.goto(new URL("/ajustes/colaboradores", origin).href, { waitUntil: "networkidle" });
-    await page.getByLabel("Nombre completo", { exact: true }).fill(`Dipendente ${run}`);
-    await page.getByLabel("Email", { exact: true }).fill(`invited.${run}@example.test`);
-    await page.getByRole("button", { name: "Crear acceso / invitar", exact: true }).click();
-    await page
-      .getByText("Colaborador creado. Invitación enviada por email.", { exact: true })
-      .waitFor({ timeout: 15000 });
-    const users = check(await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })).users;
-    const invited = users.find((u) => u.email === `invited.${run}@example.test`);
-    assert.ok(invited);
-    const row = check(
-      await admin.from("user_roles").select("role,club_id").eq("user_id", invited.id).single(),
-    );
-    assert.equal(row.club_id, clubId);
-    assert.equal(row.role, "collaborator");
-    invitedEmployee = invited;
-  });
+  await record(
+    "Invito dipendente dalla UI senza password temporanea (email o link monouso)",
+    async () => {
+      await page.goto(new URL("/ajustes/colaboradores", origin).href, { waitUntil: "networkidle" });
+      await page.getByLabel("Nombre completo", { exact: true }).fill(`Dipendente ${run}`);
+      await page.getByLabel("Email", { exact: true }).fill(`invited.${run}@example.test`);
+      await page.getByRole("button", { name: "Crear acceso / invitar", exact: true }).click();
+      await page
+        .getByText(
+          manualInvites
+            ? "Invitación preparada. Comparte el enlace de un solo uso únicamente con su titular."
+            : "Colaborador creado. Invitación enviada por email.",
+          { exact: true },
+        )
+        .waitFor({ timeout: 15000 });
+      const users = check(await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })).users;
+      const invited = users.find((u) => u.email === `invited.${run}@example.test`);
+      assert.ok(invited);
+      const row = check(
+        await admin.from("user_roles").select("role,club_id").eq("user_id", invited.id).single(),
+      );
+      assert.equal(row.club_id, clubId);
+      assert.equal(row.role, "collaborator");
+      invitedEmployee = invited;
+    },
+  );
   await record(
     "Dipendenti: modifica permessi, recupero e revoca preservano l'identità",
     async () => {
@@ -302,7 +334,9 @@ try {
         .click();
       await page
         .getByText(
-          "Email de recuperación enviado. Solo el titular puede elegir su nueva contraseña.",
+          manualInvites
+            ? "Enlace de recuperación preparado para su titular."
+            : "Email de recuperación enviado. Solo el titular puede elegir su nueva contraseña.",
           { exact: true },
         )
         .waitFor();
@@ -631,6 +665,181 @@ try {
       await sp.getByTestId("receipts-total").getByText(/0,00/).waitFor();
     },
   );
+  await record(
+    "Catalogo e genetica informativa: creazione manuale e inventario atomico",
+    async () => {
+      const category = check(
+        await admin
+          .from("product_categories")
+          .insert({
+            club_id: clubId,
+            name: `Forniture ${run}`,
+            unit_type: "unit",
+            is_smokeable: false,
+          })
+          .select("*")
+          .single(),
+      );
+      await page.goto(new URL("/productos", origin).href, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: "Crear producto", exact: true }).first().click();
+      await page.getByLabel("Categoría", { exact: true }).selectOption(category.id);
+      await page.getByPlaceholder("ej. Amnesia Haze").fill(`Materiale sintetico ${run}`);
+      await page.getByLabel("Stock (unit)", { exact: true }).fill("10");
+      await page.getByRole("button", { name: "Crear producto", exact: true }).last().click();
+      await page
+        .getByText("Producto creado. Puedes solicitar una propuesta de IA desde la ficha.", {
+          exact: true,
+        })
+        .waitFor();
+      const p = check(
+        await admin
+          .from("products")
+          .select("*")
+          .eq("club_id", clubId)
+          .eq("name", `Materiale sintetico ${run}`)
+          .single(),
+      );
+      const before = check(await admin.from("stock_movements").select("*").eq("product_id", p.id));
+      assert.equal(before.length, 1);
+      assert.equal(Number(before[0].delta), 10);
+      const editorCatalog = await actor("catalog", clubId, ["manage_products"]);
+      const [one, two] = await Promise.all([
+        editorCatalog.api.rpc("adjust_administrative_stock", {
+          p_id: p.id,
+          p_delta: 2,
+          p_expected: 10,
+          p_notes: "Synthetic administrative resources",
+        }),
+        editorCatalog.api.rpc("adjust_administrative_stock", {
+          p_id: p.id,
+          p_delta: 2,
+          p_expected: 10,
+          p_notes: "Synthetic stale adjustment",
+        }),
+      ]);
+      assert.equal([one, two].filter((r) => !r.error).length, 1);
+      assert.equal(
+        Number(check(await admin.from("products").select("stock").eq("id", p.id).single()).stock),
+        12,
+      );
+      assert.ok(
+        (
+          await denied.api.rpc("adjust_administrative_stock", {
+            p_id: p.id,
+            p_delta: 1,
+            p_expected: 12,
+            p_notes: "Forbidden",
+          })
+        ).error,
+      );
+      const forbidden = check(
+        await denied.api.from("products").update({ name: "Forbidden" }).eq("id", p.id).select("id"),
+      );
+      assert.equal(forbidden.length, 0);
+      const informational = check(
+        await admin
+          .from("product_categories")
+          .insert({
+            club_id: clubId,
+            name: `Genetiche informative ${run}`,
+            unit_type: "unit",
+            is_smokeable: true,
+          })
+          .select("id")
+          .single(),
+      );
+      const id = check(
+        await editorCatalog.api.rpc("save_administrative_product", {
+          p_id: null,
+          p_values: {
+            name: `Scheda informativa ${run}`,
+            category_id: informational.id,
+            stock: 0,
+            buy_price: 0,
+            sell_price: 0,
+            strain: "hibrida",
+            notes: "Solo dati sintetici e catalogo informativo",
+          },
+        }),
+      );
+      assert.equal(
+        check(await admin.from("products").select("strain").eq("id", id).single()).strain,
+        "hibrida",
+      );
+      assert.equal(
+        check(await admin.from("stock_movements").select("id").eq("product_id", p.id)).length,
+        2,
+      );
+    },
+  );
+  await record("Super Admin: creazione club e account amministratore dalla UI", async () => {
+    const supervisor = await actor("clubcreator", clubId, []);
+    check(
+      await admin
+        .from("user_roles")
+        .insert({ user_id: supervisor.id, role: "super_admin", club_id: null, permissions: [] }),
+    );
+    const sp = await login(supervisor);
+    await sp.goto(new URL("/snoop-admin", origin).href, { waitUntil: "networkidle" });
+    await sp.getByLabel("Nombre", { exact: true }).fill(`Pilota sintetico ${run}`);
+    await sp.getByLabel("Slug (a-z, 0-9, -)", { exact: true }).fill(`pilot-${run}`);
+    await sp.getByRole("button", { name: "Crear club", exact: true }).click();
+    await sp.getByText("Club creado", { exact: true }).waitFor();
+    const club = check(await admin.from("clubs").select("id").eq("slug", `pilot-${run}`).single());
+    await sp.getByLabel("Club", { exact: true }).selectOption(club.id);
+    await sp.getByLabel("Nombre completo", { exact: true }).fill("Amministratore sintetico");
+    await sp.getByLabel("Email", { exact: true }).fill(`clubadmin.${run}@example.test`);
+    await sp.getByRole("button", { name: "Crear acceso / invitar", exact: true }).click();
+    await sp
+      .getByText(
+        manualInvites
+          ? "Invitación preparada. Comparte el enlace de un solo uso únicamente con su titular."
+          : "Administrador creado. Invitación enviada por email.",
+        { exact: true },
+      )
+      .waitFor();
+    const role = check(
+      await admin
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", club.id)
+        .eq("role", "admin")
+        .single(),
+    );
+    assert.equal(
+      check(await admin.auth.admin.getUserById(role.user_id)).user.email,
+      `clubadmin.${run}@example.test`,
+    );
+    if (manualInvites) {
+      const link = await sp.getByLabel("Enlace de un solo uso", { exact: true }).inputValue();
+      assert.equal(new URL(link).origin, origin.origin);
+      const fragment = new URLSearchParams(new URL(link).hash.slice(1));
+      assert.equal(fragment.get("type"), "invite");
+      const context = await browser.newContext({ serviceWorkers: "block" });
+      contexts.push(context);
+      await context.route("**/*", (r) =>
+        new URL(r.request().url()).origin === origin.origin ? r.continue() : r.abort(),
+      );
+      const account = await context.newPage();
+      await account.goto(link, { waitUntil: "networkidle" });
+      const password = randomBytes(24).toString("base64url");
+      await account
+        .getByPlaceholder("Nueva contraseña (mínimo 8 caracteres)", { exact: true })
+        .fill(password);
+      await account.getByPlaceholder("Repite contraseña", { exact: true }).fill(password);
+      await account.getByRole("button", { name: "Actualizar", exact: true }).click();
+      await account
+        .getByRole("heading", { name: `Pilota sintetico ${run}`, exact: true })
+        .waitFor();
+      const fresh = await login({ email: `clubadmin.${run}@example.test`, password });
+      await fresh.getByRole("heading", { name: `Pilota sintetico ${run}`, exact: true }).waitFor();
+      const reused = await client(env.SUPABASE_PUBLISHABLE_KEY).auth.verifyOtp({
+        token_hash: fragment.get("token_hash"),
+        type: "invite",
+      });
+      assert.ok(reused.error);
+    }
+  });
   results.push(
     {
       name: "Dettatura vocale reale AI IT/ES",

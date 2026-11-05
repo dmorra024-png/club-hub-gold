@@ -1,3 +1,5 @@
+> Revisione successiva: [pilota gratuito Cloudflare/Supabase](FREE_PILOT.md). I risultati sotto descrivono la revisione precedente.
+
 # SNOOP / Club Hub Gold — candidata per collaudo, 5 novembre 2026
 
 Ramo `codex/stabilize-independent-club`, PR #1. Prosegue la base `1835c30` senza riscrivere il progetto. Grafica, cataloghi e funzioni manuali conservati. Nessuna modifica a Security PSG, nessuna cancellazione di account/dati, nessun merge o deployment.

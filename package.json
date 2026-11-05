@@ -23,7 +23,13 @@
     "test:sandbox:administration": "node scripts/test-native-administration.mjs",
     "test:sandbox:ai": "node scripts/test-administrative-ai.mjs",
     "test:sandbox:mobile": "node scripts/test-mobile-administration.mjs",
-    "test:security:bundle": "node scripts/verify-client-secrets.mjs"
+    "test:security:bundle": "node scripts/verify-client-secrets.mjs",
+    "build:worker": "SNOOP_RUNTIME=cloudflare vite build --mode pilot",
+    "build:worker:test": "SNOOP_RUNTIME=cloudflare vite build --mode sandbox",
+    "worker:dry-run": "WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --config .output/server/wrangler.json --outdir .sandbox/cloudflare-dry-run",
+    "test:worker": "node scripts/prepare-worker-test.mjs && node scripts/test-worker.mjs",
+    "pilot:database": "node scripts/prepare-pilot-database.mjs",
+    "pilot:secrets": "node scripts/prepare-pilot-secrets.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
@@ -110,7 +116,8 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "wrangler": "4.157.0"
   },
   "pnpm": {
     "overrides": {

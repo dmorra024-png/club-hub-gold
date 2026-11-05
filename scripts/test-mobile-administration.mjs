@@ -17,24 +17,36 @@ assert.equal(env.SUPABASE_URL, "http://127.0.0.1:54321");
 assert.equal(env.VITE_SUPABASE_URL, "/sandbox-api");
 const credentials = JSON.parse(await readFile(join(work, "test-credentials.json"), "utf8"));
 assert.equal(credentials.email, "admin.demo@example.test");
-const app = spawn(process.execPath, [".output/server/index.mjs"], {
-  cwd: root,
-  env: { ...process.env, ...env, PORT: "3011", HOST: "127.0.0.1" },
-  stdio: ["ignore", "ignore", "ignore"],
-});
-let version = "v2";
+const workerBase = process.env.SNOOP_WORKER_BASE_URL
+  ? new URL(process.env.SNOOP_WORKER_BASE_URL)
+  : null;
+if (workerBase)
+  assert.ok(
+    workerBase.protocol === "http:" && ["localhost", "127.0.0.1"].includes(workerBase.hostname),
+  );
+const app = workerBase
+  ? null
+  : spawn(process.execPath, [".output/server/index.mjs"], {
+      cwd: root,
+      env: { ...process.env, ...env, PORT: "3011", HOST: "127.0.0.1" },
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+const originalCacheVersion = /clubhub-public-(v[0-9]+)/.exec(
+  await readFile(join(root, "public/sw.js"), "utf8"),
+)[1];
+let version = originalCacheVersion;
 const sw = await readFile(join(root, "public/sw.js"), "utf8");
 const proxy = createServer((req, res) => {
   if (req.url.split("?")[0] === "/sw.js") {
     res.writeHead(200, { "content-type": "application/javascript", "cache-control": "no-store" });
-    res.end(sw.replace("clubhub-public-v2", `clubhub-public-${version}`));
+    res.end(sw.replace(/clubhub-public-v[0-9]+/, `clubhub-public-${version}`));
     return;
   }
   const backend = req.url.startsWith("/sandbox-api/");
   const upstream = httpRequest(
     {
       hostname: "127.0.0.1",
-      port: backend ? 54321 : 3011,
+      port: backend ? 54321 : Number(workerBase?.port || 3011),
       path: backend ? req.url.replace("/sandbox-api", "") : req.url,
       method: req.method,
       headers: { ...req.headers, host: backend ? "127.0.0.1:54321" : req.headers.host },
@@ -214,7 +226,7 @@ try {
         await page.getByRole("heading", { name: "Cuotas e ingresos", exact: true }).waitFor();
         const keys = await page.evaluate(() => caches.keys());
         assert.ok(keys.includes("clubhub-public-test-v3"));
-        assert.ok(!keys.includes("clubhub-public-v2"));
+        assert.ok(!keys.includes(`clubhub-public-${originalCacheVersion}`));
       });
     await context.close();
   }
@@ -226,7 +238,7 @@ try {
   });
 } finally {
   if (browser) await browser.close();
-  app.kill("SIGTERM");
+  app?.kill("SIGTERM");
   proxy.closeAllConnections();
   await new Promise((r) => proxy.close(r));
   await mkdir(join(work, "acceptance"), { recursive: true });

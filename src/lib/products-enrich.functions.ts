@@ -20,19 +20,19 @@ export const enrichProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<EnrichResult> => {
-    const config = aiConfiguration();
+    const config = process.env.AI_PROVIDER === "cloudflare" ? null : aiConfiguration("catalog");
 
     // --- 1) Descripción (texto) ---
     let description = "";
     try {
       const ctx = data.is_smokeable
-        ? `Es una variedad cannábica${data.strain ? ` (${data.strain})` : ""}. Busca en bancos de semillas y registros de genéticas conocidos (Royal Queen, Dinafem, Barney's Farm, Sensi Seeds, Humboldt, Leafly, SeedFinder, etc.).`
+        ? `Es una variedad cannábica${data.strain ? ` (${data.strain})` : ""}. No afirmes haber consultado fuentes externas; describe solo información general y señala lo no verificado.`
         : data.category_name
           ? `Categoría: ${data.category_name}.`
           : "";
       const { text } = await generateText({
-        model: administrativeModel(),
-        system: `Eres un experto en productos de club cannábico. Devuelve SOLO una descripción breve (máx 2 frases, ~220 caracteres) en español, útil para un colaborador de barra: genética/linaje, efectos típicos, perfil de sabor o uso. Nada de markdown, emojis ni titulares.`,
+        model: administrativeModel("catalog"),
+        system: `Eres un experto en productos de club cannábico. Devuelve SOLO una descripción breve (máx 2 frases, ~220 caracteres) en español, útil para un colaborador de barra: datos informativos generales de catálogo, sin recomendaciones de consumo ni efectos médicos. Nada de markdown, emojis ni titulares.`,
         prompt: `Producto: "${data.name}". ${ctx}\nDescripción breve:`,
       });
       description = (text || "")
@@ -50,7 +50,7 @@ export const enrichProduct = createServerFn({ method: "POST" })
         ? `un cogollo (flor) de cannabis variedad "${data.name}"${data.strain ? `, tipo ${data.strain}` : ""}, fotografía macro profesional sobre fondo oscuro, tricomas visibles, estilo catálogo de seedbank`
         : `producto "${data.name}"${data.category_name ? ` (${data.category_name})` : ""}, fotografía de producto sobre fondo neutro`;
 
-      if (!process.env.AI_IMAGE_MODEL) return { description, image_url };
+      if (!config || !process.env.AI_IMAGE_MODEL) return { description, image_url };
       const res = await providerFetch(`${config.baseURL}/chat/completions`, {
         method: "POST",
         headers: {

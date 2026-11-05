@@ -429,8 +429,8 @@ function NewSocio() {
       const clubId = await getCurrentClubId();
       if (!clubId) throw new Error("No tienes un club asignado");
       const memberId = crypto.randomUUID();
-      const dniPath = `members/${memberId}/dni.jpg`;
-      const sigPath = `members/${memberId}/signature.png`;
+      const dniPath = `clubs/${clubId}/members/${memberId}/dni.jpg`;
+      const sigPath = `clubs/${clubId}/members/${memberId}/signature.png`;
 
       if (form.dni_file) await uploadToSnoopDocs(form.dni_file, dniPath);
       let sigUploaded = false;

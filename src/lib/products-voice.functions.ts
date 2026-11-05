@@ -65,7 +65,7 @@ export const parseProductCommand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<ParsedCommand> => {
-    const model = administrativeModel();
+    const model = administrativeModel("catalog");
 
     const catsList = data.categories
       .map((c) => `${c.id} = ${c.name} (${c.unit_type}${c.is_smokeable ? ", fumable" : ""})`)
