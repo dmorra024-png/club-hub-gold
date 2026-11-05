@@ -1,4 +1,4 @@
-import { madridToday, addCalendarDays } from "@/lib/member-administration";
+import { madridToday, addCalendarDays, isAdult } from "@/lib/member-administration";
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useState } from "react";
@@ -94,9 +94,16 @@ function SocioDetail() {
   }
 
   async function saveEdit() {
-    if (!member) return;
+    if (!member || savingEdit || !navigator.onLine) return;
+    if (!form.first_name?.trim() || !form.last_name?.trim())
+      return toast.error("Nombre y apellidos obligatorios");
+    if (!form.dni_number?.trim()) return toast.error("Documento obligatorio");
+    if (!form.birth_date || !isAdult(form.birth_date))
+      return toast.error("Fecha de nacimiento no válida: el socio debe ser mayor de edad");
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      return toast.error("Email no válido");
     setSavingEdit(true);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("members")
       .update({
         first_name: form.first_name?.trim(),
@@ -107,9 +114,12 @@ function SocioDetail() {
         phone: form.phone?.trim() || null,
         email: form.email?.trim() || null,
       })
-      .eq("id", member.id);
+      .eq("id", member.id)
+      .select("id")
+      .maybeSingle();
     setSavingEdit(false);
-    if (error) return toast.error(error.message);
+    if (error || !data)
+      return toast.error(error?.message ?? "No tienes permiso para modificar este socio");
     toast.success("Datos actualizados");
     setEditing(false);
     load();

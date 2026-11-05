@@ -18,7 +18,15 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, Euro, Package, ArrowRight, ArrowLeft as ArrowLeftIcon, Users } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Euro,
+  Package,
+  ArrowRight,
+  ArrowLeft as ArrowLeftIcon,
+  Users,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ajustes/informes")({
   component: InformesPage,
@@ -50,6 +58,7 @@ function InformesPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [cats, setCats] = useState<any[]>([]);
   const [checkIns, setCheckIns] = useState<any[]>([]);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -57,14 +66,27 @@ function InformesPage() {
     const days = RANGES.find((r) => r.id === range)!.days;
     const since = new Date(Date.now() - days * 86400000).toISOString();
     setDataLoading(true);
+    setDataError(null);
+    let cancelled = false;
     (async () => {
       const [oi, sm, pr, ct, ci] = await Promise.all([
         supabase.from("order_items").select("*").gte("created_at", since),
         supabase.from("stock_movements").select("*").gte("created_at", since),
         supabase.from("products").select("id,name,stock,buy_price,sell_price,category_id"),
         supabase.from("product_categories").select("id,name,unit_type"),
-        supabase.from("check_ins").select("id,direction,created_at,member_id").gte("created_at", since),
+        supabase
+          .from("check_ins")
+          .select("id,direction,created_at,member_id")
+          .gte("created_at", since),
       ]);
+      if (cancelled) return;
+      if ([oi, sm, pr, ct, ci].some((result) => result.error)) {
+        setDataError(
+          "No se pudieron cargar los informes. Comprueba la conexión y vuelve a intentarlo.",
+        );
+        setDataLoading(false);
+        return;
+      }
       setItems(oi.data ?? []);
       setMovs(sm.data ?? []);
       setProducts(pr.data ?? []);
@@ -72,20 +94,29 @@ function InformesPage() {
       setCheckIns(ci.data ?? []);
       setDataLoading(false);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [range, isAdmin]);
 
   const accessStats = useMemo(() => {
     const days = RANGES.find((r) => r.id === range)!.days;
-    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const startToday = new Date();
+    startToday.setHours(0, 0, 0, 0);
     const today = checkIns.filter((c) => new Date(c.created_at) >= startToday);
     const inToday = today.filter((c) => c.direction === "in").length;
     const outToday = today.filter((c) => c.direction === "out").length;
     // Currently inside: last direction per member today
     const lastPerMember = new Map<string, string>();
-    for (const c of [...today].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))) {
+    for (const c of [...today].sort((a, b) =>
+      String(b.created_at).localeCompare(String(a.created_at)),
+    )) {
       if (!lastPerMember.has(c.member_id)) lastPerMember.set(c.member_id, c.direction);
     }
-    let insideNow = 0; lastPerMember.forEach((d) => { if (d === "in") insideNow++; });
+    let insideNow = 0;
+    lastPerMember.forEach((d) => {
+      if (d === "in") insideNow++;
+    });
 
     // Daily series
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
@@ -98,7 +129,8 @@ function InformesPage() {
       const key = String(c.created_at).slice(0, 10);
       const b = buckets.get(key);
       if (!b) continue;
-      if (c.direction === "in") b.entradas++; else b.salidas++;
+      if (c.direction === "in") b.entradas++;
+      else b.salidas++;
     }
     return { inToday, outToday, insideNow, total: checkIns.length, daily: [...buckets.values()] };
   }, [checkIns, range]);
@@ -106,9 +138,7 @@ function InformesPage() {
   const stats = useMemo(() => {
     const revenue = items.reduce((s, i) => s + Number(i.line_total_cents || 0), 0) / 100;
     const soldQty = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
-    const added = movs
-      .filter((m) => Number(m.delta) > 0)
-      .reduce((s, m) => s + Number(m.delta), 0);
+    const added = movs.filter((m) => Number(m.delta) > 0).reduce((s, m) => s + Number(m.delta), 0);
     const removed = movs
       .filter((m) => Number(m.delta) < 0)
       .reduce((s, m) => s + Math.abs(Number(m.delta)), 0);
@@ -221,7 +251,10 @@ function InformesPage() {
           productId: m.product_id,
           productName: p?.name ?? "Producto eliminado",
           day: String(m.created_at).slice(0, 10),
-          time: new Date(m.created_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+          time: new Date(m.created_at).toLocaleTimeString("es-ES", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
           delta,
           reason: String(m.reason || "manual"),
           notes: m.notes || "",
@@ -233,7 +266,15 @@ function InformesPage() {
   const dailyProductHistory = useMemo(() => {
     const map = new Map<
       string,
-      { key: string; day: string; productName: string; added: number; removed: number; sold: number; totalAfter: number }
+      {
+        key: string;
+        day: string;
+        productName: string;
+        added: number;
+        removed: number;
+        sold: number;
+        totalAfter: number;
+      }
     >();
     for (const row of [...movementRows].reverse()) {
       const key = `${row.day}|${row.productId}`;
@@ -252,13 +293,24 @@ function InformesPage() {
       prev.totalAfter = row.totalAfter;
       map.set(key, prev);
     }
-    return [...map.values()].sort((a, b) => b.day.localeCompare(a.day) || a.productName.localeCompare(b.productName));
+    return [...map.values()].sort(
+      (a, b) => b.day.localeCompare(a.day) || a.productName.localeCompare(b.productName),
+    );
   }, [movementRows]);
 
   if (loading || !isAdmin)
     return (
       <SnoopLayout>
         <div className="p-8 text-muted-foreground">Cargando…</div>
+      </SnoopLayout>
+    );
+
+  if (dataError)
+    return (
+      <SnoopLayout title="Informes">
+        <div role="alert" className="p-6 text-destructive">
+          {dataError}
+        </div>
       </SnoopLayout>
     );
 
@@ -288,12 +340,7 @@ function InformesPage() {
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi icon={Euro} label="Ingresos" value={`€${stats.revenue.toFixed(2)}`} tint="neon" />
-            <Kpi
-              icon={Package}
-              label="Vendido"
-              value={`${stats.soldQty.toFixed(2)}`}
-              tint="neon"
-            />
+            <Kpi icon={Package} label="Vendido" value={`${stats.soldQty.toFixed(2)}`} tint="neon" />
             <Kpi
               icon={TrendingUp}
               label="Añadido a stock"
@@ -310,12 +357,34 @@ function InformesPage() {
 
           {/* Control de acceso */}
           <div>
-            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon-dim mb-3">Control de acceso</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon-dim mb-3">
+              Control de acceso
+            </h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-              <Kpi icon={Users} label="Dentro ahora" value={String(accessStats.insideNow)} tint="neon" />
-              <Kpi icon={ArrowRight} label="Entradas hoy" value={String(accessStats.inToday)} tint="neon" />
-              <Kpi icon={ArrowLeftIcon} label="Salidas hoy" value={String(accessStats.outToday)} tint="red" />
-              <Kpi icon={Users} label={`Total accesos (${range})`} value={String(accessStats.total)} tint="neon" />
+              <Kpi
+                icon={Users}
+                label="Dentro ahora"
+                value={String(accessStats.insideNow)}
+                tint="neon"
+              />
+              <Kpi
+                icon={ArrowRight}
+                label="Entradas hoy"
+                value={String(accessStats.inToday)}
+                tint="neon"
+              />
+              <Kpi
+                icon={ArrowLeftIcon}
+                label="Salidas hoy"
+                value={String(accessStats.outToday)}
+                tint="red"
+              />
+              <Kpi
+                icon={Users}
+                label={`Total accesos (${range})`}
+                value={String(accessStats.total)}
+                tint="neon"
+              />
             </div>
             <ChartCard title="Entradas y salidas por día">
               <ResponsiveContainer width="100%" height={220}>
@@ -344,13 +413,7 @@ function InformesPage() {
                   labelStyle={{ color: NEON }}
                   formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke={NEON}
-                  strokeWidth={2}
-                  dot={false}
-                />
+                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -364,13 +427,7 @@ function InformesPage() {
                 <BarChart data={topSold} layout="vertical" margin={{ left: 16 }}>
                   <CartesianGrid stroke="#333" strokeDasharray="3 3" />
                   <XAxis type="number" stroke="#888" fontSize={11} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    stroke="#888"
-                    fontSize={11}
-                    width={110}
-                  />
+                  <YAxis type="category" dataKey="name" stroke="#888" fontSize={11} width={110} />
                   <Tooltip
                     contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
                     formatter={(v: any, n: string) =>
@@ -392,9 +449,7 @@ function InformesPage() {
                 <CartesianGrid stroke="#333" strokeDasharray="3 3" />
                 <XAxis dataKey="day" stroke="#888" fontSize={11} />
                 <YAxis stroke="#888" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
-                />
+                <Tooltip contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="entradas" fill={NEON} name="Entradas" />
                 <Bar dataKey="salidas" fill={RED} name="Salidas" />
@@ -404,7 +459,9 @@ function InformesPage() {
 
           <ChartCard title="Histórico diario por producto">
             {dailyProductHistory.length === 0 ? (
-              <div className="text-xs text-muted-foreground">Sin movimientos de stock en este periodo.</div>
+              <div className="text-xs text-muted-foreground">
+                Sin movimientos de stock en este periodo.
+              </div>
             ) : (
               <div className="overflow-x-auto -mx-2 px-2">
                 <table className="w-full min-w-[620px] text-sm">
@@ -423,10 +480,18 @@ function InformesPage() {
                       <tr key={row.key}>
                         <td className="py-2 text-muted-foreground whitespace-nowrap">{row.day}</td>
                         <td className="py-2 text-foreground">{row.productName}</td>
-                        <td className="py-2 text-right text-neon font-mono">+{row.added.toFixed(2)}</td>
-                        <td className="py-2 text-right text-destructive font-mono">-{row.sold.toFixed(2)}</td>
-                        <td className="py-2 text-right text-destructive/80 font-mono">-{row.removed.toFixed(2)}</td>
-                        <td className="py-2 text-right text-foreground font-mono">{row.totalAfter.toFixed(2)}</td>
+                        <td className="py-2 text-right text-neon font-mono">
+                          +{row.added.toFixed(2)}
+                        </td>
+                        <td className="py-2 text-right text-destructive font-mono">
+                          -{row.sold.toFixed(2)}
+                        </td>
+                        <td className="py-2 text-right text-destructive/80 font-mono">
+                          -{row.removed.toFixed(2)}
+                        </td>
+                        <td className="py-2 text-right text-foreground font-mono">
+                          {row.totalAfter.toFixed(2)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -441,19 +506,31 @@ function InformesPage() {
             ) : (
               <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
                 {movementRows.map((row) => (
-                  <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg bg-input/35 border border-border/60 px-3 py-2">
+                  <div
+                    key={row.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-input/35 border border-border/60 px-3 py-2"
+                  >
                     <div className="min-w-0">
                       <div className="text-sm text-foreground truncate">{row.productName}</div>
                       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                         {row.day} · {row.time} · {movementLabel(row.reason)}
                       </div>
-                      {row.notes && <div className="text-[10px] text-muted-foreground truncate">{row.notes}</div>}
+                      {row.notes && (
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {row.notes}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className={`font-display text-sm ${row.delta >= 0 ? "text-neon" : "text-destructive"}`}>
-                        {row.delta >= 0 ? "+" : ""}{row.delta.toFixed(2)}
+                      <div
+                        className={`font-display text-sm ${row.delta >= 0 ? "text-neon" : "text-destructive"}`}
+                      >
+                        {row.delta >= 0 ? "+" : ""}
+                        {row.delta.toFixed(2)}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">total {row.totalAfter.toFixed(2)}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        total {row.totalAfter.toFixed(2)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -497,9 +574,7 @@ function InformesPage() {
                 {lowStock.map((p) => (
                   <li key={p.id} className="flex justify-between py-2 text-sm">
                     <span className="text-foreground">{p.name}</span>
-                    <span className="text-destructive font-mono">
-                      {Number(p.stock).toFixed(2)}
-                    </span>
+                    <span className="text-destructive font-mono">{Number(p.stock).toFixed(2)}</span>
                   </li>
                 ))}
               </ul>

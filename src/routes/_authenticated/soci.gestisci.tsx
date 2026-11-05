@@ -1,3 +1,4 @@
+import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useRef, useState } from "react";
@@ -22,16 +23,6 @@ type Row = {
   plan?: { name: string } | null;
 };
 
-function extractMemberNumber(text: string): string | null {
-  // Accept "SNOOP:0000123", a bare 7-digit code, or 7+ digits spoken with spaces
-  const upper = text.toUpperCase();
-  const tagged = upper.match(/SNOOP[:\s-]*([0-9]{4,9})/);
-  if (tagged) return tagged[1].padStart(7, "0").slice(-7);
-  const digits = text.replace(/\D+/g, "");
-  if (digits.length >= 6 && digits.length <= 9) return digits.padStart(7, "0").slice(-7);
-  return null;
-}
-
 function GestisciSoci() {
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
@@ -46,7 +37,7 @@ function GestisciSoci() {
     const { data } = await supabase
       .from("members")
       .select(
-        "id, member_number, first_name, last_name, dni_number, city, expires_at, plan:membership_plans(name)",
+        "id, member_number, first_name, last_name, dni_number, city, expires_at, plan:membership_plans!members_plan_id_fkey(name)",
       )
       .order("member_number");
     setRows((data as any) ?? []);
@@ -75,11 +66,7 @@ function GestisciSoci() {
     }
 
     setQ(query);
-    const norm = (s: string) =>
-      s
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+    const norm = normalizeAdministrativeSearch;
     const tokens = norm(query).split(/\s+/).filter(Boolean);
     const scored = rowsRef.current
       .map((r) => {
@@ -139,10 +126,11 @@ function GestisciSoci() {
   }, [loading, rows]);
 
   const filtered = rows.filter((r) => {
-    const query = q.trim().toLowerCase();
+    const query = normalizeAdministrativeSearch(q);
     if (!query) return true;
-    const haystack =
-      `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`.toLowerCase();
+    const haystack = normalizeAdministrativeSearch(
+      `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`,
+    );
     const tokens = query.split(/\s+/).filter(Boolean);
     return tokens.every((t) => haystack.includes(t));
   });

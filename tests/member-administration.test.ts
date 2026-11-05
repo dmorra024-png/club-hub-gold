@@ -102,3 +102,12 @@ test("late AI suggestions preserve manual edits and ignore blank or unrelated fi
     city: "Original",
   });
 });
+
+test("search preserves identifiers and money parsing rejects silent coercions", async () => {
+  const { normalizeAdministrativeSearch, extractMemberNumber, parseCashCents } = await import("../src/lib/member-administration.ts");
+  assert.equal(normalizeAdministrativeSearch(" García Città "), "garcia citta");
+  assert.equal(extractMemberNumber("SNOOP:12345678"), "12345678");
+  assert.equal(extractMemberNumber("DNI 12345678"), null);
+  assert.equal(parseCashCents("12,50"), 1250);
+  for (const value of ["-1", "", "1e3", "NaN", "1.234", "21474836.48"]) assert.equal(parseCashCents(value), null);
+});

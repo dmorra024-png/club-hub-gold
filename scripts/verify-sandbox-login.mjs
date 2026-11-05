@@ -38,7 +38,7 @@ try {
   await page.screenshot({ path: join(screenshots, "login.png"), fullPage: true });
   await page.locator('input[type="email"]').fill(credentials.email);
   await page.locator('input[type="password"]').fill(credentials.password);
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await page.locator("form").getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(origin.href);
   await page.getByRole("heading", { name: "Associazione Demo", exact: true }).waitFor();
   assert.ok(!(await page.textContent("body")).includes("Nessuna connessione"));

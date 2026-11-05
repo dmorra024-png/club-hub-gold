@@ -19,7 +19,8 @@
     "sandbox:prepare": "node scripts/prepare-sandbox.mjs",
     "dev:sandbox": "vite dev --mode sandbox --host 0.0.0.0 --port 3000",
     "test:sandbox:login": "node scripts/verify-sandbox-login.mjs",
-    "test:dev:preview": "node scripts/verify-development-preview.mjs"
+    "test:dev:preview": "node scripts/verify-development-preview.mjs",
+    "test:sandbox:administration": "node scripts/test-native-administration.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

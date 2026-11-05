@@ -160,3 +160,28 @@ export function parseAdministrativeDictation(
   }
   return result;
 }
+
+export function normalizeAdministrativeSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Accept an explicit QR code or dictated digits without truncating identifiers. */
+export function extractMemberNumber(value: string): string | null {
+  const tagged = value.trim().match(/^SNOOP[:\s-]*([0-9]{4,12})$/i);
+  if (tagged) return tagged[1].padStart(7, "0");
+  if (!/^[\d\s]+$/.test(value)) return null;
+  const digits = value.replace(/\s/g, "");
+  return digits.length >= 6 && digits.length <= 12 ? digits.padStart(7, "0") : null;
+}
+
+/** Parse decimal euros exactly; no negative values, exponents or silent zero fallback. */
+export function parseCashCents(value: string): number | null {
+  const match = value.trim().match(/^(\d+)(?:[.,](\d{1,2}))?$/);
+  if (!match) return null;
+  const cents = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+  return Number.isSafeInteger(cents) && cents <= 2147483647 ? cents : null;
+}
