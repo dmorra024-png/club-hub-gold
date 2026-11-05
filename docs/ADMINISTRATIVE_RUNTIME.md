@@ -1,3 +1,5 @@
+> Aggiornamento successivo: vedere [candidata per collaudo e nuova matrice](RELEASE_CANDIDATE_REVIEW.md). I risultati sotto descrivono la revisione precedente.
+
 # Runtime amministrativo indipendente e PWA
 
 Questa revisione riguarda soci, quote associative, account, documenti e strumenti

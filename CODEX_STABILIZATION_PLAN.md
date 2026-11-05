@@ -40,3 +40,7 @@ conferma dei dati prima del salvataggio, PWA e test browser/SQL con dati sinteti
 Stato, credenziali mancanti, loghi da esportare e percorsi legacy esclusi sono in
 [`docs/ADMINISTRATIVE_RUNTIME.md`](docs/ADMINISTRATIVE_RUNTIME.md).
 Il piano complessivo non è dichiarato completato né pronto al deployment.
+
+## Avanzamento: incassi associativi, AI e PWA mobile
+
+Registro incassi autonomo implementato, AI collegata alle schermate e autorizzazioni provider/documenti separate, aggiornamenti PWA su conferma e correzioni del QR mobile. Risultati nativi, istruzioni e blocchi esterni nella [revisione della candidata](docs/RELEASE_CANDIDATE_REVIEW.md). Nessun merge o deployment eseguito.

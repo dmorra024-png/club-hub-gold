@@ -8,6 +8,7 @@ import {
   administrativeModel,
   administrativeSpeech,
   aiConfiguration,
+  administrativeAiStatus,
   transcribeAdministrativeAudio,
 } from "../src/lib/administrative-ai.server.ts";
 import {
@@ -22,6 +23,9 @@ const names = [
   "AI_API_KEY",
   "AI_BASE_URL",
   "AI_MODEL",
+  "AI_AUTHORIZED_ORIGIN",
+  "AI_DOCUMENT_PROCESSING_ENABLED",
+  "AI_BROWSER_SPEECH_ENABLED",
   "EMAIL_API_URL",
   "EMAIL_FROM",
 ];
@@ -251,4 +255,35 @@ test("webhooks reject tampering, expired signatures, malformed JSON and oversize
     verifyWebhookRequest({ req: webhook("x".repeat(1_048_577), secret), secret }),
     /limit/,
   );
+});
+
+test("external provider origin and document processing require separate explicit authorization", () => {
+  configure();
+  process.env.AI_BASE_URL = "https://provider.example.test/v1";
+  delete process.env.AI_AUTHORIZED_ORIGIN;
+  assert.throws(aiConfiguration, /AI_AUTHORIZED_ORIGIN/);
+  process.env.AI_AUTHORIZED_ORIGIN = "https://other.example.test";
+  assert.throws(aiConfiguration, /AI_AUTHORIZED_ORIGIN/);
+  process.env.AI_AUTHORIZED_ORIGIN = "https://provider.example.test";
+  assert.equal(aiConfiguration().baseURL, "https://provider.example.test/v1");
+  delete process.env.AI_DOCUMENT_PROCESSING_ENABLED;
+  assert.throws(() => aiConfiguration("documents"), /documentos/);
+  assert.deepEqual(administrativeAiStatus(), {
+    available: true,
+    documents: false,
+    browserSpeech: false,
+  });
+  process.env.AI_DOCUMENT_PROCESSING_ENABLED = "true";
+  assert.equal(aiConfiguration("documents").baseURL, "https://provider.example.test/v1");
+  assert.equal(requests.length, 0);
+});
+test("Spanish audio transport sends explicit language and does not rely on browser speech service", async () => {
+  configure();
+  await transcribeAdministrativeAudio({
+    audioBase64: Buffer.from("synthetic Spanish fixture").toString("base64"),
+    mimeType: "audio/mp4",
+    language: "es",
+  });
+  assert.ok(requests[0].body.includes('name="language"\r\n\r\nes'));
+  assert.ok(requests[0].body.includes('filename="recording.mp4"'));
 });

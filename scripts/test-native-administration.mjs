@@ -1,3 +1,5 @@
+import { PNG } from "pngjs";
+import jsQR from "jsqr";
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -29,6 +31,7 @@ const results = [];
 let member;
 let quota;
 let clubId;
+let invitedEmployee;
 const artifacts = join(work, "acceptance");
 await mkdir(artifacts, { recursive: true });
 const check = (result) => {
@@ -223,6 +226,23 @@ try {
       ).expires_at;
       assert.equal((Date.parse(after) - Date.parse(before)) / 86400000, 30);
     });
+    await record("Carnet QR del socio: immagine UI decodificata localmente", async () => {
+      await page.goto(new URL(`/soci/${member.id}`, origin).href, { waitUntil: "networkidle" });
+      const image = page.getByAltText(`QR socio ${member.member_number}`, { exact: true });
+      await image.waitFor();
+      const src = await image.getAttribute("src");
+      assert.ok(src.startsWith("data:image/png;base64,"));
+      const png = PNG.sync.read(Buffer.from(src.split(",")[1], "base64"));
+      const pixels = new Uint8ClampedArray(png.data);
+      for (let i = 0; i < pixels.length; i += 4) {
+        const value = pixels[i + 3] === 0 ? 255 : 0;
+        pixels[i] = value;
+        pixels[i + 1] = value;
+        pixels[i + 2] = value;
+        pixels[i + 3] = 255;
+      }
+      assert.equal(jsQR(pixels, png.width, png.height)?.data, `SNOOP:${member.member_number}`);
+    });
     await record("Storage documenti sintetici: upload e URL firmato", async () => {
       const api = client(env.SUPABASE_PUBLISHABLE_KEY);
       check(await api.auth.signInWithPassword(credentials));
@@ -252,7 +272,56 @@ try {
     );
     assert.equal(row.club_id, clubId);
     assert.equal(row.role, "collaborator");
+    invitedEmployee = invited;
   });
+  await record(
+    "Dipendenti: modifica permessi, recupero e revoca preservano l'identità",
+    async () => {
+      assert.ok(invitedEmployee);
+      const row = page
+        .getByText(`Dipendente ${run}`, { exact: true })
+        .locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]');
+      await row.getByLabel("Hacer pedidos / caja", { exact: true }).uncheck();
+      await row.getByRole("button", { name: "Guardar permisos", exact: true }).click();
+      await page.getByText("Permisos actualizados", { exact: true }).waitFor();
+      assert.ok(
+        !check(
+          await admin
+            .from("user_roles")
+            .select("permissions")
+            .eq("user_id", invitedEmployee.id)
+            .single(),
+        ).permissions.includes("use_cash"),
+      );
+      await row
+        .getByRole("button", { name: "Guardar permisos", exact: true })
+        .waitFor({ state: "hidden" });
+      page.once("dialog", (d) => d.accept());
+      await row
+        .getByRole("button", { name: `Enviar recuperación a Dipendente ${run}`, exact: true })
+        .click();
+      await page
+        .getByText(
+          "Email de recuperación enviado. Solo el titular puede elegir su nueva contraseña.",
+          { exact: true },
+        )
+        .waitFor();
+      page.once("dialog", (d) => d.accept());
+      await row.getByTitle("Eliminar", { exact: true }).click();
+      await page.getByText("Acceso al club revocado", { exact: true }).waitFor();
+      assert.equal(
+        check(await admin.from("user_roles").select("id").eq("user_id", invitedEmployee.id)).length,
+        0,
+      );
+      assert.equal(
+        check(await admin.auth.admin.getUserById(invitedEmployee.id)).user.id,
+        invitedEmployee.id,
+      );
+      assert.ok(
+        check(await admin.from("profiles").select("id").eq("id", invitedEmployee.id).single()),
+      );
+    },
+  );
   const denied = await actor("readonly", clubId, []);
   const editor = await actor("editor", clubId, ["manage_members"]);
   const cashier = await actor("cashier", clubId, ["use_cash"]);
@@ -266,20 +335,18 @@ try {
         .select("id"),
     );
     assert.equal(out.length, 0);
-    const out2 = await denied.api
-      .from("members")
-      .insert({
-        club_id: clubId,
-        first_name: "Forbidden",
-        last_name: "Demo",
-        birth_date: "2000-01-01",
-        city: "Demo",
-        phone: "000",
-        dni_number: `DENIED${run}`,
-        plan_id: quota.id,
-        joined_at: "2026-11-05",
-        expires_at: "2026-12-05",
-      });
+    const out2 = await denied.api.from("members").insert({
+      club_id: clubId,
+      first_name: "Forbidden",
+      last_name: "Demo",
+      birth_date: "2000-01-01",
+      city: "Demo",
+      phone: "000",
+      dni_number: `DENIED${run}`,
+      plan_id: quota.id,
+      joined_at: "2026-11-05",
+      expires_at: "2026-12-05",
+    });
     assert.ok(out2.error);
   });
   await record("Permessi nativi: editor autorizzato e isolamento altro club", async () => {
@@ -385,13 +452,186 @@ try {
       await page.unroute("**/sandbox-api/rest/v1/check_ins?**");
     }
   });
-  results.push(
-    {
-      name: "Cassa amministrativa: contabilizzazione incassi quote",
-      status: "BLOCKED",
-      detail:
-        "Il modulo esistente aggrega ordini; non esiste un registro indipendente degli incassi quote. Non sono stati creati ordini o vendite.",
+  const receiptClub = check(
+    await admin
+      .from("clubs")
+      .insert({ name: `Ledger Demo ${run}`, slug: `ledger-${run}` })
+      .select("id")
+      .single(),
+  );
+  const receiptMember = check(
+    await admin
+      .from("members")
+      .insert({
+        club_id: receiptClub.id,
+        first_name: "Persona Ledger",
+        last_name: `Demo ${run}`,
+        birth_date: "2000-01-01",
+        dni_number: `LEDGER${run}`,
+        joined_at: "2026-11-05",
+        expires_at: "2026-12-05",
+      })
+      .select("*")
+      .single(),
+  );
+  const recorder = await actor("ledger", receiptClub.id, ["use_cash"]);
+  const reader = await actor("report", receiptClub.id, ["view_reports"]);
+  await record("Quote incassate: UI conferma, annullamento, storico e operatore", async () => {
+    const lp = await login(recorder);
+    await lp.goto(new URL("/cuotas", origin).href, { waitUntil: "networkidle" });
+    await lp.getByLabel("Buscar socio", { exact: true }).fill("Persona Ledger");
+    await lp.getByLabel("Socio", { exact: true }).selectOption(receiptMember.id);
+    await lp.getByLabel("Importe (€)", { exact: true }).fill("12,50");
+    await lp.getByLabel("Método de pago", { exact: true }).selectOption("card");
+    lp.once("dialog", (d) => d.dismiss());
+    await lp.getByRole("button", { name: "Confirmar ingreso", exact: true }).click();
+    assert.equal(
+      check(await admin.from("membership_receipts").select("id").eq("club_id", receiptClub.id))
+        .length,
+      0,
+    );
+    lp.once("dialog", (d) => d.accept());
+    await lp.getByRole("button", { name: "Confirmar ingreso", exact: true }).click();
+    await lp.getByText("Ingreso registrado", { exact: true }).waitFor();
+    const r = check(
+      await admin.from("membership_receipts").select("*").eq("club_id", receiptClub.id).single(),
+    );
+    assert.equal(r.amount_cents, 1250);
+    assert.equal(r.recorded_by, recorder.id);
+    assert.equal(r.member_id, receiptMember.id);
+    assert.equal(r.payment_method, "card");
+    assert.ok(r.recorded_at);
+    await lp.getByTestId("receipts-history").getByText(r.id, { exact: true }).waitFor();
+    await lp.getByLabel("Agrupar", { exact: true }).selectOption("month");
+    await lp
+      .getByTestId("receipts-summary")
+      .getByText(/2026-11/)
+      .waitFor();
+  });
+  await record(
+    "Incassi: idempotenza concorrente, storico immutabile e isolamento club",
+    async () => {
+      const payload = {
+        p_club_id: receiptClub.id,
+        p_member_id: receiptMember.id,
+        p_amount_cents: 300,
+        p_payment_method: "transfer",
+        p_description: "Synthetic receipt",
+        p_request_id: randomBytes(16)
+          .toString("hex")
+          .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, "$1-$2-$3-$4-$5"),
+      };
+      const [a, b] = await Promise.all([
+        recorder.api.rpc("record_membership_receipt", payload),
+        recorder.api.rpc("record_membership_receipt", payload),
+      ]);
+      assert.equal(check(a).id, check(b).id);
+      assert.ok(
+        (await recorder.api.rpc("record_membership_receipt", { ...payload, p_amount_cents: 301 }))
+          .error,
+      );
+      assert.ok(
+        (
+          await reader.api.rpc("record_membership_receipt", {
+            ...payload,
+            p_request_id: crypto.randomUUID(),
+          })
+        ).error,
+      );
+      assert.ok((await denied.api.rpc("record_membership_receipt", payload)).error);
+      assert.equal(
+        check(
+          await denied.api.from("membership_receipts").select("id").eq("club_id", receiptClub.id),
+        ).length,
+        0,
+      );
+      assert.ok(
+        (
+          await denied.api.rpc("membership_receipt_report", {
+            p_club_id: receiptClub.id,
+            p_from: "2026-11-01",
+            p_to: "2026-12-01",
+            p_group: "day",
+          })
+        ).error,
+      );
+      assert.ok(
+        (
+          await recorder.api
+            .from("membership_receipts")
+            .update({ amount_cents: 1 })
+            .eq("id", a.data.id)
+        ).error,
+      );
+      assert.ok(
+        (await recorder.api.from("membership_receipts").delete().eq("id", a.data.id)).error,
+      );
+      const rp = await login(reader);
+      await rp.goto(new URL("/cuotas", origin).href, { waitUntil: "networkidle" });
+      await rp.getByTestId("receipts-total").getByText(/15,50/).waitFor();
+      assert.equal(await rp.getByRole("button", { name: "Confirmar ingreso" }).count(), 0);
     },
+  );
+  await record("Incassi: report giornalieri/mensili e storico con confini Madrid", async () => {
+    const make = (at, cents) => ({
+      club_id: receiptClub.id,
+      member_id: receiptMember.id,
+      member_name: "Synthetic boundary",
+      member_number: receiptMember.member_number,
+      recorded_by: recorder.id,
+      operator_name: "Synthetic operator",
+      amount_cents: cents,
+      payment_method: "cash",
+      description: "Synthetic date boundary",
+      request_id: crypto.randomUUID(),
+      recorded_at: at,
+    });
+    check(
+      await admin
+        .from("membership_receipts")
+        .insert([
+          make("2026-10-31T23:30:00Z", 100),
+          make("2026-11-30T22:30:00Z", 200),
+          make("2026-11-30T23:30:00Z", 400),
+        ]),
+    );
+    const args = { p_club_id: receiptClub.id, p_from: "2026-11-01", p_to: "2026-12-01" };
+    const monthly = check(
+      await reader.api.rpc("membership_receipt_report", { ...args, p_group: "month" }),
+    );
+    assert.equal(
+      monthly.reduce((s, r) => s + Number(r.total_cents), 0),
+      1850,
+    );
+    const daily = check(
+      await reader.api.rpc("membership_receipt_report", { ...args, p_group: "day" }),
+    );
+    assert.equal(daily.find((r) => r.period === "2026-11-01").total_cents, 100);
+    const rp = await login(reader);
+    await rp.goto(new URL("/cuotas", origin).href, { waitUntil: "networkidle" });
+    await rp.getByLabel("Hasta", { exact: true }).fill("2026-11-30");
+    await rp.getByTestId("receipts-total").getByText(/18,50/).waitFor();
+    await rp.getByRole("heading", { name: "Histórico (4)", exact: true }).waitFor();
+  });
+
+  await record(
+    "Super Admin: selezione esplicita club e nessuna mescolanza nei report",
+    async () => {
+      const rootUser = await actor("supervisor", receiptClub.id, []);
+      check(
+        await admin
+          .from("user_roles")
+          .insert({ user_id: rootUser.id, role: "super_admin", club_id: null, permissions: [] }),
+      );
+      const sp = await login(rootUser);
+      await sp.goto(new URL("/cuotas", origin).href, { waitUntil: "networkidle" });
+      await sp.getByLabel("Club", { exact: true }).selectOption(receiptClub.id);
+      await sp.getByTestId("receipts-total").getByText(/16,50/).waitFor();
+      await sp.getByLabel("Club", { exact: true }).selectOption(clubId);
+      await sp.getByTestId("receipts-total").getByText(/0,00/).waitFor();
+    },
+  );
+  results.push(
     {
       name: "Dettatura vocale reale AI IT/ES",
       status: "BLOCKED",

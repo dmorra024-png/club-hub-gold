@@ -1,3 +1,5 @@
+> Aggiornamento successivo: vedere [candidata per collaudo e nuova matrice](RELEASE_CANDIDATE_REVIEW.md). I risultati sotto descrivono la revisione precedente.
+
 # Collaudo amministrativo — 5 novembre 2026
 
 Backend: Supabase locale reale (PostgreSQL, Auth, REST, Storage, posta Mailpit), associazione e account sintetici `example.test`. Nessun accesso al database remoto; browser limitato all'origine locale. Nessun ordine o vendita creati. Nessuna modifica a Security PSG, merge o deployment.

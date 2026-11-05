@@ -1,7 +1,7 @@
 /* global self, caches */
 // Only public installation resources. No member data, photos, application HTML,
 // auth tokens, APIs or server-function results enter the cache.
-const CACHE = "clubhub-public-v1";
+const CACHE = "clubhub-public-v2";
 const PUBLIC = [
   "/offline.html",
   "/manifest.webmanifest",
@@ -10,12 +10,7 @@ const PUBLIC = [
   "/icons/app-maskable-512.png",
 ];
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(PUBLIC))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PUBLIC)));
 });
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -45,4 +40,9 @@ self.addEventListener("fetch", (event) => {
   } else if (!url.search && PUBLIC.includes(url.pathname)) {
     event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
   }
+});
+
+// Apply an update only after the user has finished the current form.
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });

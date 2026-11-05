@@ -59,6 +59,8 @@ for (const name of readdirSync(join(root, "supabase/migrations")).filter((name) 
 ))
   copyFileSync(join(root, "supabase/migrations", name), join(migrations, name));
 run(["start", "--exclude", "studio,realtime,imgproxy,edge-runtime,logflare,vector,supavisor"]);
+// Upgrade an existing local sandbox without resetting its synthetic history.
+run(["migration", "up", "--local"]);
 const state = run(["status", "--output", "json"], true);
 if (
   new URL(state.API_URL).hostname !== "127.0.0.1" ||

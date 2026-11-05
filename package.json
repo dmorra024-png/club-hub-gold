@@ -20,7 +20,10 @@
     "dev:sandbox": "vite dev --mode sandbox --host 0.0.0.0 --port 3000",
     "test:sandbox:login": "node scripts/verify-sandbox-login.mjs",
     "test:dev:preview": "node scripts/verify-development-preview.mjs",
-    "test:sandbox:administration": "node scripts/test-native-administration.mjs"
+    "test:sandbox:administration": "node scripts/test-native-administration.mjs",
+    "test:sandbox:ai": "node scripts/test-administrative-ai.mjs",
+    "test:sandbox:mobile": "node scripts/test-mobile-administration.mjs",
+    "test:security:bundle": "node scripts/verify-client-secrets.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

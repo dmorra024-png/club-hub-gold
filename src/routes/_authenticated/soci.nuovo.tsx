@@ -14,6 +14,7 @@ import {
 } from "@/lib/snoop";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import {
+  getAdministrativeAiStatus,
   extractMemberFields,
   extractMemberFieldsFromImages,
   transcribeAudio,
@@ -92,6 +93,7 @@ function NewSocio() {
   const streamRef = useRef<MediaStream | null>(null);
   const formRef = useRef(form);
   formRef.current = form;
+  const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
   const extract = useServerFn(extractMemberFields);
   const extractFromImages = useServerFn(extractMemberFieldsFromImages);
@@ -260,6 +262,11 @@ function NewSocio() {
   // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
   async function scanDocuments(files: FileList | File[]) {
     const initial = { ...formRef.current };
+    const status = await aiStatus();
+    if (!status.documents)
+      return toast.error(
+        "Procesamiento de documentos no autorizado. Introduce los datos manualmente.",
+      );
     if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
       return;
     const list = Array.from(files).slice(0, 2);
@@ -316,6 +323,12 @@ function NewSocio() {
   }
 
   async function startRec() {
+    const status = await aiStatus();
+    if (!status.available) return toast.error("IA no disponible. Introduce los datos manualmente.");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")
+      return toast.error(
+        "Micrófono no disponible. Usa HTTPS y permite el acceso o rellena el formulario manualmente.",
+      );
     if (!confirm("El audio se enviará al proveedor de IA configurado. ¿Continuar?")) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });

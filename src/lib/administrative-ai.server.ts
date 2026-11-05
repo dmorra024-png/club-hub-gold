@@ -1,6 +1,6 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-export function aiConfiguration() {
+export function aiConfiguration(purpose: "administrative" | "documents" = "administrative") {
   if (process.env.AI_EXTERNAL_PROCESSING_ENABLED !== "true") {
     throw new Error(
       "AI externa desactivada. Configura AI_EXTERNAL_PROCESSING_ENABLED y revisa el tratamiento de datos.",
@@ -19,6 +19,12 @@ export function aiConfiguration() {
   ) {
     throw new Error("AI_BASE_URL debe ser HTTPS (HTTP permitido solo en localhost)");
   }
+  if (!local && process.env.AI_AUTHORIZED_ORIGIN !== base.origin)
+    throw new Error(
+      "Falta autorizar explícitamente el origen del proveedor con AI_AUTHORIZED_ORIGIN",
+    );
+  if (purpose === "documents" && process.env.AI_DOCUMENT_PROCESSING_ENABLED !== "true")
+    throw new Error("El envío de documentos al proveedor no está autorizado");
   return {
     apiKey,
     baseURL: base.href.replace(/\/$/, ""),
@@ -36,8 +42,8 @@ export const providerFetch: typeof fetch = (input, init) =>
       : AbortSignal.timeout(30_000),
   });
 
-export function administrativeModel() {
-  const config = aiConfiguration();
+export function administrativeModel(purpose: "administrative" | "documents" = "administrative") {
+  const config = aiConfiguration(purpose);
   const provider = createOpenAICompatible({
     name: "administrative-ai",
     apiKey: config.apiKey,
@@ -105,5 +111,20 @@ export async function administrativeSpeech(text: string) {
   return {
     audioBase64: Buffer.from(audio).toString("base64"),
     mimeType: response.headers.get("content-type")!.split(";")[0],
+  };
+}
+
+export function administrativeAiStatus() {
+  let available = false;
+  try {
+    aiConfiguration();
+    available = true;
+  } catch {
+    /* No credentials or details in public status. */
+  }
+  return {
+    available,
+    documents: available && process.env.AI_DOCUMENT_PROCESSING_ENABLED === "true",
+    browserSpeech: available && process.env.AI_BROWSER_SPEECH_ENABLED === "true",
   };
 }

@@ -103,6 +103,7 @@ function ColaboradoresPage() {
     try {
       await savePermissions({ data: { role_id, permissions } });
       setMsg("Permisos actualizados");
+      await refresh();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "No se ha podido completar la operación");
     }

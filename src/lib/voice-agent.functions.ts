@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateText, generateObject, tool, stepCountIs } from "ai";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { administrativeModel } from "./administrative-ai.server";
 import {
   parseAdministrativeDictation,
   calendarDate,
@@ -171,7 +171,7 @@ Reglas:
 
     try {
       const { object } = await generateObject({
-        model: administrativeModel(),
+        model: administrativeModel("documents"),
         system,
         schema: DniFieldsSchema,
         messages: [
@@ -421,10 +421,7 @@ export const parseOrderItems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => ParseOrderInput.parse(d))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-2.5-flash");
+    const model = administrativeModel();
 
     const catalog = data.products
       .map(
@@ -469,4 +466,11 @@ Ejemplos:
         }>,
       };
     }
+  });
+
+export const getAdministrativeAiStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { administrativeAiStatus } = await import("./administrative-ai.server");
+    return administrativeAiStatus();
   });

@@ -1,12 +1,29 @@
+import { VoiceAgent } from "@/components/VoiceAgent";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Home, Users, Package, LogOut, Menu, X, Shield, Banknote, Settings, ScanLine } from "lucide-react";
+import {
+  Home,
+  Users,
+  Package,
+  LogOut,
+  Menu,
+  X,
+  Shield,
+  Banknote,
+  Settings,
+  ScanLine,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import logoAsset from "@/assets/snoop-logo.png.asset.json";
 import { cn } from "@/lib/utils";
 import { useState, type ReactNode } from "react";
 
-type NavItem = { to: string; label: string; icon: any; show: (a: { isAdmin: boolean; isSuperAdmin: boolean }) => boolean };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: any;
+  show: (a: { isAdmin: boolean; isSuperAdmin: boolean }) => boolean;
+};
 
 const NAV: NavItem[] = [
   { to: "/", label: "Inicio", icon: Home, show: () => true },
@@ -14,12 +31,20 @@ const NAV: NavItem[] = [
   { to: "/soci", label: "Socios", icon: Users, show: (a) => !a.isSuperAdmin },
   { to: "/control-acceso", label: "Control acceso", icon: ScanLine, show: (a) => !a.isSuperAdmin },
   { to: "/productos", label: "Productos", icon: Package, show: (a) => !a.isSuperAdmin },
+  { to: "/cuotas", label: "Cuotas e ingresos", icon: Banknote, show: () => true },
   { to: "/caja", label: "Caja", icon: Banknote, show: (a) => !a.isSuperAdmin },
   { to: "/ajustes", label: "Ajustes", icon: Settings, show: (a) => a.isAdmin && !a.isSuperAdmin },
 ];
 
-
-export function SnoopLayout({ children, title, subtitle }: { children: ReactNode; title?: string; subtitle?: string }) {
+export function SnoopLayout({
+  children,
+  title,
+  subtitle,
+}: {
+  children: ReactNode;
+  title?: string;
+  subtitle?: string;
+}) {
   const { user, access, isAdmin, isSuperAdmin } = useAuth();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -36,8 +61,15 @@ export function SnoopLayout({ children, title, subtitle }: { children: ReactNode
   return (
     <div className="relative min-h-screen flex scanline">
       {/* Watermark */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden">
-        <img src={logoAsset.url} alt="" className="w-[min(120vh,120vw)] max-w-none opacity-[0.04] select-none" />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden"
+      >
+        <img
+          src={logoAsset.url}
+          alt=""
+          className="w-[min(120vh,120vw)] max-w-none opacity-[0.04] select-none"
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/20 to-background" />
       </div>
 
@@ -62,7 +94,9 @@ export function SnoopLayout({ children, title, subtitle }: { children: ReactNode
                     : "text-muted-foreground hover:text-neon hover:bg-neon/5",
                 )}
               >
-                {active && <span className="absolute left-0 top-2 bottom-2 w-[2px] bg-neon rounded-full" />}
+                {active && (
+                  <span className="absolute left-0 top-2 bottom-2 w-[2px] bg-neon rounded-full" />
+                )}
                 <Icon className="w-4 h-4" />
                 <span className="font-display font-medium tracking-wide text-sm">{item.label}</span>
               </Link>
@@ -72,8 +106,13 @@ export function SnoopLayout({ children, title, subtitle }: { children: ReactNode
 
         <div className="p-4 border-t border-neon/15">
           <div className="text-xs text-muted-foreground mb-1 truncate">{user?.email}</div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim mb-3">{access.role ?? "—"}</div>
-          <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground hover:text-neon hover:bg-neon/5 transition">
+          <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim mb-3">
+            {access.role ?? "—"}
+          </div>
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground hover:text-neon hover:bg-neon/5 transition"
+          >
             <LogOut className="w-3 h-3" /> Salir
           </button>
         </div>
@@ -109,7 +148,9 @@ export function SnoopLayout({ children, title, subtitle }: { children: ReactNode
                   onClick={() => setOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-4 py-3 text-sm transition-all",
-                    active ? "bg-neon/15 text-neon border border-neon/40" : "text-muted-foreground border border-transparent hover:text-neon",
+                    active
+                      ? "bg-neon/15 text-neon border border-neon/40"
+                      : "text-muted-foreground border border-transparent hover:text-neon",
                   )}
                 >
                   <Icon className="w-5 h-5" />
@@ -119,16 +160,24 @@ export function SnoopLayout({ children, title, subtitle }: { children: ReactNode
             })}
           </nav>
           <div className="p-3 border-t border-neon/20 flex items-center justify-between gap-3">
-            <div className="text-[10px] uppercase tracking-widest text-neon-dim">{access.role ?? "—"}</div>
-            <button type="button" onClick={signOut} className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground hover:text-neon transition uppercase tracking-widest">
+            <div className="text-[10px] uppercase tracking-widest text-neon-dim">
+              {access.role ?? "—"}
+            </div>
+            <button
+              type="button"
+              onClick={signOut}
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-muted-foreground hover:text-neon transition uppercase tracking-widest"
+            >
               <LogOut className="w-3 h-3" /> Salir
             </button>
           </div>
         </div>
       )}
 
+      {user && access.role && <VoiceAgent clubName={access.clubName} />}
+
       {/* Main */}
-      <main className="relative z-10 flex-1 min-h-screen pt-14 md:pt-0 pb-10">
+      <main className="relative z-10 flex-1 min-w-0 min-h-screen pt-14 md:pt-0 pb-10">
         <div className="max-w-6xl mx-auto px-4 md:px-10 py-8">
           {title && (
             <div className="mb-8">

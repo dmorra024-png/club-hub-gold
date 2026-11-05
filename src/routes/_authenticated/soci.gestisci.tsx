@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -173,7 +174,7 @@ function GestisciSoci() {
           <div className="text-muted-foreground">No hay socios{q && " que coincidan"}.</div>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 min-w-0 gap-3">
           {filtered.map((r) => {
             const badge = expiryBadge(r.expires_at);
             return (
@@ -181,7 +182,7 @@ function GestisciSoci() {
                 key={r.id}
                 to="/soci/$id"
                 params={{ id: r.id }}
-                className="flex items-center gap-4 bg-card/60 hover:bg-card border border-border hover:border-neon/50 rounded-xl p-4 transition group"
+                className="min-w-0 flex items-center gap-4 bg-card/60 hover:bg-card border border-border hover:border-neon/50 rounded-xl p-4 transition group"
               >
                 <div className="w-11 h-11 rounded-full bg-neon/10 border border-neon/30 flex items-center justify-center font-display text-neon">
                   {r.first_name[0]?.toUpperCase()}
@@ -281,27 +282,41 @@ function QrScannerModal({
     };
   }, []);
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-card border border-neon/40 rounded-2xl p-5 glow-neon-soft">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Escanear QR del socio"
+      style={{ width: "100dvw", height: "100dvh" }}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4"
+    >
+      <div
+        style={{ maxWidth: "min(28rem, calc(100dvw - 2rem))" }}
+        className="w-full max-w-md min-w-0 max-h-[90dvh] overflow-y-auto bg-card border border-neon/40 rounded-2xl p-5 glow-neon-soft"
+      >
         <div className="flex items-center justify-between mb-3">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim font-display">
+          <div className="min-w-0 flex-1 text-[10px] uppercase tracking-[0.3em] text-neon-dim font-display">
             Escanear QR del socio
           </div>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-neon"
+            className="shrink-0 w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-neon"
             aria-label="Cerrar"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <div id={elId} className="w-full rounded-lg overflow-hidden bg-black aspect-square" />
-        {error && <p className="text-xs text-destructive mt-3">{error}</p>}
+        {error && (
+          <p role="alert" className="text-xs text-destructive mt-3">
+            {error}
+          </p>
+        )}
         <p className="text-[10px] text-muted-foreground mt-3 text-center">
           Apunta al QR del carnet o di el número de 7 cifras al micrófono.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
