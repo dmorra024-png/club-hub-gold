@@ -12,6 +12,33 @@ export function PwaInstall() {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
         .catch(() => console.warn("PWA registration failed"));
+    } else if ("serviceWorker" in navigator) {
+      // Development must not keep an older PWA's offline fallback in control.
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) =>
+          Promise.all(
+            registrations
+              .filter((registration) => {
+                const script =
+                  registration.active?.scriptURL ||
+                  registration.waiting?.scriptURL ||
+                  registration.installing?.scriptURL;
+                return (
+                  script &&
+                  new URL(script).origin === location.origin &&
+                  new URL(script).pathname === "/sw.js"
+                );
+              })
+              .map((registration) => registration.unregister()),
+          ),
+        )
+        .then(async () => {
+          if ("caches" in window)
+            for (const key of await caches.keys())
+              if (key.startsWith("clubhub-public-")) await caches.delete(key);
+        })
+        .catch(() => console.warn("Development PWA cleanup unavailable"));
     }
     const onInstall = (event: Event) => {
       event.preventDefault();
