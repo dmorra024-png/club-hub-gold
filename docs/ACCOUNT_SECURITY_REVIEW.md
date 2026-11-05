@@ -1,5 +1,9 @@
 # Stabilizzazione: sicurezza degli account
 
+Per lo sviluppo amministrativo successivo, vedere
+[ADMINISTRATIVE_RUNTIME.md](ADMINISTRATIVE_RUNTIME.md). Questo documento conserva
+gli esiti della prima revisione degli account.
+
 Ramo: `codex/stabilize-independent-club`. Questa revisione realizza la parte di
 sicurezza degli account del piano `CODEX_STABILIZATION_PLAN.md`; non certifica
 l'intero piano. Security PSG non è stato modificato. Nessun merge, deploy o

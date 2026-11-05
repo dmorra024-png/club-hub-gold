@@ -18,7 +18,7 @@ import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { PwaInstall } from "@/components/PwaInstall";
 import { supabase } from "@/integrations/supabase/client";
 import { clearClubCache } from "@/lib/club";
 
@@ -42,9 +42,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-md text-center">
@@ -69,13 +66,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "theme-color", content: "#080d0a" },
       { title: "SNOOP — Club access in Spain" },
       {
         name: "description",
         content: "Snoop · App de gestión para clubes sociales de cannabis en España.",
       },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/app-192.png" },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -122,6 +124,11 @@ function RootComponent() {
       if (event === "SIGNED_OUT" || (previousUserId !== undefined && userId !== previousUserId)) {
         queryClient.clear();
         clearClubCache();
+        try {
+          window.sessionStorage.removeItem("snoop:member-draft");
+        } catch {
+          /* Storage may be disabled. */
+        }
       }
       previousUserId = userId;
       if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
@@ -135,6 +142,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <PwaInstall />
       <Toaster
         theme="dark"
         position="top-right"

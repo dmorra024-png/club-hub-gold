@@ -5,9 +5,28 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Camera, Check, Loader2, Mic, ScanLine, Square, X } from "lucide-react";
-import { CONTRACT_TEXT_ES, CONTRACT_VERSION, compressImage, formatPrice, uploadToSnoopDocs } from "@/lib/snoop";
+import {
+  CONTRACT_TEXT_ES,
+  CONTRACT_VERSION,
+  compressImage,
+  formatPrice,
+  uploadToSnoopDocs,
+} from "@/lib/snoop";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
-import { extractMemberFields, extractMemberFieldsFromImages, transcribeAudio } from "@/lib/voice-agent.functions";
+import {
+  extractMemberFields,
+  extractMemberFieldsFromImages,
+  transcribeAudio,
+} from "@/lib/voice-agent.functions";
+import {
+  parseAdministrativeDictation,
+  decodeMemberDraft,
+  mergeUneditedValues,
+  calendarDate,
+  isAdult,
+  madridToday,
+  addCalendarDays,
+} from "@/lib/member-administration";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
@@ -16,71 +35,12 @@ export const Route = createFileRoute("/_authenticated/soci/nuovo")({
 
 type Plan = { id: string; name: string; duration_days: number; price_cents: number };
 
-function stripAccents(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function cleanDictatedValue(value: string) {
-  return value.replace(/^[:\-\s]+/, "").replace(/[,.\s]+$/g, "").trim();
-}
-
-function toTitle(value: string) {
-  return value
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function toDateInput(value: string) {
-  const numeric = value.match(/(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{2,4})/);
-  if (numeric) {
-    let [, d, m, y] = numeric;
-    if (y.length === 2) y = (Number(y) > 30 ? "19" : "20") + y;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-  return "";
-}
-
 function quickParseMemberTranscript(text: string, plans: Plan[]) {
-  const raw = text.replace(/[“”"']/g, " ").replace(/\s+/g, " ").trim();
-  const labels: Array<["first_name" | "last_name" | "birth_date" | "dni_number" | "city" | "phone" | "email" | "plan_name", RegExp]> = [
-    ["first_name", /\b(?:nombre|nome)\b\s*:?\s*/i],
-    ["last_name", /\b(?:apellidos?|apellido|cognome|cognomi)\b\s*:?\s*/i],
-    ["birth_date", /\b(?:fecha\s+de\s+nacimiento|nacimiento|data\s+di\s+nascita|nascita)\b\s*:?\s*/i],
-    ["dni_number", /\b(?:numero\s+de\s+dni|numero\s+dni|dni|nie|documento)\b\s*:?\s*/i],
-    ["city", /\b(?:ciudad|citta|residencia)\b\s*:?\s*/i],
-    ["phone", /\b(?:telefono|teléfono|phone|movil|móvil|cellulare)\b\s*:?\s*/i],
-    ["email", /\b(?:email|correo|e-?mail|mail)\b\s*:?\s*/i],
-    ["plan_name", /\b(?:plan|cuota|quota|abono)\b\s*:?\s*/i],
-  ];
-  const hits = labels
-    .map(([key, pattern]) => {
-      const match = raw.match(pattern);
-      return match?.index === undefined ? null : { key, start: match.index, valueStart: match.index + match[0].length };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a!.start - b!.start) as Array<{ key: string; start: number; valueStart: number }>;
-  const out: Record<string, string> = {};
-  for (let i = 0; i < hits.length; i++) {
-    const hit = hits[i];
-    const value = cleanDictatedValue(raw.slice(hit.valueStart, hits[i + 1]?.start ?? raw.length));
-    if (!value) continue;
-    if (["first_name", "last_name", "city"].includes(hit.key)) out[hit.key] = toTitle(value);
-    if (hit.key === "birth_date") out.birth_date = toDateInput(value);
-    if (hit.key === "dni_number") out.dni_number = value.replace(/[^0-9a-z]/gi, "").toUpperCase();
-    if (hit.key === "phone") out.phone = value.replace(/(?!^\+)[^0-9]/g, "");
-    if (hit.key === "email") out.email = value.replace(/\s+/g, "").toLowerCase();
-    if (hit.key === "plan_name") out.plan_name = value;
-  }
-  const normalized = stripAccents(raw.toLowerCase());
-  const plan = plans.find((p) => normalized.includes(stripAccents(p.name.toLowerCase())))
-    ?? (/mensual|mensile/.test(normalized) ? plans.find((p) => stripAccents(p.name.toLowerCase()).includes("mens")) : undefined)
-    ?? (/trimestral|trimestrale/.test(normalized) ? plans.find((p) => stripAccents(p.name.toLowerCase()).includes("trimes")) : undefined)
-    ?? (/anual|annuale/.test(normalized) ? plans.find((p) => stripAccents(p.name.toLowerCase()).includes("anual") || stripAccents(p.name.toLowerCase()).includes("ann")) : undefined);
-  if (plan) out.plan_id = plan.id;
-  return out;
+  const fields = parseAdministrativeDictation(
+    text,
+    plans.map((p) => p.name),
+  );
+  return { ...fields, plan_id: plans.find((p) => p.name === fields.plan_name)?.id };
 }
 
 function pickMime(): string | null {
@@ -92,14 +52,18 @@ function pickMime(): string | null {
 }
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = new Uint8Array(await blob.arrayBuffer());
-  let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+  let bin = "";
+  for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
   return btoa(bin);
 }
 
 function NewSocio() {
   const nav = useNavigate();
+  const plansRef = useRef<Plan[]>([]);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [plans, setPlans] = useState<Plan[]>([]);
+  plansRef.current = plans;
   const sigRef = useRef<SignaturePadHandle>(null);
 
   const [fieldCfg, setFieldCfg] = useState<FieldConfigMap>(defaultFieldConfig());
@@ -137,8 +101,34 @@ function NewSocio() {
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
 
   useEffect(() => {
-    supabase.from("membership_plans").select("id,name,duration_days,price_cents").eq("active", true).order("sort_order")
-      .then(({ data }) => setPlans((data as any) ?? []));
+    function applyPendingDraft(available: Plan[]) {
+      const draft = decodeMemberDraft(window.sessionStorage.getItem("snoop:member-draft"));
+      window.sessionStorage.removeItem("snoop:member-draft");
+      const planName = draft?.plan_name
+        ? parseAdministrativeDictation(
+            `cuota ${draft.plan_name}`,
+            available.map((p) => p.name),
+          ).plan_name
+        : "";
+      if (draft)
+        setForm((current) => ({
+          ...current,
+          ...draft,
+          plan_id: available.find((p) => p.name === planName)?.id ?? current.plan_id,
+        }));
+    }
+    const onDraft = () => applyPendingDraft(plansRef.current);
+    window.addEventListener("snoop:member-draft", onDraft);
+    supabase
+      .from("membership_plans")
+      .select("id,name,duration_days,price_cents")
+      .eq("active", true)
+      .order("sort_order")
+      .then(({ data }) => {
+        const available = data ?? [];
+        setPlans(available);
+        applyPendingDraft(available);
+      });
     (async () => {
       const { getCurrentClubId } = await import("@/lib/club");
       const clubId = await getCurrentClubId();
@@ -149,13 +139,18 @@ function NewSocio() {
         .eq("club_id", clubId);
       setFieldCfg(mergeFieldConfig((data as any) ?? []));
     })();
-    return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
+    return () => {
+      window.removeEventListener("snoop:member-draft", onDraft);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
   }, []);
 
   useEffect(() => {
     // Ensure the form is empty when opening the page: drop any leftover transcript
     // from a previous socio creation.
-    try { window.localStorage.removeItem("snoop:new-member-transcript"); } catch {}
+    try {
+      window.localStorage.removeItem("snoop:new-member-transcript");
+    } catch {}
     const onStorage = (event: StorageEvent) => {
       if (event.key !== "snoop:new-member-transcript" || !event.newValue) return;
       try {
@@ -167,7 +162,7 @@ function NewSocio() {
     return () => window.removeEventListener("storage", onStorage);
   }, [plans]);
 
-  function set<K extends keyof typeof form>(k: K, v: typeof form[K]) {
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
   }
 
@@ -185,13 +180,16 @@ function NewSocio() {
   function findDictatedPlan(planName: string) {
     const wanted = normalizePlanName(planName);
     if (!wanted) return null;
-    return plans.find((p) => {
-      const name = normalizePlanName(p.name);
-      return name === wanted || name.includes(wanted) || wanted.includes(name);
-    }) ?? null;
+    return (
+      plans.find((p) => {
+        const name = normalizePlanName(p.name);
+        return name === wanted || name.includes(wanted) || wanted.includes(name);
+      }) ?? null
+    );
   }
 
   async function applyTranscriptToForm(text: string) {
+    const initial = { ...formRef.current };
     setLastHeard(text);
     setRecStatus("processing");
     const quick = quickParseMemberTranscript(text, plans);
@@ -209,7 +207,7 @@ function NewSocio() {
     try {
       const current = formRef.current;
       const planForId = plans.find((p) => p.id === current.plan_id);
-      const { fields } = await extract({
+      const { fields, warning } = await extract({
         data: {
           transcript: text,
           current: {
@@ -226,18 +224,20 @@ function NewSocio() {
         },
       });
       const matchedPlan = fields.plan_name ? findDictatedPlan(fields.plan_name) : null;
-      setForm((f) => ({
-        ...f,
-        first_name: fields.first_name || f.first_name,
-        last_name: fields.last_name || f.last_name,
-        birth_date: fields.birth_date || f.birth_date,
-        city: fields.city || f.city,
-        phone: fields.phone || f.phone,
-        email: (fields as any).email || f.email,
-        dni_number: fields.dni_number || f.dni_number,
-        plan_id: matchedPlan?.id ?? f.plan_id,
-      }));
-      toast.success("Casillas rellenadas");
+      setForm((f) =>
+        mergeUneditedValues(f, initial, {
+          first_name: fields.first_name || f.first_name,
+          last_name: fields.last_name || f.last_name,
+          birth_date: fields.birth_date || f.birth_date,
+          city: fields.city || f.city,
+          phone: fields.phone || f.phone,
+          email: (fields as any).email || f.email,
+          dni_number: fields.dni_number || f.dni_number,
+          plan_id: matchedPlan?.id ?? f.plan_id,
+        }),
+      );
+      if (warning) toast.info(warning);
+      else toast.success("Casillas rellenadas. Revisa los datos antes de guardar.");
     } catch (e: any) {
       toast.error(e.message ?? "Error en dictado");
     } finally {
@@ -259,6 +259,9 @@ function NewSocio() {
 
   // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
   async function scanDocuments(files: FileList | File[]) {
+    const initial = { ...formRef.current };
+    if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
+      return;
     const list = Array.from(files).slice(0, 2);
     if (list.length === 0) return;
     setScanStatus("scanning");
@@ -287,16 +290,17 @@ function NewSocio() {
 
       const { fields } = await extractFromImages({ data: { images } });
 
-      setForm((f) => ({
-        ...f,
-        first_name: fields.first_name || f.first_name,
-        last_name: fields.last_name || f.last_name,
-        birth_date: fields.birth_date || f.birth_date,
-        dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-        address: fields.address || f.address,
-        city: fields.city || f.city,
-        postal_code: fields.postal_code || f.postal_code,
-      }));
+      setForm((f) =>
+        mergeUneditedValues(f, initial, {
+          first_name: fields.first_name || f.first_name,
+          last_name: fields.last_name || f.last_name,
+          birth_date: fields.birth_date || f.birth_date,
+          dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
+          address: fields.address || f.address,
+          city: fields.city || f.city,
+          postal_code: fields.postal_code || f.postal_code,
+        }),
+      );
 
       // Reuse the front photo (first image) as the required DNI photo
       const front = compressed[0];
@@ -312,24 +316,49 @@ function NewSocio() {
   }
 
   async function startRec() {
+    if (!confirm("El audio se enviará al proveedor de IA configurado. ¿Continuar?")) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const mime = pickMime();
-      if (!mime) { stream.getTracks().forEach((t) => t.stop()); toast.error("Navegador no compatible."); return; }
+      if (!mime) {
+        stream.getTracks().forEach((t) => t.stop());
+        toast.error("Navegador no compatible.");
+        return;
+      }
       const rec = new MediaRecorder(stream, { mimeType: mime });
       chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
-        if (blob.size < 1500) { setRecStatus("idle"); toast.error("No te he oído, vuelve a intentar."); return; }
+        if (blob.size < 1500) {
+          setRecStatus("idle");
+          toast.error("No te he oído, vuelve a intentar.");
+          return;
+        }
         setRecStatus("processing");
         try {
           const b64 = await blobToBase64(blob);
-          const { text } = await transcribe({ data: { audioBase64: b64, mimeType: rec.mimeType } });
-          if (!text) { setRecStatus("idle"); toast.error("No se entendió nada."); return; }
+          const { text } = await transcribe({
+            data: {
+              audioBase64: b64,
+              mimeType: rec.mimeType,
+              language: (
+                window.localStorage.getItem("snoop:voice-language") || navigator.language
+              ).startsWith("it")
+                ? "it"
+                : "es",
+            },
+          });
+          if (!text) {
+            setRecStatus("idle");
+            toast.error("No se entendió nada.");
+            return;
+          }
           await applyTranscriptToForm(text);
         } catch (e: any) {
           toast.error(e.message ?? "Error en dictado");
@@ -344,24 +373,30 @@ function NewSocio() {
       toast.error("Permiso de micrófono denegado.");
     }
   }
-  function stopRec() { recorderRef.current?.stop(); }
+  function stopRec() {
+    recorderRef.current?.stop();
+  }
   function toggleMic() {
     if (recStatus === "recording") stopRec();
     else if (recStatus === "idle") startRec();
   }
 
   async function submit() {
-    if (!form.first_name.trim() || !form.last_name.trim()) return toast.error("Falta nombre y apellido");
+    if (savingRef.current || !navigator.onLine)
+      return toast.error("Espera a que termine el envío y comprueba la conexión.");
+    if (!form.first_name.trim() || !form.last_name.trim())
+      return toast.error("Falta nombre y apellido");
     const req = (k: keyof FieldConfigMap) => fieldCfg[k].visible && fieldCfg[k].required;
     const vis = (k: keyof FieldConfigMap) => fieldCfg[k].visible;
     if (req("birth_date")) {
       if (!form.birth_date) return toast.error("Falta la fecha de nacimiento");
-      const age = (Date.now() - new Date(form.birth_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-      if (age < 18) return toast.error("El socio debe ser mayor de edad");
+      if (!calendarDate(form.birth_date)) return toast.error("Fecha de nacimiento no válida");
+      if (!isAdult(form.birth_date)) return toast.error("El socio debe ser mayor de edad");
     }
     if (req("address") && !form.address.trim()) return toast.error("Falta la dirección");
     if (req("city") && !form.city.trim()) return toast.error("Falta la ciudad");
-    if (req("postal_code") && !form.postal_code.trim()) return toast.error("Falta el código postal");
+    if (req("postal_code") && !form.postal_code.trim())
+      return toast.error("Falta el código postal");
     if (req("phone") && !form.phone.trim()) return toast.error("Falta el teléfono");
     if (req("email") && !form.email.trim()) return toast.error("Falta el email");
     if (req("dni_number") && !form.dni_number.trim()) return toast.error("Falta el número de DNI");
@@ -372,9 +407,14 @@ function NewSocio() {
       if (sigRef.current?.isEmpty()) return toast.error("Falta la firma del socio");
     }
 
+    savingRef.current = true;
     setSaving(true);
     try {
-      const { data: user } = await supabase.auth.getUser();
+      const { data: user, error: authError } = await supabase.auth.getUser();
+      if (authError || !user.user) throw new Error("Inicia sesión antes de guardar");
+      const { getCurrentClubId } = await import("@/lib/club");
+      const clubId = await getCurrentClubId();
+      if (!clubId) throw new Error("No tienes un club asignado");
       const memberId = crypto.randomUUID();
       const dniPath = `members/${memberId}/dni.jpg`;
       const sigPath = `members/${memberId}/signature.png`;
@@ -383,15 +423,15 @@ function NewSocio() {
       let sigUploaded = false;
       if (vis("signature") && !sigRef.current?.isEmpty()) {
         const sigBlob = await sigRef.current!.toBlob();
-        if (sigBlob) { await uploadToSnoopDocs(sigBlob, sigPath); sigUploaded = true; }
+        if (sigBlob) {
+          await uploadToSnoopDocs(sigBlob, sigPath);
+          sigUploaded = true;
+        }
       }
 
-      const joined = new Date();
-      const expires = selectedPlan ? new Date(joined.getTime() + selectedPlan.duration_days * 86400000) : null;
+      const joined = madridToday();
+      const expires = selectedPlan ? addCalendarDays(joined, selectedPlan.duration_days) : joined;
 
-      const { getCurrentClubId } = await import("@/lib/club");
-      const clubId = await getCurrentClubId();
-      if (!clubId) throw new Error("No tienes un club asignado");
       const { error } = await supabase.from("members").insert({
         club_id: clubId,
         id: memberId,
@@ -405,9 +445,9 @@ function NewSocio() {
         email: form.email.trim() || null,
         dni_number: form.dni_number.trim().toUpperCase(),
         dni_photo_path: form.dni_file ? dniPath : "",
-        plan_id: form.plan_id || "",
-        joined_at: joined.toISOString().slice(0, 10),
-        expires_at: expires ? expires.toISOString().slice(0, 10) : joined.toISOString().slice(0, 10),
+        plan_id: form.plan_id || null,
+        joined_at: joined,
+        expires_at: expires,
         signature_path: sigUploaded ? sigPath : "",
         contract_signed_at: sigUploaded ? new Date().toISOString() : null,
         contract_version: sigUploaded ? CONTRACT_VERSION : "",
@@ -436,7 +476,7 @@ function NewSocio() {
             email: form.email.trim(),
             clubName: (club as any)?.name ?? "Club",
           });
-          toast.success("Socio creado — QR enviado por email");
+          toast.success("Socio creado — envío del QR en cola");
         } else {
           toast.success("Socio creado (sin email: no se envió el QR)");
         }
@@ -445,11 +485,14 @@ function NewSocio() {
         toast.warning("Socio creado, pero el email del QR no se pudo enviar");
       }
 
-      try { window.localStorage.removeItem("snoop:new-member-transcript"); } catch {}
+      try {
+        window.localStorage.removeItem("snoop:new-member-transcript");
+      } catch {}
       nav({ to: "/soci/gestisci" });
     } catch (e: any) {
       toast.error(e.message);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -463,20 +506,33 @@ function NewSocio() {
           onClick={toggleMic}
           disabled={recStatus === "processing"}
           className={`h-14 w-14 shrink-0 rounded-full flex items-center justify-center transition
-            ${recStatus === "recording" ? "bg-destructive text-destructive-foreground animate-pulse"
-              : "bg-gradient-neon text-primary-foreground glow-neon"} disabled:opacity-60`}
+            ${
+              recStatus === "recording"
+                ? "bg-destructive text-destructive-foreground animate-pulse"
+                : "bg-gradient-neon text-primary-foreground glow-neon"
+            } disabled:opacity-60`}
           aria-label="Dictar datos"
         >
-          {recStatus === "processing" ? <Loader2 className="w-5 h-5 animate-spin" />
-            : recStatus === "recording" ? <Square className="w-5 h-5" />
-            : <Mic className="w-6 h-6" />}
+          {recStatus === "processing" ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : recStatus === "recording" ? (
+            <Square className="w-5 h-5" />
+          ) : (
+            <Mic className="w-6 h-6" />
+          )}
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Dictado por voz</div>
-          {recStatus === "recording" && <p className="text-sm text-destructive animate-pulse">● Escuchando… pulsa para parar</p>}
+          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
+            Dictado por voz
+          </div>
+          {recStatus === "recording" && (
+            <p className="text-sm text-destructive animate-pulse">● Escuchando… pulsa para parar</p>
+          )}
           {recStatus === "processing" && <p className="text-sm text-neon-dim">Procesando…</p>}
           {recStatus === "idle" && !lastHeard && (
-            <p className="text-sm text-muted-foreground">Pulsa y di: "Nombre, apellido, fecha de nacimiento, DNI, ciudad, teléfono y plan".</p>
+            <p className="text-sm text-muted-foreground">
+              Pulsa y di: "Nombre, apellido, fecha de nacimiento, DNI, ciudad, teléfono y plan".
+            </p>
           )}
           {recStatus === "idle" && lastHeard && (
             <p className="text-sm text-muted-foreground italic truncate">"{lastHeard}"</p>
@@ -484,23 +540,31 @@ function NewSocio() {
         </div>
       </div>
 
-
-
       {/* Document scan (OCR): take 1-2 photos of the DNI, fields auto-fill */}
       <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4">
         <div className="flex items-center gap-4">
           <div className="h-14 w-14 shrink-0 rounded-full flex items-center justify-center bg-gradient-neon text-primary-foreground glow-neon">
-            {scanStatus === "scanning" ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-6 h-6" />}
+            {scanStatus === "scanning" ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <ScanLine className="w-6 h-6" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Escanear documento</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
+              Escanear documento
+            </div>
             <p className="text-sm text-muted-foreground">
               Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.
             </p>
           </div>
           <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
             <Camera className="w-4 h-4" />
-            {scanStatus === "scanning" ? "Leyendo..." : scanPreviews.length ? "Volver a escanear" : "Escanear"}
+            {scanStatus === "scanning"
+              ? "Leyendo..."
+              : scanPreviews.length
+                ? "Volver a escanear"
+                : "Escanear"}
             <input
               type="file"
               accept="image/*"
@@ -519,7 +583,11 @@ function NewSocio() {
           <div className="mt-3 flex gap-2">
             {scanPreviews.map((src, i) => (
               <div key={i} className="relative">
-                <img src={src} alt={`documento ${i + 1}`} className="h-20 rounded-md border border-neon/30 object-cover" />
+                <img
+                  src={src}
+                  alt={`documento ${i + 1}`}
+                  className="h-20 rounded-md border border-neon/30 object-cover"
+                />
                 <button
                   type="button"
                   onClick={() => setScanPreviews((p) => p.filter((_, j) => j !== i))}
@@ -535,7 +603,6 @@ function NewSocio() {
       </div>
 
       <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 md:p-8 max-w-3xl backdrop-blur space-y-8">
-
         {/* Datos personales */}
         <section>
           <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">Datos del socio</h3>
@@ -543,25 +610,58 @@ function NewSocio() {
             <Inp label="Nombre *" value={form.first_name} onChange={(v) => set("first_name", v)} />
             <Inp label="Apellidos *" value={form.last_name} onChange={(v) => set("last_name", v)} />
             {fieldCfg.birth_date.visible && (
-              <Inp label={`Fecha de nacimiento${fieldCfg.birth_date.required ? " *" : ""}`} type="date" value={form.birth_date} onChange={(v) => set("birth_date", v)} />
+              <Inp
+                label={`Fecha de nacimiento${fieldCfg.birth_date.required ? " *" : ""}`}
+                type="date"
+                value={form.birth_date}
+                onChange={(v) => set("birth_date", v)}
+              />
             )}
             {fieldCfg.dni_number.visible && (
-              <Inp label={`Número de DNI / NIE${fieldCfg.dni_number.required ? " *" : ""}`} value={form.dni_number} onChange={(v) => set("dni_number", v.toUpperCase())} placeholder="12345678A" />
+              <Inp
+                label={`Número de DNI / NIE${fieldCfg.dni_number.required ? " *" : ""}`}
+                value={form.dni_number}
+                onChange={(v) => set("dni_number", v.toUpperCase())}
+                placeholder="12345678A"
+              />
             )}
             {fieldCfg.address.visible && (
-              <Inp label={`Dirección${fieldCfg.address.required ? " *" : ""}`} value={form.address} onChange={(v) => set("address", v)} />
+              <Inp
+                label={`Dirección${fieldCfg.address.required ? " *" : ""}`}
+                value={form.address}
+                onChange={(v) => set("address", v)}
+              />
             )}
             {fieldCfg.city.visible && (
-              <Inp label={`Ciudad${fieldCfg.city.required ? " *" : ""}`} value={form.city} onChange={(v) => set("city", v)} />
+              <Inp
+                label={`Ciudad${fieldCfg.city.required ? " *" : ""}`}
+                value={form.city}
+                onChange={(v) => set("city", v)}
+              />
             )}
             {fieldCfg.postal_code.visible && (
-              <Inp label={`Código postal${fieldCfg.postal_code.required ? " *" : ""}`} value={form.postal_code} onChange={(v) => set("postal_code", v)} />
+              <Inp
+                label={`Código postal${fieldCfg.postal_code.required ? " *" : ""}`}
+                value={form.postal_code}
+                onChange={(v) => set("postal_code", v)}
+              />
             )}
             {fieldCfg.phone.visible && (
-              <Inp label={`Teléfono${fieldCfg.phone.required ? " *" : ""}`} type="tel" value={form.phone} onChange={(v) => set("phone", v)} />
+              <Inp
+                label={`Teléfono${fieldCfg.phone.required ? " *" : ""}`}
+                type="tel"
+                value={form.phone}
+                onChange={(v) => set("phone", v)}
+              />
             )}
             {fieldCfg.email.visible && (
-              <Inp label={`Email${fieldCfg.email.required ? " *" : ""}`} type="email" value={form.email} onChange={(v) => set("email", v)} placeholder="socio@email.com" />
+              <Inp
+                label={`Email${fieldCfg.email.required ? " *" : ""}`}
+                type="email"
+                value={form.email}
+                onChange={(v) => set("email", v)}
+                placeholder="socio@email.com"
+              />
             )}
           </div>
         </section>
@@ -569,17 +669,33 @@ function NewSocio() {
         {/* Plan */}
         {fieldCfg.plan.visible && (
           <section>
-            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">Cuota{fieldCfg.plan.required ? " *" : ""}</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">
+              Cuota{fieldCfg.plan.required ? " *" : ""}
+            </h3>
             <div className="grid sm:grid-cols-3 gap-3">
-              {plans.length === 0 && <div className="text-muted-foreground text-sm col-span-3">No hay cuotas. Pide al admin que las cree.</div>}
+              {plans.length === 0 && (
+                <div className="text-muted-foreground text-sm col-span-3">
+                  No hay cuotas. Pide al admin que las cree.
+                </div>
+              )}
               {plans.map((p) => {
                 const active = form.plan_id === p.id;
                 return (
-                  <button key={p.id} type="button" onClick={() => set("plan_id", p.id)}
-                    className={`text-left rounded-xl p-4 border transition ${active ? "border-neon bg-neon/10 glow-neon-soft" : "border-border bg-input hover:border-neon/50"}`}>
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{p.duration_days} días</div>
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => set("plan_id", p.id)}
+                    className={`text-left rounded-xl p-4 border transition ${active ? "border-neon bg-neon/10 glow-neon-soft" : "border-border bg-input hover:border-neon/50"}`}
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                      {p.duration_days} días
+                    </div>
                     <div className="font-display text-base mt-1">{p.name}</div>
-                    <div className={`mt-2 font-display text-xl ${active ? "text-neon" : "text-foreground"}`}>{formatPrice(p.price_cents)}</div>
+                    <div
+                      className={`mt-2 font-display text-xl ${active ? "text-neon" : "text-foreground"}`}
+                    >
+                      {formatPrice(p.price_cents)}
+                    </div>
                   </button>
                 );
               })}
@@ -590,21 +706,43 @@ function NewSocio() {
         {/* DNI photo */}
         {fieldCfg.dni_photo.visible && (
           <section>
-            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">Foto del DNI (frontal){fieldCfg.dni_photo.required ? " *" : ""}</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">
+              Foto del DNI (frontal){fieldCfg.dni_photo.required ? " *" : ""}
+            </h3>
             {form.dni_preview ? (
               <div className="relative inline-block">
-                <img src={form.dni_preview} alt="DNI" className="max-w-full max-h-64 rounded-lg border border-neon/30" />
+                <img
+                  src={form.dni_preview}
+                  alt="DNI"
+                  className="max-w-full max-h-64 rounded-lg border border-neon/30"
+                />
                 <label className="absolute bottom-2 right-2 cursor-pointer bg-card/90 border border-neon/40 text-neon text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-md">
                   Cambiar
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && handleDniFile(e.target.files[0])} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleDniFile(e.target.files[0])}
+                  />
                 </label>
               </div>
             ) : (
               <label className="flex flex-col items-center justify-center gap-2 h-44 rounded-lg border-2 border-dashed border-neon/30 hover:border-neon/60 hover:bg-neon/5 transition cursor-pointer">
                 <Camera className="w-8 h-8 text-neon" />
-                <div className="text-sm text-foreground font-display">Tomar foto / Subir imagen</div>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Se comprimirá automáticamente</div>
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && handleDniFile(e.target.files[0])} />
+                <div className="text-sm text-foreground font-display">
+                  Tomar foto / Subir imagen
+                </div>
+                <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                  Se comprimirá automáticamente
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && handleDniFile(e.target.files[0])}
+                />
               </label>
             )}
           </section>
@@ -613,30 +751,47 @@ function NewSocio() {
         {/* Contrato + firma (único paso separado) */}
         {fieldCfg.signature.visible && (
           <section className="border-t border-border pt-6">
-            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">Contrato y firma — versión {CONTRACT_VERSION}</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">
+              Contrato y firma — versión {CONTRACT_VERSION}
+            </h3>
             <div
               onScroll={(e) => {
                 const el = e.currentTarget;
-                if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) set("contract_read", true);
+                if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10)
+                  set("contract_read", true);
               }}
               className="bg-input border border-border rounded-lg p-5 h-56 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap text-foreground/90"
             >
               {CONTRACT_TEXT_ES}
             </div>
             <label className="flex items-start gap-3 text-sm mt-3">
-              <input type="checkbox" checked={form.contract_read} onChange={(e) => set("contract_read", e.target.checked)} className="mt-1 accent-[oklch(0.86_0.28_145)]" />
-              <span>He leído y acepto íntegramente las normas, el contrato y la política de protección de datos.</span>
+              <input
+                type="checkbox"
+                checked={form.contract_read}
+                onChange={(e) => set("contract_read", e.target.checked)}
+                className="mt-1 accent-[oklch(0.86_0.28_145)]"
+              />
+              <span>
+                He leído y acepto íntegramente las normas, el contrato y la política de protección
+                de datos.
+              </span>
             </label>
             <div className="mt-4">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-2">Firma del socio</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-2">
+                Firma del socio
+              </div>
               <SignaturePad ref={sigRef} height={220} />
             </div>
           </section>
         )}
 
         <div className="flex items-center justify-end pt-4 border-t border-border">
-          <button type="button" disabled={saving} onClick={submit}
-            className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-neon text-primary-foreground font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50">
+          <button
+            type="button"
+            disabled={saving || recStatus === "processing" || scanStatus === "scanning"}
+            onClick={submit}
+            className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-neon text-primary-foreground font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
+          >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {saving ? "Guardando..." : "Crear socio"}
           </button>
@@ -646,12 +801,33 @@ function NewSocio() {
   );
 }
 
-function Inp({ label, value, onChange, type = "text", placeholder, className = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; className?: string }) {
+function Inp({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  placeholder?: string;
+  className?: string;
+}) {
   return (
     <label className={`block ${className}`}>
-      <span className="block text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1.5">{label}</span>
-      <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-input border border-border rounded-md px-3 py-2.5 text-sm focus:border-neon focus:ring-2 focus:ring-neon/20 outline-none transition" />
+      <span className="block text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1.5">
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-input border border-border rounded-md px-3 py-2.5 text-sm focus:border-neon focus:ring-2 focus:ring-neon/20 outline-none transition"
+      />
     </label>
   );
 }

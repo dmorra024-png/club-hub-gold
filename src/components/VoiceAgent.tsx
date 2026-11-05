@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Mic, MicOff, Loader2, Volume2, Ear } from "lucide-react";
 import { toast } from "sonner";
+import { parseAdministrativeDictation } from "@/lib/member-administration";
 import { agentRespond, synthesizeSpeech } from "@/lib/voice-agent.functions";
 
 type Status = "off" | "listening" | "processing" | "speaking";
@@ -81,8 +82,14 @@ function getSpeechRecognition(): any {
 }
 
 export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
+  const [language, setLanguage] = useState("es-ES");
+  useEffect(() => {
+    const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
+    setLanguage(saved.startsWith("it") ? "it-IT" : "es-ES");
+  }, []);
   const [status, setStatus] = useState<Status>("off");
   const [enabled, setEnabled] = useState(false); // always-on toggle
+  const conversationRef = useRef<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const recRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wantOnRef = useRef(false);
@@ -155,6 +162,13 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         // --- 1) Global navigation intents (always win — user said a section name) ---
         const navHit = NAV_INTENTS.find((n) => n.rx.test(lower) || n.rx.test(normalized));
         if (navHit) {
+          if (navHit.to === "/soci/nuovo") {
+            window.sessionStorage.setItem(
+              "snoop:member-draft",
+              JSON.stringify({ at: Date.now(), fields: parseAdministrativeDictation(text) }),
+            );
+            if (path === "/soci/nuovo") window.dispatchEvent(new Event("snoop:member-draft"));
+          }
           if (path !== navHit.to) {
             if (navHit.tab) {
               try {
@@ -278,10 +292,22 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         }
 
         // --- 4) Fallback: full agent ---
-        const { navigateTo } = await respond({
-          data: { transcript: text, history: [] },
+        const { navigateTo, reply, memberDraft } = await respond({
+          data: { transcript: text, history: conversationRef.current },
         });
         // Voz solo en el saludo inicial; las respuestas del agente se muestran en pantalla.
+        conversationRef.current = [
+          ...conversationRef.current,
+          { role: "user" as const, content: text.slice(0, 6000) },
+          { role: "assistant" as const, content: reply.slice(0, 6000) },
+        ].slice(-12);
+        if (memberDraft) conversationRef.current = [];
+        if (memberDraft)
+          window.sessionStorage.setItem(
+            "snoop:member-draft",
+            JSON.stringify({ at: Date.now(), fields: memberDraft }),
+          );
+        if (reply) toast.info(reply);
         if (navigateTo) navigate({ to: navigateTo as any });
       } catch (e: any) {
         toast.error(e.message ?? "Error en el asistente");
@@ -301,7 +327,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = "es-ES";
+    rec.lang = window.localStorage.getItem("snoop:voice-language") || navigator.language || "es-ES";
     rec.onresult = (e: any) => {
       // HARD MUTE while Snoop habla (y un pequeño margen después) para evitar
       // que el micro recoja su propia voz y se dispare en bucle ("hola hola hola").
@@ -345,6 +371,12 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
   }, [handleTranscript, stopSpeaking]);
 
   const startListening = useCallback(async () => {
+    if (
+      !confirm(
+        "El reconocimiento de voz del navegador y el proveedor de IA pueden procesar el dictado fuera del dispositivo. ¿Continuar?",
+      )
+    )
+      return;
     const SR = getSpeechRecognition();
     if (!SR) {
       toast.error("Tu navegador no soporta reconocimiento de voz continuo. Usa Chrome.");
@@ -368,13 +400,17 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
     } catch {}
     if (!greetedRef.current) {
       greetedRef.current = true;
-      const greet = `Hola ${clubName || "club"}, ¿cómo te puedo ayudar?`;
+      const greet =
+        language === "it-IT"
+          ? `Ciao ${clubName || "club"}, come posso aiutarti?`
+          : `Hola ${clubName || "club"}, ¿cómo te puedo ayudar?`;
       // Solo aquí hablamos en voz alta — el resto de comandos es silencioso.
       speak(greet);
     }
-  }, [clubName, ensureRec, speak]);
+  }, [clubName, ensureRec, speak, language]);
 
   const stopListening = useCallback(() => {
+    conversationRef.current = [];
     wantOnRef.current = false;
     setEnabled(false);
     stopSpeaking();
@@ -421,6 +457,20 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
 
   return (
     <>
+      <select
+        aria-label="Idioma de voz / Lingua voce"
+        value={language}
+        onChange={(event) => {
+          stopListening();
+          setLanguage(event.target.value);
+          window.localStorage.setItem("snoop:voice-language", event.target.value);
+          if (recRef.current) recRef.current.lang = event.target.value;
+        }}
+        className="fixed bottom-24 right-5 z-40 rounded border border-neon/30 bg-card p-1 text-xs text-neon"
+      >
+        <option value="es-ES">ES</option>
+        <option value="it-IT">IT</option>
+      </select>
       <button
         type="button"
         onClick={toggle}

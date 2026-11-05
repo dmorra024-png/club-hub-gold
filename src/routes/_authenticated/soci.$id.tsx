@@ -1,9 +1,21 @@
+import { madridToday, addCalendarDays } from "@/lib/member-administration";
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, RefreshCw, Trash2, FileCheck, ShoppingBag, QrCode, Pencil, Save, X, Mail } from "lucide-react";
+import {
+  ArrowLeft,
+  RefreshCw,
+  Trash2,
+  FileCheck,
+  ShoppingBag,
+  QrCode,
+  Pencil,
+  Save,
+  X,
+  Mail,
+} from "lucide-react";
 import { expiryBadge, formatPrice, signedUrl } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
 import QRCode from "qrcode";
@@ -55,8 +67,16 @@ function SocioDetail() {
     if (!member.email) return toast.error("Este socio no tiene email");
     setResendingQr(true);
     try {
-      const { data: m2 } = await supabase.from("members").select("club_id").eq("id", member.id).maybeSingle();
-      const { data: club } = await supabase.from("clubs").select("name").eq("id", (m2 as any)?.club_id ?? "").maybeSingle();
+      const { data: m2 } = await supabase
+        .from("members")
+        .select("club_id")
+        .eq("id", member.id)
+        .maybeSingle();
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("name")
+        .eq("id", (m2 as any)?.club_id ?? "")
+        .maybeSingle();
       const { sendMemberQrEmail } = await import("@/lib/member-qr");
       await sendMemberQrEmail({
         memberId: member.id,
@@ -65,7 +85,7 @@ function SocioDetail() {
         email: member.email,
         clubName: (club as any)?.name ?? "Club",
       });
-      toast.success("QR reenviado por email");
+      toast.success("Envío del QR en cola");
     } catch (e: any) {
       toast.error(e.message ?? "No se pudo reenviar");
     } finally {
@@ -101,21 +121,36 @@ function SocioDetail() {
     setMember(m as any);
     setNewPlanId((m as any).plan_id ?? "");
     if ((m as any).plan_id) {
-      const { data: p } = await supabase.from("membership_plans").select("*").eq("id", (m as any).plan_id).maybeSingle();
+      const { data: p } = await supabase
+        .from("membership_plans")
+        .select("*")
+        .eq("id", (m as any).plan_id)
+        .maybeSingle();
       setPlan(p as any);
     }
-    if ((m as any).dni_photo_path) setDniUrl(await signedUrl((m as any).dni_photo_path).catch(() => ""));
-    if ((m as any).signature_path) setSigUrl(await signedUrl((m as any).signature_path).catch(() => ""));
+    if ((m as any).dni_photo_path)
+      setDniUrl(await signedUrl((m as any).dni_photo_path).catch(() => ""));
+    if ((m as any).signature_path)
+      setSigUrl(await signedUrl((m as any).signature_path).catch(() => ""));
     if ((m as any).member_number) {
       try {
-        const url = await QRCode.toDataURL(`SNOOP:${(m as any).member_number}`, { margin: 1, width: 320, color: { dark: "#39FF14", light: "#00000000" } });
+        const url = await QRCode.toDataURL(`SNOOP:${(m as any).member_number}`, {
+          margin: 1,
+          width: 320,
+          color: { dark: "#39FF14", light: "#00000000" },
+        });
         setQrUrl(url);
       } catch {}
     }
   }
   useEffect(() => {
     load();
-    supabase.from("membership_plans").select("*").eq("active", true).order("sort_order").then(({ data }) => setPlans((data as any) ?? []));
+    supabase
+      .from("membership_plans")
+      .select("*")
+      .eq("active", true)
+      .order("sort_order")
+      .then(({ data }) => setPlans((data as any) ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -124,23 +159,30 @@ function SocioDetail() {
   }
 
   async function renew() {
+    if (renewing || !navigator.onLine) return;
+    if (!confirm("¿Confirmar la renovación de la cuota del socio?")) return;
     if (!newPlanId) return toast.error("Selecciona una cuota");
     setRenewing(true);
     try {
       const chosen = plans.find((p) => p.id === newPlanId)!;
-      const today = new Date();
-      const current = member ? new Date(member.expires_at) : today;
-      const base = current > today ? current : today;
-      const expires = new Date(base.getTime() + chosen.duration_days * 86400000);
-      const { error } = await supabase.from("members").update({
-        plan_id: chosen.id,
-        expires_at: expires.toISOString().slice(0, 10),
-      }).eq("id", id);
+      const today = madridToday();
+      const base = member && member.expires_at > today ? member.expires_at : today;
+      const expires = addCalendarDays(base, chosen.duration_days);
+      const { error } = await supabase
+        .from("members")
+        .update({
+          plan_id: chosen.id,
+          expires_at: expires,
+        })
+        .eq("id", id);
       if (error) throw error;
       toast.success("Cuota renovada");
       load();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setRenewing(false); }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setRenewing(false);
+    }
   }
 
   async function remove() {
@@ -168,14 +210,21 @@ function SocioDetail() {
   }, [member, newPlanId, plans]);
 
   if (!member) {
-    return <SnoopLayout title="Socio"><div className="text-muted-foreground">Cargando...</div></SnoopLayout>;
+    return (
+      <SnoopLayout title="Socio">
+        <div className="text-muted-foreground">Cargando...</div>
+      </SnoopLayout>
+    );
   }
 
   const badge = expiryBadge(member.expires_at);
 
   return (
     <SnoopLayout>
-      <Link to="/soci/gestisci" className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-neon mb-6">
+      <Link
+        to="/soci/gestisci"
+        className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-neon mb-6"
+      >
         <ArrowLeft className="w-4 h-4" /> Volver
       </Link>
 
@@ -186,15 +235,26 @@ function SocioDetail() {
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Nº socio</div>
-                <div className="font-display text-2xl text-neon tracking-[0.25em] mt-0.5">{member.member_number}</div>
-                <h1 className="font-display text-3xl text-foreground mt-3">{member.first_name} {member.last_name}</h1>
+                <div className="font-display text-2xl text-neon tracking-[0.25em] mt-0.5">
+                  {member.member_number}
+                </div>
+                <h1 className="font-display text-3xl text-foreground mt-3">
+                  {member.first_name} {member.last_name}
+                </h1>
                 <div className="text-sm text-muted-foreground mt-1">{member.dni_number}</div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <span className={`text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border ${badge.color}`}>{badge.label}</span>
+                <span
+                  className={`text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border ${badge.color}`}
+                >
+                  {badge.label}
+                </span>
                 {!editing && (
                   <button
-                    onClick={() => { setForm(member); setEditing(true); }}
+                    onClick={() => {
+                      setForm(member);
+                      setEditing(true);
+                    }}
                     className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10"
                   >
                     <Pencil className="w-3 h-3" /> Editar
@@ -205,22 +265,57 @@ function SocioDetail() {
 
             {editing ? (
               <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <EditField label="Nombre" value={form.first_name ?? ""} onChange={(v) => setForm({ ...form, first_name: v })} />
-                <EditField label="Apellido" value={form.last_name ?? ""} onChange={(v) => setForm({ ...form, last_name: v })} />
-                <EditField label="DNI / NIE" value={form.dni_number ?? ""} onChange={(v) => setForm({ ...form, dni_number: v })} />
-                <EditField label="F. nacimiento" type="date" value={form.birth_date ?? ""} onChange={(v) => setForm({ ...form, birth_date: v })} />
-                <EditField label="Ciudad" value={form.city ?? ""} onChange={(v) => setForm({ ...form, city: v })} />
-                <EditField label="Teléfono" value={form.phone ?? ""} onChange={(v) => setForm({ ...form, phone: v })} />
+                <EditField
+                  label="Nombre"
+                  value={form.first_name ?? ""}
+                  onChange={(v) => setForm({ ...form, first_name: v })}
+                />
+                <EditField
+                  label="Apellido"
+                  value={form.last_name ?? ""}
+                  onChange={(v) => setForm({ ...form, last_name: v })}
+                />
+                <EditField
+                  label="DNI / NIE"
+                  value={form.dni_number ?? ""}
+                  onChange={(v) => setForm({ ...form, dni_number: v })}
+                />
+                <EditField
+                  label="F. nacimiento"
+                  type="date"
+                  value={form.birth_date ?? ""}
+                  onChange={(v) => setForm({ ...form, birth_date: v })}
+                />
+                <EditField
+                  label="Ciudad"
+                  value={form.city ?? ""}
+                  onChange={(v) => setForm({ ...form, city: v })}
+                />
+                <EditField
+                  label="Teléfono"
+                  value={form.phone ?? ""}
+                  onChange={(v) => setForm({ ...form, phone: v })}
+                />
                 <div className="md:col-span-2">
-                  <EditField label="Email" type="email" value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} />
+                  <EditField
+                    label="Email"
+                    type="email"
+                    value={form.email ?? ""}
+                    onChange={(v) => setForm({ ...form, email: v })}
+                  />
                 </div>
                 <div className="md:col-span-2 flex justify-end gap-2 mt-1">
-                  <button onClick={() => setEditing(false)}
-                    className="px-3 py-2 text-xs uppercase tracking-widest border border-border rounded-lg text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-3 py-2 text-xs uppercase tracking-widest border border-border rounded-lg text-muted-foreground hover:text-foreground"
+                  >
                     <X className="w-3 h-3 inline mr-1" /> Cancelar
                   </button>
-                  <button onClick={saveEdit} disabled={savingEdit}
-                    className="px-4 py-2 text-xs uppercase tracking-widest bg-gradient-neon text-primary-foreground rounded-lg font-semibold glow-neon disabled:opacity-50">
+                  <button
+                    onClick={saveEdit}
+                    disabled={savingEdit}
+                    className="px-4 py-2 text-xs uppercase tracking-widest bg-gradient-neon text-primary-foreground rounded-lg font-semibold glow-neon disabled:opacity-50"
+                  >
                     <Save className="w-3 h-3 inline mr-1" /> {savingEdit ? "Guardando…" : "Guardar"}
                   </button>
                 </div>
@@ -233,34 +328,49 @@ function SocioDetail() {
                 <Stat label="Email" value={member.email ?? "—"} />
                 <Stat label="Alta" value={member.joined_at} />
                 <Stat label="Caducidad" value={member.expires_at} />
-                <Stat label="Cuota" value={plan ? `${plan.name} · ${formatPrice(plan.price_cents)}` : "—"} />
+                <Stat
+                  label="Cuota"
+                  value={plan ? `${plan.name} · ${formatPrice(plan.price_cents)}` : "—"}
+                />
               </div>
             )}
           </div>
-
 
           {/* DNI */}
           <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
             <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-3">DNI</div>
             {dniUrl ? (
               <img src={dniUrl} alt="DNI" className="max-w-full rounded-lg border border-border" />
-            ) : <div className="text-muted-foreground text-sm">Sin foto</div>}
+            ) : (
+              <div className="text-muted-foreground text-sm">Sin foto</div>
+            )}
           </div>
 
           {/* Contract */}
           <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-3">
               <FileCheck className="w-4 h-4 text-neon" />
-              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Contrato firmado</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
+                Contrato firmado
+              </div>
             </div>
             {member.contract_signed_at ? (
               <>
                 <div className="text-xs text-muted-foreground mb-3">
-                  Firmado el {new Date(member.contract_signed_at).toLocaleString("es-ES")} · versión {member.contract_version}
+                  Firmado el {new Date(member.contract_signed_at).toLocaleString("es-ES")} · versión{" "}
+                  {member.contract_version}
                 </div>
-                {sigUrl && <img src={sigUrl} alt="Firma" className="max-w-xs bg-black rounded-lg border border-border" />}
+                {sigUrl && (
+                  <img
+                    src={sigUrl}
+                    alt="Firma"
+                    className="max-w-xs bg-black rounded-lg border border-border"
+                  />
+                )}
               </>
-            ) : <div className="text-muted-foreground text-sm">Sin firma</div>}
+            ) : (
+              <div className="text-muted-foreground text-sm">Sin firma</div>
+            )}
           </div>
         </div>
 
@@ -274,10 +384,16 @@ function SocioDetail() {
             {qrUrl ? (
               <img src={qrUrl} alt={`QR socio ${member.member_number}`} className="w-44 h-44" />
             ) : (
-              <div className="w-44 h-44 flex items-center justify-center text-muted-foreground text-xs">Generando…</div>
+              <div className="w-44 h-44 flex items-center justify-center text-muted-foreground text-xs">
+                Generando…
+              </div>
             )}
-            <div className="font-display text-neon tracking-[0.3em] mt-3">{member.member_number}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Escanea el QR o dicta el número para abrir esta ficha.</p>
+            <div className="font-display text-neon tracking-[0.3em] mt-3">
+              {member.member_number}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Escanea el QR o dicta el número para abrir esta ficha.
+            </p>
             <button
               type="button"
               onClick={resendQr}
@@ -301,24 +417,35 @@ function SocioDetail() {
               <RefreshCw className="w-4 h-4 text-neon" />
               <div className="font-display text-sm">Renovar cuota</div>
             </div>
-            <select value={newPlanId} onChange={(e) => setNewPlanId(e.target.value)}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none">
+            <select
+              value={newPlanId}
+              onChange={(e) => setNewPlanId(e.target.value)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
+            >
               {plans.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} — {formatPrice(p.price_cents)} ({p.duration_days} d)</option>
+                <option key={p.id} value={p.id}>
+                  {p.name} — {formatPrice(p.price_cents)} ({p.duration_days} d)
+                </option>
               ))}
             </select>
-            <button onClick={renew} disabled={renewing}
-              className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50">
+            <button
+              onClick={renew}
+              disabled={renewing}
+              className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
+            >
               {renewing ? "..." : "Renovar"}
             </button>
             <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-              La nueva caducidad se suma desde hoy o desde la fecha actual de caducidad si todavía es futura.
+              La nueva caducidad se suma desde hoy o desde la fecha actual de caducidad si todavía
+              es futura.
             </p>
           </div>
 
           {isAdmin && (
-            <button onClick={remove}
-              className="w-full flex items-center justify-center gap-2 border border-destructive/40 text-destructive py-2.5 rounded-lg text-xs uppercase tracking-widest hover:bg-destructive/10">
+            <button
+              onClick={remove}
+              className="w-full flex items-center justify-center gap-2 border border-destructive/40 text-destructive py-2.5 rounded-lg text-xs uppercase tracking-widest hover:bg-destructive/10"
+            >
               <Trash2 className="w-4 h-4" /> Eliminar socio
             </button>
           )}
@@ -360,4 +487,3 @@ function EditField({
     </label>
   );
 }
-

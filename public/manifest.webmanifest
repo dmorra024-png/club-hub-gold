@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "Club Hub Gold — SNOOP",
+  "short_name": "SNOOP",
+  "description": "Administración privada de la asociación",
+  "lang": "es",
+  "start_url": "/auth",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080d0a",
+  "theme_color": "#080d0a",
+  "icons": [
+    { "src": "/icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/app-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -32,3 +32,11 @@ collaudo, inclusi i limiti non ancora verificati, sono documentati in
 [`docs/ACCOUNT_SECURITY_REVIEW.md`](docs/ACCOUNT_SECURITY_REVIEW.md).
 Questa revisione non completa le attività funzionali, AI, PWA o indipendenza
 runtime previste dal piano. Nessuna migrazione è stata applicata a dati reali.
+
+## Avanzamento: percorso amministrativo indipendente
+
+Implementati runtime Node senza SDK Lovable, AI configurabile per soci/documenti,
+conferma dei dati prima del salvataggio, PWA e test browser/SQL con dati sintetici.
+Stato, credenziali mancanti, loghi da esportare e percorsi legacy esclusi sono in
+[`docs/ADMINISTRATIVE_RUNTIME.md`](docs/ADMINISTRATIVE_RUNTIME.md).
+Il piano complessivo non è dichiarato completato né pronto al deployment.
