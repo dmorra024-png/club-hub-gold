@@ -158,7 +158,7 @@ function AuthPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground text-center mt-6 leading-relaxed">
-            La primera cuenta registrada se convierte en <span className="text-neon">Administrador</span>.
+            El acceso al club debe ser asignado por un <span className="text-neon">administrador</span>.
           </p>
         </div>
       </div>
