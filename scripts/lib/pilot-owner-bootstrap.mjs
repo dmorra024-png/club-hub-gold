@@ -1,3 +1,6 @@
+// Historical one-time pilot bootstrap, already applied. Do not rerun or use to
+// provision platform operators. The separation upgrade denies operational access
+// to platform identities even when their historical club role is retained.
 // One-time reviewed operations script, never an application signup/RPC endpoint.
 export const PILOT_PROJECT_REF = "bnwanxbmprbymbutoths";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

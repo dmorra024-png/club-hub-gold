@@ -1,0 +1,56 @@
+{
+  "project": "Snoop-pilot",
+  "project_ref": "bnwanxbmprbymbutoths",
+  "migration": "supabase/migrations/20261106150000_platform_club_separation.sql",
+  "migration_sha256": "031969004a522209cf4c3c1f1a5af30062b97cd5900b236c2cc2d97fa1f7e66e",
+  "remote_migration_applied": false,
+  "remote_accounts_or_clubs_created": false,
+  "deployment_performed": false,
+  "tests": {
+    "automatic": {
+      "status": "PASS",
+      "passed": 131,
+      "failed": 0
+    },
+    "layered_database_separation": {
+      "status": "PASS",
+      "passed": 12,
+      "failed": 0,
+      "engine": "PostgreSQL/PGlite; native Supabase extension installers excluded; synthetic Auth/Storage"
+    },
+    "mobile_browser": {
+      "status": "PASS",
+      "assertions": 56,
+      "scenarios": 10,
+      "devices": [
+        "Pixel 7 Chromium emulation",
+        "iPhone 13 Chromium emulation; not Safari"
+      ],
+      "backend": "mocked local only"
+    },
+    "member_browser": {
+      "status": "PASS",
+      "checks": [
+        "registration",
+        "duplicate submission guard",
+        "cancelled/confirmed renewal",
+        "QR view",
+        "AI draft without automatic writes"
+      ],
+      "backend": "mocked local only"
+    },
+    "typescript": "PASS",
+    "cloudflare_module_build": "PASS (synthetic sandbox mode)",
+    "worker_dry_run": "PASS",
+    "client_secret_scan": "PASS (58 public artifacts)"
+  },
+  "not_verified": [
+    "Physical Android handset and native iOS Safari",
+    "Live deployment after this prepared migration"
+  ],
+  "pending_operations": [
+    "Explicit approval to apply only this migration on Snoop-pilot",
+    "Explicit approval for deployment of the reviewed SNOOP code",
+    "A non-platform club administrator identity; no account was created or modified"
+  ]
+}

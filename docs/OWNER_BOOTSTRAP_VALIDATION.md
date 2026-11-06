@@ -10,6 +10,10 @@ The reviewed transaction creates one club, `SNOOP Pilot` (`snoop-pilot`), and gi
 
 Implementation: `scripts/lib/pilot-owner-bootstrap.mjs`. Real execution still requires explicit operation-specific approval.
 
+## Superseded operational policy
+
+The later platform/club separation upgrade deliberately denies all operational access to a Super Admin, including the historical owner with both stored roles. Those rows are retained for audit, not used to grant private club access. A different non-platform identity must administer the club. See `PLATFORM_SEPARATION_RESULTS.md`.
+
 ## Corrections prepared locally
 
 * A Super Admin attached to a club can see the existing Socios, Caja and Ajustes navigation and club home. A platform-only Super Admin retains its platform-only navigation.

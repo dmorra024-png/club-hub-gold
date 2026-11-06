@@ -77,15 +77,10 @@ export function MembershipReceipts() {
         .trim()
         .replace(/[%_.,()\\]/g, "")
         .slice(0, 80);
-      const { data, error } = await supabase
-        .from("members")
-        .select("id,member_number,first_name,last_name")
-        .eq("club_id", clubId)
-        .or(
-          `first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,member_number.ilike.%${escaped}%`,
-        )
-        .order("member_number")
-        .limit(30);
+      const { data, error } = await supabase.rpc("lookup_receipt_members", {
+        p_club_id: clubId,
+        p_query: escaped,
+      });
       if (!cancelled) {
         if (error) setError("No se pudieron buscar los socios");
         else setMembers(data ?? []);

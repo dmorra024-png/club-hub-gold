@@ -20,7 +20,9 @@ export async function requireClubAdmin(context: AccessContext): Promise<string> 
     _user_id: context.userId,
   });
   if (superError) throw superError;
-  if (isSuper) return clubId;
+  if (isSuper) throw new Error("Forbidden: platform account cannot administer club contents");
+  const { requireOperationalClub } = await import("./club-access.server.ts");
+  await requireOperationalClub(context);
   // A role in another club must never authorize this club's account operations.
   const { data: role, error: roleError } = await context.supabase
     .from("user_roles")

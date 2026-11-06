@@ -3,41 +3,20 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { clearClubCache } from "@/lib/club";
 
-export type Permission =
-  | "manage_members"
-  | "manage_products"
-  | "manage_collaborators"
-  | "view_reports"
-  | "use_cash";
-
-export type Role = "super_admin" | "admin" | "collaborator" | null;
-
-export interface UserAccess {
-  role: Role;
-  permissions: Permission[];
-  clubId: string | null;
-  clubName: string | null;
-  clubLogo: string | null;
-}
-
-const ALL_PERMS: Permission[] = [
-  "manage_members",
-  "manage_products",
-  "manage_collaborators",
-  "view_reports",
-  "use_cash",
-];
+import {
+  EMPTY_ACCESS,
+  parseAccountAccess,
+  type AccountAccess,
+  type Permission,
+} from "@/lib/access-context";
+export type { Permission } from "@/lib/access-context";
+export type Role = AccountAccess["role"];
+export type UserAccess = AccountAccess;
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [access, setAccess] = useState<UserAccess>({
-    role: null,
-    permissions: [],
-    clubId: null,
-    clubName: null,
-    clubLogo: null,
-  });
+  const [access, setAccess] = useState<UserAccess>({ ...EMPTY_ACCESS });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,7 +27,7 @@ export function useAuth() {
         setTimeout(() => loadAccess(s.user.id), 0);
       } else {
         clearClubCache();
-        setAccess({ role: null, permissions: [], clubId: null, clubName: null, clubLogo: null });
+        setAccess({ ...EMPTY_ACCESS });
         setLoading(false);
       }
     });
@@ -63,60 +42,26 @@ export function useAuth() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  async function loadAccess(uid: string) {
-    const { data: rows } = await supabase
-      .from("user_roles")
-      .select("role, permissions, club_id")
-      .eq("user_id", uid);
-
-    if (!rows || rows.length === 0) {
-      setAccess({ role: null, permissions: [], clubId: null, clubName: null, clubLogo: null });
-      setLoading(false);
-      return;
-    }
-
-    // The database chooses the current club; never combine an unrelated role and club.
-    const { data: currentClub, error: clubError } = await supabase.rpc("current_club_id");
-    if (clubError) {
-      setAccess({ role: null, permissions: [], clubId: null, clubName: null, clubLogo: null });
-      setLoading(false);
-      return;
-    }
-    const clubId = currentClub ?? null;
-    const best =
-      rows.find((r) => r.role === "super_admin") ??
-      rows.find((r) => r.club_id === clubId && r.role === "admin") ??
-      rows.find((r) => r.club_id === clubId);
-    if (!best) {
-      setAccess({ role: null, permissions: [], clubId: null, clubName: null, clubLogo: null });
-      setLoading(false);
-      return;
-    }
-
-    let clubName: string | null = null;
-    let clubLogo: string | null = null;
-    if (clubId) {
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("name, logo_url")
-        .eq("id", clubId)
-        .maybeSingle();
-      clubName = (club as any)?.name ?? null;
-      clubLogo = (club as any)?.logo_url ?? null;
-    }
-
-    const role = best.role as Role;
-    const perms: Permission[] =
-      role === "super_admin" || role === "admin"
-        ? ALL_PERMS
-        : ((best.permissions ?? []) as Permission[]);
-
-    setAccess({ role, permissions: perms, clubId, clubName, clubLogo });
+  async function loadAccess(_uid: string) {
+    const { data, error } = await supabase.rpc("snoop_access_context");
+    setAccess(error ? { ...EMPTY_ACCESS } : parseAccountAccess(data));
     setLoading(false);
   }
+  useEffect(() => {
+    if (!user?.id) return;
+    const refresh = () => {
+      void loadAccess(user.id);
+    };
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [user?.id]);
 
   const can = (p: Permission) => access.permissions.includes(p);
-  const isAdmin = access.role === "admin" || access.role === "super_admin";
+  const isAdmin = access.role === "admin" && access.status === "active";
   const isSuperAdmin = access.role === "super_admin";
 
   return { session, user, access, loading, can, isAdmin, isSuperAdmin };

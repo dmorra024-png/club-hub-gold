@@ -182,6 +182,7 @@ export type Database = {
       }
       clubs: {
         Row: {
+          subscription_expires_at: string | null
           active: boolean
           city: string | null
           created_at: string
@@ -193,6 +194,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          subscription_expires_at?: string | null
           active?: boolean
           city?: string | null
           created_at?: string
@@ -204,6 +206,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          subscription_expires_at?: string | null
           active?: boolean
           city?: string | null
           created_at?: string
@@ -793,6 +796,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_operate_club: {
+        Args: { target: string; permission?: Database["public"]["Enums"]["app_permission"] }
+        Returns: boolean
+      }
+      snoop_access_context: { Args: Record<PropertyKey, never>; Returns: Json }
+      lookup_receipt_members: {
+        Args: { p_club_id: string; p_query: string }
+        Returns: { id: string; member_number: string; first_name: string; last_name: string }[]
+      }
       record_membership_receipt: {
         Args: {
           p_club_id: string;

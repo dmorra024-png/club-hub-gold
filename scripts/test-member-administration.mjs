@@ -11,7 +11,9 @@ const publicUrl =
     /^VITE_SUPABASE_URL=["']?([^\s"']+)/m,
   )?.[1];
 assert.ok(publicUrl, "Public Supabase URL needed to match the browser's configured endpoint");
-const apiOrigin = new URL(publicUrl).origin;
+const apiUrl = new URL(publicUrl, origin);
+const apiOrigin = apiUrl.origin;
+const apiPrefix = apiUrl.pathname.replace(/\/$/, "");
 const userId = "00000000-0000-4000-8000-000000000001";
 const clubId = "10000000-0000-4000-8000-000000000001";
 const planId = "20000000-0000-4000-8000-000000000001";
@@ -56,9 +58,11 @@ try {
   await context.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.origin === origin.origin) return route.continue();
+    const isApi =
+      url.origin === apiOrigin && (!apiPrefix || url.pathname.startsWith(apiPrefix + "/"));
+    if (url.origin === origin.origin && !isApi) return route.continue();
     // The only nonlocal origin is fully mocked. Never pass through to real data.
-    if (url.origin !== apiOrigin) return route.abort();
+    if (!isApi) return route.abort();
     if (request.method() === "OPTIONS")
       return route.fulfill({
         status: 204,
@@ -70,7 +74,22 @@ try {
       });
     let body = [];
     let status = 200;
-    if (url.pathname === "/auth/v1/user") body = user;
+    if (url.pathname.endsWith("/auth/v1/user")) body = user;
+    else if (url.pathname.endsWith("/rpc/snoop_access_context"))
+      body = {
+        role: "admin",
+        status: "active",
+        clubId,
+        clubName: "Associazione Demo",
+        clubLogo: null,
+        permissions: [
+          "manage_members",
+          "manage_products",
+          "manage_collaborators",
+          "view_reports",
+          "use_cash",
+        ],
+      };
     else if (url.pathname.endsWith("/rpc/current_club_id")) body = clubId;
     else if (url.pathname.endsWith("/user_roles"))
       body = [

@@ -26,6 +26,7 @@ function fixture(
     users?: User[];
     currentClub?: string | null;
     superAdmin?: boolean;
+    operational?: boolean;
     rpcError?: Error;
     queryError?: { code?: string; message: string };
     authError?: Error;
@@ -39,7 +40,12 @@ function fixture(
   const record = (method: string, ...args: unknown[]) => calls.push({ method, args });
   const client = {
     rpc: async (name: string) => ({
-      data: name === "current_club_id" ? options.currentClub : (options.superAdmin ?? false),
+      data:
+        name === "current_club_id"
+          ? options.currentClub
+          : name === "can_operate_club"
+            ? options.operational !== false
+            : (options.superAdmin ?? false),
       error: options.rpcError ?? null,
     }),
     from(table: string) {
@@ -223,12 +229,15 @@ test("an admin role in another club does not authorize this club", async () => {
   await assert.rejects(requireClubAdmin({ supabase: f.client, userId: "caller" }), /Forbidden/);
 });
 
-test("same-club admin and super admin checks pass only with authoritative results", async () => {
+test("platform and club administration use disjoint authoritative roles", async () => {
   const f = fixture({ currentClub: "club-a", rows: [role({ user_id: "caller", role: "admin" })] });
   assert.equal(await requireClubAdmin({ supabase: f.client, userId: "caller" }), "club-a");
   const superAdmin = fixture({ currentClub: "club-a", superAdmin: true });
   await assertSuperAdmin({ supabase: superAdmin.client, userId: "root" });
-  assert.equal(await requireClubAdmin({ supabase: superAdmin.client, userId: "root" }), "club-a");
+  await assert.rejects(
+    requireClubAdmin({ supabase: superAdmin.client, userId: "root" }),
+    /platform account/,
+  );
   await assert.rejects(assertSuperAdmin({ supabase: f.client, userId: "caller" }), /Forbidden/);
   const broken = fixture({ rpcError: new Error("RPC unavailable"), superAdmin: true });
   await assert.rejects(

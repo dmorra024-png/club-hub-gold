@@ -18,9 +18,11 @@ export const listClubs = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { assertSuperAdmin } = await import("./account-access.server");
     await assertSuperAdmin(context);
-    const { data, error } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { PLATFORM_CLUB_FIELDS } = await import("./platform-management.server");
+    const { data, error } = await supabaseAdmin
       .from("clubs")
-      .select("*")
+      .select(PLATFORM_CLUB_FIELDS)
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data;
@@ -46,6 +48,7 @@ export const createClub = createServerFn({ method: "POST" })
     const { assertSuperAdmin } = await import("./account-access.server");
     await assertSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { PLATFORM_CLUB_FIELDS } = await import("./platform-management.server");
     const { data: club, error } = await supabaseAdmin
       .from("clubs")
       .insert({
@@ -54,7 +57,7 @@ export const createClub = createServerFn({ method: "POST" })
         city: data.city ?? null,
         logo_url: data.logo_url ?? null,
       })
-      .select("*")
+      .select(PLATFORM_CLUB_FIELDS)
       .single();
     if (error) throw error;
     return club;
@@ -85,6 +88,12 @@ export const createClubAdmin = createServerFn({ method: "POST" })
     const { resolveInvitedAccount, addClubRole } = await import("./account-access.server");
     const { userId, invited, invitationUrl } = await resolveInvitedAccount(supabaseAdmin, data);
 
+    const { data: isPlatform, error: platformError } = await supabaseAdmin.rpc("is_super_admin", {
+      _user_id: userId,
+    });
+    if (platformError) throw platformError;
+    if (isPlatform)
+      throw new Error("Usa una cuenta distinta: el Super Admin no puede operar dentro del club");
     await addClubRole(supabaseAdmin, {
       user_id: userId,
       role: "admin",
@@ -210,4 +219,28 @@ export const deleteCollaborator = createServerFn({ method: "POST" })
     const { revokeClubCollaborator } = await import("./account-access.server");
     await revokeClubCollaborator(supabaseAdmin, clubId, data.role_id);
     return { ok: true };
+  });
+
+export const updateClub = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(2).max(80),
+        city: z.string().max(80).nullable(),
+        logo_url: z.string().url().nullable(),
+        active: z.boolean(),
+        subscription_expires_at: z.string().datetime({ offset: true }).nullable(),
+      })
+      .strict()
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { assertSuperAdmin } = await import("./account-access.server");
+    await assertSuperAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { updatePlatformClub } = await import("./platform-management.server");
+    const { id, ...values } = data;
+    return updatePlatformClub(context, supabaseAdmin, id, values);
   });

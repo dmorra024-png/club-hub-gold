@@ -46,7 +46,8 @@ const RANGES: { id: Range; label: string; days: number }[] = [
 ];
 
 function InformesPage() {
-  const { isAdmin, loading } = useAuth();
+  const { can, loading } = useAuth();
+  const isAdmin = can("view_reports");
   const nav = useNavigate();
   useEffect(() => {
     if (!loading && !isAdmin) nav({ to: "/" });

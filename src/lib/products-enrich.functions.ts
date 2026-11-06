@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClubCatalogAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateText } from "ai";
 import { administrativeModel, aiConfiguration, providerFetch } from "./administrative-ai.server";
@@ -17,7 +17,7 @@ export type EnrichResult = {
 };
 
 export const enrichProduct = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClubCatalogAuth])
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<EnrichResult> => {
     const config = process.env.AI_PROVIDER === "cloudflare" ? null : aiConfiguration("catalog");

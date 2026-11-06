@@ -1,6 +1,6 @@
 import { BrandImage } from "@/components/BrandImage";
 import { VoiceAgent } from "@/components/VoiceAgent";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Home,
   Users,
@@ -13,6 +13,7 @@ import {
   Settings,
   ScanLine,
 } from "lucide-react";
+import type { Permission } from "@/lib/access-context";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import logoAsset from "@/assets/snoop-logo.png.asset.json";
@@ -23,17 +24,43 @@ type NavItem = {
   to: string;
   label: string;
   icon: any;
-  show: (a: { isAdmin: boolean; isSuperAdmin: boolean; hasClub: boolean }) => boolean;
+  show: (a: {
+    isAdmin: boolean;
+    isSuperAdmin: boolean;
+    hasClub: boolean;
+    can: (p: Permission) => boolean;
+  }) => boolean;
 };
 
 const NAV: NavItem[] = [
   { to: "/", label: "Inicio", icon: Home, show: () => true },
   { to: "/snoop-admin", label: "Snoop Admin", icon: Shield, show: (a) => a.isSuperAdmin },
-  { to: "/soci", label: "Socios", icon: Users, show: (a) => a.hasClub },
-  { to: "/control-acceso", label: "Control acceso", icon: ScanLine, show: (a) => a.hasClub },
-  { to: "/productos", label: "Productos", icon: Package, show: (a) => a.hasClub },
-  { to: "/cuotas", label: "Cuotas e ingresos", icon: Banknote, show: () => true },
-  { to: "/caja", label: "Caja", icon: Banknote, show: (a) => a.hasClub },
+  { to: "/soci", label: "Socios", icon: Users, show: (a) => a.hasClub && a.can("manage_members") },
+  {
+    to: "/control-acceso",
+    label: "Control acceso",
+    icon: ScanLine,
+    show: (a) => a.hasClub && a.can("manage_members"),
+  },
+  {
+    to: "/productos",
+    label: "Productos",
+    icon: Package,
+    show: (a) => a.hasClub && a.can("manage_products"),
+  },
+  {
+    to: "/cuotas",
+    label: "Cuotas e ingresos",
+    icon: Banknote,
+    show: (a) => a.hasClub && (a.can("use_cash") || a.can("view_reports")),
+  },
+  { to: "/caja", label: "Caja", icon: Banknote, show: (a) => a.hasClub && a.can("use_cash") },
+  {
+    to: "/ajustes/informes",
+    label: "Informes",
+    icon: Banknote,
+    show: (a) => a.hasClub && a.can("view_reports"),
+  },
   { to: "/ajustes", label: "Ajustes", icon: Settings, show: (a) => a.isAdmin && a.hasClub },
 ];
 
@@ -46,14 +73,22 @@ export function SnoopLayout({
   title?: string;
   subtitle?: string;
 }) {
-  const { user, access, isAdmin, isSuperAdmin } = useAuth();
+  const { user, access, isAdmin, isSuperAdmin, can, loading } = useAuth();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
 
   const visible = NAV.filter((n) =>
-    n.show({ isAdmin, isSuperAdmin, hasClub: Boolean(access.clubId) }),
+    n.show({
+      isAdmin,
+      isSuperAdmin,
+      hasClub: access.status === "active" && Boolean(access.clubId),
+      can,
+    }),
   );
+
+  if (!loading && isSuperAdmin) return <Navigate to="/snoop-admin" />;
+  if (!loading && access.status !== "active") return <Navigate to="/club-status" />;
 
   async function signOut() {
     await supabase.auth.signOut();

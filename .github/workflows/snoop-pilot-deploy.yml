@@ -58,6 +58,7 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Validate SQL security and TypeScript
         run: |
+          bun run test:security:architecture
           bun run test:security:initialization
           bun run typecheck
       - name: Build Cloudflare Worker (only public key embedded)

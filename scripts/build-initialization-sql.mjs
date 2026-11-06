@@ -1,7 +1,9 @@
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+// Approved initial-install snapshot. Later upgrades are explicit separate migrations;
+// never silently fold a privileged schema upgrade into the one-time pilot SQL.
 const names = (await readdir("supabase/migrations"))
-  .filter((n) => n.endsWith(".sql"))
+  .filter((n) => n.endsWith(".sql") && n <= "20261106100000_authoritative_rls.sql")
   .sort();
 let sql = `-- SNOOP PILOT - INIZIALIZZAZIONE COMPLETA
 -- Generato dalle migrazioni del repository; eseguire UNA SOLA VOLTA.
@@ -29,8 +31,7 @@ const manifest = [];
 const expectedPolicies = JSON.parse(
   await readFile("tests/fixtures/initialization-policy-allowlist.json", "utf8"),
 );
-const quoteSql = (v) =>
-  v == null ? "NULL" : "'" + String(v).replaceAll("'", "''") + "'";
+const quoteSql = (v) => (v == null ? "NULL" : "'" + String(v).replaceAll("'", "''") + "'");
 const expectedRows = expectedPolicies
   .map(
     (p) =>
@@ -70,8 +71,7 @@ for (const name of names) {
       "CREATE TYPE public.app_role AS ENUM ('admin', 'collaborator', 'super_admin');",
     );
   if (name.startsWith("20260630073314_"))
-    text =
-      "-- super_admin gia incluso nella definizione iniziale di app_role.\n";
+    text = "-- super_admin gia incluso nella definizione iniziale di app_role.\n";
   // Historical seeds belong to the old project; fresh initialization contains no club or plans.
   if (name.startsWith("20260624061600_"))
     text = text.replace(
@@ -84,12 +84,8 @@ for (const name of names) {
       "-- Nessun club storico viene copiato nel nuovo progetto.",
     );
     const start = text.indexOf("-- Backfill");
-    const end = text.indexOf(
-      "ALTER TABLE public.members ALTER COLUMN club_id",
-      start,
-    );
-    if (start < 0 || end < 0)
-      throw new Error("Unexpected historical backfill structure");
+    const end = text.indexOf("ALTER TABLE public.members ALTER COLUMN club_id", start);
+    if (start < 0 || end < 0) throw new Error("Unexpected historical backfill structure");
     text =
       text.slice(0, start) +
       "-- Database vuoto: nessun backfill di dati o ruoli storici.\n" +
@@ -146,9 +142,7 @@ if (
     sql,
   )
 )
-  throw new Error(
-    "Unexpected historical data, external URL or credential pattern",
-  );
+  throw new Error("Unexpected historical data, external URL or credential pattern");
 await mkdir("docs/sql", { recursive: true });
 await writeFile("docs/sql/SNOOP_PILOT_INITIALIZE.sql", sql);
 await writeFile(
@@ -169,6 +163,4 @@ await writeFile(
     2,
   ) + "\n",
 );
-console.log(
-  `Prepared single SQL file from ${names.length} migrations; no remote connection.`,
-);
+console.log(`Prepared single SQL file from ${names.length} migrations; no remote connection.`);

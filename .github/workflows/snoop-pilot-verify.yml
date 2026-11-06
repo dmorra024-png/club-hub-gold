@@ -35,6 +35,7 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run security and TypeScript checks
         run: |
+          npm run test:security:architecture
           npm run test:security:initialization
           npm run typecheck
       - name: Report result

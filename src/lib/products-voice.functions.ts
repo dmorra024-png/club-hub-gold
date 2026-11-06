@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClubCatalogAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateText } from "ai";
 import { administrativeModel } from "./administrative-ai.server";
@@ -62,7 +62,7 @@ function extractJSON(raw: string): unknown {
 }
 
 export const parseProductCommand = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClubCatalogAuth])
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<ParsedCommand> => {
     const model = administrativeModel("catalog");

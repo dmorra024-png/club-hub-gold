@@ -2,6 +2,12 @@
 
 Ramo `codex/stabilize-independent-club`, PR #1. Il progetto esistente prosegue: non è stato ricreato. Nessuna risorsa, configurazione, segreto, dominio o dato di Security PSG è stato modificato. Nessun deployment pubblico o merge eseguito.
 
+## Stato attuale: piattaforma e gestionale separati
+
+La separazione successiva è descritta in [PLATFORM_SEPARATION_RESULTS.md](PLATFORM_SEPARATION_RESULTS.md). Il Super Admin gestisce soltanto metadati dei club e inviti degli amministratori tramite funzioni server. I ruoli storici non vengono cancellati, ma un'identità Super Admin non può operare nel gestionale, neppure se conserva un vecchio ruolo Admin. Sospensione/scadenza sono verificate dal database e dai controlli server a ogni operazione.
+
+Snoop-pilot è già inizializzato: **non rieseguire l'inizializzazione o il bootstrap del proprietario**. La migrazione di aggiornamento `20261106150000_platform_club_separation.sql` è preparata e collaudata, ma non ancora applicata al database remoto. Anche il deployment richiede autorizzazione distinta. Il file SQL iniziale approvato resta uno snapshot storico; le nuove installazioni richiedono anche le migrazioni successive, in ordine.
+
 ## Cosa è implementato
 
 - Build TanStack Start/Nitro per **Cloudflare Workers**, accanto alla build Node conservata. `wrangler.json` usa esclusivamente il Worker `snoop-pilot`, asset propri e binding `SNOOP_AI`; non contiene domini, D1, KV, R2 o identificativi di altri progetti. Il target pilota rifiuta una configurazione Supabase dedicata mancante, invece di utilizzare quella storica.

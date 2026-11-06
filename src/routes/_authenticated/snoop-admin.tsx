@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { SnoopLayout } from "@/components/SnoopLayout";
+import { PlatformLayout } from "@/components/PlatformLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerFn } from "@tanstack/react-start";
-import { listClubs, createClub, createClubAdmin } from "@/lib/platform.functions";
+import { listClubs, createClub, createClubAdmin, updateClub } from "@/lib/platform.functions";
 import { Plus, Building2, UserCog, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/snoop-admin")({
@@ -19,6 +19,12 @@ function SnoopAdmin() {
   const [accountLink, setAccountLink] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const saveClub = useServerFn(updateClub);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editLogo, setEditLogo] = useState("");
+  const [expires, setExpires] = useState("");
   const loadClubs = useServerFn(listClubs);
   const addClub = useServerFn(createClub);
   const addClubAdmin = useServerFn(createClubAdmin);
@@ -107,16 +113,51 @@ function SnoopAdmin() {
     }
   }
 
+  async function changeClub(c: (typeof clubs)[number], suspend?: boolean) {
+    if (
+      suspend !== undefined &&
+      !window.confirm(
+        suspend ? "¿Suspender este club? Sus datos se conservarán." : "¿Reactivar este club?",
+      )
+    )
+      return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await saveClub({
+        data: {
+          id: c.id,
+          name: suspend === undefined ? editName : c.name,
+          city: suspend === undefined ? editCity || null : c.city,
+          logo_url: suspend === undefined ? editLogo || null : c.logo_url,
+          active: suspend === undefined ? c.active : !suspend,
+          subscription_expires_at:
+            suspend === undefined
+              ? expires
+                ? new Date(expires).toISOString()
+                : null
+              : c.subscription_expires_at,
+        },
+      });
+      setEditing(null);
+      await refresh();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "No se pudo actualizar el club");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading || !isSuperAdmin) {
     return (
-      <SnoopLayout>
+      <PlatformLayout>
         <div className="p-8 text-muted-foreground">Cargando…</div>
-      </SnoopLayout>
+      </PlatformLayout>
     );
   }
 
   return (
-    <SnoopLayout title="Snoop Admin" subtitle="Crea clubs y sus administradores">
+    <PlatformLayout>
       {accountLink && (
         <label className="block mb-4 text-sm text-neon">
           Enlace de un solo uso — solo para su titular
@@ -217,7 +258,7 @@ function SnoopAdmin() {
           {clubs.map((c) => (
             <div
               key={c.id}
-              className="bg-card/40 border border-neon/15 rounded-xl p-4 flex items-center gap-3"
+              className="bg-card/40 border border-neon/15 rounded-xl p-4 flex flex-wrap items-center gap-3"
             >
               {c.logo_url ? (
                 <img src={c.logo_url} alt="" className="w-10 h-10 object-contain rounded" />
@@ -230,6 +271,59 @@ function SnoopAdmin() {
                   {c.slug} {c.city ? `· ${c.city}` : ""}
                 </div>
               </div>
+              <div className="w-full text-sm text-neon" role="status">
+                {!c.active
+                  ? "Suspendido"
+                  : c.subscription_expires_at && new Date(c.subscription_expires_at) <= new Date()
+                    ? "Caducado"
+                    : "Activo"}{" "}
+                ·{" "}
+                {c.subscription_expires_at
+                  ? new Date(c.subscription_expires_at).toLocaleDateString("es-ES")
+                  : "Sin vencimiento"}
+              </div>
+              <button
+                disabled={busy}
+                onClick={() => changeClub(c, c.active)}
+                className="rounded border border-neon/30 p-2"
+              >
+                {c.active ? "Suspender club" : "Reactivar club"}
+              </button>
+              <button
+                disabled={busy}
+                className="rounded border border-neon/30 p-2"
+                onClick={() => {
+                  setEditing(c.id);
+                  setEditName(c.name);
+                  setEditCity(c.city ?? "");
+                  setEditLogo(c.logo_url ?? "");
+                  setExpires(c.subscription_expires_at?.slice(0, 10) ?? "");
+                }}
+              >
+                Editar club y suscripción
+              </button>
+              {editing === c.id && (
+                <form
+                  className="w-full space-y-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void changeClub(c);
+                  }}
+                >
+                  <Field label="Nombre del club" value={editName} onChange={setEditName} required />
+                  <Field label="Ciudad del club" value={editCity} onChange={setEditCity} />
+                  <Field label="Logo del club" value={editLogo} onChange={setEditLogo} />
+                  <Field
+                    label="Fin de suscripción (vacío: sin vencimiento)"
+                    value={expires}
+                    onChange={setExpires}
+                    type="date"
+                  />
+                  <button disabled={busy} className="rounded border border-neon/30 p-2">
+                    Guardar cambios
+                  </button>
+                </form>
+              )}
             </div>
           ))}
           {clubs.length === 0 && (
@@ -237,7 +331,7 @@ function SnoopAdmin() {
           )}
         </div>
       </section>
-    </SnoopLayout>
+    </PlatformLayout>
   );
 }
 

@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  requireSupabaseClubAuth,
+  requireClubMemberAuth,
+  requireClubCashAuth,
+} from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateText, generateObject, tool, stepCountIs } from "ai";
 import { administrativeModel } from "./administrative-ai.server";
@@ -19,7 +23,7 @@ const TranscribeInput = z.object({
 });
 
 export const transcribeAudio = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSupabaseClubAuth])
   .inputValidator((d: unknown) => TranscribeInput.parse(d))
   .handler(async ({ data }) => {
     const { transcribeAdministrativeAudio } = await import("./administrative-ai.server");
@@ -32,7 +36,7 @@ const TTSInput = z.object({
 });
 
 export const synthesizeSpeech = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSupabaseClubAuth])
   .inputValidator((d: unknown) => TTSInput.parse(d))
   .handler(async ({ data }) => {
     const { administrativeSpeech } = await import("./administrative-ai.server");
@@ -69,7 +73,7 @@ const FieldsSchema = z.object({
 type MemberFields = z.infer<typeof FieldsSchema>;
 
 export const extractMemberFields = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClubMemberAuth])
   .inputValidator((d: unknown) => ExtractInput.parse(d))
   .handler(async ({ data }) => {
     const { administrativeModel } = await import("./administrative-ai.server");
@@ -151,7 +155,7 @@ const DniFieldsSchema = z.object({
 });
 
 export const extractMemberFieldsFromImages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClubMemberAuth])
   .inputValidator((d: unknown) => DniImagesInput.parse(d))
   .handler(async ({ data }) => {
     const { administrativeModel } = await import("./administrative-ai.server");
@@ -214,7 +218,7 @@ function normalizeDate(input: string) {
 }
 
 export const agentRespond = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSupabaseClubAuth])
   .inputValidator((d: unknown) => AgentInput.parse(d))
   .handler(async ({ data, context }) => {
     const { administrativeModel } = await import("./administrative-ai.server");
@@ -418,7 +422,7 @@ const ParsedItemsSchema = z.object({
 });
 
 export const parseOrderItems = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClubCashAuth])
   .inputValidator((d: unknown) => ParseOrderInput.parse(d))
   .handler(async ({ data }) => {
     const model = administrativeModel();
@@ -469,7 +473,7 @@ Ejemplos:
   });
 
 export const getAdministrativeAiStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSupabaseClubAuth])
   .handler(async () => {
     const { administrativeAiStatus } = await import("./administrative-ai.server");
     return administrativeAiStatus();

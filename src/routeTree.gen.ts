@@ -20,6 +20,7 @@ import { Route as AuthenticatedSnoopAdminRouteImport } from './routes/_authentic
 import { Route as AuthenticatedProductosRouteImport } from './routes/_authenticated/productos'
 import { Route as AuthenticatedCuotasRouteImport } from './routes/_authenticated/cuotas'
 import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
+import { Route as AuthenticatedClubStatusRouteImport } from './routes/_authenticated/club-status'
 import { Route as AuthenticatedCajaRouteImport } from './routes/_authenticated/caja'
 import { Route as AuthenticatedSociIndexRouteImport } from './routes/_authenticated/soci.index'
 import { Route as AuthenticatedAjustesIndexRouteImport } from './routes/_authenticated/ajustes.index'
@@ -96,6 +97,11 @@ const AuthenticatedControlAccesoRoute =
     path: '/control-acceso',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedClubStatusRoute = AuthenticatedClubStatusRouteImport.update({
+  id: '/club-status',
+  path: '/club-status',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCajaRoute = AuthenticatedCajaRouteImport.update({
   id: '/caja',
   path: '/caja',
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/caja': typeof AuthenticatedCajaRoute
+  '/club-status': typeof AuthenticatedClubStatusRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/cuotas': typeof AuthenticatedCuotasRoute
   '/productos': typeof AuthenticatedProductosRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/caja': typeof AuthenticatedCajaRoute
+  '/club-status': typeof AuthenticatedClubStatusRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/cuotas': typeof AuthenticatedCuotasRoute
   '/productos': typeof AuthenticatedProductosRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/caja': typeof AuthenticatedCajaRoute
+  '/_authenticated/club-status': typeof AuthenticatedClubStatusRoute
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/_authenticated/cuotas': typeof AuthenticatedCuotasRoute
   '/_authenticated/productos': typeof AuthenticatedProductosRoute
@@ -316,6 +325,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/unsubscribe'
     | '/caja'
+    | '/club-status'
     | '/control-acceso'
     | '/cuotas'
     | '/productos'
@@ -347,6 +357,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/unsubscribe'
     | '/caja'
+    | '/club-status'
     | '/control-acceso'
     | '/cuotas'
     | '/productos'
@@ -380,6 +391,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/unsubscribe'
     | '/_authenticated/caja'
+    | '/_authenticated/club-status'
     | '/_authenticated/control-acceso'
     | '/_authenticated/cuotas'
     | '/_authenticated/productos'
@@ -500,6 +512,13 @@ declare module '@tanstack/react-router' {
       path: '/control-acceso'
       fullPath: '/control-acceso'
       preLoaderRoute: typeof AuthenticatedControlAccesoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/club-status': {
+      id: '/_authenticated/club-status'
+      path: '/club-status'
+      fullPath: '/club-status'
+      preLoaderRoute: typeof AuthenticatedClubStatusRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/caja': {
@@ -658,6 +677,7 @@ const AuthenticatedSociIdRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCajaRoute: typeof AuthenticatedCajaRoute
+  AuthenticatedClubStatusRoute: typeof AuthenticatedClubStatusRoute
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
   AuthenticatedCuotasRoute: typeof AuthenticatedCuotasRoute
   AuthenticatedProductosRoute: typeof AuthenticatedProductosRoute
@@ -678,6 +698,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCajaRoute: AuthenticatedCajaRoute,
+  AuthenticatedClubStatusRoute: AuthenticatedClubStatusRoute,
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
   AuthenticatedCuotasRoute: AuthenticatedCuotasRoute,
   AuthenticatedProductosRoute: AuthenticatedProductosRoute,

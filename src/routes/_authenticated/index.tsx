@@ -9,9 +9,9 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 function Home() {
-  const { access, isAdmin, isSuperAdmin } = useAuth();
+  const { access, isAdmin, isSuperAdmin, can } = useAuth();
 
-  if (isSuperAdmin && !access.clubId) return <SnoopHome />;
+  if (isSuperAdmin) return <SnoopHome />;
 
   const clubName = access.clubName ?? "—";
   const logo = access.clubLogo ?? fallbackLogo.url;
@@ -34,27 +34,33 @@ function Home() {
         />
 
         <div className="mt-10 grid grid-cols-2 gap-3 w-full max-w-sm">
-          <Link
-            to="/soci"
-            className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
-          >
-            <Users className="w-6 h-6" />
-            <span className="text-xs uppercase tracking-[0.25em] font-display">Socios</span>
-          </Link>
-          <Link
-            to="/productos"
-            className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
-          >
-            <Package className="w-6 h-6" />
-            <span className="text-xs uppercase tracking-[0.25em] font-display">Productos</span>
-          </Link>
-          <Link
-            to="/caja"
-            className="col-span-2 flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
-          >
-            <Banknote className="w-6 h-6" />
-            <span className="text-xs uppercase tracking-[0.25em] font-display">Caja</span>
-          </Link>
+          {can("manage_members") && (
+            <Link
+              to="/soci"
+              className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+            >
+              <Users className="w-6 h-6" />
+              <span className="text-xs uppercase tracking-[0.25em] font-display">Socios</span>
+            </Link>
+          )}
+          {can("manage_products") && (
+            <Link
+              to="/productos"
+              className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+            >
+              <Package className="w-6 h-6" />
+              <span className="text-xs uppercase tracking-[0.25em] font-display">Productos</span>
+            </Link>
+          )}
+          {can("use_cash") && (
+            <Link
+              to="/caja"
+              className="col-span-2 flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+            >
+              <Banknote className="w-6 h-6" />
+              <span className="text-xs uppercase tracking-[0.25em] font-display">Caja</span>
+            </Link>
+          )}
           {isAdmin && (
             <Link
               to="/ajustes"
