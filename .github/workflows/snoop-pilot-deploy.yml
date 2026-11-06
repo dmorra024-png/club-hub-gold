@@ -51,6 +51,35 @@ jobs:
           [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
           [[ "$SUPABASE_SERVICE_ROLE_KEY" != sb_publishable_* ]] || { echo "Private service key is invalid"; exit 1; }
           echo "Target validated: SNOOP pilot (no Security PSG resources)"
+      - name: Validate Cloudflare credential before any build or deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const raw = process.env.CLOUDFLARE_API_TOKEN ?? '';
+          const token = raw.trim();
+          if (!token || /[\\r\\n\\x00-\\x1f\\x7f]/.test(token) || /\\s/.test(token) || /^Bearer\\s/i.test(token)) {
+            console.error('Invalid SNOOP_CLOUDFLARE_API_TOKEN format: save only the raw API token, with no Bearer prefix, quotes or line breaks.');
+            process.exit(1);
+          }
+          if (!/^[a-f0-9]{32}$/.test(process.env.CLOUDFLARE_ACCOUNT_ID ?? '') || process.env.CLOUDFLARE_ACCOUNT_ID !== '0cc810f68820d22996af3aed9e081e93') {
+            console.error('Cloudflare account ID does not match the approved SNOOP account.');
+            process.exit(1);
+          }
+          console.log('Cloudflare token formatting checked; verifying with Cloudflare...');
+          const response = await fetch('https://api.cloudflare.com/client/v4/user/tokens/verify', {
+            headers: { Authorization: 'Bearer ' + token },
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result.success !== true || result.result?.status !== 'active') {
+            console.error('Cloudflare rejected the API token. Check its validity and Workers Scripts Edit permission. HTTP ' + response.status);
+            process.exit(1);
+          }
+          // Preserve the cleaned token only in this workflow's protected runner environment.
+          appendFileSync(process.env.GITHUB_ENV, 'CLOUDFLARE_API_TOKEN=' + token + '\\n');
+          console.log('Cloudflare API token verified as active.');
+          NODE
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -77,16 +106,16 @@ jobs:
           set -euo pipefail
           # Validate the generated config still targets exactly snoop-pilot.
           node -e 'const c=require("./.output/server/wrangler.json");if(c.name!=="snoop-pilot")throw Error("Wrong Worker target")'
-          npx wrangler deploy --config .output/server/wrangler.json --keep-vars
+          bunx wrangler deploy --config .output/server/wrangler.json --keep-vars
       - name: Upload private server settings (never logged)
         shell: bash
         run: |
           set -euo pipefail
           # Protected runtime secret supplied through stdin; never placed in repo or build bundle.
-          printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config .output/server/wrangler.json
-          printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config .output/server/wrangler.json
-          printf '%s' "$SNOOP_PUBLISHABLE_KEY" | npx wrangler secret put SUPABASE_PUBLISHABLE_KEY --config .output/server/wrangler.json
-          printf '%s' "$APP_URL" | npx wrangler secret put APP_URL --config .output/server/wrangler.json
+          printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config .output/server/wrangler.json
+          printf '%s' "$SUPABASE_URL" | bunx wrangler secret put SUPABASE_URL --config .output/server/wrangler.json
+          printf '%s' "$SNOOP_PUBLISHABLE_KEY" | bunx wrangler secret put SUPABASE_PUBLISHABLE_KEY --config .output/server/wrangler.json
+          printf '%s' "$APP_URL" | bunx wrangler secret put APP_URL --config .output/server/wrangler.json
       - name: Sanity check HTTPS (does not register users)
         shell: bash
         run: |
