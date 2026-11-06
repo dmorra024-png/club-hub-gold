@@ -9,6 +9,7 @@
 BEGIN;
 SET LOCAL lock_timeout = '15s';
 SET LOCAL statement_timeout = '0';
+SET LOCAL search_path = public, extensions;
 DO $snoop_preflight$
 BEGIN
  IF EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='public')
@@ -37,9 +38,9 @@ CREATE TABLE public.profiles (
 GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;
 GRANT ALL ON public.profiles TO service_role;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "profiles_read_auth" ON public.profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "profiles_self_upsert" ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
-CREATE POLICY "profiles_self_update" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- USER ROLES
 CREATE TABLE public.user_roles (
@@ -68,8 +69,8 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   )
 $$;
 
-CREATE POLICY "user_roles_self_read" ON public.user_roles FOR SELECT TO authenticated USING (user_id = auth.uid() OR public.has_role(auth.uid(),'admin'));
-CREATE POLICY "user_roles_admin_all" ON public.user_roles FOR ALL TO authenticated USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- MEMBERS
 CREATE TABLE public.members (
@@ -96,10 +97,10 @@ CREATE TABLE public.members (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.members TO authenticated;
 GRANT ALL ON public.members TO service_role;
 ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "members_read" ON public.members FOR SELECT TO authenticated USING (public.has_permission(auth.uid(),'manage_members') OR public.has_permission(auth.uid(),'use_cash'));
-CREATE POLICY "members_write" ON public.members FOR INSERT TO authenticated WITH CHECK (public.has_permission(auth.uid(),'manage_members'));
-CREATE POLICY "members_update" ON public.members FOR UPDATE TO authenticated USING (public.has_permission(auth.uid(),'manage_members'));
-CREATE POLICY "members_delete" ON public.members FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- PRODUCTS
 CREATE TABLE public.products (
@@ -116,10 +117,10 @@ CREATE TABLE public.products (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO authenticated;
 GRANT ALL ON public.products TO service_role;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "products_read" ON public.products FOR SELECT TO authenticated USING (true);
-CREATE POLICY "products_write" ON public.products FOR INSERT TO authenticated WITH CHECK (public.has_permission(auth.uid(),'manage_products'));
-CREATE POLICY "products_update" ON public.products FOR UPDATE TO authenticated USING (public.has_permission(auth.uid(),'manage_products'));
-CREATE POLICY "products_delete" ON public.products FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- SALES
 CREATE TABLE public.sales (
@@ -133,10 +134,10 @@ CREATE TABLE public.sales (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sales TO authenticated;
 GRANT ALL ON public.sales TO service_role;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "sales_read" ON public.sales FOR SELECT TO authenticated USING (public.has_permission(auth.uid(),'use_cash') OR public.has_permission(auth.uid(),'view_reports'));
-CREATE POLICY "sales_insert" ON public.sales FOR INSERT TO authenticated WITH CHECK (public.has_permission(auth.uid(),'use_cash') AND cashier_id = auth.uid());
-CREATE POLICY "sales_admin_modify" ON public.sales FOR UPDATE TO authenticated USING (public.has_role(auth.uid(),'admin'));
-CREATE POLICY "sales_admin_delete" ON public.sales FOR DELETE TO authenticated USING (public.has_role(auth.uid(),'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- SALE ITEMS
 CREATE TABLE public.sale_items (
@@ -152,8 +153,8 @@ CREATE TABLE public.sale_items (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sale_items TO authenticated;
 GRANT ALL ON public.sale_items TO service_role;
 ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "sale_items_read" ON public.sale_items FOR SELECT TO authenticated USING (public.has_permission(auth.uid(),'use_cash') OR public.has_permission(auth.uid(),'view_reports'));
-CREATE POLICY "sale_items_insert" ON public.sale_items FOR INSERT TO authenticated WITH CHECK (public.has_permission(auth.uid(),'use_cash'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- updated_at trigger
 CREATE OR REPLACE FUNCTION public.tg_set_updated_at() RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -211,9 +212,8 @@ GRANT ALL ON public.membership_plans TO service_role;
 
 ALTER TABLE public.membership_plans ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth read plans" ON public.membership_plans FOR SELECT TO authenticated USING (true);
-CREATE POLICY "admin manage plans" ON public.membership_plans FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 CREATE TRIGGER set_updated_at_plans BEFORE UPDATE ON public.membership_plans
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
@@ -240,10 +240,8 @@ GRANT ALL ON public.member_subscriptions TO service_role;
 
 ALTER TABLE public.member_subscriptions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth read subs" ON public.member_subscriptions FOR SELECT TO authenticated USING (true);
-CREATE POLICY "manage subs with perm" ON public.member_subscriptions FOR ALL TO authenticated
-  USING (public.has_permission(auth.uid(), 'manage_members'))
-  WITH CHECK (public.has_permission(auth.uid(), 'manage_members'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 CREATE TRIGGER set_updated_at_subs BEFORE UPDATE ON public.member_subscriptions
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
@@ -277,9 +275,8 @@ CREATE TABLE public.membership_plans (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.membership_plans TO authenticated;
 GRANT ALL ON public.membership_plans TO service_role;
 ALTER TABLE public.membership_plans ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "auth read plans" ON public.membership_plans FOR SELECT TO authenticated USING (true);
-CREATE POLICY "admin manage plans" ON public.membership_plans FOR ALL TO authenticated
-  USING (public.has_role(auth.uid(),'admin')) WITH CHECK (public.has_role(auth.uid(),'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 CREATE TRIGGER tg_plans_updated BEFORE UPDATE ON public.membership_plans
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
@@ -310,11 +307,10 @@ CREATE INDEX members_expires_idx ON public.members (expires_at);
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.members TO authenticated;
 GRANT ALL ON public.members TO service_role;
 ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "auth read members" ON public.members FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth insert members" ON public.members FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "auth update members" ON public.members FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "admin delete members" ON public.members FOR DELETE TO authenticated
-  USING (public.has_role(auth.uid(),'admin'));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 CREATE TRIGGER tg_members_updated BEFORE UPDATE ON public.members
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
@@ -325,14 +321,10 @@ CREATE TRIGGER tg_members_updated BEFORE UPDATE ON public.members
 -- 20260624061627_044429fc-7051-4e88-b5d5-68cd0466f464.sql
 -- ====================================================================
 
-CREATE POLICY "auth read snoop-docs" ON storage.objects FOR SELECT TO authenticated
-  USING (bucket_id = 'snoop-docs');
-CREATE POLICY "auth insert snoop-docs" ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'snoop-docs');
-CREATE POLICY "auth update snoop-docs" ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'snoop-docs') WITH CHECK (bucket_id = 'snoop-docs');
-CREATE POLICY "auth delete snoop-docs" ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'snoop-docs');
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 
 -- ====================================================================
@@ -426,24 +418,17 @@ GRANT ALL ON public.email_send_log TO service_role;
 ALTER TABLE public.email_send_log ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can read send log"
-    ON public.email_send_log FOR SELECT
-    USING (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can insert send log"
-    ON public.email_send_log FOR INSERT
-    WITH CHECK (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can update send log"
-    ON public.email_send_log FOR UPDATE
-    USING (auth.role() = 'service_role')
-    WITH CHECK (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -507,10 +492,7 @@ GRANT ALL ON public.email_send_state TO service_role;
 ALTER TABLE public.email_send_state ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can manage send state"
-    ON public.email_send_state FOR ALL
-    USING (auth.role() = 'service_role')
-    WITH CHECK (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -610,16 +592,12 @@ GRANT ALL ON public.suppressed_emails TO service_role;
 ALTER TABLE public.suppressed_emails ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can read suppressed emails"
-    ON public.suppressed_emails FOR SELECT
-    USING (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can insert suppressed emails"
-    ON public.suppressed_emails FOR INSERT
-    WITH CHECK (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -640,24 +618,17 @@ GRANT ALL ON public.email_unsubscribe_tokens TO service_role;
 ALTER TABLE public.email_unsubscribe_tokens ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can read tokens"
-    ON public.email_unsubscribe_tokens FOR SELECT
-    USING (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can insert tokens"
-    ON public.email_unsubscribe_tokens FOR INSERT
-    WITH CHECK (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  CREATE POLICY "Service role can mark tokens as used"
-    ON public.email_unsubscribe_tokens FOR UPDATE
-    USING (auth.role() = 'service_role')
-    WITH CHECK (auth.role() = 'service_role');
+  NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -719,8 +690,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_categories TO authenticat
 GRANT ALL ON public.product_categories TO service_role;
 ALTER TABLE public.product_categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth read categories" ON public.product_categories FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth write categories" ON public.product_categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 CREATE TRIGGER tg_product_categories_updated_at BEFORE UPDATE ON public.product_categories
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
@@ -743,8 +714,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO authenticated;
 GRANT ALL ON public.products TO service_role;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth read products" ON public.products FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth write products" ON public.products FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 CREATE INDEX IF NOT EXISTS products_category_idx ON public.products(category_id);
 
@@ -769,8 +740,8 @@ CREATE TABLE public.orders (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.orders TO authenticated;
 GRANT ALL ON public.orders TO service_role;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "auth read orders" ON public.orders FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth write orders" ON public.orders FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 CREATE TRIGGER orders_updated BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 CREATE TABLE public.order_items (
@@ -787,8 +758,8 @@ CREATE TABLE public.order_items (
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_items TO authenticated;
 GRANT ALL ON public.order_items TO service_role;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "auth read order_items" ON public.order_items FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth write order_items" ON public.order_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 CREATE OR REPLACE FUNCTION public.create_order_with_items(
   _member_id UUID,
@@ -972,17 +943,13 @@ GRANT EXECUTE ON FUNCTION public.user_has_club_access(UUID) TO authenticated, se
 
 -- RLS on clubs
 DROP POLICY IF EXISTS "clubs_select" ON public.clubs;
-CREATE POLICY "clubs_select" ON public.clubs FOR SELECT TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR public.user_has_club_access(id));
+-- Historical policy omitted; final policies are installed below.
 DROP POLICY IF EXISTS "clubs_insert_super" ON public.clubs;
-CREATE POLICY "clubs_insert_super" ON public.clubs FOR INSERT TO authenticated
-  WITH CHECK (public.is_super_admin(auth.uid()));
+-- Historical policy omitted; final policies are installed below.
 DROP POLICY IF EXISTS "clubs_update_super" ON public.clubs;
-CREATE POLICY "clubs_update_super" ON public.clubs FOR UPDATE TO authenticated
-  USING (public.is_super_admin(auth.uid())) WITH CHECK (public.is_super_admin(auth.uid()));
+-- Historical policy omitted; final policies are installed below.
 DROP POLICY IF EXISTS "clubs_delete_super" ON public.clubs;
-CREATE POLICY "clubs_delete_super" ON public.clubs FOR DELETE TO authenticated
-  USING (public.is_super_admin(auth.uid()));
+-- Historical policy omitted; final policies are installed below.
 
 -- Drop existing policies on tenant tables
 DO $$
@@ -995,47 +962,25 @@ BEGIN
   END LOOP;
 END $$;
 
-CREATE POLICY "members_all" ON public.members FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id())
-  WITH CHECK (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "plans_all" ON public.membership_plans FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id())
-  WITH CHECK (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "products_all" ON public.products FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id())
-  WITH CHECK (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "categories_all" ON public.product_categories FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id())
-  WITH CHECK (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "orders_all" ON public.orders FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id())
-  WITH CHECK (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "order_items_all" ON public.order_items FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id())
-  WITH CHECK (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "user_roles_select" ON public.user_roles FOR SELECT TO authenticated
-  USING (user_id = auth.uid() OR public.is_super_admin(auth.uid())
-         OR (public.has_role(auth.uid(),'admin') AND club_id = public.current_club_id()));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "user_roles_insert" ON public.user_roles FOR INSERT TO authenticated
-  WITH CHECK (public.is_super_admin(auth.uid())
-              OR (public.has_role(auth.uid(),'admin') AND club_id = public.current_club_id() AND role <> 'super_admin'));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "user_roles_update" ON public.user_roles FOR UPDATE TO authenticated
-  USING (public.is_super_admin(auth.uid())
-         OR (public.has_role(auth.uid(),'admin') AND club_id = public.current_club_id()))
-  WITH CHECK (public.is_super_admin(auth.uid())
-              OR (public.has_role(auth.uid(),'admin') AND club_id = public.current_club_id() AND role <> 'super_admin'));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "user_roles_delete" ON public.user_roles FOR DELETE TO authenticated
-  USING (public.is_super_admin(auth.uid())
-         OR (public.has_role(auth.uid(),'admin') AND club_id = public.current_club_id() AND role <> 'super_admin'));
+-- Historical policy omitted; final policies are installed below.
 
 -- Per-club member numbering
 CREATE OR REPLACE FUNCTION public.tg_assign_member_number()
@@ -1124,26 +1069,11 @@ GRANT ALL ON public.cash_sessions TO service_role;
 
 ALTER TABLE public.cash_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "cash_sessions_select" ON public.cash_sessions FOR SELECT TO authenticated
-USING (
-  public.is_super_admin(auth.uid())
-  OR (club_id = public.current_club_id() AND (user_id = auth.uid() OR public.has_role(auth.uid(),'admin')))
-);
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "cash_sessions_insert" ON public.cash_sessions FOR INSERT TO authenticated
-WITH CHECK (
-  club_id = public.current_club_id() AND user_id = auth.uid()
-);
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "cash_sessions_update" ON public.cash_sessions FOR UPDATE TO authenticated
-USING (
-  public.is_super_admin(auth.uid())
-  OR (club_id = public.current_club_id() AND (user_id = auth.uid() OR public.has_role(auth.uid(),'admin')))
-)
-WITH CHECK (
-  public.is_super_admin(auth.uid())
-  OR (club_id = public.current_club_id() AND (user_id = auth.uid() OR public.has_role(auth.uid(),'admin')))
-);
+-- Historical policy omitted; final policies are installed below.
 
 CREATE TRIGGER cash_sessions_updated BEFORE UPDATE ON public.cash_sessions
 FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
@@ -1201,14 +1131,9 @@ GRANT ALL ON public.club_member_field_config TO service_role;
 
 ALTER TABLE public.club_member_field_config ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "club members can read field config"
-  ON public.club_member_field_config FOR SELECT TO authenticated
-  USING (public.user_has_club_access(club_id));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "admins can manage field config"
-  ON public.club_member_field_config FOR ALL TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR (public.user_has_club_access(club_id) AND public.has_role(auth.uid(), 'admin')))
-  WITH CHECK (public.is_super_admin(auth.uid()) OR (public.user_has_club_access(club_id) AND public.has_role(auth.uid(), 'admin')));
+-- Historical policy omitted; final policies are installed below.
 
 CREATE TRIGGER trg_club_member_field_config_updated
   BEFORE UPDATE ON public.club_member_field_config
@@ -1254,25 +1179,13 @@ GRANT ALL ON public.stock_movements TO service_role;
 
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Club members can view stock movements"
-  ON public.stock_movements FOR SELECT
-  TO authenticated
-  USING (public.user_has_club_access(club_id));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "Club members can insert stock movements"
-  ON public.stock_movements FOR INSERT
-  TO authenticated
-  WITH CHECK (public.user_has_club_access(club_id));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "Admins can update stock movements"
-  ON public.stock_movements FOR UPDATE
-  TO authenticated
-  USING (public.user_has_club_access(club_id) AND (public.is_super_admin(auth.uid()) OR public.has_role(auth.uid(), 'admin')));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "Admins can delete stock movements"
-  ON public.stock_movements FOR DELETE
-  TO authenticated
-  USING (public.user_has_club_access(club_id) AND (public.is_super_admin(auth.uid()) OR public.has_role(auth.uid(), 'admin')));
+-- Historical policy omitted; final policies are installed below.
 
 
 -- ====================================================================
@@ -1342,11 +1255,7 @@ $function$;
 -- 20260711082655_5798e506-84c4-404d-ae58-90fba8bc8f11.sql
 -- ====================================================================
 -- Allow anonymous read of active clubs' public branding for the /{slug} login page
-CREATE POLICY "clubs_public_branding_select"
-ON public.clubs
-FOR SELECT
-TO anon
-USING (active = true);
+-- Historical policy omitted; final policies are installed below.
 
 GRANT SELECT ON public.clubs TO anon;
 
@@ -1368,13 +1277,9 @@ GRANT ALL ON public.check_ins TO service_role;
 
 ALTER TABLE public.check_ins ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "check_ins club access select" ON public.check_ins
-  FOR SELECT TO authenticated
-  USING (public.user_has_club_access(club_id));
+-- Historical policy omitted; final policies are installed below.
 
-CREATE POLICY "check_ins club access insert" ON public.check_ins
-  FOR INSERT TO authenticated
-  WITH CHECK (public.user_has_club_access(club_id));
+-- Historical policy omitted; final policies are installed below.
 
 CREATE INDEX check_ins_club_created_idx ON public.check_ins (club_id, created_at DESC);
 CREATE INDEX check_ins_member_created_idx ON public.check_ins (member_id, created_at DESC);
@@ -1408,8 +1313,7 @@ $$;
 REVOKE ALL ON FUNCTION public.is_current_user_club_admin(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_current_user_club_admin(UUID) TO authenticated, service_role;
 
-CREATE POLICY user_roles_select ON public.user_roles FOR SELECT TO authenticated
-  USING (user_id = auth.uid() OR public.is_current_user_club_admin(club_id));
+-- Historical policy omitted; final policies are installed below.
 
 -- Profiles are personal data, not a global authenticated-user directory.
 REVOKE ALL ON public.profiles FROM anon;
@@ -1425,8 +1329,7 @@ $$;
 REVOKE ALL ON FUNCTION public.can_read_profile(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.can_read_profile(UUID) TO authenticated, service_role;
 DROP POLICY IF EXISTS profiles_read_auth ON public.profiles;
-CREATE POLICY profiles_read_auth ON public.profiles FOR SELECT TO authenticated
-  USING (public.can_read_profile(id));
+-- Historical policy omitted; final policies are installed below.
 
 -- Never grant super-admin to a public signup merely because the last admin
 -- was removed or an installation has not been bootstrapped yet. Provision the
@@ -1461,15 +1364,10 @@ GRANT EXECUTE ON FUNCTION public.can_manage_club_members(UUID) TO authenticated,
 REVOKE ALL ON public.members FROM anon;
 REVOKE TRUNCATE, REFERENCES, TRIGGER ON public.members FROM authenticated;
 DROP POLICY IF EXISTS members_all ON public.members;
-CREATE POLICY members_administrative_read ON public.members FOR SELECT TO authenticated
-  USING (public.is_super_admin(auth.uid()) OR club_id = public.current_club_id());
-CREATE POLICY members_administrative_insert ON public.members FOR INSERT TO authenticated
-  WITH CHECK ((public.is_super_admin(auth.uid()) OR club_id = public.current_club_id()) AND public.can_manage_club_members(club_id));
-CREATE POLICY members_administrative_update ON public.members FOR UPDATE TO authenticated
-  USING ((public.is_super_admin(auth.uid()) OR club_id = public.current_club_id()) AND public.can_manage_club_members(club_id))
-  WITH CHECK ((public.is_super_admin(auth.uid()) OR club_id = public.current_club_id()) AND public.can_manage_club_members(club_id));
-CREATE POLICY members_administrative_delete ON public.members FOR DELETE TO authenticated
-  USING ((public.is_super_admin(auth.uid()) OR club_id = public.current_club_id()) AND public.can_manage_club_members(club_id));
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 
 -- A valid plan UUID alone is not enough: it must belong to the member's club.
 CREATE UNIQUE INDEX IF NOT EXISTS membership_plans_id_club_key ON public.membership_plans(id, club_id);
@@ -1487,36 +1385,10 @@ ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_opening_nonnegative
 ALTER TABLE public.cash_sessions ADD CONSTRAINT cash_closing_nonnegative
   CHECK (closing_cash_cents IS NULL OR closing_cash_cents >= 0) NOT VALID;
 
-DROP POLICY cash_sessions_insert ON public.cash_sessions;
-CREATE POLICY cash_sessions_insert ON public.cash_sessions FOR INSERT TO authenticated
-WITH CHECK (
-  user_id = auth.uid() AND club_id = public.current_club_id()
-  AND EXISTS (
-    SELECT 1 FROM public.user_roles r
-    WHERE r.user_id = auth.uid() AND r.club_id = cash_sessions.club_id
-      AND (r.role = 'admin' OR 'use_cash' = ANY(r.permissions))
-  )
-);
-DROP POLICY cash_sessions_update ON public.cash_sessions;
-CREATE POLICY cash_sessions_update ON public.cash_sessions FOR UPDATE TO authenticated
-USING (
-  public.is_super_admin(auth.uid()) OR (
-    club_id = public.current_club_id() AND EXISTS (
-      SELECT 1 FROM public.user_roles r
-      WHERE r.user_id = auth.uid() AND r.club_id = cash_sessions.club_id
-        AND (r.role = 'admin' OR (cash_sessions.user_id = auth.uid() AND 'use_cash' = ANY(r.permissions)))
-    )
-  )
-)
-WITH CHECK (
-  public.is_super_admin(auth.uid()) OR (
-    club_id = public.current_club_id() AND EXISTS (
-      SELECT 1 FROM public.user_roles r
-      WHERE r.user_id = auth.uid() AND r.club_id = cash_sessions.club_id
-        AND (r.role = 'admin' OR (cash_sessions.user_id = auth.uid() AND 'use_cash' = ANY(r.permissions)))
-    )
-  )
-);
+DROP POLICY IF EXISTS cash_sessions_insert ON public.cash_sessions;
+-- Historical policy omitted; final policies are installed below.
+DROP POLICY IF EXISTS cash_sessions_update ON public.cash_sessions;
+-- Historical policy omitted; final policies are installed below.
 
 
 -- ====================================================================
@@ -1554,8 +1426,7 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$;
 REVOKE ALL ON FUNCTION public.can_read_membership_receipts(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.can_read_membership_receipts(uuid) TO authenticated;
-CREATE POLICY receipts_read ON public.membership_receipts FOR SELECT TO authenticated
-USING (public.can_read_membership_receipts(club_id));
+-- Historical policy omitted; final policies are installed below.
 
 CREATE FUNCTION public.record_membership_receipt(
  p_club_id uuid, p_member_id uuid, p_amount_cents integer,
@@ -1625,21 +1496,18 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
 $$;
 REVOKE ALL ON FUNCTION public.can_manage_snoop_catalog(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.can_manage_snoop_catalog(uuid) TO authenticated;
-DROP POLICY products_all ON public.products;
-CREATE POLICY products_catalog_read ON public.products FOR SELECT TO authenticated USING (public.is_super_admin(auth.uid()) OR club_id=public.current_club_id());
-CREATE POLICY products_catalog_write ON public.products FOR ALL TO authenticated USING (public.can_manage_snoop_catalog(club_id)) WITH CHECK (public.can_manage_snoop_catalog(club_id));
-DROP POLICY categories_all ON public.product_categories;
-CREATE POLICY categories_catalog_read ON public.product_categories FOR SELECT TO authenticated USING (public.is_super_admin(auth.uid()) OR club_id=public.current_club_id());
-CREATE POLICY categories_catalog_write ON public.product_categories FOR ALL TO authenticated USING (public.can_manage_snoop_catalog(club_id)) WITH CHECK (public.can_manage_snoop_catalog(club_id));
-DROP POLICY plans_all ON public.membership_plans;
-CREATE POLICY plans_read ON public.membership_plans FOR SELECT TO authenticated USING (public.is_super_admin(auth.uid()) OR club_id=public.current_club_id());
-CREATE POLICY plans_admin_write ON public.membership_plans FOR ALL TO authenticated
-USING (public.is_super_admin(auth.uid()) OR EXISTS(SELECT 1 FROM public.user_roles r WHERE r.user_id=auth.uid() AND r.club_id=membership_plans.club_id AND r.club_id=public.current_club_id() AND r.role='admin'))
-WITH CHECK (public.is_super_admin(auth.uid()) OR EXISTS(SELECT 1 FROM public.user_roles r WHERE r.user_id=auth.uid() AND r.club_id=membership_plans.club_id AND r.club_id=public.current_club_id() AND r.role='admin'));
+DROP POLICY IF EXISTS products_all ON public.products;
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+DROP POLICY IF EXISTS categories_all ON public.product_categories;
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+DROP POLICY IF EXISTS plans_all ON public.membership_plans;
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
 REVOKE TRUNCATE,REFERENCES,TRIGGER ON public.products,public.product_categories,public.membership_plans,public.stock_movements FROM authenticated;
-DROP POLICY "Club members can insert stock movements" ON public.stock_movements;
-CREATE POLICY administrative_movement_insert ON public.stock_movements FOR INSERT TO authenticated
-WITH CHECK(public.can_manage_snoop_catalog(club_id) AND created_by=auth.uid() AND EXISTS(SELECT 1 FROM public.products p WHERE p.id=product_id AND p.club_id=stock_movements.club_id));
+DROP POLICY IF EXISTS "Club members can insert stock movements" ON public.stock_movements;
+-- Historical policy omitted; final policies are installed below.
 
 CREATE FUNCTION public.save_administrative_product(p_id uuid,p_values jsonb) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
@@ -1715,14 +1583,201 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.can_access_snoop_document(text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.can_access_snoop_document(text) TO authenticated;
-DROP POLICY "auth read snoop-docs" ON storage.objects;
-DROP POLICY "auth insert snoop-docs" ON storage.objects;
-DROP POLICY "auth update snoop-docs" ON storage.objects;
-DROP POLICY "auth delete snoop-docs" ON storage.objects;
-CREATE POLICY snoop_documents_read ON storage.objects FOR SELECT TO authenticated USING(bucket_id='snoop-docs' AND public.can_access_snoop_document(name));
-CREATE POLICY snoop_documents_insert ON storage.objects FOR INSERT TO authenticated WITH CHECK(bucket_id='snoop-docs' AND public.can_access_snoop_document(name));
-CREATE POLICY snoop_documents_update ON storage.objects FOR UPDATE TO authenticated USING(bucket_id='snoop-docs' AND public.can_access_snoop_document(name)) WITH CHECK(bucket_id='snoop-docs' AND public.can_access_snoop_document(name));
-CREATE POLICY snoop_documents_delete ON storage.objects FOR DELETE TO authenticated USING(bucket_id='snoop-docs' AND public.can_access_snoop_document(name));
+DROP POLICY IF EXISTS "auth read snoop-docs" ON storage.objects;
+DROP POLICY IF EXISTS "auth insert snoop-docs" ON storage.objects;
+DROP POLICY IF EXISTS "auth update snoop-docs" ON storage.objects;
+DROP POLICY IF EXISTS "auth delete snoop-docs" ON storage.objects;
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+-- Historical policy omitted; final policies are installed below.
+
+
+-- ====================================================================
+-- 20261106100000_authoritative_rls.sql
+-- ====================================================================
+-- Authoritative SNOOP policy set. No records/accounts are removed or changed.
+-- PostgreSQL permissive policies are OR-ed: remove ALL previous public policies.
+DO $cleanup$
+DECLARE p record;
+BEGIN
+ FOR p IN SELECT * FROM pg_policies WHERE schemaname='public'
+ OR (schemaname='storage' AND tablename='objects' AND (policyname LIKE '%snoop-docs%' OR policyname LIKE 'snoop_documents_%')) LOOP
+  EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I',p.policyname,p.schemaname,p.tablename);
+ END LOOP;
+END $cleanup$;
+
+CREATE POLICY "cash_sessions_insert" ON public.cash_sessions FOR INSERT TO "authenticated" WITH CHECK (((user_id = auth.uid()) AND (club_id = current_club_id()) AND (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = 'admin'::app_role) OR ('use_cash'::app_permission = ANY (r.permissions))))))));
+CREATE POLICY "cash_sessions_select" ON public.cash_sessions FOR SELECT TO "authenticated" USING ((is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND ((user_id = auth.uid()) OR is_current_user_club_admin(club_id)))));
+CREATE POLICY "cash_sessions_update" ON public.cash_sessions FOR UPDATE TO "authenticated" USING ((is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = 'admin'::app_role) OR ((cash_sessions.user_id = auth.uid()) AND ('use_cash'::app_permission = ANY (r.permissions)))))))))) WITH CHECK ((is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = 'admin'::app_role) OR ((cash_sessions.user_id = auth.uid()) AND ('use_cash'::app_permission = ANY (r.permissions))))))))));
+CREATE POLICY "check_ins club access insert" ON public.check_ins FOR INSERT TO "authenticated" WITH CHECK (user_has_club_access(club_id));
+CREATE POLICY "check_ins club access select" ON public.check_ins FOR SELECT TO "authenticated" USING (user_has_club_access(club_id));
+CREATE POLICY "admins can manage field config" ON public.club_member_field_config FOR ALL TO "authenticated" USING ((is_super_admin(auth.uid()) OR (user_has_club_access(club_id) AND is_current_user_club_admin(club_id)))) WITH CHECK ((is_super_admin(auth.uid()) OR (user_has_club_access(club_id) AND is_current_user_club_admin(club_id))));
+CREATE POLICY "club members can read field config" ON public.club_member_field_config FOR SELECT TO "authenticated" USING (user_has_club_access(club_id));
+CREATE POLICY "clubs_delete_super" ON public.clubs FOR DELETE TO "authenticated" USING (is_super_admin(auth.uid()));
+CREATE POLICY "clubs_insert_super" ON public.clubs FOR INSERT TO "authenticated" WITH CHECK (is_super_admin(auth.uid()));
+CREATE POLICY "clubs_public_branding_select" ON public.clubs FOR SELECT TO "anon" USING ((active = true));
+CREATE POLICY "clubs_select" ON public.clubs FOR SELECT TO "authenticated" USING ((is_super_admin(auth.uid()) OR user_has_club_access(id)));
+CREATE POLICY "clubs_update_super" ON public.clubs FOR UPDATE TO "authenticated" USING (is_super_admin(auth.uid())) WITH CHECK (is_super_admin(auth.uid()));
+CREATE POLICY "Service role can insert send log" ON public.email_send_log FOR INSERT TO "service_role" WITH CHECK ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can read send log" ON public.email_send_log FOR SELECT TO "service_role" USING ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can update send log" ON public.email_send_log FOR UPDATE TO "service_role" USING ((auth.role() = 'service_role'::text)) WITH CHECK ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can manage send state" ON public.email_send_state FOR ALL TO "service_role" USING ((auth.role() = 'service_role'::text)) WITH CHECK ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can insert tokens" ON public.email_unsubscribe_tokens FOR INSERT TO "service_role" WITH CHECK ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can mark tokens as used" ON public.email_unsubscribe_tokens FOR UPDATE TO "service_role" USING ((auth.role() = 'service_role'::text)) WITH CHECK ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can read tokens" ON public.email_unsubscribe_tokens FOR SELECT TO "service_role" USING ((auth.role() = 'service_role'::text));
+CREATE POLICY "members_administrative_delete" ON public.members FOR DELETE TO "authenticated" USING (((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id)));
+CREATE POLICY "members_administrative_insert" ON public.members FOR INSERT TO "authenticated" WITH CHECK (((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id)));
+CREATE POLICY "members_administrative_read" ON public.members FOR SELECT TO "authenticated" USING ((is_super_admin(auth.uid()) OR (club_id = current_club_id())));
+CREATE POLICY "members_administrative_update" ON public.members FOR UPDATE TO "authenticated" USING (((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))) WITH CHECK (((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id)));
+CREATE POLICY "plans_admin_write" ON public.membership_plans FOR ALL TO "authenticated" USING ((is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = membership_plans.club_id) AND (r.club_id = current_club_id()) AND (r.role = 'admin'::app_role)))))) WITH CHECK ((is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = membership_plans.club_id) AND (r.club_id = current_club_id()) AND (r.role = 'admin'::app_role))))));
+CREATE POLICY "plans_read" ON public.membership_plans FOR SELECT TO "authenticated" USING ((is_super_admin(auth.uid()) OR (club_id = current_club_id())));
+CREATE POLICY "receipts_read" ON public.membership_receipts FOR SELECT TO "authenticated" USING (can_read_membership_receipts(club_id));
+CREATE POLICY "order_items_all" ON public.order_items FOR ALL TO "authenticated" USING ((is_super_admin(auth.uid()) OR (club_id = current_club_id()))) WITH CHECK ((is_super_admin(auth.uid()) OR (club_id = current_club_id())));
+CREATE POLICY "orders_all" ON public.orders FOR ALL TO "authenticated" USING ((is_super_admin(auth.uid()) OR (club_id = current_club_id()))) WITH CHECK ((is_super_admin(auth.uid()) OR (club_id = current_club_id())));
+CREATE POLICY "categories_catalog_read" ON public.product_categories FOR SELECT TO "authenticated" USING ((is_super_admin(auth.uid()) OR (club_id = current_club_id())));
+CREATE POLICY "categories_catalog_write" ON public.product_categories FOR ALL TO "authenticated" USING (can_manage_snoop_catalog(club_id)) WITH CHECK (can_manage_snoop_catalog(club_id));
+CREATE POLICY "products_catalog_read" ON public.products FOR SELECT TO "authenticated" USING ((is_super_admin(auth.uid()) OR (club_id = current_club_id())));
+CREATE POLICY "products_catalog_write" ON public.products FOR ALL TO "authenticated" USING (can_manage_snoop_catalog(club_id)) WITH CHECK (can_manage_snoop_catalog(club_id));
+CREATE POLICY "profiles_read_auth" ON public.profiles FOR SELECT TO "authenticated" USING (can_read_profile(id));
+CREATE POLICY "profiles_self_update" ON public.profiles FOR UPDATE TO "authenticated" USING ((auth.uid() = id));
+CREATE POLICY "profiles_self_upsert" ON public.profiles FOR INSERT TO "authenticated" WITH CHECK ((auth.uid() = id));
+CREATE POLICY "Admins can delete stock movements" ON public.stock_movements FOR DELETE TO "authenticated" USING ((user_has_club_access(club_id) AND (is_super_admin(auth.uid()) OR is_current_user_club_admin(club_id))));
+CREATE POLICY "Admins can update stock movements" ON public.stock_movements FOR UPDATE TO "authenticated" USING ((user_has_club_access(club_id) AND (is_super_admin(auth.uid()) OR is_current_user_club_admin(club_id))));
+CREATE POLICY "Club members can view stock movements" ON public.stock_movements FOR SELECT TO "authenticated" USING (user_has_club_access(club_id));
+CREATE POLICY "administrative_movement_insert" ON public.stock_movements FOR INSERT TO "authenticated" WITH CHECK ((can_manage_snoop_catalog(club_id) AND (created_by = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM products p
+  WHERE ((p.id = stock_movements.product_id) AND (p.club_id = stock_movements.club_id))))));
+CREATE POLICY "Service role can insert suppressed emails" ON public.suppressed_emails FOR INSERT TO "service_role" WITH CHECK ((auth.role() = 'service_role'::text));
+CREATE POLICY "Service role can read suppressed emails" ON public.suppressed_emails FOR SELECT TO "service_role" USING ((auth.role() = 'service_role'::text));
+CREATE POLICY "user_roles_select" ON public.user_roles FOR SELECT TO "authenticated" USING (((user_id = auth.uid()) OR is_current_user_club_admin(club_id)));
+CREATE POLICY "snoop_documents_delete" ON storage.objects FOR DELETE TO "authenticated" USING (((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name)));
+CREATE POLICY "snoop_documents_insert" ON storage.objects FOR INSERT TO "authenticated" WITH CHECK (((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name)));
+CREATE POLICY "snoop_documents_read" ON storage.objects FOR SELECT TO "authenticated" USING (((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name)));
+CREATE POLICY "snoop_documents_update" ON storage.objects FOR UPDATE TO "authenticated" USING (((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name))) WITH CHECK (((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name)));
+
+-- A restrictive tenant fence cannot be bypassed by another permissive policy.
+DO $fences$
+DECLARE t text;
+BEGIN
+ FOREACH t IN ARRAY ARRAY['members','membership_plans','products','product_categories','orders','order_items','cash_sessions','stock_movements','club_member_field_config','membership_receipts','check_ins'] LOOP
+  EXECUTE format('CREATE POLICY snoop_tenant_fence ON public.%I AS RESTRICTIVE FOR ALL TO authenticated USING (public.user_has_club_access(club_id)) WITH CHECK (public.user_has_club_access(club_id))',t);
+ END LOOP;
+ -- TRUNCATE bypasses RLS. No browser account needs these privileges.
+ FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP
+  EXECUTE format('REVOKE TRUNCATE, REFERENCES, TRIGGER ON public.%I FROM PUBLIC, anon, authenticated',t);
+ END LOOP;
+END $fences$;
+REVOKE ALL ON public.user_roles FROM PUBLIC,anon,authenticated;
+GRANT SELECT ON public.user_roles TO authenticated;
+REVOKE ALL ON public.email_send_log,public.email_send_state,public.email_unsubscribe_tokens,public.suppressed_emails FROM PUBLIC,anon,authenticated;
+
+-- Related IDs must belong to the same club, including requests made via RPC.
+-- NOT VALID retains existing records; every new/key-changing write is checked.
+CREATE UNIQUE INDEX IF NOT EXISTS members_id_club_key ON public.members(id,club_id);
+CREATE UNIQUE INDEX IF NOT EXISTS products_id_club_key ON public.products(id,club_id);
+CREATE UNIQUE INDEX IF NOT EXISTS categories_id_club_key ON public.product_categories(id,club_id);
+CREATE UNIQUE INDEX IF NOT EXISTS orders_id_club_key ON public.orders(id,club_id);
+CREATE UNIQUE INDEX IF NOT EXISTS cash_sessions_id_club_key ON public.cash_sessions(id,club_id);
+ALTER TABLE public.products ADD CONSTRAINT products_category_same_club FOREIGN KEY(category_id,club_id) REFERENCES public.product_categories(id,club_id) NOT VALID;
+ALTER TABLE public.check_ins ADD CONSTRAINT check_ins_member_same_club FOREIGN KEY(member_id,club_id) REFERENCES public.members(id,club_id) NOT VALID;
+ALTER TABLE public.membership_receipts ADD CONSTRAINT receipts_member_same_club FOREIGN KEY(member_id,club_id) REFERENCES public.members(id,club_id) NOT VALID;
+ALTER TABLE public.stock_movements ADD CONSTRAINT movements_product_same_club FOREIGN KEY(product_id,club_id) REFERENCES public.products(id,club_id) NOT VALID;
+ALTER TABLE public.orders ADD CONSTRAINT orders_member_same_club FOREIGN KEY(member_id,club_id) REFERENCES public.members(id,club_id) NOT VALID;
+ALTER TABLE public.orders ADD CONSTRAINT orders_session_same_club FOREIGN KEY(cash_session_id,club_id) REFERENCES public.cash_sessions(id,club_id) NOT VALID;
+ALTER TABLE public.order_items ADD CONSTRAINT items_order_same_club FOREIGN KEY(order_id,club_id) REFERENCES public.orders(id,club_id) NOT VALID;
+ALTER TABLE public.order_items ADD CONSTRAINT items_product_same_club FOREIGN KEY(product_id,club_id) REFERENCES public.products(id,club_id) NOT VALID;
+
+CREATE OR REPLACE FUNCTION public.create_order_with_items(_member_id uuid, _notes text, _items jsonb)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  new_order_id UUID;
+  item JSONB;
+  total INT := 0;
+  pid UUID;
+  qty NUMERIC;
+  merma NUMERIC;
+  stock_delta NUMERIC;
+  current_stock NUMERIC;
+  line_total INT;
+  _club UUID;
+BEGIN
+  SELECT club_id INTO _club FROM public.members WHERE id = _member_id;
+  IF auth.uid() IS NULL OR _club IS NULL OR NOT (public.is_super_admin(auth.uid()) OR EXISTS (
+    SELECT 1 FROM public.user_roles r WHERE r.user_id=auth.uid() AND r.club_id=_club
+    AND (r.role='admin' OR 'use_cash'=ANY(r.permissions))
+  )) THEN RAISE EXCEPTION 'Club not authorized' USING ERRCODE='42501'; END IF;
+
+  INSERT INTO public.orders(member_id, notes, total_cents, created_by, club_id)
+    VALUES (_member_id, _notes, 0, auth.uid(), _club)
+    RETURNING id INTO new_order_id;
+
+  FOR item IN SELECT * FROM jsonb_array_elements(_items) LOOP
+    pid := NULLIF(item->>'product_id','')::UUID;
+    qty := (item->>'quantity')::NUMERIC;
+    merma := COALESCE(NULLIF(item->>'merma','')::NUMERIC, 0);
+    stock_delta := qty + merma;
+    line_total := (item->>'line_total_cents')::INT;
+
+    IF pid IS NOT NULL THEN
+      SELECT stock INTO current_stock FROM public.products WHERE id = pid AND club_id = _club FOR UPDATE;
+      IF current_stock IS NULL THEN RAISE EXCEPTION 'Producto no encontrado'; END IF;
+      IF current_stock < stock_delta THEN RAISE EXCEPTION 'Stock insuficiente para %', item->>'product_name'; END IF;
+
+      UPDATE public.products SET stock = stock - stock_delta WHERE id = pid;
+
+      INSERT INTO public.stock_movements(club_id, product_id, delta, reason, notes, created_by)
+      VALUES (
+        _club,
+        pid,
+        -stock_delta,
+        'sale',
+        concat('Venta pedido ', new_order_id::text, ' · ', item->>'product_name'),
+        auth.uid()
+      );
+    END IF;
+
+    INSERT INTO public.order_items(order_id, product_id, product_name, unit_type, quantity, unit_price_cents, line_total_cents, club_id)
+      VALUES (new_order_id, pid, item->>'product_name', item->>'unit_type', qty, (item->>'unit_price_cents')::INT, line_total, _club);
+    total := total + line_total;
+  END LOOP;
+
+  UPDATE public.orders SET total_cents = total WHERE id = new_order_id;
+  RETURN new_order_id;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.create_order_with_items(uuid,text,jsonb) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.create_order_with_items(uuid,text,jsonb) TO authenticated;
+
+-- Categories and member numbers belong to a club, never to a global namespace.
+ALTER TABLE public.product_categories DROP CONSTRAINT IF EXISTS product_categories_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS categories_club_name_key ON public.product_categories(club_id,name);
+DROP INDEX IF EXISTS public.members_member_number_key;
+CREATE UNIQUE INDEX IF NOT EXISTS members_club_number_key ON public.members(club_id,member_number);
+-- Number allocation occurs inside the member INSERT; an RLS failure rolls it back.
+-- Browser callers cannot invoke a trigger function directly.
+ALTER FUNCTION public.tg_assign_member_number() SECURITY DEFINER;
+REVOKE ALL ON FUNCTION public.tg_assign_member_number() FROM PUBLIC,anon,authenticated;
+ALTER TABLE public.members ALTER COLUMN member_number DROP DEFAULT;
+
+-- Anonymous login branding exposes no internal numbering/configuration columns.
+REVOKE ALL ON public.clubs FROM anon;
+GRANT SELECT(id,name,slug,logo_url,city,active) ON public.clubs TO anon;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC,anon,authenticated;
 
 
 -- Bucket privato: nessun documento viene caricato.
@@ -1737,6 +1792,84 @@ BEGIN
    RAISE EXCEPTION 'RLS mancante per %',table_name;
   END IF;
  END LOOP;
+
+ IF EXISTS(SELECT 1 FROM pg_policies WHERE schemaname IN ('public','storage') AND (qual ~ '^\(*true\)*$' OR with_check ~ '^\(*true\)*$')) THEN RAISE EXCEPTION 'Unscoped RLS policy'; END IF;
+ IF EXISTS(
+ WITH expected(s,t,p,c,r,q,w,m) AS (VALUES ('public','cash_sessions','cash_sessions_insert','INSERT','authenticated',NULL,'((user_id = auth.uid()) AND (club_id = current_club_id()) AND (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = ''admin''::app_role) OR (''use_cash''::app_permission = ANY (r.permissions)))))))','PERMISSIVE'),
+('public','cash_sessions','cash_sessions_select','SELECT','authenticated','(is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND ((user_id = auth.uid()) OR is_current_user_club_admin(club_id))))',NULL,'PERMISSIVE'),
+('public','cash_sessions','cash_sessions_update','UPDATE','authenticated','(is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = ''admin''::app_role) OR ((cash_sessions.user_id = auth.uid()) AND (''use_cash''::app_permission = ANY (r.permissions)))))))))','(is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = ''admin''::app_role) OR ((cash_sessions.user_id = auth.uid()) AND (''use_cash''::app_permission = ANY (r.permissions)))))))))','PERMISSIVE'),
+('public','cash_sessions','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','check_ins','check_ins club access insert','INSERT','authenticated',NULL,'user_has_club_access(club_id)','PERMISSIVE'),
+('public','check_ins','check_ins club access select','SELECT','authenticated','user_has_club_access(club_id)',NULL,'PERMISSIVE'),
+('public','check_ins','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','club_member_field_config','admins can manage field config','ALL','authenticated','(is_super_admin(auth.uid()) OR (user_has_club_access(club_id) AND is_current_user_club_admin(club_id)))','(is_super_admin(auth.uid()) OR (user_has_club_access(club_id) AND is_current_user_club_admin(club_id)))','PERMISSIVE'),
+('public','club_member_field_config','club members can read field config','SELECT','authenticated','user_has_club_access(club_id)',NULL,'PERMISSIVE'),
+('public','club_member_field_config','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','clubs','clubs_delete_super','DELETE','authenticated','is_super_admin(auth.uid())',NULL,'PERMISSIVE'),
+('public','clubs','clubs_insert_super','INSERT','authenticated',NULL,'is_super_admin(auth.uid())','PERMISSIVE'),
+('public','clubs','clubs_public_branding_select','SELECT','anon','(active = true)',NULL,'PERMISSIVE'),
+('public','clubs','clubs_select','SELECT','authenticated','(is_super_admin(auth.uid()) OR user_has_club_access(id))',NULL,'PERMISSIVE'),
+('public','clubs','clubs_update_super','UPDATE','authenticated','is_super_admin(auth.uid())','is_super_admin(auth.uid())','PERMISSIVE'),
+('public','email_send_log','Service role can insert send log','INSERT','service_role',NULL,'(auth.role() = ''service_role''::text)','PERMISSIVE'),
+('public','email_send_log','Service role can read send log','SELECT','service_role','(auth.role() = ''service_role''::text)',NULL,'PERMISSIVE'),
+('public','email_send_log','Service role can update send log','UPDATE','service_role','(auth.role() = ''service_role''::text)','(auth.role() = ''service_role''::text)','PERMISSIVE'),
+('public','email_send_state','Service role can manage send state','ALL','service_role','(auth.role() = ''service_role''::text)','(auth.role() = ''service_role''::text)','PERMISSIVE'),
+('public','email_unsubscribe_tokens','Service role can insert tokens','INSERT','service_role',NULL,'(auth.role() = ''service_role''::text)','PERMISSIVE'),
+('public','email_unsubscribe_tokens','Service role can mark tokens as used','UPDATE','service_role','(auth.role() = ''service_role''::text)','(auth.role() = ''service_role''::text)','PERMISSIVE'),
+('public','email_unsubscribe_tokens','Service role can read tokens','SELECT','service_role','(auth.role() = ''service_role''::text)',NULL,'PERMISSIVE'),
+('public','members','members_administrative_delete','DELETE','authenticated','((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))',NULL,'PERMISSIVE'),
+('public','members','members_administrative_insert','INSERT','authenticated',NULL,'((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))','PERMISSIVE'),
+('public','members','members_administrative_read','SELECT','authenticated','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))',NULL,'PERMISSIVE'),
+('public','members','members_administrative_update','UPDATE','authenticated','((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))','((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))','PERMISSIVE'),
+('public','members','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','membership_plans','plans_admin_write','ALL','authenticated','(is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = membership_plans.club_id) AND (r.club_id = current_club_id()) AND (r.role = ''admin''::app_role)))))','(is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM user_roles r
+  WHERE ((r.user_id = auth.uid()) AND (r.club_id = membership_plans.club_id) AND (r.club_id = current_club_id()) AND (r.role = ''admin''::app_role)))))','PERMISSIVE'),
+('public','membership_plans','plans_read','SELECT','authenticated','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))',NULL,'PERMISSIVE'),
+('public','membership_plans','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','membership_receipts','receipts_read','SELECT','authenticated','can_read_membership_receipts(club_id)',NULL,'PERMISSIVE'),
+('public','membership_receipts','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','order_items','order_items_all','ALL','authenticated','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))','PERMISSIVE'),
+('public','order_items','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','orders','orders_all','ALL','authenticated','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))','PERMISSIVE'),
+('public','orders','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','product_categories','categories_catalog_read','SELECT','authenticated','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))',NULL,'PERMISSIVE'),
+('public','product_categories','categories_catalog_write','ALL','authenticated','can_manage_snoop_catalog(club_id)','can_manage_snoop_catalog(club_id)','PERMISSIVE'),
+('public','product_categories','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','products','products_catalog_read','SELECT','authenticated','(is_super_admin(auth.uid()) OR (club_id = current_club_id()))',NULL,'PERMISSIVE'),
+('public','products','products_catalog_write','ALL','authenticated','can_manage_snoop_catalog(club_id)','can_manage_snoop_catalog(club_id)','PERMISSIVE'),
+('public','products','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','profiles','profiles_read_auth','SELECT','authenticated','can_read_profile(id)',NULL,'PERMISSIVE'),
+('public','profiles','profiles_self_update','UPDATE','authenticated','(auth.uid() = id)',NULL,'PERMISSIVE'),
+('public','profiles','profiles_self_upsert','INSERT','authenticated',NULL,'(auth.uid() = id)','PERMISSIVE'),
+('public','stock_movements','administrative_movement_insert','INSERT','authenticated',NULL,'(can_manage_snoop_catalog(club_id) AND (created_by = auth.uid()) AND (EXISTS ( SELECT 1
+   FROM products p
+  WHERE ((p.id = stock_movements.product_id) AND (p.club_id = stock_movements.club_id)))))','PERMISSIVE'),
+('public','stock_movements','Admins can delete stock movements','DELETE','authenticated','(user_has_club_access(club_id) AND (is_super_admin(auth.uid()) OR is_current_user_club_admin(club_id)))',NULL,'PERMISSIVE'),
+('public','stock_movements','Admins can update stock movements','UPDATE','authenticated','(user_has_club_access(club_id) AND (is_super_admin(auth.uid()) OR is_current_user_club_admin(club_id)))',NULL,'PERMISSIVE'),
+('public','stock_movements','Club members can view stock movements','SELECT','authenticated','user_has_club_access(club_id)',NULL,'PERMISSIVE'),
+('public','stock_movements','snoop_tenant_fence','ALL','authenticated','user_has_club_access(club_id)','user_has_club_access(club_id)','RESTRICTIVE'),
+('public','suppressed_emails','Service role can insert suppressed emails','INSERT','service_role',NULL,'(auth.role() = ''service_role''::text)','PERMISSIVE'),
+('public','suppressed_emails','Service role can read suppressed emails','SELECT','service_role','(auth.role() = ''service_role''::text)',NULL,'PERMISSIVE'),
+('public','user_roles','user_roles_select','SELECT','authenticated','((user_id = auth.uid()) OR is_current_user_club_admin(club_id))',NULL,'PERMISSIVE'),
+('storage','objects','snoop_documents_delete','DELETE','authenticated','((bucket_id = ''snoop-docs''::text) AND can_access_snoop_document(name))',NULL,'PERMISSIVE'),
+('storage','objects','snoop_documents_insert','INSERT','authenticated',NULL,'((bucket_id = ''snoop-docs''::text) AND can_access_snoop_document(name))','PERMISSIVE'),
+('storage','objects','snoop_documents_read','SELECT','authenticated','((bucket_id = ''snoop-docs''::text) AND can_access_snoop_document(name))',NULL,'PERMISSIVE'),
+('storage','objects','snoop_documents_update','UPDATE','authenticated','((bucket_id = ''snoop-docs''::text) AND can_access_snoop_document(name))','((bucket_id = ''snoop-docs''::text) AND can_access_snoop_document(name))','PERMISSIVE')), actual AS (
+ SELECT schemaname::text s,tablename::text t,policyname::text p,cmd::text c,array_to_string(roles,',') r,qual q,with_check w,permissive m
+ FROM pg_policies WHERE schemaname='public' OR (schemaname='storage' AND policyname LIKE 'snoop_documents_%'))
+ SELECT 1 FROM ((SELECT * FROM expected EXCEPT SELECT * FROM actual) UNION ALL (SELECT * FROM actual EXCEPT SELECT * FROM expected)) differences
+ ) THEN RAISE EXCEPTION 'Final RLS policy set differs from reviewed allowlist'; END IF;
+ IF has_table_privilege('authenticated','public.user_roles','INSERT,UPDATE,DELETE,TRUNCATE') THEN RAISE EXCEPTION 'Browser role can change privileges'; END IF;
+ IF EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='public' AND NOT rowsecurity) THEN RAISE EXCEPTION 'Public table without RLS'; END IF;
  IF EXISTS(SELECT 1 FROM public.clubs) OR EXISTS(SELECT 1 FROM public.user_roles) OR EXISTS(SELECT 1 FROM public.members) THEN RAISE EXCEPTION 'Dati inattesi: inizializzazione annullata'; END IF;
  IF NOT EXISTS(SELECT 1 FROM storage.buckets WHERE id='snoop-docs' AND NOT public) THEN RAISE EXCEPTION 'Bucket privato mancante'; END IF;
 END;

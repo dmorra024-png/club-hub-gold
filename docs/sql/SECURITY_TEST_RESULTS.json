@@ -1,0 +1,118 @@
+{
+  "engine": "PGlite PostgreSQL 17, local only",
+  "limitations": [
+    "Supabase auth/storage are local SQL fixtures",
+    "pg_net,pg_cron,supabase_vault,pgmq installers excluded: native Docker daemon unavailable",
+    "No remote database tested"
+  ],
+  "tests": [
+    {
+      "test": "full bundle: exact final policy allowlist, RLS and no unconditional policies",
+      "result": "PASS"
+    },
+    {
+      "test": "members: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "membership_plans: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "products: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "product_categories: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "orders: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "order_items: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "cash_sessions: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "stock_movements: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "club_member_field_config: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "membership_receipts: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "check_ins: both clubs isolated, unassigned and anonymous accounts denied",
+      "result": "PASS"
+    },
+    {
+      "test": "members: authorized own-club insert/update; foreign read/update/delete/insert/move denied",
+      "result": "PASS"
+    },
+    {
+      "test": "all mutable tenant tables: employee cannot update/delete foreign rows",
+      "result": "PASS"
+    },
+    {
+      "test": "profiles and roles: no foreign directory, no self-promotion or permissions changes",
+      "result": "PASS"
+    },
+    {
+      "test": "signup never gains admin from metadata, including when no super admin exists",
+      "result": "PASS"
+    },
+    {
+      "test": "admin in club A and employee in B cannot administer B field config or stock",
+      "result": "PASS"
+    },
+    {
+      "test": "cross-club references rejected for plans, categories, check-ins and stock",
+      "result": "PASS"
+    },
+    {
+      "test": "SECURITY DEFINER RPCs reject foreign club operations and reports",
+      "result": "PASS"
+    },
+    {
+      "test": "private documents: foreign read/update/delete/upload and rename denied",
+      "result": "PASS"
+    },
+    {
+      "test": "email infrastructure and queue RPCs unavailable to browser and anonymous users",
+      "result": "PASS"
+    },
+    {
+      "test": "restrictive fence survives an accidentally added permissive true policy",
+      "result": "PASS"
+    },
+    {
+      "test": "every tenant table rejects foreign-club INSERTs, not just reads",
+      "result": "PASS"
+    },
+    {
+      "test": "staff without permission cannot mutate own-club members or catalogs",
+      "result": "PASS"
+    },
+    {
+      "test": "club records scoped; ordinary users cannot create clubs or gain club admin",
+      "result": "PASS"
+    },
+    {
+      "test": "anonymous branding exposes only login fields, no internal counters",
+      "result": "PASS"
+    },
+    {
+      "test": "initialization refuses a second execution before touching existing synthetic records",
+      "result": "PASS"
+    }
+  ]
+}

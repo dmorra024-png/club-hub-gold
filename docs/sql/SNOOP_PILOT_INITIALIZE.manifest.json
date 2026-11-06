@@ -1,7 +1,8 @@
 {
-  "migration_count": 28,
-  "sql_sha256": "d21c09e3b5b1581cbe5a91f1c969e7e42bfdd7b39b3aa33e57947f06babe7cd0",
+  "migration_count": 29,
+  "sql_sha256": "60fe23968aac0dba499c0d88c1c419a94794782c52d955ea3d4e776b4867d3d2",
   "notes": [
+    "Only authoritative final policies emitted; historical CREATE POLICY statements omitted",
     "Final app_role enum created upfront for atomic execution",
     "Historical club/plan seeds and data backfill omitted",
     "Original function bodies preserved; only top-level transaction delimiters normalized"
@@ -118,6 +119,10 @@
     {
       "name": "20261105210000_private_member_documents.sql",
       "sha256": "7c9272b8f0cf8ce4731bbf8b26412a17e190823764f5474fe7d190b037f998d2"
+    },
+    {
+      "name": "20261106100000_authoritative_rls.sql",
+      "sha256": "db815be6e92053ad47bcc63221a1d1325f86058affc5f9c1bc0a80e3f0eec2c3"
     }
   ]
 }
