@@ -59,7 +59,7 @@ jobs:
           import { appendFileSync } from 'node:fs';
           const raw = process.env.CLOUDFLARE_API_TOKEN ?? '';
           const token = raw.trim();
-          if (!token || /[\\r\\n\\x00-\\x1f\\x7f]/.test(token) || /\\s/.test(token) || /^Bearer\\s/i.test(token)) {
+          if (!token || /[\r\n\x00-\x1f\x7f]/.test(token) || /\s/.test(token) || /^Bearer\s/i.test(token)) {
             console.error('Invalid SNOOP_CLOUDFLARE_API_TOKEN format: save only the raw API token, with no Bearer prefix, quotes or line breaks.');
             process.exit(1);
           }
@@ -77,7 +77,7 @@ jobs:
             process.exit(1);
           }
           // Preserve the cleaned token only in this workflow's protected runner environment.
-          appendFileSync(process.env.GITHUB_ENV, 'CLOUDFLARE_API_TOKEN=' + token + '\\n');
+          appendFileSync(process.env.GITHUB_ENV, 'CLOUDFLARE_API_TOKEN=' + token + '\n');
           console.log('Cloudflare API token verified as active.');
           NODE
       - name: Set up Bun
