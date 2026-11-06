@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 20
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.SNOOP_CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
       SNOOP_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SNOOP_SUPABASE_SERVICE_ROLE_KEY }}
       SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
@@ -63,7 +63,7 @@ jobs:
             console.error('Invalid SNOOP_CLOUDFLARE_API_TOKEN format: save only the raw API token, with no Bearer prefix, quotes or line breaks.');
             process.exit(1);
           }
-          if (!/^[a-f0-9]{32}$/.test(process.env.CLOUDFLARE_ACCOUNT_ID ?? '') || process.env.CLOUDFLARE_ACCOUNT_ID !== '0cc810f68820d22996af3aed9e081e93') {
+          if (!/^[a-f0-9]{32}$/.test(process.env.CLOUDFLARE_ACCOUNT_ID ?? '') || process.env.CLOUDFLARE_ACCOUNT_ID !== '0cc8106f8820d22996af3aed9e081e93') {
             console.error('Cloudflare account ID does not match the approved SNOOP account.');
             process.exit(1);
           }
