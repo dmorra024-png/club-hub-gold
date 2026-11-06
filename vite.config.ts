@@ -28,18 +28,15 @@ export default defineConfig(({ command, mode }) => {
   const cloudflare = process.env.SNOOP_RUNTIME === "cloudflare";
   if (mode === "pilot") {
     if (
-      !existsSync(".env.pilot.local") ||
       env.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot" ||
       !/^[a-z]{20}$/.test(env.SNOOP_SUPABASE_PROJECT_REF ?? "")
     )
       throw new Error(
-        "Configure the dedicated SNOOP Free project in .env.pilot.local; existing project settings will not be used.",
+        "Configure the dedicated SNOOP pilot project using Cloudflare build environment variables or a local .env.pilot.local.",
       );
     for (const key of [
       "VITE_SUPABASE_PUBLISHABLE_KEY",
       "SUPABASE_PUBLISHABLE_KEY",
-      "SUPABASE_SERVICE_ROLE_KEY",
-      "APP_URL",
     ])
       if (!env[key] || /REPLACE_|YOUR_/.test(env[key]))
         throw new Error(`Missing dedicated SNOOP pilot setting: ${key}`);
@@ -49,8 +46,7 @@ export default defineConfig(({ command, mode }) => {
     if (
       env.VITE_SUPABASE_URL !== expected ||
       env.SUPABASE_URL !== expected ||
-      !env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-      !env.SUPABASE_SERVICE_ROLE_KEY
+      !env.VITE_SUPABASE_PUBLISHABLE_KEY
     )
       throw new Error("Dedicated SNOOP project URLs/keys are missing or inconsistent");
   }
