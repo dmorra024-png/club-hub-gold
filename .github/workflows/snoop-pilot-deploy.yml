@@ -50,17 +50,16 @@ jobs:
           [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
           [[ "$SUPABASE_SERVICE_ROLE_KEY" != sb_publishable_* ]] || { echo "Private service key is invalid"; exit 1; }
           echo "Target validated: SNOOP pilot (no Security PSG resources)"
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '22'
-          cache: npm
+          bun-version: '1.3.12'
       - name: Install
-        run: npm ci
+        run: bun install --frozen-lockfile
       - name: Validate SQL security and TypeScript
         run: |
-          npm run test:security:initialization
-          npm run typecheck
+          bun run test:security:initialization
+          bun run typecheck
       - name: Build Cloudflare Worker (only public key embedded)
         shell: bash
         env:
@@ -68,9 +67,9 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
-          npm run build:worker
-          npm run worker:dry-run
-          npm run test:security:bundle
+          bun run build:worker
+          bun run worker:dry-run
+          bun run test:security:bundle
       - name: Deploy only snoop-pilot on the selected Cloudflare account
         shell: bash
         run: |
