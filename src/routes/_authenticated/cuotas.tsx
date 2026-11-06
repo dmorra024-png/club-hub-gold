@@ -23,7 +23,7 @@ export function MembershipReceipts() {
   const { access, can, loading, isSuperAdmin } = useAuth();
   const [clubs, setClubs] = useState<{ id: string; name: string }[]>([]);
   const [selectedClub, setSelectedClub] = useState("");
-  const clubId = isSuperAdmin ? selectedClub : access.clubId;
+  const clubId = isSuperAdmin ? selectedClub || access.clubId : access.clubId;
   const [members, setMembers] = useState<
     { id: string; member_number: string; first_name: string; last_name: string }[]
   >([]);
@@ -213,7 +213,7 @@ export function MembershipReceipts() {
             aria-label="Club"
             disabled={busy}
             className={inputClass}
-            value={selectedClub}
+            value={selectedClub || access.clubId || ""}
             onChange={(e) => {
               setSelectedClub(e.target.value);
               setPage(0);

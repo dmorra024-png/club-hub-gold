@@ -1,3 +1,4 @@
+import { BrandImage } from "@/components/BrandImage";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,13 +88,13 @@ function AuthPage() {
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden scanline">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <img src={logoAsset.url} alt="" className="w-[min(110vh,110vw)] opacity-[0.06]" />
+        <BrandImage src={logoAsset.url} alt="" className="w-[min(110vh,110vw)] opacity-[0.06]" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/40 to-background/90" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <img src={logoAsset.url} alt="Snoop" className="w-64 mx-auto" />
+          <BrandImage src={logoAsset.url} alt="Snoop" className="w-64 mx-auto" />
         </div>
 
         <div className="bg-card/80 backdrop-blur-xl border border-neon/30 rounded-2xl p-8 shadow-[0_0_50px_-10px_oklch(0.86_0.28_145/0.3)]">
@@ -101,24 +102,46 @@ function AuthPage() {
             <button
               onClick={() => setMode("signin")}
               className={`flex-1 py-2 text-xs uppercase tracking-[0.25em] font-display font-semibold transition ${mode === "signin" ? "text-neon border-b-2 border-neon" : "text-muted-foreground border-b-2 border-transparent"}`}
-            >Entrar</button>
+            >
+              Entrar
+            </button>
             <button
               onClick={() => setMode("signup")}
               className={`flex-1 py-2 text-xs uppercase tracking-[0.25em] font-display font-semibold transition ${mode === "signup" ? "text-neon border-b-2 border-neon" : "text-muted-foreground border-b-2 border-transparent"}`}
-            >Registrarse</button>
+            >
+              Registrarse
+            </button>
           </div>
 
           <form onSubmit={submit} className="space-y-4">
             {mode === "signup" && (
               <Field label="Nombre completo">
-                <input required value={name} onChange={(e) => setName(e.target.value)} className="auth-input" />
+                <input
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="auth-input"
+                />
               </Field>
             )}
             <Field label="Email">
-              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="auth-input" />
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="auth-input"
+              />
             </Field>
             <Field label="Contraseña">
-              <input required type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="auth-input" />
+              <input
+                required
+                type="password"
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="auth-input"
+              />
             </Field>
 
             <button
@@ -133,7 +156,10 @@ function AuthPage() {
             <div className="mt-4 text-center">
               <button
                 type="button"
-                onClick={() => { setForgotOpen(true); setForgotEmail(email); }}
+                onClick={() => {
+                  setForgotOpen(true);
+                  setForgotEmail(email);
+                }}
                 className="text-[11px] uppercase tracking-[0.25em] text-neon-dim hover:text-neon transition"
               >
                 ¿Olvidaste la contraseña?
@@ -144,13 +170,26 @@ function AuthPage() {
           {forgotOpen && (
             <form onSubmit={sendReset} className="mt-4 border-t border-neon/20 pt-4 space-y-3">
               <Field label="Email de recuperación">
-                <input required type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} className="auth-input" />
+                <input
+                  required
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="auth-input"
+                />
               </Field>
               <div className="flex gap-2">
-                <button disabled={forgotLoading} className="flex-1 bg-gradient-neon text-primary-foreground py-2 rounded-md text-xs uppercase tracking-widest disabled:opacity-50 font-semibold">
+                <button
+                  disabled={forgotLoading}
+                  className="flex-1 bg-gradient-neon text-primary-foreground py-2 rounded-md text-xs uppercase tracking-widest disabled:opacity-50 font-semibold"
+                >
                   {forgotLoading ? "..." : "Enviar link"}
                 </button>
-                <button type="button" onClick={() => setForgotOpen(false)} className="flex-1 border border-border text-muted-foreground py-2 rounded-md text-xs uppercase tracking-widest">
+                <button
+                  type="button"
+                  onClick={() => setForgotOpen(false)}
+                  className="flex-1 border border-border text-muted-foreground py-2 rounded-md text-xs uppercase tracking-widest"
+                >
                   Cancelar
                 </button>
               </div>
@@ -158,7 +197,8 @@ function AuthPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground text-center mt-6 leading-relaxed">
-            El acceso al club debe ser asignado por un <span className="text-neon">administrador</span>.
+            El acceso al club debe ser asignado por un{" "}
+            <span className="text-neon">administrador</span>.
           </p>
         </div>
       </div>
@@ -187,7 +227,9 @@ function AuthPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1.5">{label}</span>
+      <span className="block text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1.5">
+        {label}
+      </span>
       {children}
     </label>
   );

@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_authenticated/")({
 function Home() {
   const { access, isAdmin, isSuperAdmin } = useAuth();
 
-  if (isSuperAdmin) return <SnoopHome />;
+  if (isSuperAdmin && !access.clubId) return <SnoopHome />;
 
   const clubName = access.clubName ?? "—";
   const logo = access.clubLogo ?? fallbackLogo.url;
@@ -34,20 +34,32 @@ function Home() {
         />
 
         <div className="mt-10 grid grid-cols-2 gap-3 w-full max-w-sm">
-          <Link to="/soci" className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition">
+          <Link
+            to="/soci"
+            className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+          >
             <Users className="w-6 h-6" />
             <span className="text-xs uppercase tracking-[0.25em] font-display">Socios</span>
           </Link>
-          <Link to="/productos" className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition">
+          <Link
+            to="/productos"
+            className="flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+          >
             <Package className="w-6 h-6" />
             <span className="text-xs uppercase tracking-[0.25em] font-display">Productos</span>
           </Link>
-          <Link to="/caja" className="col-span-2 flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition">
+          <Link
+            to="/caja"
+            className="col-span-2 flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+          >
             <Banknote className="w-6 h-6" />
             <span className="text-xs uppercase tracking-[0.25em] font-display">Caja</span>
           </Link>
           {isAdmin && (
-            <Link to="/ajustes" className="col-span-2 flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition">
+            <Link
+              to="/ajustes"
+              className="col-span-2 flex flex-col items-center gap-2 px-4 py-5 rounded-xl border border-neon/40 bg-card/60 backdrop-blur text-neon hover:bg-neon/10 transition"
+            >
               <Settings className="w-6 h-6" />
               <span className="text-xs uppercase tracking-[0.25em] font-display">Ajustes</span>
             </Link>
@@ -76,7 +88,10 @@ function SnoopHome() {
         </p>
 
         <div className="mt-10 grid grid-cols-1 gap-3 w-full max-w-sm">
-          <Link to="/snoop-admin" className="flex items-center justify-center gap-2 px-4 py-5 rounded-xl border border-neon/50 bg-neon/10 text-neon hover:bg-neon/20 transition">
+          <Link
+            to="/snoop-admin"
+            className="flex items-center justify-center gap-2 px-4 py-5 rounded-xl border border-neon/50 bg-neon/10 text-neon hover:bg-neon/20 transition"
+          >
             <ShieldCheck className="w-5 h-5" />
             <span className="text-xs uppercase tracking-[0.25em] font-display">Snoop Admin</span>
           </Link>
@@ -89,4 +104,3 @@ function SnoopHome() {
     </SnoopLayout>
   );
 }
-

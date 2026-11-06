@@ -1,3 +1,4 @@
+import { BrandImage } from "@/components/BrandImage";
 import { VoiceAgent } from "@/components/VoiceAgent";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -22,18 +23,18 @@ type NavItem = {
   to: string;
   label: string;
   icon: any;
-  show: (a: { isAdmin: boolean; isSuperAdmin: boolean }) => boolean;
+  show: (a: { isAdmin: boolean; isSuperAdmin: boolean; hasClub: boolean }) => boolean;
 };
 
 const NAV: NavItem[] = [
   { to: "/", label: "Inicio", icon: Home, show: () => true },
   { to: "/snoop-admin", label: "Snoop Admin", icon: Shield, show: (a) => a.isSuperAdmin },
-  { to: "/soci", label: "Socios", icon: Users, show: (a) => !a.isSuperAdmin },
-  { to: "/control-acceso", label: "Control acceso", icon: ScanLine, show: (a) => !a.isSuperAdmin },
-  { to: "/productos", label: "Productos", icon: Package, show: (a) => !a.isSuperAdmin },
+  { to: "/soci", label: "Socios", icon: Users, show: (a) => a.hasClub },
+  { to: "/control-acceso", label: "Control acceso", icon: ScanLine, show: (a) => a.hasClub },
+  { to: "/productos", label: "Productos", icon: Package, show: (a) => a.hasClub },
   { to: "/cuotas", label: "Cuotas e ingresos", icon: Banknote, show: () => true },
-  { to: "/caja", label: "Caja", icon: Banknote, show: (a) => !a.isSuperAdmin },
-  { to: "/ajustes", label: "Ajustes", icon: Settings, show: (a) => a.isAdmin && !a.isSuperAdmin },
+  { to: "/caja", label: "Caja", icon: Banknote, show: (a) => a.hasClub },
+  { to: "/ajustes", label: "Ajustes", icon: Settings, show: (a) => a.isAdmin && a.hasClub },
 ];
 
 export function SnoopLayout({
@@ -50,7 +51,9 @@ export function SnoopLayout({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
 
-  const visible = NAV.filter((n) => n.show({ isAdmin, isSuperAdmin }));
+  const visible = NAV.filter((n) =>
+    n.show({ isAdmin, isSuperAdmin, hasClub: Boolean(access.clubId) }),
+  );
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -65,7 +68,7 @@ export function SnoopLayout({
         aria-hidden
         className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden"
       >
-        <img
+        <BrandImage
           src={logoAsset.url}
           alt=""
           className="w-[min(120vh,120vw)] max-w-none opacity-[0.04] select-none"
@@ -76,7 +79,7 @@ export function SnoopLayout({
       {/* Sidebar desktop */}
       <aside className="relative z-10 hidden md:flex w-64 flex-col border-r border-neon/20 bg-card/60 backdrop-blur-md">
         <div className="px-6 py-8 border-b border-neon/15 flex flex-col items-center text-center">
-          <img src={logoAsset.url} alt="Snoop" className="w-32 object-contain" />
+          <BrandImage src={logoAsset.url} alt="Snoop" className="w-32 object-contain" />
         </div>
 
         <nav className="flex-1 px-3 py-6 space-y-1">
@@ -120,7 +123,7 @@ export function SnoopLayout({
 
       {/* Mobile top bar */}
       <header className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 h-14 bg-card/95 backdrop-blur border-b border-neon/20">
-        <img src={logoAsset.url} alt="Snoop" className="h-7 object-contain" />
+        <BrandImage src={logoAsset.url} alt="Snoop" className="h-7 object-contain" />
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
