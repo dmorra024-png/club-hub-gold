@@ -40,6 +40,10 @@ export default defineConfig(({ command, mode }) => {
     ])
       if (!env[key] || /REPLACE_|YOUR_/.test(env[key]))
         throw new Error(`Missing dedicated SNOOP pilot setting: ${key}`);
+    // A publishable key is public, but an access token, secret, or service-role
+    // key must never be embedded in the browser bundle.
+    if (!env.VITE_SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_"))
+      throw new Error("SNOOP pilot requires a Supabase sb_publishable_ key for the browser; do not use access tokens or private keys.");
     if (env.VITE_SUPABASE_PUBLISHABLE_KEY !== env.SUPABASE_PUBLISHABLE_KEY)
       throw new Error("Browser and server must use the same dedicated SNOOP publishable key");
     const expected = `https://${env.SNOOP_SUPABASE_PROJECT_REF}.supabase.co`;
