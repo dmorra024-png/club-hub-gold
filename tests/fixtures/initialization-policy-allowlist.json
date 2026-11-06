@@ -1,0 +1,572 @@
+[
+  {
+    "schemaname": "public",
+    "tablename": "cash_sessions",
+    "policyname": "cash_sessions_insert",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "((user_id = auth.uid()) AND (club_id = current_club_id()) AND (EXISTS ( SELECT 1\n   FROM user_roles r\n  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = 'admin'::app_role) OR ('use_cash'::app_permission = ANY (r.permissions)))))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cash_sessions",
+    "policyname": "cash_sessions_select",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "(is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND ((user_id = auth.uid()) OR is_current_user_club_admin(club_id))))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cash_sessions",
+    "policyname": "cash_sessions_update",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "UPDATE",
+    "qual": "(is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND (EXISTS ( SELECT 1\n   FROM user_roles r\n  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = 'admin'::app_role) OR ((cash_sessions.user_id = auth.uid()) AND ('use_cash'::app_permission = ANY (r.permissions)))))))))",
+    "with_check": "(is_super_admin(auth.uid()) OR ((club_id = current_club_id()) AND (EXISTS ( SELECT 1\n   FROM user_roles r\n  WHERE ((r.user_id = auth.uid()) AND (r.club_id = cash_sessions.club_id) AND ((r.role = 'admin'::app_role) OR ((cash_sessions.user_id = auth.uid()) AND ('use_cash'::app_permission = ANY (r.permissions)))))))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "cash_sessions",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "check_ins",
+    "policyname": "check_ins club access insert",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "check_ins",
+    "policyname": "check_ins club access select",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "check_ins",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "club_member_field_config",
+    "policyname": "admins can manage field config",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "(is_super_admin(auth.uid()) OR (user_has_club_access(club_id) AND is_current_user_club_admin(club_id)))",
+    "with_check": "(is_super_admin(auth.uid()) OR (user_has_club_access(club_id) AND is_current_user_club_admin(club_id)))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "club_member_field_config",
+    "policyname": "club members can read field config",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "club_member_field_config",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "clubs",
+    "policyname": "clubs_delete_super",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "DELETE",
+    "qual": "is_super_admin(auth.uid())",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "clubs",
+    "policyname": "clubs_insert_super",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "is_super_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "clubs",
+    "policyname": "clubs_public_branding_select",
+    "permissive": "PERMISSIVE",
+    "roles": ["anon"],
+    "cmd": "SELECT",
+    "qual": "(active = true)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "clubs",
+    "policyname": "clubs_select",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "(is_super_admin(auth.uid()) OR user_has_club_access(id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "clubs",
+    "policyname": "clubs_update_super",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "UPDATE",
+    "qual": "is_super_admin(auth.uid())",
+    "with_check": "is_super_admin(auth.uid())"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_send_log",
+    "policyname": "Service role can insert send log",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(auth.role() = 'service_role'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_send_log",
+    "policyname": "Service role can read send log",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "SELECT",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_send_log",
+    "policyname": "Service role can update send log",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "UPDATE",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": "(auth.role() = 'service_role'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_send_state",
+    "policyname": "Service role can manage send state",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "ALL",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": "(auth.role() = 'service_role'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_unsubscribe_tokens",
+    "policyname": "Service role can insert tokens",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(auth.role() = 'service_role'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_unsubscribe_tokens",
+    "policyname": "Service role can mark tokens as used",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "UPDATE",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": "(auth.role() = 'service_role'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "email_unsubscribe_tokens",
+    "policyname": "Service role can read tokens",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "SELECT",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "members",
+    "policyname": "members_administrative_delete",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "DELETE",
+    "qual": "((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "members",
+    "policyname": "members_administrative_insert",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "members",
+    "policyname": "members_administrative_read",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "members",
+    "policyname": "members_administrative_update",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "UPDATE",
+    "qual": "((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))",
+    "with_check": "((is_super_admin(auth.uid()) OR (club_id = current_club_id())) AND can_manage_club_members(club_id))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "members",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "membership_plans",
+    "policyname": "plans_admin_write",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "(is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1\n   FROM user_roles r\n  WHERE ((r.user_id = auth.uid()) AND (r.club_id = membership_plans.club_id) AND (r.club_id = current_club_id()) AND (r.role = 'admin'::app_role)))))",
+    "with_check": "(is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1\n   FROM user_roles r\n  WHERE ((r.user_id = auth.uid()) AND (r.club_id = membership_plans.club_id) AND (r.club_id = current_club_id()) AND (r.role = 'admin'::app_role)))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "membership_plans",
+    "policyname": "plans_read",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "membership_plans",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "membership_receipts",
+    "policyname": "receipts_read",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "can_read_membership_receipts(club_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "membership_receipts",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "order_items",
+    "policyname": "order_items_all",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+    "with_check": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "order_items",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "orders",
+    "policyname": "orders_all",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+    "with_check": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "orders",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "product_categories",
+    "policyname": "categories_catalog_read",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "product_categories",
+    "policyname": "categories_catalog_write",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "can_manage_snoop_catalog(club_id)",
+    "with_check": "can_manage_snoop_catalog(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "product_categories",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "products",
+    "policyname": "products_catalog_read",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "products",
+    "policyname": "products_catalog_write",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "can_manage_snoop_catalog(club_id)",
+    "with_check": "can_manage_snoop_catalog(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "products",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_read_auth",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "can_read_profile(id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_self_update",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "UPDATE",
+    "qual": "(auth.uid() = id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "profiles",
+    "policyname": "profiles_self_upsert",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(auth.uid() = id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "stock_movements",
+    "policyname": "administrative_movement_insert",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(can_manage_snoop_catalog(club_id) AND (created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM products p\n  WHERE ((p.id = stock_movements.product_id) AND (p.club_id = stock_movements.club_id)))))"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "stock_movements",
+    "policyname": "Admins can delete stock movements",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "DELETE",
+    "qual": "(user_has_club_access(club_id) AND (is_super_admin(auth.uid()) OR is_current_user_club_admin(club_id)))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "stock_movements",
+    "policyname": "Admins can update stock movements",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "UPDATE",
+    "qual": "(user_has_club_access(club_id) AND (is_super_admin(auth.uid()) OR is_current_user_club_admin(club_id)))",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "stock_movements",
+    "policyname": "Club members can view stock movements",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "stock_movements",
+    "policyname": "snoop_tenant_fence",
+    "permissive": "RESTRICTIVE",
+    "roles": ["authenticated"],
+    "cmd": "ALL",
+    "qual": "user_has_club_access(club_id)",
+    "with_check": "user_has_club_access(club_id)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "suppressed_emails",
+    "policyname": "Service role can insert suppressed emails",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "(auth.role() = 'service_role'::text)"
+  },
+  {
+    "schemaname": "public",
+    "tablename": "suppressed_emails",
+    "policyname": "Service role can read suppressed emails",
+    "permissive": "PERMISSIVE",
+    "roles": ["service_role"],
+    "cmd": "SELECT",
+    "qual": "(auth.role() = 'service_role'::text)",
+    "with_check": null
+  },
+  {
+    "schemaname": "public",
+    "tablename": "user_roles",
+    "policyname": "user_roles_select",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "((user_id = auth.uid()) OR is_current_user_club_admin(club_id))",
+    "with_check": null
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "snoop_documents_delete",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "DELETE",
+    "qual": "((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name))",
+    "with_check": null
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "snoop_documents_insert",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "INSERT",
+    "qual": null,
+    "with_check": "((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name))"
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "snoop_documents_read",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "SELECT",
+    "qual": "((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name))",
+    "with_check": null
+  },
+  {
+    "schemaname": "storage",
+    "tablename": "objects",
+    "policyname": "snoop_documents_update",
+    "permissive": "PERMISSIVE",
+    "roles": ["authenticated"],
+    "cmd": "UPDATE",
+    "qual": "((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name))",
+    "with_check": "((bucket_id = 'snoop-docs'::text) AND can_access_snoop_document(name))"
+  }
+]

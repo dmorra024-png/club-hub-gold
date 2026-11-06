@@ -1,3 +1,4 @@
+import { parseCashCents } from "@/lib/member-administration";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useMemo, useState } from "react";
@@ -26,7 +27,13 @@ type Session = {
   notes: string | null;
 };
 
-type OrderRow = { id: string; total_cents: number; created_by: string | null; created_at: string; cash_session_id: string | null };
+type OrderRow = {
+  id: string;
+  total_cents: number;
+  created_by: string | null;
+  created_at: string;
+  cash_session_id: string | null;
+};
 
 function fmtEur(cents: number) {
   return (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
@@ -37,11 +44,20 @@ function todayISO() {
 }
 function dayRange(dateISO: string) {
   const start = new Date(dateISO + "T00:00:00");
-  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
 function CajaPage() {
+  const { can, loading } = useAuth();
+  if (loading) return <SnoopLayout title="Caja">Cargando…</SnoopLayout>;
+  if (!can("use_cash"))
+    return (
+      <SnoopLayout title="Caja">
+        <div role="alert">No tienes permiso para usar la caja.</div>
+      </SnoopLayout>
+    );
   return (
     <SnoopLayout title="Caja" subtitle="Abre y cierra tu caja, consulta los informes del día">
       <Tabs defaultValue="mia" className="w-full">
@@ -50,9 +66,15 @@ function CajaPage() {
           <TabsTrigger value="hoy">Informe de hoy</TabsTrigger>
           <TabsTrigger value="fecha">Informe por fecha</TabsTrigger>
         </TabsList>
-        <TabsContent value="mia"><MyCash /></TabsContent>
-        <TabsContent value="hoy"><DayReport dateISO={todayISO()} title="Hoy" /></TabsContent>
-        <TabsContent value="fecha"><DateReportPicker /></TabsContent>
+        <TabsContent value="mia">
+          <MyCash />
+        </TabsContent>
+        <TabsContent value="hoy">
+          <DayReport dateISO={todayISO()} title="Hoy" />
+        </TabsContent>
+        <TabsContent value="fecha">
+          <DateReportPicker />
+        </TabsContent>
       </Tabs>
     </SnoopLayout>
   );
@@ -64,13 +86,15 @@ function MyCash() {
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState("0");
   const [closing, setClosing] = useState("0");
+  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [notes, setNotes] = useState("");
   const [sales, setSales] = useState<OrderRow[]>([]);
 
   async function load() {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("cash_sessions")
       .select("*")
       .eq("user_id", user.id)
@@ -78,68 +102,126 @@ function MyCash() {
       .order("opened_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    setLoadError(Boolean(error));
     setSession((data as Session) ?? null);
     if (data) {
-      const { data: orders } = await supabase
+      const { data: orders, error: ordersError } = await supabase
         .from("orders")
         .select("id, total_cents, created_by, created_at, cash_session_id")
         .eq("cash_session_id", (data as any).id);
+      setLoadError(Boolean(ordersError));
       setSales((orders as OrderRow[]) ?? []);
     } else {
       setSales([]);
     }
     setLoading(false);
   }
-  useEffect(() => { load(); }, [user?.id]);
+  useEffect(() => {
+    load();
+  }, [user?.id]);
 
   const totalVendido = sales.reduce((a, o) => a + (o.total_cents ?? 0), 0);
   const esperado = (session?.opening_cash_cents ?? 0) + totalVendido;
 
   async function open() {
-    const cents = Math.round((Number(opening.replace(",", ".")) || 0) * 100);
-    const { error } = await supabase.from("cash_sessions").insert({
-      user_id: user!.id,
-      club_id: (await supabase.rpc("current_club_id")).data,
-      opening_cash_cents: cents,
-    } as any);
-    if (error) return toast.error(error.message);
-    toast.success("Caja abierta");
-    setOpening("0");
-    load();
+    if (busy || !user || !navigator.onLine) return;
+    const cents = parseCashCents(opening);
+    if (cents === null) return toast.error("Importe no válido");
+    setBusy(true);
+    try {
+      const { data: clubId, error: clubError } = await supabase.rpc("current_club_id");
+      if (clubError || !clubId) throw new Error("No tienes un club asignado");
+      const { error } = await supabase
+        .from("cash_sessions")
+        .insert({ user_id: user.id, club_id: clubId, opening_cash_cents: cents });
+      if (error) throw error;
+      toast.success("Caja abierta");
+      setOpening("0");
+      await load();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function close() {
-    if (!session) return;
-    const cents = Math.round((Number(closing.replace(",", ".")) || 0) * 100);
-    const { error } = await supabase.from("cash_sessions")
-      .update({ status: "closed", closed_at: new Date().toISOString(), closing_cash_cents: cents, notes })
-      .eq("id", session.id);
-    if (error) return toast.error(error.message);
-    toast.success("Caja cerrada");
-    setClosing("0"); setNotes("");
-    load();
+    if (!session || busy || !navigator.onLine) return;
+    const cents = parseCashCents(closing);
+    if (cents === null) return toast.error("Importe no válido");
+    setBusy(true);
+    try {
+      const { data, error } = await supabase
+        .from("cash_sessions")
+        .update({
+          status: "closed",
+          closed_at: new Date().toISOString(),
+          closing_cash_cents: cents,
+          notes,
+        })
+        .eq("id", session.id)
+        .eq("status", "open")
+        .select("id")
+        .maybeSingle();
+      if (error || !data)
+        throw new Error(error?.message ?? "La caja ya está cerrada o no tienes permiso");
+      toast.success("Caja cerrada");
+      setClosing("0");
+      setNotes("");
+      await load();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (loading) return <div className="text-sm text-muted-foreground">Cargando…</div>;
 
+  if (loadError)
+    return (
+      <div role="alert" className="text-destructive">
+        No se pudo cargar la caja. Comprueba la conexión y vuelve a intentarlo.
+      </div>
+    );
+
   if (!session) {
     return (
       <Card className="p-6 bg-card/60 border-neon/30 max-w-md">
-        <div className="flex items-center gap-2 mb-4 text-neon"><Unlock className="w-5 h-5" /><h3 className="font-display text-lg">Abrir caja</h3></div>
+        <div className="flex items-center gap-2 mb-4 text-neon">
+          <Unlock className="w-5 h-5" />
+          <h3 className="font-display text-lg">Abrir caja</h3>
+        </div>
         <Label>Dinero inicial (€)</Label>
-        <Input value={opening} onChange={(e) => setOpening(e.target.value)} inputMode="decimal" className="mt-1" />
-        <Button onClick={open} className="mt-4 bg-neon text-background hover:bg-neon/90 w-full">Abrir caja</Button>
+        <Input
+          value={opening}
+          onChange={(e) => setOpening(e.target.value)}
+          inputMode="decimal"
+          className="mt-1"
+        />
+        <Button
+          disabled={busy}
+          onClick={open}
+          className="mt-4 bg-neon text-background hover:bg-neon/90 w-full"
+        >
+          Abrir caja
+        </Button>
       </Card>
     );
   }
 
-  const diferencia = closing !== "" ? Math.round((Number(closing.replace(",", ".")) || 0) * 100) - esperado : null;
+  const closingCents = parseCashCents(closing);
+  const diferencia = closingCents === null ? null : closingCents - esperado;
 
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <Card className="p-5 bg-card/60 border-neon/30">
-        <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1">Caja abierta</div>
-        <div className="text-xs text-muted-foreground">Desde {new Date(session.opened_at).toLocaleString("es-ES")}</div>
+        <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1">
+          Caja abierta
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Desde {new Date(session.opened_at).toLocaleString("es-ES")}
+        </div>
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <Stat label="Inicial" value={fmtEur(session.opening_cash_cents)} />
           <Stat label="Ventas" value={fmtEur(totalVendido)} sub={`${sales.length} pedidos`} />
@@ -148,9 +230,17 @@ function MyCash() {
       </Card>
 
       <Card className="p-5 bg-card/60 border-neon/30">
-        <div className="flex items-center gap-2 mb-3 text-neon"><Lock className="w-5 h-5" /><h3 className="font-display text-lg">Cerrar caja</h3></div>
+        <div className="flex items-center gap-2 mb-3 text-neon">
+          <Lock className="w-5 h-5" />
+          <h3 className="font-display text-lg">Cerrar caja</h3>
+        </div>
         <Label>Dinero contado (€)</Label>
-        <Input value={closing} onChange={(e) => setClosing(e.target.value)} inputMode="decimal" className="mt-1" />
+        <Input
+          value={closing}
+          onChange={(e) => setClosing(e.target.value)}
+          inputMode="decimal"
+          className="mt-1"
+        />
         <Label className="mt-3 block">Notas</Label>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1" />
         {diferencia !== null && (
@@ -158,17 +248,37 @@ function MyCash() {
             Diferencia: {fmtEur(diferencia)}
           </div>
         )}
-        <Button onClick={close} className="mt-4 bg-neon text-background hover:bg-neon/90 w-full">Cerrar caja</Button>
+        <Button
+          disabled={busy}
+          onClick={close}
+          className="mt-4 bg-neon text-background hover:bg-neon/90 w-full"
+        >
+          Cerrar caja
+        </Button>
       </Card>
     </div>
   );
 }
 
-function Stat({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
+function Stat({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className={`rounded-lg border p-3 ${highlight ? "border-neon/60 bg-neon/5" : "border-neon/15 bg-card/40"}`}>
+    <div
+      className={`rounded-lg border p-3 ${highlight ? "border-neon/60 bg-neon/5" : "border-neon/15 bg-card/40"}`}
+    >
       <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim">{label}</div>
-      <div className={`mt-1 font-display text-xl ${highlight ? "text-neon" : "text-foreground"}`}>{value}</div>
+      <div className={`mt-1 font-display text-xl ${highlight ? "text-neon" : "text-foreground"}`}>
+        {value}
+      </div>
       {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
@@ -180,11 +290,26 @@ function DateReportPicker() {
     <div>
       <Card className="p-4 bg-card/60 border-neon/30 max-w-sm mb-4 flex items-end gap-3">
         <div className="flex-1">
-          <Label className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Fecha</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1" />
+          <Label className="flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> Fecha
+          </Label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="mt-1"
+          />
         </div>
       </Card>
-      <DayReport dateISO={date} title={new Date(date + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} />
+      <DayReport
+        dateISO={date}
+        title={new Date(date + "T00:00:00").toLocaleDateString("es-ES", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })}
+      />
     </div>
   );
 }
@@ -204,27 +329,38 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       setLoading(true);
       const { start, end } = dayRange(dateISO);
 
-      let oq = supabase.from("orders")
+      let oq = supabase
+        .from("orders")
         .select("id, total_cents, created_by, created_at, cash_session_id")
-        .gte("created_at", start).lt("created_at", end);
+        .gte("created_at", start)
+        .lt("created_at", end);
       if (!isAdmin && user) oq = oq.eq("created_by", user.id);
       const { data: o } = await oq;
 
-      let sq = supabase.from("cash_sessions")
+      let sq = supabase
+        .from("cash_sessions")
         .select("*")
-        .gte("opened_at", start).lt("opened_at", end);
+        .gte("opened_at", start)
+        .lt("opened_at", end);
       if (!isAdmin && user) sq = sq.eq("user_id", user.id);
       const { data: s } = await sq;
 
       // collect user ids and load profiles
-      const ids = Array.from(new Set([
-        ...((o as any[]) ?? []).map((x) => x.created_by).filter(Boolean),
-        ...((s as any[]) ?? []).map((x) => x.user_id).filter(Boolean),
-      ]));
+      const ids = Array.from(
+        new Set([
+          ...((o as any[]) ?? []).map((x) => x.created_by).filter(Boolean),
+          ...((s as any[]) ?? []).map((x) => x.user_id).filter(Boolean),
+        ]),
+      );
       const pmap = new Map<string, Collab>();
       if (ids.length) {
-        const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", ids);
-        (profs as any[] ?? []).forEach((p) => pmap.set(p.id, { user_id: p.id, full_name: p.full_name, email: null }));
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", ids);
+        ((profs as any[]) ?? []).forEach((p) =>
+          pmap.set(p.id, { user_id: p.id, full_name: p.full_name, email: null }),
+        );
       }
 
       if (cancel) return;
@@ -233,7 +369,9 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       setPeople(pmap);
       setLoading(false);
     })();
-    return () => { cancel = true; };
+    return () => {
+      cancel = true;
+    };
   }, [dateISO, isAdmin, user?.id]);
 
   const byUser = useMemo(() => {
@@ -241,7 +379,8 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
     for (const o of orders) {
       const uid = o.created_by ?? "—";
       const e = m.get(uid) ?? { user_id: uid, total: 0, count: 0 };
-      e.total += o.total_cents ?? 0; e.count += 1;
+      e.total += o.total_cents ?? 0;
+      e.count += 1;
       m.set(uid, e);
     }
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
@@ -261,7 +400,10 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       </div>
 
       <Card className="p-5 bg-card/60 border-neon/30">
-        <div className="flex items-center gap-2 mb-3 text-neon"><UsersIcon className="w-4 h-4" /><h3 className="font-display text-lg">Por colaborador</h3></div>
+        <div className="flex items-center gap-2 mb-3 text-neon">
+          <UsersIcon className="w-4 h-4" />
+          <h3 className="font-display text-lg">Por colaborador</h3>
+        </div>
         {byUser.length === 0 ? (
           <div className="text-sm text-muted-foreground">Sin ventas este día.</div>
         ) : (
@@ -270,24 +412,37 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
               const sess = sessions.filter((s) => s.user_id === row.user_id);
               const opening = sess.reduce((a, s) => a + (s.opening_cash_cents ?? 0), 0);
               const closing = sess.reduce((a, s) => a + (s.closing_cash_cents ?? 0), 0);
-              const name = people.get(row.user_id)?.full_name ?? (row.user_id === "—" ? "Sin asignar" : row.user_id.slice(0, 8));
+              const name =
+                people.get(row.user_id)?.full_name ??
+                (row.user_id === "—" ? "Sin asignar" : row.user_id.slice(0, 8));
               return (
-                <div key={row.user_id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                <div
+                  key={row.user_id}
+                  className="py-3 flex flex-wrap items-center justify-between gap-3"
+                >
                   <div>
                     <div className="font-display text-foreground">{name}</div>
-                    <div className="text-[11px] text-muted-foreground">{row.count} pedidos · {sess.length} caja(s)</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {row.count} pedidos · {sess.length} caja(s)
+                    </div>
                   </div>
                   <div className="flex gap-4 text-right">
                     <div>
-                      <div className="text-[10px] uppercase tracking-widest text-neon-dim">Vendido</div>
+                      <div className="text-[10px] uppercase tracking-widest text-neon-dim">
+                        Vendido
+                      </div>
                       <div className="font-display text-neon">{fmtEur(row.total)}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-widest text-neon-dim">Inicial</div>
+                      <div className="text-[10px] uppercase tracking-widest text-neon-dim">
+                        Inicial
+                      </div>
                       <div className="text-sm">{fmtEur(opening)}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-widest text-neon-dim">Cerrado</div>
+                      <div className="text-[10px] uppercase tracking-widest text-neon-dim">
+                        Cerrado
+                      </div>
                       <div className="text-sm">{fmtEur(closing)}</div>
                     </div>
                   </div>
@@ -299,7 +454,10 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       </Card>
 
       <Card className="p-5 bg-card/60 border-neon/30">
-        <div className="flex items-center gap-2 mb-3 text-neon"><Banknote className="w-4 h-4" /><h3 className="font-display text-lg">Cajas del día</h3></div>
+        <div className="flex items-center gap-2 mb-3 text-neon">
+          <Banknote className="w-4 h-4" />
+          <h3 className="font-display text-lg">Cajas del día</h3>
+        </div>
         {sessions.length === 0 ? (
           <div className="text-sm text-muted-foreground">Ninguna caja abierta.</div>
         ) : (
@@ -307,15 +465,29 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
             {sessions.map((s) => (
               <div key={s.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-foreground">{people.get(s.user_id)?.full_name ?? s.user_id.slice(0, 8)}</div>
+                  <div className="text-foreground">
+                    {people.get(s.user_id)?.full_name ?? s.user_id.slice(0, 8)}
+                  </div>
                   <div className="text-[11px] text-muted-foreground">
-                    {new Date(s.opened_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
-                    {s.closed_at ? ` → ${new Date(s.closed_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : " · abierta"}
+                    {new Date(s.opened_at).toLocaleTimeString("es-ES", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {s.closed_at
+                      ? ` → ${new Date(s.closed_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
+                      : " · abierta"}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-widest text-neon-dim">{s.status === "open" ? "Abierta" : "Cerrada"}</div>
-                  <div className="text-sm">Inicial {fmtEur(s.opening_cash_cents)}{s.closing_cash_cents != null ? ` · Cerrado ${fmtEur(s.closing_cash_cents)}` : ""}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-neon-dim">
+                    {s.status === "open" ? "Abierta" : "Cerrada"}
+                  </div>
+                  <div className="text-sm">
+                    Inicial {fmtEur(s.opening_cash_cents)}
+                    {s.closing_cash_cents != null
+                      ? ` · Cerrado ${fmtEur(s.closing_cash_cents)}`
+                      : ""}
+                  </div>
                 </div>
               </div>
             ))}

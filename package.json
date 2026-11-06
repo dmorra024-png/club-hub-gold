@@ -9,15 +9,34 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "node --test --experimental-test-isolation=none tests/*.test.ts tests/*.test.mjs",
+    "test:smoke:accounts": "node scripts/smoke-account-security.mjs",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.tests.json --noEmit",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local .output/server/index.mjs",
+    "test:browser": "node scripts/test-pwa.mjs && node scripts/test-member-administration.mjs",
+    "assets:import": "node scripts/import-brand-assets.mjs",
+    "sandbox:prepare": "node scripts/prepare-sandbox.mjs",
+    "dev:sandbox": "vite dev --mode sandbox --host 0.0.0.0 --port 3000",
+    "test:sandbox:login": "node scripts/verify-sandbox-login.mjs",
+    "test:dev:preview": "node scripts/verify-development-preview.mjs",
+    "test:sandbox:administration": "node scripts/test-native-administration.mjs",
+    "test:sandbox:ai": "node scripts/test-administrative-ai.mjs",
+    "test:sandbox:mobile": "node scripts/test-mobile-administration.mjs",
+    "test:security:bundle": "node scripts/verify-client-secrets.mjs",
+    "build:worker": "SNOOP_RUNTIME=cloudflare vite build --mode pilot",
+    "build:worker:test": "SNOOP_RUNTIME=cloudflare vite build --mode sandbox",
+    "worker:dry-run": "WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --config .output/server/wrangler.json --outdir .sandbox/cloudflare-dry-run",
+    "test:worker": "node scripts/prepare-worker-test.mjs && node scripts/test-worker.mjs",
+    "pilot:database": "node scripts/prepare-pilot-database.mjs",
+    "pilot:secrets": "node scripts/prepare-pilot-secrets.mjs",
+    "test:security:initialization": "node --test tests/initialization-security.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
     "@hookform/resolvers": "^5.2.2",
-    "@lovable.dev/email-js": "^0.0.4",
-    "@lovable.dev/webhooks-js": "^0.0.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -65,7 +84,6 @@
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.0",
-    "react-email": "^6.6.5",
     "react-hook-form": "^7.71.2",
     "react-resizable-panels": "^4.6.5",
     "recharts": "^2.15.4",
@@ -79,8 +97,8 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "2.9.1",
     "@types/node": "^22.16.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
@@ -92,15 +110,23 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jsqr": "1.4.0",
     "nitro": "3.0.260603-beta",
+    "playwright-core": "1.57.0",
+    "pngjs": "7.0.0",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "wrangler": "4.157.0"
   },
   "pnpm": {
     "overrides": {
       "entities": "4.5.0"
     }
-  }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "bun@1.3.12"
 }

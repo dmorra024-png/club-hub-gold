@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { parseProductCommand } from "@/lib/products-voice.functions";
+import { getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
 import { enrichProduct } from "@/lib/products-enrich.functions";
 
 export const Route = createFileRoute("/_authenticated/productos")({
@@ -27,9 +28,18 @@ export const Route = createFileRoute("/_authenticated/productos")({
 });
 
 function compactVoiceText(text: string) {
-  const words = text.replace(/[“”"']/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const words = text
+    .replace(/[“”"']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
   const out: string[] = [];
-  const normWord = (w: string) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normWord = (w: string) =>
+    w
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
   for (const word of words) {
     const current = normWord(word);
     const previous = out[out.length - 1] ? normWord(out[out.length - 1]) : "";
@@ -42,8 +52,14 @@ function compactVoiceText(text: string) {
       changed = false;
       const max = Math.min(6, Math.floor(out.length / 2));
       for (let size = max; size >= 1; size--) {
-        const a = out.slice(out.length - size * 2, out.length - size).map(normWord).join(" ");
-        const b = out.slice(out.length - size).map(normWord).join(" ");
+        const a = out
+          .slice(out.length - size * 2, out.length - size)
+          .map(normWord)
+          .join(" ");
+        const b = out
+          .slice(out.length - size)
+          .map(normWord)
+          .join(" ");
         if (a && a === b) {
           out.splice(out.length - size, size);
           changed = true;
@@ -60,7 +76,11 @@ function mergeVoiceText(previous: string, incoming: string) {
   const next = compactVoiceText(incoming);
   if (!prev) return next;
   if (!next) return prev;
-  const normWord = (w: string) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normWord = (w: string) =>
+    w
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
   const a = prev.split(/\s+/).filter(Boolean);
   const b = next.split(/\s+/).filter(Boolean);
   const an = a.map(normWord);
@@ -79,6 +99,7 @@ function mergeVoiceText(previous: string, incoming: string) {
 
 // Web Speech dictation hook — manual stop: records until the user presses stop.
 function useDictation(onText: (t: string) => void, lang = "es-ES") {
+  const aiStatus = useServerFn(getAdministrativeAiStatus);
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const recRef = useRef<any>(null);
@@ -96,7 +117,9 @@ function useDictation(onText: (t: string) => void, lang = "es-ES") {
   }
 
   function combinedText() {
-    return compactVoiceText((finalRef.current + " " + interimRef.current).replace(/\s+/g, " ").trim());
+    return compactVoiceText(
+      (finalRef.current + " " + interimRef.current).replace(/\s+/g, " ").trim(),
+    );
   }
 
   function finalize() {
@@ -178,8 +201,18 @@ function useDictation(onText: (t: string) => void, lang = "es-ES") {
     }
   }
 
-
-  function start() {
+  async function start() {
+    const status = await aiStatus();
+    if (!status.browserSpeech)
+      return toast.error(
+        "Usa el micrófono SNOOP con el proveedor autorizado o introduce los datos manualmente.",
+      );
+    if (
+      !confirm(
+        "El servicio de reconocimiento del navegador puede procesar el dictado fuera del dispositivo. ¿Continuar?",
+      )
+    )
+      return;
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
       toast.error("Tu navegador no soporta dictado");
@@ -274,14 +307,16 @@ function ProductosPage() {
       .replace(/[\u0300-\u036f]/g, "");
     if (/\b(crea|crear|creare|nuevo|nuovo|nueva|alta)\b/.test(low)) return false;
     return (
-      /\b(stock|stok)\b/.test(low) &&
-      (/\b(mas|menos|anad|agreg|sum|quit|rest|sac|remov)\w*\b\s+\d/.test(low) ||
-        /\d+(?:[.,]\d+)?\s*(?:gramos?|gr|g|u|unidad(?:es)?)?\s+\b(mas|menos|anad|agreg|sum|quit|rest|sac|remov)\w*\b/.test(low) ||
-        /[+-]\s*\d/.test(low))
-    ) ||
+      (/\b(stock|stok)\b/.test(low) &&
+        (/\b(mas|menos|anad|agreg|sum|quit|rest|sac|remov)\w*\b\s+\d/.test(low) ||
+          /\d+(?:[.,]\d+)?\s*(?:gramos?|gr|g|u|unidad(?:es)?)?\s+\b(mas|menos|anad|agreg|sum|quit|rest|sac|remov)\w*\b/.test(
+            low,
+          ) ||
+          /[+-]\s*\d/.test(low))) ||
       /^\s*(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low) ||
       /\b(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low) ||
-      /\b[a-z0-9]{2,}\b\s+(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low);
+      /\b[a-z0-9]{2,}\b\s+(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low)
+    );
   }
 
   // Fast local parser: fills fields instantly without waiting for AI.
@@ -294,7 +329,10 @@ function ProductosPage() {
     const t = text.trim();
     const low = t.toLowerCase();
     const norm = (s: string) =>
-      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 
     const isProd =
       /\b(crea|crear|creare|nuevo|nuovo|nueva|alta|a[nñ]adir|agregar|registrar)\b[\s\S]{0,25}\b(prod(?:u[cç]?t[oa]|ott[oi])|produvto|productos?)\b/i.test(
@@ -353,8 +391,7 @@ function ProductosPage() {
         .replace(/\s+/g, " ")
         .trim();
       const unit_type = /\b(gramos?|gr)\b/i.test(low) ? "gr" : "unit";
-      const is_smokeable =
-        /\b(fumables?|flores?|hash|extracci|marihuana|cannabis)\b/i.test(low);
+      const is_smokeable = /\b(fumables?|flores?|hash|extracci|marihuana|cannabis)\b/i.test(low);
       return {
         action: "create_category",
         cat: { name, unit_type, is_smokeable },
@@ -513,9 +550,11 @@ function ProductosPage() {
           type="button"
           onClick={pageDict.listening ? pageDict.stop : pageDict.start}
           className={`h-16 w-16 sm:h-14 sm:w-14 shrink-0 rounded-full flex items-center justify-center transition active:scale-95
-            ${pageDict.listening
-              ? "bg-destructive text-destructive-foreground animate-pulse shadow-lg shadow-destructive/40"
-              : "bg-gradient-neon text-primary-foreground glow-neon"}`}
+            ${
+              pageDict.listening
+                ? "bg-destructive text-destructive-foreground animate-pulse shadow-lg shadow-destructive/40"
+                : "bg-gradient-neon text-primary-foreground glow-neon"
+            }`}
           aria-label="Comando de voz"
         >
           {pageDict.listening ? (
@@ -528,10 +567,15 @@ function ProductosPage() {
           <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Comando de voz</div>
           {pageDict.listening ? (
             <p className="text-sm text-destructive animate-pulse line-clamp-2 break-words">
-              ● Escuchando… pulsa stop cuando termines {pageDict.interim && <span className="text-foreground/80 italic">“{pageDict.interim}”</span>}
+              ● Escuchando… pulsa stop cuando termines{" "}
+              {pageDict.interim && (
+                <span className="text-foreground/80 italic">“{pageDict.interim}”</span>
+              )}
             </p>
           ) : lastHeard ? (
-            <p className="text-sm text-muted-foreground italic line-clamp-2 break-words">"{lastHeard}"</p>
+            <p className="text-sm text-muted-foreground italic line-clamp-2 break-words">
+              "{lastHeard}"
+            </p>
           ) : (
             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
               Pulsa y di: "crear producto Amnesia en flores stock 20 compra 5 venta 10 indica".
@@ -555,8 +599,6 @@ function ProductosPage() {
           </button>
         ))}
       </div>
-
-
 
       {loading ? (
         <div className="text-muted-foreground">Cargando…</div>
@@ -608,14 +650,17 @@ function Stock({
   clearStockCommand: () => void;
 }) {
   const [filter, setFilter] = useState<string>("all");
-  const [pendingAdj, setPendingAdj] = useState<
-    | { prod: Product; delta: number; newStock: number; raw: string }
-    | null
-  >(null);
-  const [pendingChoice, setPendingChoice] = useState<
-    | { delta: number; raw: string; candidates: Product[] }
-    | null
-  >(null);
+  const [pendingAdj, setPendingAdj] = useState<{
+    prod: Product;
+    delta: number;
+    newStock: number;
+    raw: string;
+  } | null>(null);
+  const [pendingChoice, setPendingChoice] = useState<{
+    delta: number;
+    raw: string;
+    candidates: Product[];
+  } | null>(null);
   const dict = useDictation((t) => applyVoice(t));
 
   const q = search.trim().toLowerCase();
@@ -633,7 +678,10 @@ function Stock({
       .replace(/[.,;:!?]+$/g, "")
       .replace(/\b(stok)\b/g, "stock")
       .replace(/\b(stock)(?:\s+\1\b)+/g, "$1")
-      .replace(/\bstock\s+(?=(?:mas|menos|a[nñ]ad\w*|agreg\w*|sum\w*|quit\w*|rest\w*|sac\w*|remov\w*|\+|-))/g, "")
+      .replace(
+        /\bstock\s+(?=(?:mas|menos|a[nñ]ad\w*|agreg\w*|sum\w*|quit\w*|rest\w*|sac\w*|remov\w*|\+|-))/g,
+        "",
+      )
       .trim();
     if (!t) return;
 
@@ -697,7 +745,9 @@ function Stock({
           toast.info("Elige el producto y confirma el movimiento");
           return;
         }
-        toast.error(target ? `Producto no encontrado: ${adjName}` : "Di también el nombre del producto");
+        toast.error(
+          target ? `Producto no encontrado: ${adjName}` : "Di también el nombre del producto",
+        );
         return;
       }
       const delta = adjSign * adjQty;
@@ -712,7 +762,6 @@ function Stock({
       toast.info(`Revisa y confirma: ${prod.name} ${delta > 0 ? "+" : ""}${delta}`);
       return;
     }
-
 
     // Strip filler verbs for category / search matching
     const cleaned = t
@@ -792,27 +841,13 @@ function Stock({
   async function confirmPending() {
     if (!pendingAdj) return;
     const { prod, delta, newStock, raw } = pendingAdj;
-    const { error } = await supabase
-      .from("products")
-      .update({ stock: newStock })
-      .eq("id", prod.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    const { error: movError } = await supabase.from("stock_movements").insert({
-      club_id: prod.club_id,
-      product_id: prod.id,
-      delta,
-      reason: delta > 0 ? "voice_add" : "voice_remove",
-      notes: raw,
-    } as any);
-    if (movError) {
-      toast.error(`Stock actualizado, pero no pude registrar el informe: ${movError.message}`);
-      setPendingAdj(null);
-      onChange();
-      return;
-    }
+    const { error } = await (supabase as any).rpc("adjust_administrative_stock", {
+      p_id: prod.id,
+      p_delta: delta,
+      p_expected: Number(prod.stock),
+      p_notes: raw,
+    });
+    if (error) return toast.error(error.message);
     toast.success(`${prod.name}: ${delta > 0 ? "+" : ""}${delta} → ${newStock}`);
     setPendingAdj(null);
     onChange();
@@ -835,13 +870,19 @@ function Stock({
         <div className="rounded-2xl border-2 border-neon bg-neon/10 p-4 glow-neon-soft">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Elige producto</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
+                Elige producto
+              </div>
               <div className="text-sm text-foreground">
-                Movimiento: <span className={pendingChoice.delta > 0 ? "text-neon" : "text-destructive"}>
-                  {pendingChoice.delta > 0 ? "+" : ""}{pendingChoice.delta}
+                Movimiento:{" "}
+                <span className={pendingChoice.delta > 0 ? "text-neon" : "text-destructive"}>
+                  {pendingChoice.delta > 0 ? "+" : ""}
+                  {pendingChoice.delta}
                 </span>
               </div>
-              <div className="text-xs italic text-muted-foreground truncate">"{pendingChoice.raw}"</div>
+              <div className="text-xs italic text-muted-foreground truncate">
+                "{pendingChoice.raw}"
+              </div>
             </div>
             <button
               onClick={() => setPendingChoice(null)}
@@ -870,10 +911,12 @@ function Stock({
       {pendingAdj && (
         <div className="rounded-2xl border-2 border-neon bg-neon/10 p-4 flex flex-col sm:flex-row sm:items-center gap-3 glow-neon-soft">
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Confirmar movimiento</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
+              Confirmar movimiento
+            </div>
             <div className="text-sm">
-              <strong className="text-neon">{pendingAdj.prod.name}</strong>: {pendingAdj.prod.stock} →{" "}
-              <strong>{pendingAdj.newStock}</strong>{" "}
+              <strong className="text-neon">{pendingAdj.prod.name}</strong>: {pendingAdj.prod.stock}{" "}
+              → <strong>{pendingAdj.newStock}</strong>{" "}
               <span className={pendingAdj.delta > 0 ? "text-neon" : "text-destructive"}>
                 ({pendingAdj.delta > 0 ? "+" : ""}
                 {pendingAdj.delta})
@@ -920,7 +963,11 @@ function Stock({
           className={`p-1.5 rounded ${dict.listening ? "text-neon glow-neon" : "text-muted-foreground hover:text-neon"}`}
           title="Dictar búsqueda"
         >
-          {dict.listening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-4 h-4" />}
+          {dict.listening ? (
+            <Square className="w-4 h-4 fill-current" />
+          ) : (
+            <Mic className="w-4 h-4" />
+          )}
         </button>
       </div>
 
@@ -986,28 +1033,19 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
   useEffect(() => setForm(p), [p]);
 
   async function save() {
-    const stockDelta = Number(form.stock || 0) - Number(p.stock || 0);
-    const { error } = await supabase
-      .from("products")
-      .update({
+    const { error } = await (supabase as any).rpc("save_administrative_product", {
+      p_id: p.id,
+      p_values: {
         name: form.name,
+        category_id: cat.id,
         stock: form.stock,
         buy_price: form.buy_price,
         sell_price: form.sell_price,
         strain: cat.is_smokeable ? form.strain : null,
         notes: form.notes,
-      })
-      .eq("id", p.id);
+      },
+    });
     if (error) return toast.error(error.message);
-    if (stockDelta !== 0) {
-      await supabase.from("stock_movements").insert({
-        club_id: p.club_id,
-        product_id: p.id,
-        delta: stockDelta,
-        reason: stockDelta > 0 ? "manual_add" : "manual_remove",
-        notes: "Edición manual de stock",
-      } as any);
-    }
     toast.success("Producto actualizado");
     setEdit(false);
     onChange();
@@ -1036,6 +1074,12 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
       if (Object.keys(patch).length === 0) {
         toast.error("La IA no devolvió datos");
       } else {
+        if (
+          !confirm(
+            `Propuesta IA (información no verificada):\n${r.description || "Imagen propuesta"}\n¿Aplicar a la ficha?`,
+          )
+        )
+          return;
         const { error } = await supabase.from("products").update(patch).eq("id", p.id);
         if (error) toast.error(error.message);
         else {
@@ -1253,33 +1297,22 @@ function NuevoProducto({
       return toast.error("No tienes un club asignado");
     }
     const productName = name.trim();
-    const { data: inserted, error } = await supabase
-      .from("products")
-      .insert({
-        club_id: clubId,
+    const { error } = await (supabase as any).rpc("save_administrative_product", {
+      p_id: null,
+      p_values: {
         category_id: categoryId,
         name: productName,
         stock,
         buy_price: buy,
         sell_price: sell,
         strain: cat?.is_smokeable && strain ? strain : null,
-      })
-      .select("id")
-      .single();
+      },
+    });
     if (error) {
       setSaving(false);
       return toast.error(error.message);
     }
-    if (Number(stock) !== 0) {
-      await supabase.from("stock_movements").insert({
-        club_id: clubId,
-        product_id: inserted.id,
-        delta: Number(stock),
-        reason: "initial_stock",
-        notes: "Stock inicial al crear producto",
-      } as any);
-    }
-    toast.success("Producto creado · enriqueciendo con IA…");
+    toast.success("Producto creado. Puedes solicitar una propuesta de IA desde la ficha.");
     setName("");
     setStock(0);
     setBuy(0);
@@ -1287,28 +1320,6 @@ function NuevoProducto({
     setStrain("");
     setSaving(false);
     onCreated();
-    // Fire-and-forget enrichment
-    (async () => {
-      try {
-        const r = await enrich({
-          data: {
-            name: productName,
-            strain: strain || "",
-            is_smokeable: !!cat?.is_smokeable,
-            category_name: cat?.name || "",
-          },
-        });
-        const patch: any = {};
-        if (r.description) patch.description = r.description;
-        if (r.image_url) patch.image_url = r.image_url;
-        if (inserted?.id && Object.keys(patch).length) {
-          await supabase.from("products").update(patch).eq("id", inserted.id);
-          onCreated();
-        }
-      } catch (e) {
-        console.error("auto enrich failed", e);
-      }
-    })();
   }
   if (cats.length === 0)
     return (
@@ -1321,6 +1332,7 @@ function NuevoProducto({
     <div className="max-w-xl bg-card/60 border border-neon/20 rounded-2xl p-6 space-y-4">
       <Field label="Categoría">
         <select
+          aria-label="Categoría"
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
           className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm focus:border-neon outline-none"
@@ -1348,7 +1360,11 @@ function NuevoProducto({
             className={`px-3 rounded-lg border ${nameDict.listening ? "border-neon text-neon glow-neon" : "border-border text-muted-foreground"}`}
             title="Dictar nombre"
           >
-            {nameDict.listening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-4 h-4" />}
+            {nameDict.listening ? (
+              <Square className="w-4 h-4 fill-current" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
           </button>
         </div>
       </Field>

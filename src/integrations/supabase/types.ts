@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      membership_receipts: {
+        Row: {
+          id: string;
+          club_id: string;
+          member_id: string;
+          member_number: string;
+          member_name: string;
+          recorded_by: string;
+          operator_name: string;
+          recorded_at: string;
+          amount_cents: number;
+          payment_method: string;
+          description: string;
+          request_id: string;
+        };
+        Insert: {
+          id?: string;
+          club_id: string;
+          member_id: string;
+          member_number: string;
+          member_name: string;
+          recorded_by: string;
+          operator_name: string;
+          recorded_at?: string;
+          amount_cents: number;
+          payment_method: string;
+          description: string;
+          request_id: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+
       cash_sessions: {
         Row: {
           closed_at: string | null
@@ -760,6 +793,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      record_membership_receipt: {
+        Args: {
+          p_club_id: string;
+          p_member_id: string;
+          p_amount_cents: number;
+          p_payment_method: string;
+          p_description: string;
+          p_request_id: string;
+        };
+        Returns: Database["public"]["Tables"]["membership_receipts"]["Row"];
+      };
+      membership_receipt_report: {
+        Args: { p_club_id: string; p_from: string; p_to: string; p_group: string };
+        Returns: Json;
+      };
+      can_read_membership_receipts: { Args: { target_club: string }; Returns: boolean };
+
       create_order_with_items: {
         Args: { _items: Json; _member_id: string; _notes: string }
         Returns: string

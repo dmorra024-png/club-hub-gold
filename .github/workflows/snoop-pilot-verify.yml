@@ -1,0 +1,38 @@
+name: SNOOP pilot — manual build verification
+on:
+  push:
+    branches:
+      - codex/stabilize-independent-club
+    paths:
+      - '.github/workflows/snoop-pilot-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.repository == 'dmorra024-png/club-hub-gold'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+      - name: Verify protected SNOOP branch
+        run: |
+          test "${GITHUB_REF_NAME}" = "codex/stabilize-independent-club"
+          test -f wrangler.json
+          grep -q '"name": "snoop-pilot"' wrangler.json
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run security and TypeScript checks
+        run: |
+          npm run test:security:initialization
+          npm run typecheck
+      - name: Report result
+        run: echo "SNOOP verified locally in GitHub Actions; no database access and no deployment performed."

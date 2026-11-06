@@ -3,7 +3,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Mic, MicOff, Loader2, Volume2, Ear } from "lucide-react";
 import { toast } from "sonner";
-import { agentRespond, synthesizeSpeech } from "@/lib/voice-agent.functions";
+import { parseAdministrativeDictation } from "@/lib/member-administration";
+import {
+  agentRespond,
+  synthesizeSpeech,
+  transcribeAudio,
+  getAdministrativeAiStatus,
+} from "@/lib/voice-agent.functions";
 
 type Status = "off" | "listening" | "processing" | "speaking";
 
@@ -31,6 +37,11 @@ const NAV_INTENTS: Array<{ to: string; rx: RegExp; label: string; tab?: string }
     to: "/soci/gestisci",
     rx: /\b(gestionar socios?|gestiona socios?|buscar socios?|busca socios?|socios|ver socios|gestion[eó] socios?)\b/i,
     label: "Gestionar socios",
+  },
+  {
+    to: "/cuotas",
+    rx: /\b(incassi|ingresos|registro quote|incassi quote|informe cuotas|report quote)\b/i,
+    label: "Ingresos asociativos",
   },
   { to: "/ajustes/cuotas", rx: /\b(cuotas|cuotas? mensual|planes)\b/i, label: "Cuotas" },
   {
@@ -81,8 +92,20 @@ function getSpeechRecognition(): any {
 }
 
 export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStream = useRef<MediaStream | null>(null);
+  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  const aiStatus = useServerFn(getAdministrativeAiStatus);
+  const transcribe = useServerFn(transcribeAudio);
+  const [language, setLanguage] = useState("es-ES");
+  useEffect(() => {
+    const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
+    setLanguage(saved.startsWith("it") ? "it-IT" : "es-ES");
+  }, []);
   const [status, setStatus] = useState<Status>("off");
   const [enabled, setEnabled] = useState(false); // always-on toggle
+  const conversationRef = useRef<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const recRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wantOnRef = useRef(false);
@@ -155,6 +178,13 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         // --- 1) Global navigation intents (always win — user said a section name) ---
         const navHit = NAV_INTENTS.find((n) => n.rx.test(lower) || n.rx.test(normalized));
         if (navHit) {
+          if (navHit.to === "/soci/nuovo") {
+            window.sessionStorage.setItem(
+              "snoop:member-draft",
+              JSON.stringify({ at: Date.now(), fields: parseAdministrativeDictation(text) }),
+            );
+            if (path === "/soci/nuovo") window.dispatchEvent(new Event("snoop:member-draft"));
+          }
           if (path !== navHit.to) {
             if (navHit.tab) {
               try {
@@ -278,10 +308,22 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         }
 
         // --- 4) Fallback: full agent ---
-        const { navigateTo } = await respond({
-          data: { transcript: text, history: [] },
+        const { navigateTo, reply, memberDraft } = await respond({
+          data: { transcript: text, history: conversationRef.current },
         });
         // Voz solo en el saludo inicial; las respuestas del agente se muestran en pantalla.
+        conversationRef.current = [
+          ...conversationRef.current,
+          { role: "user" as const, content: text.slice(0, 6000) },
+          { role: "assistant" as const, content: reply.slice(0, 6000) },
+        ].slice(-12);
+        if (memberDraft) conversationRef.current = [];
+        if (memberDraft)
+          window.sessionStorage.setItem(
+            "snoop:member-draft",
+            JSON.stringify({ at: Date.now(), fields: memberDraft }),
+          );
+        if (reply) toast.info(reply);
         if (navigateTo) navigate({ to: navigateTo as any });
       } catch (e: any) {
         toast.error(e.message ?? "Error en el asistente");
@@ -301,7 +343,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = "es-ES";
+    rec.lang = window.localStorage.getItem("snoop:voice-language") || navigator.language || "es-ES";
     rec.onresult = (e: any) => {
       // HARD MUTE while Snoop habla (y un pequeño margen después) para evitar
       // que el micro recoja su propia voz y se dispare en bucle ("hola hola hola").
@@ -345,9 +387,89 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
   }, [handleTranscript, stopSpeaking]);
 
   const startListening = useCallback(async () => {
-    const SR = getSpeechRecognition();
+    if (
+      !confirm(
+        "El reconocimiento de voz del navegador y el proveedor de IA pueden procesar el dictado fuera del dispositivo. ¿Continuar?",
+      )
+    )
+      return;
+    const config = await aiStatus();
+    if (!config.available) {
+      toast.error("IA no disponible. Puedes introducir los datos manualmente.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error("Micrófono no disponible: usa HTTPS o introduce los datos manualmente.");
+      return;
+    }
+    const SR = config.browserSpeech ? getSpeechRecognition() : null;
     if (!SR) {
-      toast.error("Tu navegador no soporta reconocimiento de voz continuo. Usa Chrome.");
+      if (typeof MediaRecorder === "undefined") {
+        toast.error("Grabación no compatible. Introduce los datos manualmente.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordingStream.current = stream;
+        const mime = [
+          "audio/webm;codecs=opus",
+          "audio/mp4",
+          "audio/webm",
+          "audio/ogg;codecs=opus",
+        ].find((type) => MediaRecorder.isTypeSupported(type));
+        if (!mime) {
+          stream.getTracks().forEach((t) => t.stop());
+          throw new Error("Formato no compatible");
+        }
+        const recorder = new MediaRecorder(stream, { mimeType: mime });
+        recorderRef.current = recorder;
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size) chunks.push(e.data);
+        };
+        recorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          recordingStream.current = null;
+          if (recordingTimer.current) clearTimeout(recordingTimer.current);
+          recorderRef.current = null;
+          if (!mountedRef.current) return;
+          setEnabled(false);
+          setStatus("processing");
+          try {
+            const blob = new Blob(chunks, { type: recorder.mimeType });
+            if (!blob.size || blob.size > 8_000_000)
+              throw new Error("Audio vacío o demasiado largo");
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result).split(",")[1]);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            const { text } = await transcribe({
+              data: {
+                audioBase64: base64,
+                mimeType: recorder.mimeType,
+                language: language.startsWith("it") ? "it" : "es",
+              },
+            });
+            if (mountedRef.current) await handleTranscript(text);
+          } catch {
+            toast.error("No se pudo procesar el dictado. Introduce los datos manualmente.");
+          } finally {
+            if (mountedRef.current) setStatus("off");
+          }
+        };
+        recorder.start();
+        setEnabled(true);
+        setStatus("listening");
+        recordingTimer.current = setTimeout(() => {
+          if (recorder.state === "recording") recorder.stop();
+        }, 60_000);
+        toast.message("Escuchando. Pulsa otra vez para enviar el dictado.");
+      } catch {
+        recordingStream.current?.getTracks().forEach((t) => t.stop());
+        toast.error("Micrófono no disponible o permiso denegado. Usa la entrada manual.");
+      }
       return;
     }
     // request mic perm explicitly so the prompt fires from user gesture
@@ -368,13 +490,18 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
     } catch {}
     if (!greetedRef.current) {
       greetedRef.current = true;
-      const greet = `Hola ${clubName || "club"}, ¿cómo te puedo ayudar?`;
+      const greet =
+        language === "it-IT"
+          ? `Ciao ${clubName || "club"}, come posso aiutarti?`
+          : `Hola ${clubName || "club"}, ¿cómo te puedo ayudar?`;
       // Solo aquí hablamos en voz alta — el resto de comandos es silencioso.
       speak(greet);
     }
-  }, [clubName, ensureRec, speak]);
+  }, [clubName, ensureRec, speak, language, aiStatus, transcribe, handleTranscript]);
 
   const stopListening = useCallback(() => {
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    conversationRef.current = [];
     wantOnRef.current = false;
     setEnabled(false);
     stopSpeaking();
@@ -385,16 +512,20 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
   }, [stopSpeaking]);
 
   // Cleanup on unmount
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (recordingTimer.current) clearTimeout(recordingTimer.current);
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      recordingStream.current?.getTracks().forEach((t) => t.stop());
       wantOnRef.current = false;
       try {
         recRef.current?.stop?.();
       } catch {}
       audioRef.current?.pause();
-    },
-    [],
-  );
+    };
+  }, []);
 
   // External trigger
   useEffect(() => {
@@ -421,9 +552,24 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
 
   return (
     <>
+      <select
+        aria-label="Idioma de voz / Lingua voce"
+        value={language}
+        onChange={(event) => {
+          stopListening();
+          setLanguage(event.target.value);
+          window.localStorage.setItem("snoop:voice-language", event.target.value);
+          if (recRef.current) recRef.current.lang = event.target.value;
+        }}
+        className="fixed bottom-24 right-5 z-40 rounded border border-neon/30 bg-card p-1 text-xs text-neon"
+      >
+        <option value="es-ES">ES</option>
+        <option value="it-IT">IT</option>
+      </select>
       <button
         type="button"
         onClick={toggle}
+        disabled={status === "processing"}
         aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
         className={`fixed z-40 bottom-5 right-5 md:bottom-8 md:right-8 h-16 w-16 rounded-full flex items-center justify-center transition-all ${ringClass}`}
       >

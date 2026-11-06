@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useRef, useState } from "react";
@@ -22,16 +24,6 @@ type Row = {
   plan?: { name: string } | null;
 };
 
-function extractMemberNumber(text: string): string | null {
-  // Accept "SNOOP:0000123", a bare 7-digit code, or 7+ digits spoken with spaces
-  const upper = text.toUpperCase();
-  const tagged = upper.match(/SNOOP[:\s-]*([0-9]{4,9})/);
-  if (tagged) return tagged[1].padStart(7, "0").slice(-7);
-  const digits = text.replace(/\D+/g, "");
-  if (digits.length >= 6 && digits.length <= 9) return digits.padStart(7, "0").slice(-7);
-  return null;
-}
-
 function GestisciSoci() {
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
@@ -46,7 +38,7 @@ function GestisciSoci() {
     const { data } = await supabase
       .from("members")
       .select(
-        "id, member_number, first_name, last_name, dni_number, city, expires_at, plan:membership_plans(name)",
+        "id, member_number, first_name, last_name, dni_number, city, expires_at, plan:membership_plans!members_plan_id_fkey(name)",
       )
       .order("member_number");
     setRows((data as any) ?? []);
@@ -75,11 +67,7 @@ function GestisciSoci() {
     }
 
     setQ(query);
-    const norm = (s: string) =>
-      s
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+    const norm = normalizeAdministrativeSearch;
     const tokens = norm(query).split(/\s+/).filter(Boolean);
     const scored = rowsRef.current
       .map((r) => {
@@ -139,10 +127,11 @@ function GestisciSoci() {
   }, [loading, rows]);
 
   const filtered = rows.filter((r) => {
-    const query = q.trim().toLowerCase();
+    const query = normalizeAdministrativeSearch(q);
     if (!query) return true;
-    const haystack =
-      `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`.toLowerCase();
+    const haystack = normalizeAdministrativeSearch(
+      `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`,
+    );
     const tokens = query.split(/\s+/).filter(Boolean);
     return tokens.every((t) => haystack.includes(t));
   });
@@ -185,7 +174,7 @@ function GestisciSoci() {
           <div className="text-muted-foreground">No hay socios{q && " que coincidan"}.</div>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 min-w-0 gap-3">
           {filtered.map((r) => {
             const badge = expiryBadge(r.expires_at);
             return (
@@ -193,7 +182,7 @@ function GestisciSoci() {
                 key={r.id}
                 to="/soci/$id"
                 params={{ id: r.id }}
-                className="flex items-center gap-4 bg-card/60 hover:bg-card border border-border hover:border-neon/50 rounded-xl p-4 transition group"
+                className="min-w-0 flex items-center gap-4 bg-card/60 hover:bg-card border border-border hover:border-neon/50 rounded-xl p-4 transition group"
               >
                 <div className="w-11 h-11 rounded-full bg-neon/10 border border-neon/30 flex items-center justify-center font-display text-neon">
                   {r.first_name[0]?.toUpperCase()}
@@ -293,27 +282,41 @@ function QrScannerModal({
     };
   }, []);
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-card border border-neon/40 rounded-2xl p-5 glow-neon-soft">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Escanear QR del socio"
+      style={{ width: "100dvw", height: "100dvh" }}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4"
+    >
+      <div
+        style={{ maxWidth: "min(28rem, calc(100dvw - 2rem))" }}
+        className="w-full max-w-md min-w-0 max-h-[90dvh] overflow-y-auto bg-card border border-neon/40 rounded-2xl p-5 glow-neon-soft"
+      >
         <div className="flex items-center justify-between mb-3">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim font-display">
+          <div className="min-w-0 flex-1 text-[10px] uppercase tracking-[0.3em] text-neon-dim font-display">
             Escanear QR del socio
           </div>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-neon"
+            className="shrink-0 w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-neon"
             aria-label="Cerrar"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <div id={elId} className="w-full rounded-lg overflow-hidden bg-black aspect-square" />
-        {error && <p className="text-xs text-destructive mt-3">{error}</p>}
+        {error && (
+          <p role="alert" className="text-xs text-destructive mt-3">
+            {error}
+          </p>
+        )}
         <p className="text-[10px] text-muted-foreground mt-3 text-center">
           Apunta al QR del carnet o di el número de 7 cifras al micrófono.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

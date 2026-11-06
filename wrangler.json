@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "snoop-pilot",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-11-05",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS"
+  },
+  "ai": {
+    "binding": "SNOOP_AI",
+    "remote": false
+  },
+  "vars": {
+    "SNOOP_RESOURCE_NAMESPACE": "snoop-pilot",
+    "AI_PROVIDER": "cloudflare",
+    "AI_EXTERNAL_PROCESSING_ENABLED": "false",
+    "AI_PERSONAL_DATA_PROCESSING_ENABLED": "false",
+    "AI_DOCUMENT_PROCESSING_ENABLED": "false",
+    "AI_BROWSER_SPEECH_ENABLED": "false",
+    "AI_CF_TEXT_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+    "AI_CF_TRANSCRIBE_MODEL": "@cf/openai/whisper-large-v3-turbo",
+    "SNOOP_INVITATION_DELIVERY": "manual"
+  }
+}

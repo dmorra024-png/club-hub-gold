@@ -1,0 +1,128 @@
+{
+  "migration_count": 29,
+  "sql_sha256": "60fe23968aac0dba499c0d88c1c419a94794782c52d955ea3d4e776b4867d3d2",
+  "notes": [
+    "Only authoritative final policies emitted; historical CREATE POLICY statements omitted",
+    "Final app_role enum created upfront for atomic execution",
+    "Historical club/plan seeds and data backfill omitted",
+    "Original function bodies preserved; only top-level transaction delimiters normalized"
+  ],
+  "migrations": [
+    {
+      "name": "20260622212808_9302649a-e1ee-4a0a-80b1-229dba9e2d0d.sql",
+      "sha256": "db8b393e55bcdc77b4b2ef58479264864af2774ccf5c50225c56eea4c46a473e"
+    },
+    {
+      "name": "20260622212824_0052baf8-1cf4-48d4-9e61-63f546a2750b.sql",
+      "sha256": "21c7026be6eb365807efb55e6bd46c25848bc88f132cdeae631b513ba7e29f81"
+    },
+    {
+      "name": "20260623061333_89570dac-2066-417c-9729-a549a8ed6eda.sql",
+      "sha256": "e6b558196042561762f9f3ea373d849206e5e36cf9dd15b6d3d040cf4fe81182"
+    },
+    {
+      "name": "20260624061600_74029b3c-2a22-4855-8d8b-9762445e7f5e.sql",
+      "sha256": "20e6f05cc7c01a06a524e82d6135086855d5f424d507342d50c685ede93ed762"
+    },
+    {
+      "name": "20260624061627_044429fc-7051-4e88-b5d5-68cd0466f464.sql",
+      "sha256": "cf140f4b4b31f0821fbca826695aaa51980dc857fce7e4c4e99e6e2db038e1c5"
+    },
+    {
+      "name": "20260626072407_b6c0b500-b5c1-4d0d-b871-094f0fa3ed1d.sql",
+      "sha256": "876627bffdbe1207947a04cab824500c36f326d3a1234bf870a0193f5409dce4"
+    },
+    {
+      "name": "20260626072419_e512dd49-f1a2-4c08-8d6c-f46c8be80013.sql",
+      "sha256": "a669a76b3be8a9100e55c9244d5b3701f389213d607a5fe002f4758afc2c0afa"
+    },
+    {
+      "name": "20260627064132_email_infra.sql",
+      "sha256": "89c19e347c2914e34d3cc6b2b2079615c275e6c072295dec67bdfd141d434f9d"
+    },
+    {
+      "name": "20260627064457_c59af0f1-7d12-4176-b41e-a820f08eb437.sql",
+      "sha256": "f693b497b023a1872bee653f5ca54c3f4bac1e4bd6045c265d9051b324dcf217"
+    },
+    {
+      "name": "20260628083024_c4245510-5fd8-422e-9b6a-e3de854dc3c1.sql",
+      "sha256": "b3c6f4c8899599dcbe66d03349d081dbf2e677b12aead55c7bd20cdcc851b6d8"
+    },
+    {
+      "name": "20260629061712_98e4c829-3039-42e2-995b-cceba103a6d5.sql",
+      "sha256": "b8e0a50e1ca33d1a62dee0d5798eecc03b56fe66971a4b5f14d5388d561359e5"
+    },
+    {
+      "name": "20260630065129_569c0ad0-f0e7-4d7e-80db-ab34eab5ab83.sql",
+      "sha256": "b155ca23f31e9f6bdd369a665c5cf6780e88d23ad407ad8bcc863fd655ca6fb9"
+    },
+    {
+      "name": "20260630073314_0da8ce97-94dc-4b1f-b1e6-4b789013b5b7.sql",
+      "sha256": "9a194cdd6bedb9fefb15414eb3b28f53d2aa4836a36dcb214b74c4ff719b1bbe"
+    },
+    {
+      "name": "20260630073402_bbb8e018-16f8-416a-9711-988fd1fcf86d.sql",
+      "sha256": "485f8fdf1792342536293be3f38b33f7673ef322af41b2eb8fa361d66e5e194c"
+    },
+    {
+      "name": "20260630210948_9dc15ff3-7d6c-4147-9d0a-93a357f75814.sql",
+      "sha256": "9a75c28e7bd475029165acbe259fd72156b2d82d62be0dab82ac7bda20158524"
+    },
+    {
+      "name": "20260630212015_6436e01d-6fe6-48bb-b9f2-d58a03625afb.sql",
+      "sha256": "6c7d36eb0ccdf13d960115f09595a408231d58f5c66533d8f70d679e62106b21"
+    },
+    {
+      "name": "20260630214014_0e174034-b136-447a-a0aa-c6d1372eb4f6.sql",
+      "sha256": "ad89d897bc531fdc299fe677a87f344909cb896ed08d27ee4b56b60cf366a1b1"
+    },
+    {
+      "name": "20260630221131_fcdbc9fb-6721-4a34-9d5b-caaa6402838c.sql",
+      "sha256": "be32e4a3a4c987dd94fc475e538c398a1eab813b65debd7ad88f84bd1bcd3900"
+    },
+    {
+      "name": "20260701080938_3ce0dbb4-f7fc-4744-903f-f6f3fd5c4101.sql",
+      "sha256": "9756c10b7800707c3c41121e9b057a7ba5a6da421d67bdbe079a13a7b11750a1"
+    },
+    {
+      "name": "20260701082156_1fde76e1-594b-4d93-95b5-c603d878945f.sql",
+      "sha256": "6698a00377deb2bc1028c01ee00416b8601527a0b3d49334e888945965d73123"
+    },
+    {
+      "name": "20260711082655_5798e506-84c4-404d-ae58-90fba8bc8f11.sql",
+      "sha256": "4002a26038424ffd9a4441ee60a366284664e69d6a190c85a38e04e291b2c3b2"
+    },
+    {
+      "name": "20260713071722_ec22b55d-515e-44df-9d8c-42d7e0ed8a29.sql",
+      "sha256": "00a55c4055b0ab4f1ef98b3a0ebbf206cff511f2b8540d3dde32bd7312b9a1f7"
+    },
+    {
+      "name": "20261105103000_secure_account_access.sql",
+      "sha256": "cab33daa5864ee8202e3626f942c29807f8688ba065a9c4a5b0ef7e458e023b7"
+    },
+    {
+      "name": "20261105113000_member_administration_scope.sql",
+      "sha256": "903a1c3dd757d65e480d9ebd8e5b8b514a7912d2862bd967f8961e9edf482c3d"
+    },
+    {
+      "name": "20261105150000_administrative_cash_validation.sql",
+      "sha256": "7b13520f0483cfecb5fd5ba0f6dae21453fb442e36f91d06f9e86c595ae1920a"
+    },
+    {
+      "name": "20261105170000_membership_receipts.sql",
+      "sha256": "9f014d9dc9c897e56d3a6aa39879d7a4c018acc3981dfc2d91be1ec19d3a79b1"
+    },
+    {
+      "name": "20261105200000_administrative_catalog_scope.sql",
+      "sha256": "9078bcb0a446b5dcc2b2d3cc1b2d3003a2d54eecd870a34348d40417067427ec"
+    },
+    {
+      "name": "20261105210000_private_member_documents.sql",
+      "sha256": "7c9272b8f0cf8ce4731bbf8b26412a17e190823764f5474fe7d190b037f998d2"
+    },
+    {
+      "name": "20261106100000_authoritative_rls.sql",
+      "sha256": "db815be6e92053ad47bcc63221a1d1325f86058affc5f9c1bc0a80e3f0eec2c3"
+    }
+  ]
+}

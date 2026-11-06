@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateText } from "ai";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { administrativeModel } from "./administrative-ai.server";
 
 const Input = z.object({
   transcript: z.string().min(1),
@@ -65,16 +65,10 @@ export const parseProductCommand = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<ParsedCommand> => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const model = administrativeModel("catalog");
 
     const catsList = data.categories
-      .map(
-        (c) =>
-          `${c.id} = ${c.name} (${c.unit_type}${c.is_smokeable ? ", fumable" : ""})`,
-      )
+      .map((c) => `${c.id} = ${c.name} (${c.unit_type}${c.is_smokeable ? ", fumable" : ""})`)
       .join("\n");
 
     const system = `Eres un parser de comandos de voz (español/italiano) para una página de productos de un club cannábico.

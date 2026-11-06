@@ -1,12 +1,5 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-
-export function createLovableAiGatewayProvider(lovableApiKey: string) {
-  return createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    headers: {
-      "Lovable-API-Key": lovableApiKey,
-      "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-    },
-  });
+// Compatibility export for old imports; all traffic uses the independently configured provider.
+import { administrativeModel } from "./administrative-ai.server";
+export function createLovableAiGatewayProvider(_legacyKey?: string) {
+  return (_legacyModel?: string) => administrativeModel();
 }

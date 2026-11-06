@@ -1,0 +1,66 @@
+name: Account security
+
+on:
+  pull_request:
+  push:
+    branches: [codex/stabilize-independent-club]
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install pinned Bun
+        run: npm install --prefix "$RUNNER_TEMP/bun-tools" --no-package-lock --no-audit --no-fund bun@1.3.12
+      - name: Install locked dependencies
+        run: '"$RUNNER_TEMP/bun-tools/node_modules/.bin/bun" install --frozen-lockfile'
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Account HTTP smoke test
+        shell: bash
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 3000 > "$RUNNER_TEMP/account-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/auth >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            cat "$RUNNER_TEMP/account-server.log"
+            exit 1
+          fi
+          npm run test:smoke:accounts
+      - name: Install test browser
+        run: npx playwright-core install --with-deps chromium
+      - name: Production PWA and administrative browser tests
+        shell: bash
+        run: |
+          NITRO_PORT=3001 npm start > "$RUNNER_TEMP/production-server.log" 2>&1 &
+          production_pid=$!
+          trap 'kill "$production_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3001/auth >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            cat "$RUNNER_TEMP/production-server.log"
+            exit 1
+          fi
+          npm run test:browser

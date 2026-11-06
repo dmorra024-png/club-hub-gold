@@ -10,8 +10,12 @@ export const Route = createFileRoute("/reset-password")({
     meta: [
       { title: "Cambiar contraseña | SNOOP" },
       { name: "description", content: "Crea una nueva contraseña segura para tu cuenta SNOOP." },
+      { name: "referrer", content: "no-referrer" },
       { property: "og:title", content: "Cambiar contraseña | SNOOP" },
-      { property: "og:description", content: "Crea una nueva contraseña segura para tu cuenta SNOOP." },
+      {
+        property: "og:description",
+        content: "Crea una nueva contraseña segura para tu cuenta SNOOP.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -31,7 +35,10 @@ function ResetPassword() {
     let cancelled = false;
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
-        if (!cancelled) { setReady(true); setErrorMsg(null); }
+        if (!cancelled) {
+          setReady(true);
+          setErrorMsg(null);
+        }
       }
     });
 
@@ -39,9 +46,10 @@ function ResetPassword() {
       try {
         const url = new URL(window.location.href);
         const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-        const errorDesc = hash.get("error_description") || url.searchParams.get("error_description");
+        const errorDesc =
+          hash.get("error_description") || url.searchParams.get("error_description");
         if (errorDesc) {
-          setErrorMsg(decodeURIComponent(errorDesc).replace(/\+/g, " "));
+          setErrorMsg(errorDesc);
           return;
         }
 
@@ -55,18 +63,27 @@ function ResetPassword() {
             access_token: accessToken,
             refresh_token: refreshToken,
           });
-          if (error) { setErrorMsg(error.message); return; }
+          if (error) {
+            setErrorMsg(error.message);
+            return;
+          }
           clean();
           if (!cancelled) setReady(true);
           return;
         }
 
-        // New Supabase format: ?token_hash=...&type=recovery
-        const tokenHash = url.searchParams.get("token_hash");
+        // Invitations and recovery links both let the account owner choose a password.
+        const tokenHash = url.searchParams.get("token_hash") || hash.get("token_hash");
         const type = url.searchParams.get("type") || hash.get("type");
         if (tokenHash) {
-          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
-          if (error) { setErrorMsg(error.message); return; }
+          if (type !== "recovery" && type !== "invite") {
+            throw new Error("Enlace inválido. Solicita una nueva invitación o recuperación.");
+          }
+          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+          if (error) {
+            setErrorMsg(error.message);
+            return;
+          }
           clean();
           if (!cancelled) setReady(true);
           return;
@@ -76,37 +93,50 @@ function ResetPassword() {
         const code = url.searchParams.get("code");
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) { setErrorMsg(error.message); return; }
+          if (error) {
+            setErrorMsg(error.message);
+            return;
+          }
           clean();
           if (!cancelled) setReady(true);
           return;
         }
 
-        if (type === "recovery") {
+        if (type === "recovery" || type === "invite") {
           clean();
           const { data } = await supabase.auth.getSession();
-          if (data.session && !cancelled) { setReady(true); return; }
+          if (data.session && !cancelled) {
+            setReady(true);
+            return;
+          }
         }
 
         // No token in the URL: wait a bit in case the client is still parsing it.
         for (let i = 0; i < 12; i++) {
           const { data } = await supabase.auth.getSession();
           if (cancelled) return;
-          if (data.session) { setReady(true); return; }
+          if (data.session) {
+            setReady(true);
+            return;
+          }
           await new Promise((r) => setTimeout(r, 250));
         }
-        if (!cancelled) setErrorMsg("Enlace inválido o caducado. Solicita un nuevo email de recuperación.");
-      } catch (e: any) {
-        if (!cancelled) setErrorMsg(e.message ?? "Error");
+        if (!cancelled)
+          setErrorMsg("Enlace inválido o caducado. Solicita un nuevo email de recuperación.");
+      } catch (e: unknown) {
+        if (!cancelled) setErrorMsg(e instanceof Error ? e.message : "Error");
       }
     })();
 
-    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
   }, []);
-
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!ready || loading) return;
     if (pw !== pw2) return toast.error("Las contraseñas no coinciden");
     setLoading(true);
     try {
@@ -118,8 +148,11 @@ function ResetPassword() {
       if (error) throw error;
       toast.success("Contraseña actualizada");
       nav({ to: "/" });
-    } catch (e: any) { toast.error(e.message); }
-    finally { setLoading(false); }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "No se ha podido cambiar la contraseña");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -130,19 +163,44 @@ function ResetPassword() {
           <div className="bg-card/80 backdrop-blur border border-destructive/40 rounded-2xl p-8 space-y-4 text-center">
             <h2 className="font-display text-xl text-destructive">Enlace no válido</h2>
             <p className="text-sm text-muted-foreground">{errorMsg}</p>
-            <button onClick={() => nav({ to: "/auth" })} className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-lg font-display font-semibold uppercase tracking-[0.25em] text-sm glow-neon">
+            <button
+              onClick={() => nav({ to: "/auth" })}
+              className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-lg font-display font-semibold uppercase tracking-[0.25em] text-sm glow-neon"
+            >
               Volver a iniciar sesión
             </button>
           </div>
         ) : (
-          <form onSubmit={submit} className="bg-card/80 backdrop-blur border border-neon/30 rounded-2xl p-8 space-y-4 glow-neon-soft">
+          <form
+            onSubmit={submit}
+            className="bg-card/80 backdrop-blur border border-neon/30 rounded-2xl p-8 space-y-4 glow-neon-soft"
+          >
             <h2 className="font-display text-xl text-neon">Nueva contraseña</h2>
             {!ready && <p className="text-xs text-muted-foreground">Validando enlace…</p>}
-            <input required type="password" minLength={8} autoComplete="new-password" placeholder="Nueva contraseña (mínimo 8 caracteres)" value={pw} onChange={(e)=>setPw(e.target.value)}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none" />
-            <input required type="password" minLength={8} autoComplete="new-password" placeholder="Repite contraseña" value={pw2} onChange={(e)=>setPw2(e.target.value)}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none" />
-            <button disabled={loading || !ready} className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-lg font-display font-semibold uppercase tracking-[0.25em] text-sm disabled:opacity-50 glow-neon">
+            <input
+              required
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Nueva contraseña (mínimo 8 caracteres)"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
+            />
+            <input
+              required
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="Repite contraseña"
+              value={pw2}
+              onChange={(e) => setPw2(e.target.value)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
+            />
+            <button
+              disabled={loading || !ready}
+              className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-lg font-display font-semibold uppercase tracking-[0.25em] text-sm disabled:opacity-50 glow-neon"
+            >
               {loading ? "..." : "Actualizar"}
             </button>
           </form>
