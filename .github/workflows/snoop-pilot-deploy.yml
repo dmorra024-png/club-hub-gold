@@ -113,9 +113,7 @@ jobs:
           set -euo pipefail
           # Protected runtime secret supplied through stdin; never placed in repo or build bundle.
           printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config .output/server/wrangler.json
-          printf '%s' "$SUPABASE_URL" | bunx wrangler secret put SUPABASE_URL --config .output/server/wrangler.json
           printf '%s' "$SNOOP_PUBLISHABLE_KEY" | bunx wrangler secret put SUPABASE_PUBLISHABLE_KEY --config .output/server/wrangler.json
-          printf '%s' "$APP_URL" | bunx wrangler secret put APP_URL --config .output/server/wrangler.json
       - name: Sanity check HTTPS (does not register users)
         shell: bash
         run: |
