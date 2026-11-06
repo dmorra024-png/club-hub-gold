@@ -10,6 +10,8 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 export function aiConfiguration(
   purpose: "administrative" | "documents" | "catalog" = "administrative",
 ) {
+  if (process.env.AI_VOICE_ONLY === "true")
+    throw new Error("Perfil de voz: no se permite un proveedor alternativo");
   if (process.env.AI_EXTERNAL_PROCESSING_ENABLED !== "true") {
     throw new Error(
       "AI externa desactivada. Configura AI_EXTERNAL_PROCESSING_ENABLED y revisa el tratamiento de datos.",
@@ -80,7 +82,7 @@ export async function transcribeAdministrativeAudio(input: {
   mimeType: string;
   language?: "it" | "es";
 }) {
-  if (process.env.AI_PROVIDER === "cloudflare") authorizeWorkersAi();
+  if (process.env.AI_PROVIDER === "cloudflare") authorizeWorkersAi("transcription");
   const config = process.env.AI_PROVIDER === "cloudflare" ? null : aiConfiguration();
   if (!/^(audio\/(webm|mp4|mpeg|wav|ogg|x-wav))(;codecs=[a-z0-9,-]+)?$/i.test(input.mimeType))
     throw new Error("Formato de audio no compatible");
@@ -144,7 +146,7 @@ export function administrativeAiStatus() {
   let available = false;
   try {
     if (process.env.AI_PROVIDER === "cloudflare") {
-      authorizeWorkersAi();
+      authorizeWorkersAi("transcription");
       workersAiBinding();
     } else aiConfiguration();
     available = true;

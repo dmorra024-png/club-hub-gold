@@ -1,0 +1,37 @@
+{
+  "profile": "authorized-cloudflare-voice-only",
+  "worker": "snoop-pilot",
+  "project_ref": "bnwanxbmprbymbutoths",
+  "model": "@cf/openai/whisper-large-v3-turbo",
+  "flags": {
+    "AI_PROVIDER": "cloudflare",
+    "AI_EXTERNAL_PROCESSING_ENABLED": "true",
+    "AI_VOICE_PROCESSING_ENABLED": "true",
+    "AI_VOICE_ONLY": "true",
+    "AI_PERSONAL_DATA_PROCESSING_ENABLED": "false",
+    "AI_DOCUMENT_PROCESSING_ENABLED": "false",
+    "AI_BROWSER_SPEECH_ENABLED": "false"
+  },
+  "tests": {
+    "automatic": {
+      "passed": 142,
+      "failed": 0
+    },
+    "browser_audio": [
+      "PASS Italian: real Chromium synthetic microphone/MediaRecorder, mocked transcription, real form fields, zero automatic writes",
+      "PASS Spanish: same isolated flow"
+    ],
+    "typescript": "PASS",
+    "worker_build": "PASS (synthetic sandbox configuration)",
+    "worker_dry_run": "PASS",
+    "public_secret_scan": "PASS (58 files)"
+  },
+  "live_inference_verified": false,
+  "deployment_performed": false,
+  "remote_writes_performed": false,
+  "live_prerequisites": {
+    "non_platform_admin_on_active_club": true,
+    "uses_existing_github_secrets": true
+  },
+  "remaining_operation": "Explicit authorization to deploy this reviewed version to existing snoop-pilot Worker, including voice flags/binding/runtime settings; then verify live transcription using existing club Admin."
+}

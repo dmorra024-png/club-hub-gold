@@ -89,6 +89,8 @@ function NewSocio() {
   const [recStatus, setRecStatus] = useState<"idle" | "recording" | "processing">("idle");
   const [lastHeard, setLastHeard] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const voiceMounted = useRef(true);
+  const voiceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const formRef = useRef(form);
@@ -103,6 +105,7 @@ function NewSocio() {
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
 
   useEffect(() => {
+    voiceMounted.current = true;
     function applyPendingDraft(available: Plan[]) {
       const draft = decodeMemberDraft(window.sessionStorage.getItem("snoop:member-draft"));
       window.sessionStorage.removeItem("snoop:member-draft");
@@ -143,6 +146,9 @@ function NewSocio() {
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
+      voiceMounted.current = false;
+      if (voiceTimer.current) clearTimeout(voiceTimer.current);
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
@@ -151,7 +157,7 @@ function NewSocio() {
     // Ensure the form is empty when opening the page: drop any leftover transcript
     // from a previous socio creation.
     try {
-      window.localStorage.removeItem("snoop:new-member-transcript");
+      window.sessionStorage.removeItem("snoop:new-member-transcript");
     } catch {}
     const onStorage = (event: StorageEvent) => {
       if (event.key !== "snoop:new-member-transcript" || !event.newValue) return;
@@ -345,9 +351,17 @@ function NewSocio() {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       rec.onstop = async () => {
+        if (voiceTimer.current) clearTimeout(voiceTimer.current);
         stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
+        if (!voiceMounted.current) return;
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
+        chunksRef.current = [];
+        if (blob.size > 8_000_000) {
+          setRecStatus("idle");
+          toast.error("Audio demasiado largo. Usa un dictado de hasta un minuto.");
+          return;
+        }
         if (blob.size < 1500) {
           setRecStatus("idle");
           toast.error("No te he oído, vuelve a intentar.");
@@ -381,6 +395,9 @@ function NewSocio() {
       };
       recorderRef.current = rec;
       rec.start();
+      voiceTimer.current = setTimeout(() => {
+        if (rec.state === "recording") rec.stop();
+      }, 60000);
       setRecStatus("recording");
     } catch {
       toast.error("Permiso de micrófono denegado.");
@@ -499,7 +516,7 @@ function NewSocio() {
       }
 
       try {
-        window.localStorage.removeItem("snoop:new-member-transcript");
+        window.sessionStorage.removeItem("snoop:new-member-transcript");
       } catch {}
       nav({ to: "/soci/gestisci" });
     } catch (e: any) {

@@ -8,6 +8,10 @@ La separazione successiva è descritta in [PLATFORM_SEPARATION_RESULTS.md](PLATF
 
 Snoop-pilot è già inizializzato: **non rieseguire l'inizializzazione o il bootstrap del proprietario**. La migrazione di aggiornamento `20261106150000_platform_club_separation.sql` è preparata e collaudata, ma non ancora applicata al database remoto. Anche il deployment richiede autorizzazione distinta. Il file SQL iniziale approvato resta uno snapshot storico; le nuove installazioni richiedono anche le migrazioni successive, in ordine.
 
+## Aggiornamento voce autorizzata
+
+Il profilo vocale è preparato in [VOICE_ACTIVATION_RESULTS.md](VOICE_ACTIVATION_RESULTS.md): Cloudflare Workers AI trascrive IT/ES, mentre campi e comandi sono elaborati localmente nell'applicazione. `AI_VOICE_PROCESSING_ENABLED=true` e `AI_VOICE_ONLY=true` abilitano solo l'audio autorizzato; documenti, browser speech e invio di campi/storia a modelli testuali restano disabilitati. Il codice delle altre integrazioni resta conservato. Non è richiesto alcun nuovo segreto o reset del database; il deployment resta soggetto ad autorizzazione esplicita.
+
 ## Cosa è implementato
 
 - Build TanStack Start/Nitro per **Cloudflare Workers**, accanto alla build Node conservata. `wrangler.json` usa esclusivamente il Worker `snoop-pilot`, asset propri e binding `SNOOP_AI`; non contiene domini, D1, KV, R2 o identificativi di altri progetti. Il target pilota rifiuta una configurazione Supabase dedicata mancante, invece di utilizzare quella storica.
@@ -62,7 +66,7 @@ Schemi e prezzi ufficiali verificati il **5 novembre 2026**:
 
 Workers AI documenta **10.000 Neurons/giorno**, condivisi dalle funzioni AI dell'account e azzerati alle 00:00 UTC. Sul piano Free, oltre quota le richieste falliscono: non è prevista alcuna attivazione automatica del piano Paid o di crediti. I modelli che richiedono un metodo di pagamento sono esclusi dall'allowlist del profilo. Il limite gratuito non equivale a utilizzo illimitato.
 
-Il codice non richiede una chiave REST Cloudflare nel browser. Per utilizzare solo proposte testuali di catalogo non identificative si potrà autorizzare `AI_EXTERNAL_PROCESSING_ENABLED=true`. **La voce e i dati identificativi restano bloccati finché `AI_PERSONAL_DATA_PROCESSING_ENABLED` non è autorizzato separatamente**. Prima servono verifica delle condizioni/DPA, conservazione e luogo del trattamento: il piano Free non viene presentato come garanzia automatica di trattamento nell'UE. OCR dei documenti resta disabilitato nel profilo Workers gratuito anche con il consenso vocale. Il riconoscimento esterno del browser è disabilitato per impostazione predefinita.
+Il codice non richiede una chiave REST Cloudflare nel browser. Per utilizzare solo proposte testuali di catalogo non identificative si potrà autorizzare `AI_EXTERNAL_PROCESSING_ENABLED=true`. **Nel profilo vocale aggiornato, l’audio già autorizzato usa `AI_VOICE_PROCESSING_ENABLED`; `AI_PERSONAL_DATA_PROCESSING_ENABLED=false` continua a vietare l’invio di campi e cronologia ai modelli testuali.** Prima servono verifica delle condizioni/DPA, conservazione e luogo del trattamento: il piano Free non viene presentato come garanzia automatica di trattamento nell'UE. OCR dei documenti resta disabilitato nel profilo Workers gratuito anche con il consenso vocale. Il riconoscimento esterno del browser è disabilitato per impostazione predefinita.
 
 Quota esaurita, provider non disponibile o permesso microfono negato mantengono l'inserimento manuale. Le proposte per soci e cataloghi richiedono revisione/salvataggio espliciti; i comandi amministrativi non certificano un pagamento. I test con provider locale non certificano l'accuratezza dei modelli reali. Prima della commercializzazione vanno verificate anche le condizioni del modello selezionato.
 

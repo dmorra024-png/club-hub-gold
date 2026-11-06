@@ -65,6 +65,10 @@ export const parseProductCommand = createServerFn({ method: "POST" })
   .middleware([requireClubCatalogAuth])
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }): Promise<ParsedCommand> => {
+    if (process.env.AI_PROVIDER === "cloudflare" && process.env.AI_VOICE_ONLY === "true") {
+      const { privateCatalogCommand } = await import("./private-voice.ts");
+      return privateCatalogCommand(data.transcript, data.categories);
+    }
     const model = administrativeModel("catalog");
 
     const catsList = data.categories

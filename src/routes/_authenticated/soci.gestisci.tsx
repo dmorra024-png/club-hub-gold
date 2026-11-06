@@ -117,9 +117,9 @@ function GestisciSoci() {
   useEffect(() => {
     if (loading) return;
     try {
-      const raw = window.localStorage.getItem("snoop:member-search-pending");
+      const raw = window.sessionStorage.getItem("snoop:member-search-pending");
       if (!raw) return;
-      window.localStorage.removeItem("snoop:member-search-pending");
+      window.sessionStorage.removeItem("snoop:member-search-pending");
       const { query, at } = JSON.parse(raw);
       if (query && Date.now() - at < 15000) runVoiceSearch(String(query));
     } catch {}

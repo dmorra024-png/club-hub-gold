@@ -78,6 +78,16 @@ export const extractMemberFields = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { administrativeModel } = await import("./administrative-ai.server");
     const deterministic = parseAdministrativeDictation(data.transcript, data.available_plans);
+    if (process.env.AI_PROVIDER === "cloudflare" && process.env.AI_VOICE_ONLY === "true") {
+      return {
+        fields: {
+          ...data.current,
+          ...Object.fromEntries(Object.entries(deterministic).filter(([, value]) => value)),
+        },
+        source: "local" as const,
+        warning: null,
+      };
+    }
 
     const system = `Extraes datos de un socio dictados por voz (español o italiano) y devuelves un objeto con TODOS los campos.
 Reglas:
@@ -222,6 +232,19 @@ export const agentRespond = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => AgentInput.parse(d))
   .handler(async ({ data, context }) => {
     const { administrativeModel } = await import("./administrative-ai.server");
+    if (process.env.AI_PROVIDER === "cloudflare" && process.env.AI_VOICE_ONLY === "true") {
+      const { privateVoiceCommand } = await import("./private-voice.ts");
+      const command = privateVoiceCommand(data.transcript, data.history);
+      if (command.permission) {
+        const { requireOperationalClub } = await import("./club-access.server");
+        await requireOperationalClub(context, command.permission);
+      }
+      return {
+        reply: command.reply,
+        navigateTo: command.navigateTo,
+        memberDraft: command.memberDraft,
+      };
+    }
     const model = administrativeModel();
     const supabase = context.supabase;
 

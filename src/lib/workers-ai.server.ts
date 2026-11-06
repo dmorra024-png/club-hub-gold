@@ -15,11 +15,23 @@ export function workersAiBinding(): SnoopAiBinding {
   return bindings.SNOOP_AI;
 }
 export function authorizeWorkersAi(
-  purpose: "administrative" | "documents" | "catalog" = "administrative",
+  purpose: "administrative" | "documents" | "catalog" | "transcription" = "administrative",
 ) {
   if (process.env.AI_EXTERNAL_PROCESSING_ENABLED !== "true")
     throw new Error("IA externa desactivada");
-  if (purpose !== "catalog" && process.env.AI_PERSONAL_DATA_PROCESSING_ENABLED !== "true")
+  if (purpose === "transcription") {
+    if (process.env.AI_VOICE_PROCESSING_ENABLED !== "true")
+      throw new Error("Transcripción de voz no autorizada");
+  } else if (process.env.AI_VOICE_ONLY === "true") {
+    throw new Error(
+      "Perfil de voz: no se envían campos, historial ni documentos a modelos de texto",
+    );
+  }
+  if (
+    purpose !== "catalog" &&
+    purpose !== "transcription" &&
+    process.env.AI_PERSONAL_DATA_PROCESSING_ENABLED !== "true"
+  )
     throw new Error("Tratamiento de datos personales no autorizado");
   if (purpose === "documents")
     throw new Error("OCR de documentos no habilitado en el perfil gratuito");
@@ -92,13 +104,22 @@ export async function transcribeWorkersAudio(
   audio: string,
   language: "it" | "es",
 ) {
-  const result = (await binding.run(FREE_AUDIO_MODEL, {
-    audio,
-    language,
-    task: "transcribe",
-    vad_filter: true,
-  })) as { text?: unknown };
-  if (typeof result?.text !== "string" || !result.text.trim())
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let result: { text?: unknown };
+  try {
+    result = (await Promise.race([
+      binding.run(FREE_AUDIO_MODEL, { audio, language, task: "transcribe", vad_filter: true }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Workers AI transcription timeout")), 25000);
+        timer.unref?.();
+      }),
+    ])) as { text?: unknown };
+  } catch {
+    throw new Error("Workers AI: transcripción no disponible. Usa la entrada manual.");
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  if (typeof result?.text !== "string" || !result.text.trim() || result.text.length > 12000)
     throw new Error("Workers AI no ha devuelto una transcripción");
   return { text: result.text.trim() };
 }

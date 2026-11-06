@@ -19,12 +19,14 @@
   "vars": {
     "SNOOP_RESOURCE_NAMESPACE": "snoop-pilot",
     "AI_PROVIDER": "cloudflare",
-    "AI_EXTERNAL_PROCESSING_ENABLED": "false",
+    "AI_EXTERNAL_PROCESSING_ENABLED": "true",
     "AI_PERSONAL_DATA_PROCESSING_ENABLED": "false",
     "AI_DOCUMENT_PROCESSING_ENABLED": "false",
     "AI_BROWSER_SPEECH_ENABLED": "false",
     "AI_CF_TEXT_MODEL": "@cf/meta/llama-3.2-3b-instruct",
     "AI_CF_TRANSCRIBE_MODEL": "@cf/openai/whisper-large-v3-turbo",
-    "SNOOP_INVITATION_DELIVERY": "manual"
+    "SNOOP_INVITATION_DELIVERY": "manual",
+    "AI_VOICE_PROCESSING_ENABLED": "true",
+    "AI_VOICE_ONLY": "true"
   }
 }

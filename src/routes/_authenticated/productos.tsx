@@ -515,10 +515,10 @@ function ProductosPage() {
         setTab(wantedTab as TabId);
         window.localStorage.removeItem("snoop:productos-tab");
       }
-      const cmdRaw = window.localStorage.getItem("snoop:productos-cmd");
+      const cmdRaw = window.sessionStorage.getItem("snoop:productos-cmd");
       if (cmdRaw) {
         const { text, at } = JSON.parse(cmdRaw);
-        window.localStorage.removeItem("snoop:productos-cmd");
+        window.sessionStorage.removeItem("snoop:productos-cmd");
         if (Date.now() - at < 15000) {
           applyProductCommand(text, wantedTab as TabId | undefined);
         }
@@ -804,11 +804,11 @@ function Stock({
     window.addEventListener("snoop:productos-voice", onVoice);
     // Pending filter from another route
     try {
-      const raw = window.localStorage.getItem("snoop:productos-pending");
+      const raw = window.sessionStorage.getItem("snoop:productos-pending");
       if (raw) {
         const { text, at } = JSON.parse(raw);
         if (Date.now() - at < 10000) applyVoice(text);
-        window.localStorage.removeItem("snoop:productos-pending");
+        window.sessionStorage.removeItem("snoop:productos-pending");
       }
     } catch {}
     return () => window.removeEventListener("snoop:productos-voice", onVoice);

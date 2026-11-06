@@ -59,6 +59,7 @@ jobs:
       - name: Validate SQL security and TypeScript
         run: |
           bun run test:security:architecture
+          bun run test:voice:activation
           bun run test:security:initialization
           bun run typecheck
       - name: Build Cloudflare Worker (only public key embedded)
@@ -71,6 +72,8 @@ jobs:
           bun run build:worker
           bun run worker:dry-run
           bun run test:security:bundle
+      - name: Inspect SNOOP runtime binding types and prepare public settings
+        run: node scripts/prepare-snoop-runtime.mjs
       - name: Deploy only snoop-pilot on the selected Cloudflare account
         shell: bash
         run: |
@@ -78,15 +81,8 @@ jobs:
           # Validate the generated config still targets exactly snoop-pilot.
           node -e 'const c=require("./.output/server/wrangler.json");if(c.name!=="snoop-pilot")throw Error("Wrong Worker target")'
           npx wrangler deploy --config .output/server/wrangler.json --keep-vars
-      - name: Upload private server settings (never logged)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Protected runtime secret supplied through stdin; never placed in repo or build bundle.
-          printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config .output/server/wrangler.json
-          printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config .output/server/wrangler.json
-          printf '%s' "$SNOOP_PUBLISHABLE_KEY" | npx wrangler secret put SUPABASE_PUBLISHABLE_KEY --config .output/server/wrangler.json
-          printf '%s' "$APP_URL" | npx wrangler secret put APP_URL --config .output/server/wrangler.json
+      - name: Upload only protected runtime bindings (no values logged)
+        run: node scripts/upload-snoop-runtime.mjs
       - name: Sanity check HTTPS (does not register users)
         shell: bash
         run: |

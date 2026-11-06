@@ -26,6 +26,21 @@ export function useAuth() {
       if (s?.user) {
         setTimeout(() => loadAccess(s.user.id), 0);
       } else {
+        if (_e === "SIGNED_OUT") {
+          try {
+            for (const store of [window.sessionStorage, window.localStorage])
+              for (const key of [
+                "snoop:member-draft",
+                "snoop:new-member-transcript",
+                "snoop:member-search-pending",
+                "snoop:productos-cmd",
+                "snoop:productos-pending",
+              ])
+                store.removeItem(key);
+          } catch {
+            /* Restricted browser storage must never interrupt sign-out. */
+          }
+        }
         clearClubCache();
         setAccess({ ...EMPTY_ACCESS });
         setLoading(false);

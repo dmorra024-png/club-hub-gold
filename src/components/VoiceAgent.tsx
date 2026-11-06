@@ -192,7 +192,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
               } catch {}
               // Forward the full transcript so the destination page can auto-parse it
               try {
-                window.localStorage.setItem(
+                window.sessionStorage.setItem(
                   "snoop:productos-cmd",
                   JSON.stringify({ text, at: Date.now() }),
                 );
@@ -216,7 +216,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
           if (query.length > 1) {
             if (path !== "/soci/gestisci") {
               try {
-                window.localStorage.setItem(
+                window.sessionStorage.setItem(
                   "snoop:member-search-pending",
                   JSON.stringify({ query, at: Date.now() }),
                 );
@@ -247,7 +247,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         ) {
           const cat = catMatch[1].trim();
           try {
-            window.localStorage.setItem(
+            window.sessionStorage.setItem(
               "snoop:productos-pending",
               JSON.stringify({ text: cat, at: Date.now() }),
             );
@@ -259,7 +259,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         // --- 3) Route-specific shortcuts ---
         if (path === "/soci/nuovo") {
           const payload = JSON.stringify({ text, at: Date.now() });
-          window.localStorage.setItem("snoop:new-member-transcript", payload);
+          window.sessionStorage.setItem("snoop:new-member-transcript", payload);
           window.dispatchEvent(
             new StorageEvent("storage", { key: "snoop:new-member-transcript", newValue: payload }),
           );

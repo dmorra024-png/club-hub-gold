@@ -31,7 +31,9 @@
     "pilot:database": "node scripts/prepare-pilot-database.mjs",
     "pilot:secrets": "node scripts/prepare-pilot-secrets.mjs",
     "test:security:initialization": "node --test tests/initialization-security.test.mjs",
-    "test:security:architecture": "node --test --experimental-test-isolation=none tests/platform-separation.test.mjs tests/access-context.test.ts tests/platform-management.test.ts tests/account-access.test.ts"
+    "test:security:architecture": "node --test --experimental-test-isolation=none tests/platform-separation.test.mjs tests/access-context.test.ts tests/platform-management.test.ts tests/account-access.test.ts",
+    "test:voice:activation": "node --test --experimental-test-isolation=none tests/voice-activation.test.ts tests/snoop-runtime-bindings.test.mjs",
+    "test:voice:browser": "node scripts/test-voice-forms.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
