@@ -30,6 +30,17 @@ function GestisciSoci() {
   const [loading, setLoading] = useState(true);
   const [scanOpen, setScanOpen] = useState(false);
   const navigate = useNavigate();
+  // This page is reached by the central QR shortcut: open the existing member
+  // scanner immediately, rather than the separate entry/exit scanner.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("scanner") !== "true") return;
+    setScanOpen(true);
+    params.delete("scanner");
+    const next = window.location.pathname + (params.size ? "?" + params.toString() : "") + window.location.hash;
+    window.history.replaceState(window.history.state, "", next);
+  }, []);
+
   const rowsRef = useRef<Row[]>([]);
   rowsRef.current = rows;
 
@@ -220,8 +231,11 @@ function GestisciSoci() {
           onResult={(text) => {
             setScanOpen(false);
             const num = extractMemberNumber(text);
-            if (num) openByMemberNumber(num);
-            else toast.error("Código QR no reconocido");
+            if (num) {
+              const member = rowsRef.current.find((r) => r.member_number === num);
+              if (member) navigate({ to: "/soci/$id/pedido", params: { id: member.id } });
+              else toast.error(`Ningún socio con número ${num}`);
+            } else toast.error("Código QR no reconocido");
           }}
         />
       )}
