@@ -37,39 +37,37 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.08 0.01 150);
-  --foreground: oklch(0.96 0.01 150);
-  --card: oklch(0.12 0.015 150);
-  --card-foreground: oklch(0.96 0.01 150);
-  --popover: oklch(0.1 0.015 150);
-  --popover-foreground: oklch(0.96 0.01 150);
+  /* SNOOP design system: midnight navy, brushed champagne and cool silver. */
+  --radius: 0.875rem;
+  --background: #050c17;
+  --foreground: #f3f4f7;
+  --card: #0b1827;
+  --card-foreground: #f3f4f7;
+  --popover: #0a1625;
+  --popover-foreground: #f3f4f7;
+  --primary: #e5bc78;
+  --primary-foreground: #091321;
+  --secondary: #13263b;
+  --secondary-foreground: #e9edf3;
+  --muted: #142337;
+  --muted-foreground: #a7b3c2;
+  --accent: #17334a;
+  --accent-foreground: #f3e2c5;
+  --destructive: #df6672;
+  --destructive-foreground: #ffffff;
+  --border: #41516a80;
+  --input: #101f30;
+  --ring: #e5bc78;
 
-  /* Primary = neon green */
-  --primary: oklch(0.86 0.28 145);
-  --primary-foreground: oklch(0.08 0.02 150);
-  --secondary: oklch(0.18 0.02 150);
-  --secondary-foreground: oklch(0.92 0.05 145);
-  --muted: oklch(0.16 0.012 150);
-  --muted-foreground: oklch(0.62 0.02 150);
-  --accent: oklch(0.22 0.08 145);
-  --accent-foreground: oklch(0.95 0.15 145);
-  --destructive: oklch(0.62 0.24 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.3 0.05 150 / 0.4);
-  --input: oklch(0.14 0.015 150);
-  --ring: oklch(0.86 0.28 145);
-
-  /* Neon palette */
-  --neon: oklch(0.88 0.3 145);          /* #39ff14-ish bright */
-  --neon-dim: oklch(0.68 0.22 145);
-  --neon-deep: oklch(0.45 0.18 148);
-  --gold: oklch(0.78 0.14 80);           /* kept for logo accent only */
-
-  --gradient-neon: linear-gradient(135deg, oklch(0.92 0.3 142), oklch(0.6 0.22 152));
-  --gradient-bg: radial-gradient(ellipse at top, oklch(0.16 0.04 150) 0%, oklch(0.05 0.005 150) 75%);
-  --shadow-neon: 0 0 24px oklch(0.86 0.28 145 / 0.4), 0 0 60px oklch(0.86 0.28 145 / 0.15);
-  --shadow-neon-soft: 0 0 12px oklch(0.86 0.28 145 / 0.25);
+  /* Legacy neon tokens retained for existing routes, remapped to champagne. */
+  --neon: #e5bc78;
+  --neon-dim: #bda075;
+  --neon-deep: #816747;
+  --gold: #e5bc78;
+  --gradient-neon: linear-gradient(115deg, #e8c58b, #b98c50);
+  --gradient-bg: radial-gradient(ellipse at 78% 0%, #122742 0%, #071321 46%, #050c17 88%);
+  --shadow-neon: 0 8px 24px #00000035;
+  --shadow-neon-soft: 0 6px 16px #00000029;
 }
 
 @layer base {
@@ -110,22 +108,14 @@
 
   .glow-neon { box-shadow: var(--shadow-neon); }
   .glow-neon-soft { box-shadow: var(--shadow-neon-soft); }
-  .text-glow-neon { text-shadow: 0 0 14px oklch(0.86 0.28 145 / 0.6); }
+  .text-glow-neon { text-shadow: none; }
 
-  /* Subtle scanline */
-  .scanline {
-    background-image: repeating-linear-gradient(
-      0deg,
-      transparent 0,
-      transparent 3px,
-      oklch(0.86 0.28 145 / 0.04) 3px,
-      oklch(0.86 0.28 145 / 0.04) 4px
-    );
-  }
+  /* No scanlines: professional, unobstructed work surfaces. */
+  .scanline { background-image: none; }
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: oklch(0.08 0.01 150); }
-  ::-webkit-scrollbar-thumb { background: oklch(0.3 0.08 150); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: #050c17; }
+  ::-webkit-scrollbar-thumb { background: #334961; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--color-neon-deep); }
 }
