@@ -90,9 +90,11 @@ function ColaboradoresPage() {
       setMsg(
         result.invitation_url
           ? "Invitación preparada. Comparte el enlace de un solo uso únicamente con su titular."
-          : result.invited
-            ? "Colaborador creado. Invitación enviada por email."
-            : "Acceso añadido a la cuenta existente. Su contraseña no ha cambiado.",
+          : result.email_accepted
+            ? "Colaborador creado. El proveedor de correo aceptó la invitación; confirma su recepción con el destinatario."
+            : result.invited
+              ? "Colaborador creado. La entrega por correo no está confirmada: usa la invitación manual."
+              : "Acceso añadido a la cuenta existente. Su contraseña no ha cambiado.",
       );
       await refresh();
     } catch (e: unknown) {
