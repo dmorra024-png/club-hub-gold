@@ -1418,12 +1418,12 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
       />
       <div className="grid grid-cols-3 gap-2">
         <p className="text-xs">Stock: {p.stock}. Usa Corregir stock para registrar cambios.</p>
-        <NumField
+        <MoneyField
           label="Compra €"
           value={form.buy_price}
           onChange={(v) => setForm({ ...form, buy_price: v })}
         />
-        <NumField
+        <MoneyField
           label="Venta €"
           value={form.sell_price}
           onChange={(v) => setForm({ ...form, sell_price: v })}
@@ -1496,24 +1496,35 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
   );
 }
 
-function NumField({
-  label,
-  value,
-  onChange,
-}: {
+// Keep the user's decimal text while editing: converting on every keystroke
+// turns "3." into 3 and makes entering "3.2" impossible on mobile.
+function MoneyField({ label, value, onChange }: {
   label: string;
   value: number;
-  onChange: (v: number) => void;
+  onChange: (value: number) => void;
 }) {
+  const [raw, setRaw] = useState(() => value === 0 ? "" : String(value));
+  useEffect(() => {
+    setRaw(value === 0 ? "" : String(value));
+  }, [value]);
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
       <input
-        type="number"
-        step="0.01"
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm"
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
+        aria-label={label}
+        placeholder="0,00"
+        value={raw}
+        onChange={(event) => {
+          const next = event.target.value.replace(",", ".");
+          if (!/^\\d*(?:\\.\\d{0,2})?$/.test(next)) return;
+          setRaw(next);
+          onChange(next === "" || next === "." ? 0 : Number(next));
+        }}
+        onBlur={() => setRaw(value === 0 ? "" : value.toFixed(2))}
+        className="w-full min-w-0 bg-input border border-border rounded-lg px-2 py-2 text-sm"
       />
     </label>
   );
@@ -1655,24 +1666,8 @@ function NuevoProducto({
             className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm"
           />
         </Field>
-        <Field label="P. compra €">
-          <input
-            type="number"
-            step="0.01"
-            value={buy}
-            onChange={(e) => setBuy(parseFloat(e.target.value) || 0)}
-            className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm"
-          />
-        </Field>
-        <Field label="P. venta €">
-          <input
-            type="number"
-            step="0.01"
-            value={sell}
-            onChange={(e) => setSell(parseFloat(e.target.value) || 0)}
-            className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm"
-          />
-        </Field>
+        <MoneyField label="P. compra €" value={buy} onChange={setBuy} />
+        <MoneyField label="P. venta €" value={sell} onChange={setSell} />
       </div>
 
       {cat?.is_smokeable && (
