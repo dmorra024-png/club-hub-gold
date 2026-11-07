@@ -105,5 +105,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Read-only SNOOP token and settings diagnostic (no deployment)
+      - name: Single GET of SNOOP settings (HTTP status and error codes only)
         run: node scripts/diagnose-snoop-access.mjs

@@ -1,50 +1,14 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import {
-  inspectSnoopCloudflare,
-  SNOOP_CLOUDFLARE_USER_AGENT,
-} from "./lib/snoop-cloudflare-access.mjs";
-const { CLOUDFLARE_ACCOUNT_ID: account, CLOUDFLARE_API_TOKEN: token } = process.env;
-const output = {
-  target: "snoop-pilot",
-  method: "GET only",
-  deployment_performed: false,
-  checks: [],
-};
-for (const [label, path, userAgent] of [
-  ["token-verification", "verify", SNOOP_CLOUDFLARE_USER_AGENT],
-  ["settings-default-client", "settings", undefined],
-  ["settings-wrangler-client", "settings", SNOOP_CLOUDFLARE_USER_AGENT],
-  ["modern-script-settings", "script-settings", SNOOP_CLOUDFLARE_USER_AGENT],
-  ["worker-secret-names", "secrets", SNOOP_CLOUDFLARE_USER_AGENT],
-  ["worker-deployment-metadata", "deployments", SNOOP_CLOUDFLARE_USER_AGENT],
-]) {
-  try {
-    const result = await inspectSnoopCloudflare({
-      account,
-      token,
-      path,
-      userAgent,
-      readPolicy: path === "verify",
-    });
-    // Never include binding values, token IDs, account IDs, headers or raw error bodies.
-    output.checks.push({ label, ...result });
-    console.log(
-      JSON.stringify({
-        label,
-        ...result,
-        bindings: result.bindings?.map((b) => ({ name: b.name, type: b.type })) ?? null,
-      }),
-    );
-  } catch {
-    output.checks.push({
-      label,
-      error: "Diagnostic request unavailable; no retry and no resource modified",
-    });
-  }
+// Exactly one GET of snoop-pilot settings; no retries, policy reads or deployment.
+import { inspectSnoopCloudflare } from "./lib/snoop-cloudflare-access.mjs";
+try {
+  const result = await inspectSnoopCloudflare({
+    account: process.env.CLOUDFLARE_ACCOUNT_ID,
+    token: process.env.CLOUDFLARE_API_TOKEN,
+    path: "settings",
+  });
+  console.log(JSON.stringify({ http: result.http, error_codes: result.error_codes }));
+} catch {
+  // Never log raw exceptions, headers, credentials or response bodies.
+  console.log(JSON.stringify({ http: null, error_codes: [] }));
+  process.exitCode = 1;
 }
-await mkdir(".sandbox", { recursive: true });
-await writeFile(
-  ".sandbox/snoop-cloudflare-access-diagnostic.json",
-  JSON.stringify(output, null, 2) + "\n",
-  { mode: 0o600 },
-);
