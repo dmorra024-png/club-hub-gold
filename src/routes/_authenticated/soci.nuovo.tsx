@@ -34,14 +34,22 @@ export const Route = createFileRoute("/_authenticated/soci/nuovo")({
   component: NewSocio,
 });
 
-type Plan = { id: string; name: string; duration_days: number; price_cents: number };
+type Plan = {
+  id: string;
+  name: string;
+  duration_days: number;
+  price_cents: number;
+};
 
 function quickParseMemberTranscript(text: string, plans: Plan[]) {
   const fields = parseAdministrativeDictation(
     text,
     plans.map((p) => p.name),
   );
-  return { ...fields, plan_id: plans.find((p) => p.name === fields.plan_name)?.id };
+  return {
+    ...fields,
+    plan_id: plans.find((p) => p.name === fields.plan_name)?.id,
+  };
 }
 
 function pickMime(): string | null {
@@ -62,6 +70,8 @@ function NewSocio() {
   const nav = useNavigate();
   const plansRef = useRef<Plan[]>([]);
   const [saving, setSaving] = useState(false);
+  const registrationId = useRef(crypto.randomUUID());
+  const [paymentMethod, setPaymentMethod] = useState("cash");
   const savingRef = useRef(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   plansRef.current = plans;
@@ -298,7 +308,10 @@ function NewSocio() {
 
       // Base64 payload for the AI Gateway
       const images = await Promise.all(
-        compressed.map(async (b) => ({ base64: await blobToBase64(b), mimeType: "image/jpeg" })),
+        compressed.map(async (b) => ({
+          base64: await blobToBase64(b),
+          mimeType: "image/jpeg",
+        })),
       );
 
       const { fields } = await extractFromImages({ data: { images } });
@@ -445,7 +458,7 @@ function NewSocio() {
       const { getCurrentClubId } = await import("@/lib/club");
       const clubId = await getCurrentClubId();
       if (!clubId) throw new Error("No tienes un club asignado");
-      const memberId = crypto.randomUUID();
+      const memberId = registrationId.current;
       const dniPath = `clubs/${clubId}/members/${memberId}/dni.jpg`;
       const sigPath = `clubs/${clubId}/members/${memberId}/signature.png`;
 
@@ -462,29 +475,36 @@ function NewSocio() {
       const joined = madridToday();
       const expires = selectedPlan ? addCalendarDays(joined, selectedPlan.duration_days) : joined;
 
-      const { error } = await supabase.from("members").insert({
-        club_id: clubId,
-        id: memberId,
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        birth_date: form.birth_date || "1900-01-01",
-        address: form.address.trim() || null,
-        city: form.city.trim(),
-        postal_code: form.postal_code.trim() || null,
-        phone: form.phone.trim(),
-        email: form.email.trim() || null,
-        dni_number: form.dni_number.trim().toUpperCase(),
-        dni_photo_path: form.dni_file ? dniPath : "",
-        plan_id: form.plan_id || null,
-        joined_at: joined,
-        expires_at: expires,
-        signature_path: sigUploaded ? sigPath : "",
-        contract_signed_at: sigUploaded ? new Date().toISOString() : null,
-        contract_version: sigUploaded ? CONTRACT_VERSION : "",
-        created_by: user.user?.id ?? null,
+      const { error } = await (supabase as any).rpc("save_membership_with_receipt", {
+        p_plan_id: form.plan_id || null,
+        p_method: paymentMethod,
+        p_request: memberId,
+        p_renew: false,
+        p_member: {
+          club_id: clubId,
+          id: memberId,
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim(),
+          birth_date: form.birth_date || "1900-01-01",
+          address: form.address.trim() || null,
+          city: form.city.trim(),
+          postal_code: form.postal_code.trim() || null,
+          phone: form.phone.trim(),
+          email: form.email.trim() || null,
+          dni_number: form.dni_number.trim().toUpperCase(),
+          dni_photo_path: form.dni_file ? dniPath : "",
+          plan_id: form.plan_id || null,
+          joined_at: joined,
+          expires_at: expires,
+          signature_path: sigUploaded ? sigPath : "",
+          contract_signed_at: sigUploaded ? new Date().toISOString() : null,
+          contract_version: sigUploaded ? CONTRACT_VERSION : "",
+          created_by: user.user?.id ?? null,
+        },
       });
       if (error) throw error;
 
+      registrationId.current = crypto.randomUUID();
       // Send the QR carnet by email if the socio provided one
       try {
         if (form.email.trim()) {
@@ -815,7 +835,21 @@ function NewSocio() {
           </section>
         )}
 
-        <div className="flex items-center justify-end pt-4 border-t border-border">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-end justify-end pt-4 border-t border-border">
+          <label className="block text-xs text-neon">
+            Método de pago de la cuota
+            <select
+              aria-label="Método de pago de la cuota"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="w-full bg-input border border-border p-2"
+            >
+              <option value="cash">Efectivo</option>
+              <option value="card">Tarjeta</option>
+              <option value="transfer">Transferencia</option>
+              <option value="other">Otro</option>
+            </select>
+          </label>
           <button
             type="button"
             disabled={saving || recStatus === "processing" || scanStatus === "scanning"}

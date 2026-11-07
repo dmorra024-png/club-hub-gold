@@ -571,6 +571,7 @@ export type Database = {
           created_at: string
           id: string
           is_smokeable: boolean
+          archived: boolean
           name: string
           unit_type: Database["public"]["Enums"]["product_unit"]
           updated_at: string
@@ -580,6 +581,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_smokeable?: boolean
+          archived?: boolean
           name: string
           unit_type?: Database["public"]["Enums"]["product_unit"]
           updated_at?: string
@@ -589,6 +591,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_smokeable?: boolean
+          archived?: boolean
           name?: string
           unit_type?: Database["public"]["Enums"]["product_unit"]
           updated_at?: string
@@ -605,6 +608,8 @@ export type Database = {
       }
       products: {
         Row: {
+          active: boolean
+          image_attribution: Json | null
           buy_price: number
           category_id: string
           club_id: string
@@ -620,6 +625,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active?: boolean
+          image_attribution?: Json | null
           buy_price?: number
           category_id: string
           club_id: string
@@ -635,6 +642,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active?: boolean
+          image_attribution?: Json | null
           buy_price?: number
           category_id?: string
           club_id?: string

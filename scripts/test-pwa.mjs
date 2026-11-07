@@ -48,8 +48,11 @@ try {
         const response = await fetch(src);
         if (!response.ok) return false;
         const document = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
-        return document.documentElement.tagName.toLowerCase() === "svg" &&
-          !document.querySelector("parsererror") && !!document.documentElement.getAttribute("viewBox");
+        return (
+          document.documentElement.tagName.toLowerCase() === "svg" &&
+          !document.querySelector("parsererror") &&
+          !!document.documentElement.getAttribute("viewBox")
+        );
       }, icon.src);
       assert.ok(valid, "SVG icon is well-formed and has a viewBox");
       continue;
@@ -109,6 +112,7 @@ try {
       "/icons/app-192.png",
       "/icons/app-512.png",
       "/icons/app-maskable-512.png",
+      "/icons/snoop-commercial.svg",
       "/manifest.webmanifest",
       "/offline.html",
     ].sort(),

@@ -1,10 +1,11 @@
 /* global self, caches */
 // Only public installation resources. No member data, photos, application HTML,
 // auth tokens, APIs or server-function results enter the cache.
-const CACHE = "clubhub-public-v3";
+const CACHE = "clubhub-public-v4";
 const PUBLIC = [
   "/offline.html",
   "/manifest.webmanifest",
+  "/icons/snoop-commercial.svg",
   "/icons/app-192.png",
   "/icons/app-512.png",
   "/icons/app-maskable-512.png",

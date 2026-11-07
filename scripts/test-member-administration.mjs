@@ -108,7 +108,21 @@ try {
       body = ["dni_photo", "signature", "address", "postal_code", "email", "dni_number"].map(
         (field_key) => ({ field_key, visible: false, required: false }),
       );
-    else if (url.pathname.endsWith("/members")) {
+    else if (url.pathname.endsWith("/rpc/save_membership_with_receipt")) {
+      const payload = request.postDataJSON();
+      if (payload.p_renew) {
+        const previous = created[0];
+        const expiry = new Date(previous.expires_at + "T12:00:00Z");
+        expiry.setUTCDate(expiry.getUTCDate() + plan.duration_days);
+        const patch = {
+          plan_id: payload.p_plan_id,
+          expires_at: expiry.toISOString().slice(0, 10),
+        };
+        updated.push(patch);
+        Object.assign(previous, patch);
+      } else created.push({ ...payload.p_member, plan_id: payload.p_plan_id });
+      body = payload.p_member.id;
+    } else if (url.pathname.endsWith("/members")) {
       if (request.method() === "POST") {
         const record = request.postDataJSON();
         created.push(record);
@@ -140,7 +154,9 @@ try {
     auth: session,
   });
   const page = await context.newPage();
-  await page.goto(new URL("/soci/nuovo", origin).href, { waitUntil: "networkidle" });
+  await page.goto(new URL("/soci/nuovo", origin).href, {
+    waitUntil: "networkidle",
+  });
   const input = (name) => page.getByLabel(name, { exact: true });
   await input("Nombre *").fill("Persona");
   await input("Apellidos *").fill("Demo");
@@ -157,7 +173,9 @@ try {
   assert.equal(created[0].plan_id, planId);
   assert.equal(created[0].dni_photo_path, "");
   const initialExpiry = created[0].expires_at;
-  await page.goto(new URL(`/soci/${created[0].id}`, origin).href, { waitUntil: "networkidle" });
+  await page.goto(new URL(`/soci/${created[0].id}`, origin).href, {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("button", { name: "Renovar", exact: true }).waitFor();
   await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
   page.once("dialog", (dialog) => dialog.dismiss());
@@ -165,7 +183,9 @@ try {
   assert.equal(updated.length, 0, "Cancelled renewal cannot update the member");
   page.once("dialog", (dialog) => dialog.accept());
   const renewal = page.waitForResponse(
-    (response) => response.url().startsWith(apiOrigin) && response.request().method() === "PATCH",
+    (response) =>
+      response.url().startsWith(apiOrigin) &&
+      response.url().endsWith("/rpc/save_membership_with_receipt"),
   );
   await page.getByRole("button", { name: "Renovar", exact: true }).click();
   await renewal;
@@ -187,7 +207,9 @@ try {
       }),
     ),
   );
-  await page.goto(new URL("/soci/nuovo", origin).href, { waitUntil: "networkidle" });
+  await page.goto(new URL("/soci/nuovo", origin).href, {
+    waitUntil: "networkidle",
+  });
   await page.waitForFunction(() =>
     [...document.querySelectorAll("input")].some((input) => input.value === "Persona Draft"),
   );

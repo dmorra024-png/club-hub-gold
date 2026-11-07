@@ -44,7 +44,7 @@ jobs:
           fi
           npm run test:smoke:accounts
       - name: Install test browser
-        run: npx playwright-core install --with-deps chromium
+        run: npx playwright-core install --with-deps chromium webkit
       - name: Production PWA and administrative browser tests
         shell: bash
         run: |
@@ -64,3 +64,4 @@ jobs:
             exit 1
           fi
           npm run test:browser
+          TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:completion:mobile

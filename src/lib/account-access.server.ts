@@ -58,7 +58,10 @@ export function accountRedirectUrl(): string {
 export async function findUserByEmail(admin: Client, email: string) {
   const target = email.trim().toLowerCase();
   for (let page = 1; page <= 1000; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 200,
+    });
     if (error) throw error;
     const found = data.users.find((user) => user.email?.toLowerCase() === target);
     if (found) return found;
@@ -84,15 +87,42 @@ function manualAccountUrl(
 export async function resolveInvitedAccount(
   admin: Client,
   input: { email: string; full_name: string },
-) {
+): Promise<{
+  userId: string;
+  invited: boolean;
+  invitationUrl?: string;
+  emailAccepted: boolean;
+}> {
   const email = input.email.trim().toLowerCase();
   const existing = await findUserByEmail(admin, email);
-  if (existing) return { userId: existing.id, invited: false };
-  if (process.env.SNOOP_INVITATION_DELIVERY === "manual") {
+  const existingRecovery = async (userId: string) => {
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: accountRedirectUrl() },
+    });
+    if (error || !data.properties?.action_link)
+      throw new Error("No se pudo preparar el enlace de activación");
+    return {
+      userId,
+      invited: false,
+      emailAccepted: false,
+      invitationUrl: manualAccountUrl(data.properties, "recovery"),
+    };
+  };
+  if (existing) {
+    if (!existing.email_confirmed_at && typeof admin.auth.admin.generateLink === "function")
+      return existingRecovery(existing.id);
+    return { userId: existing.id, invited: false, emailAccepted: false };
+  }
+  const prepareManual = async () => {
     const { data, error } = await admin.auth.admin.generateLink({
       type: "invite",
       email,
-      options: { redirectTo: accountRedirectUrl(), data: { full_name: input.full_name } },
+      options: {
+        redirectTo: accountRedirectUrl(),
+        data: { full_name: input.full_name },
+      },
     });
     if (error) throw error;
     if (!data.user || !data.properties?.action_link)
@@ -100,16 +130,36 @@ export async function resolveInvitedAccount(
     return {
       userId: data.user.id,
       invited: true,
+      emailAccepted: false,
       invitationUrl: manualAccountUrl(data.properties, "invite"),
     };
-  }
+  };
+  if (
+    process.env.SNOOP_INVITATION_DELIVERY === "manual" ||
+    (process.env.EMAIL_API_KEY && process.env.EMAIL_FROM)
+  )
+    return prepareManual();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: accountRedirectUrl(),
     data: { full_name: input.full_name },
   });
-  if (error) throw error; // Includes races: never reset or overwrite an existing user.
+  if (error) {
+    // Preserve existing accounts on races. SMTP/rate-limit failures can fall back
+    // to a generated one-use link without inventing a successful delivery.
+    if (
+      ["email_exists", "user_already_exists"].includes(error.code ?? "") ||
+      typeof admin.auth.admin.generateLink !== "function"
+    )
+      throw error;
+    // A failed invitation may already have created an unconfirmed Auth identity.
+    // Do not overwrite it: the scoped recovery action can be used by the administrator.
+    const afterFailure = await findUserByEmail(admin, email);
+    if (afterFailure && !afterFailure.email_confirmed_at) return existingRecovery(afterFailure.id);
+    if (afterFailure) return { userId: afterFailure.id, invited: false, emailAccepted: false };
+    return prepareManual();
+  }
   if (!data.user) throw new Error("No se ha podido invitar a la cuenta");
-  return { userId: data.user.id, invited: true };
+  return { userId: data.user.id, invited: true, emailAccepted: true };
 }
 
 export async function addClubRole(
@@ -185,5 +235,14 @@ export async function requestClubPasswordReset(admin: Client, clubId: string, ro
   const { error: resetError } = await admin.auth.resetPasswordForEmail(data.user.email, {
     redirectTo: accountRedirectUrl(),
   });
-  if (resetError) throw resetError;
+  if (resetError) {
+    if (typeof admin.auth.admin.generateLink !== "function") throw resetError;
+    const { data: link, error } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email: data.user.email,
+      options: { redirectTo: accountRedirectUrl() },
+    });
+    if (error || !link.properties?.action_link) throw resetError;
+    return { recoveryUrl: manualAccountUrl(link.properties, "recovery") };
+  }
 }

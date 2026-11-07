@@ -112,7 +112,7 @@ try {
           },
         ];
       else if (url.pathname.endsWith("/club_member_field_config")) data = [];
-      else if (url.pathname.endsWith("/members") && req.method() !== "GET") writes++;
+      else if ((url.pathname.endsWith("/members") && req.method() !== "GET") || url.pathname.endsWith("/rpc/save_membership_with_receipt")) writes++;
       if (req.headers().accept?.includes("vnd.pgrst.object+json") && Array.isArray(data))
         data = data[0] ?? null;
       return route.fulfill({

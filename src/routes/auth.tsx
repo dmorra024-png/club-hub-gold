@@ -2,7 +2,6 @@ import { BrandImage } from "@/components/BrandImage";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import logoAsset from "@/assets/snoop-logo.png.asset.json";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -10,9 +9,15 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Acceso | SNOOP" },
-      { name: "description", content: "Accede a la gestión de tu club con SNOOP." },
+      {
+        name: "description",
+        content: "Accede a la gestión de tu club con SNOOP.",
+      },
       { property: "og:title", content: "Acceso | SNOOP" },
-      { property: "og:description", content: "Accede a la gestión de tu club con SNOOP." },
+      {
+        property: "og:description",
+        content: "Accede a la gestión de tu club con SNOOP.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -64,7 +69,10 @@ function AuthPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: name }, emailRedirectTo: window.location.origin },
+          options: {
+            data: { full_name: name },
+            emailRedirectTo: window.location.origin,
+          },
         });
         if (error) throw error;
         if (!data.session) {
@@ -74,7 +82,10 @@ function AuthPage() {
         }
         toast.success("Cuenta creada. Entrando...");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) throw error;
       }
       nav({ to: "/" });
@@ -88,13 +99,17 @@ function AuthPage() {
   return (
     <div className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden scanline">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <BrandImage src={logoAsset.url} alt="" className="w-[min(110vh,110vw)] opacity-[0.06]" />
+        <BrandImage
+          src={"/icons/snoop-commercial.svg"}
+          alt=""
+          className="w-[min(110vh,110vw)] opacity-[0.06]"
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-background/40 to-background/90" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <BrandImage src={logoAsset.url} alt="Snoop" className="w-64 mx-auto" />
+          <BrandImage src={"/icons/snoop-commercial.svg"} alt="Snoop" className="w-64 mx-auto" />
         </div>
 
         <div className="bg-card/80 backdrop-blur-xl border border-neon/30 rounded-2xl p-8 shadow-[0_0_50px_-10px_oklch(0.86_0.28_145/0.3)]">

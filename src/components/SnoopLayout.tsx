@@ -16,7 +16,6 @@ import {
 import type { Permission } from "@/lib/access-context";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import logoAsset from "@/assets/snoop-logo.png.asset.json";
 import { cn } from "@/lib/utils";
 import { useState, type ReactNode } from "react";
 
@@ -34,8 +33,18 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { to: "/", label: "Inicio", icon: Home, show: () => true },
-  { to: "/snoop-admin", label: "Snoop Admin", icon: Shield, show: (a) => a.isSuperAdmin },
-  { to: "/soci", label: "Socios", icon: Users, show: (a) => a.hasClub && a.can("manage_members") },
+  {
+    to: "/snoop-admin",
+    label: "Snoop Admin",
+    icon: Shield,
+    show: (a) => a.isSuperAdmin,
+  },
+  {
+    to: "/soci",
+    label: "Socios",
+    icon: Users,
+    show: (a) => a.hasClub && a.can("manage_members"),
+  },
   {
     to: "/control-acceso",
     label: "Control acceso",
@@ -48,14 +57,24 @@ const NAV: NavItem[] = [
     icon: Package,
     show: (a) => a.hasClub && a.can("manage_products"),
   },
-  { to: "/caja", label: "Caja", icon: Banknote, show: (a) => a.hasClub && a.can("use_cash") },
+  {
+    to: "/caja",
+    label: "Caja",
+    icon: Banknote,
+    show: (a) => a.hasClub && a.can("use_cash"),
+  },
   {
     to: "/ajustes/informes",
     label: "Informes",
     icon: Banknote,
     show: (a) => a.hasClub && a.can("view_reports"),
   },
-  { to: "/ajustes", label: "Ajustes", icon: Settings, show: (a) => a.isAdmin && a.hasClub },
+  {
+    to: "/ajustes",
+    label: "Ajustes",
+    icon: Settings,
+    show: (a) => a.isAdmin && a.hasClub,
+  },
 ];
 
 export function SnoopLayout({
@@ -98,7 +117,7 @@ export function SnoopLayout({
         className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden"
       >
         <BrandImage
-          src={logoAsset.url}
+          src={"/icons/snoop-commercial.svg"}
           alt=""
           className="w-[min(120vh,120vw)] max-w-none opacity-[0.04] select-none"
         />
@@ -108,7 +127,11 @@ export function SnoopLayout({
       {/* Sidebar desktop */}
       <aside className="relative z-10 hidden md:flex w-64 flex-col border-r border-neon/20 bg-card/60 backdrop-blur-md">
         <div className="px-6 py-8 border-b border-neon/15 flex flex-col items-center text-center">
-          <BrandImage src={logoAsset.url} alt="Snoop" className="w-32 object-contain" />
+          <BrandImage
+            src={"/icons/snoop-commercial.svg"}
+            alt="Snoop"
+            className="w-32 object-contain"
+          />
         </div>
 
         <nav className="flex-1 px-3 py-6 space-y-1">
@@ -152,7 +175,11 @@ export function SnoopLayout({
 
       {/* Mobile top bar */}
       <header className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 h-14 bg-card/95 backdrop-blur border-b border-neon/20">
-        <BrandImage src={logoAsset.url} alt="Snoop" className="h-7 object-contain" />
+        <BrandImage
+          src={"/icons/snoop-commercial.svg"}
+          alt="Snoop"
+          className="h-7 object-contain"
+        />
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}

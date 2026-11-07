@@ -1,3 +1,5 @@
+import type { Receipt } from "@/lib/membership-receipts";
+import { MembershipIncome } from "@/components/MembershipIncome";
 import { parseCashCents } from "@/lib/member-administration";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -36,7 +38,10 @@ type OrderRow = {
 };
 
 function fmtEur(cents: number) {
-  return (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+  return (cents / 100).toLocaleString("es-ES", {
+    style: "currency",
+    currency: "EUR",
+  });
 }
 function todayISO() {
   const d = new Date();
@@ -61,10 +66,11 @@ function CajaPage() {
   return (
     <SnoopLayout title="Caja" subtitle="Abre y cierra tu caja, consulta los informes del día">
       <Tabs defaultValue="mia" className="w-full">
-        <TabsList className="bg-card/60 border border-neon/20">
+        <TabsList className="grid grid-cols-2 sm:flex h-auto w-full sm:w-fit gap-1 bg-card/60 border border-neon/20">
           <TabsTrigger value="mia">Mi caja</TabsTrigger>
           <TabsTrigger value="hoy">Informe de hoy</TabsTrigger>
           <TabsTrigger value="fecha">Informe por fecha</TabsTrigger>
+          <TabsTrigger value="cuotas">Historial de cuotas</TabsTrigger>
         </TabsList>
         <TabsContent value="mia">
           <MyCash />
@@ -74,6 +80,9 @@ function CajaPage() {
         </TabsContent>
         <TabsContent value="fecha">
           <DateReportPicker />
+        </TabsContent>
+        <TabsContent value="cuotas">
+          <MembershipIncome />
         </TabsContent>
       </Tabs>
     </SnoopLayout>
@@ -89,6 +98,7 @@ function MyCash() {
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [notes, setNotes] = useState("");
+  const [membershipCash, setMembershipCash] = useState(0);
   const [sales, setSales] = useState<OrderRow[]>([]);
 
   async function load() {
@@ -109,10 +119,18 @@ function MyCash() {
         .from("orders")
         .select("id, total_cents, created_by, created_at, cash_session_id")
         .eq("cash_session_id", (data as any).id);
-      setLoadError(Boolean(ordersError));
+      const { data: receipts, error: receiptError } = await supabase
+        .from("membership_receipts")
+        .select("amount_cents")
+        .eq("recorded_by", user.id)
+        .eq("payment_method", "cash")
+        .gte("recorded_at", (data as any).opened_at);
+      setMembershipCash((receipts ?? []).reduce((sum, r) => sum + r.amount_cents, 0));
+      setLoadError(Boolean(ordersError || receiptError));
       setSales((orders as OrderRow[]) ?? []);
     } else {
       setSales([]);
+      setMembershipCash(0);
     }
     setLoading(false);
   }
@@ -121,7 +139,7 @@ function MyCash() {
   }, [user?.id]);
 
   const totalVendido = sales.reduce((a, o) => a + (o.total_cents ?? 0), 0);
-  const esperado = (session?.opening_cash_cents ?? 0) + totalVendido;
+  const esperado = (session?.opening_cash_cents ?? 0) + totalVendido + membershipCash;
 
   async function open() {
     if (busy || !user || !navigator.onLine) return;
@@ -131,9 +149,11 @@ function MyCash() {
     try {
       const { data: clubId, error: clubError } = await supabase.rpc("current_club_id");
       if (clubError || !clubId) throw new Error("No tienes un club asignado");
-      const { error } = await supabase
-        .from("cash_sessions")
-        .insert({ user_id: user.id, club_id: clubId, opening_cash_cents: cents });
+      const { error } = await supabase.from("cash_sessions").insert({
+        user_id: user.id,
+        club_id: clubId,
+        opening_cash_cents: cents,
+      });
       if (error) throw error;
       toast.success("Caja abierta");
       setOpening("0");
@@ -225,6 +245,7 @@ function MyCash() {
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
           <Stat label="Inicial" value={fmtEur(session.opening_cash_cents)} />
           <Stat label="Ventas" value={fmtEur(totalVendido)} sub={`${sales.length} pedidos`} />
+          <Stat label="Cuotas en efectivo" value={fmtEur(membershipCash)} />
           <Stat label="Esperado en caja" value={fmtEur(esperado)} highlight />
         </div>
       </Card>
@@ -314,11 +335,17 @@ function DateReportPicker() {
   );
 }
 
-type Collab = { user_id: string; full_name: string | null; email: string | null };
+type Collab = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+};
 
 function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
   const { isAdmin, user } = useAuth();
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [fees, setFees] = useState<Receipt[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [people, setPeople] = useState<Map<string, Collab>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -335,7 +362,7 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
         .gte("created_at", start)
         .lt("created_at", end);
       if (!isAdmin && user) oq = oq.eq("created_by", user.id);
-      const { data: o } = await oq;
+      const { data: o, error: orderError } = await oq;
 
       let sq = supabase
         .from("cash_sessions")
@@ -343,13 +370,24 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
         .gte("opened_at", start)
         .lt("opened_at", end);
       if (!isAdmin && user) sq = sq.eq("user_id", user.id);
-      const { data: s } = await sq;
+      const { data: s, error: sessionError } = await sq;
+      let fq = supabase
+        .from("membership_receipts")
+        .select("*")
+        .gte("recorded_at", start)
+        .lt("recorded_at", end);
+      if (!isAdmin && user) fq = fq.eq("recorded_by", user.id);
+      const { data: receipts, error: receiptError } = await fq;
+      if (cancel) return;
+      setLoadError(Boolean(orderError || sessionError || receiptError));
+      setFees((receipts ?? []) as Receipt[]);
 
       // collect user ids and load profiles
       const ids = Array.from(
         new Set([
           ...((o as any[]) ?? []).map((x) => x.created_by).filter(Boolean),
           ...((s as any[]) ?? []).map((x) => x.user_id).filter(Boolean),
+          ...((receipts as any[]) ?? []).map((x) => x.recorded_by).filter(Boolean),
         ]),
       );
       const pmap = new Map<string, Collab>();
@@ -359,7 +397,11 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
           .select("id, full_name")
           .in("id", ids);
         ((profs as any[]) ?? []).forEach((p) =>
-          pmap.set(p.id, { user_id: p.id, full_name: p.full_name, email: null }),
+          pmap.set(p.id, {
+            user_id: p.id,
+            full_name: p.full_name,
+            email: null,
+          }),
         );
       }
 
@@ -375,26 +417,44 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
   }, [dateISO, isAdmin, user?.id]);
 
   const byUser = useMemo(() => {
-    const m = new Map<string, { user_id: string; total: number; count: number }>();
+    const m = new Map<
+      string,
+      { user_id: string; total: number; count: number; receipts: number }
+    >();
     for (const o of orders) {
       const uid = o.created_by ?? "—";
-      const e = m.get(uid) ?? { user_id: uid, total: 0, count: 0 };
+      const e = m.get(uid) ?? { user_id: uid, total: 0, count: 0, receipts: 0 };
       e.total += o.total_cents ?? 0;
       e.count += 1;
       m.set(uid, e);
     }
+    for (const fee of fees) {
+      const uid = fee.recorded_by ?? "—",
+        e = m.get(uid) ?? { user_id: uid, total: 0, count: 0, receipts: 0 };
+      e.total += fee.amount_cents;
+      e.receipts += 1;
+      m.set(uid, e);
+    }
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
-  }, [orders]);
+  }, [orders, fees]);
 
-  const total = orders.reduce((a, o) => a + (o.total_cents ?? 0), 0);
+  const feeTotal = fees.reduce((sum, fee) => sum + fee.amount_cents, 0);
+  const total = orders.reduce((a, o) => a + (o.total_cents ?? 0), 0) + feeTotal;
 
   if (loading) return <div className="text-sm text-muted-foreground">Cargando…</div>;
 
+  if (loadError)
+    return (
+      <div role="alert">
+        No se pudo cargar el informe completo. Recarga antes de utilizar sus importes.
+      </div>
+    );
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label={title} value={fmtEur(total)} highlight />
         <Stat label="Pedidos" value={String(orders.length)} />
+        <Stat label="Cuotas registradas" value={fmtEur(feeTotal)} sub={`${fees.length} recibos`} />
         <Stat label="Cajas abiertas" value={String(sessions.length)} />
         <Stat label="Colaboradores activos" value={String(byUser.length)} />
       </div>
@@ -405,7 +465,7 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
           <h3 className="font-display text-lg">Por colaborador</h3>
         </div>
         {byUser.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Sin ventas este día.</div>
+          <div className="text-sm text-muted-foreground">Sin ingresos este día.</div>
         ) : (
           <div className="divide-y divide-neon/10">
             {byUser.map((row) => {
@@ -423,13 +483,13 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
                   <div>
                     <div className="font-display text-foreground">{name}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      {row.count} pedidos · {sess.length} caja(s)
+                      {row.count} pedidos · {row.receipts} cuotas · {sess.length} caja(s)
                     </div>
                   </div>
                   <div className="flex gap-4 text-right">
                     <div>
                       <div className="text-[10px] uppercase tracking-widest text-neon-dim">
-                        Vendido
+                        Ingresos
                       </div>
                       <div className="font-display text-neon">{fmtEur(row.total)}</div>
                     </div>

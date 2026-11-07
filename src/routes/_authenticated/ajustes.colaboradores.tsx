@@ -16,9 +16,15 @@ export const Route = createFileRoute("/_authenticated/ajustes/colaboradores")({
   head: () => ({
     meta: [
       { title: "Colaboradores | SNOOP" },
-      { name: "description", content: "Gestión de colaboradores y acceso a SNOOP." },
+      {
+        name: "description",
+        content: "Gestión de colaboradores y acceso a SNOOP.",
+      },
       { property: "og:title", content: "Colaboradores | SNOOP" },
-      { property: "og:description", content: "Gestión de colaboradores y acceso a SNOOP." },
+      {
+        property: "og:description",
+        content: "Gestión de colaboradores y acceso a SNOOP.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -48,6 +54,7 @@ function ColaboradoresPage() {
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [surname, setSurname] = useState("");
   const [perms, setPerms] = useState<Perm[]>(["manage_members", "use_cash"]);
   const loadCollaborators = useServerFn(listCollaborators);
   const addCollaborator = useServerFn(createCollaborator);
@@ -82,10 +89,15 @@ function ColaboradoresPage() {
     setBusy(true);
     try {
       const result = await addCollaborator({
-        data: { email, full_name: fullName, permissions: perms },
+        data: {
+          email: email.trim(),
+          full_name: `${fullName.trim()} ${surname.trim()}`.trim(),
+          permissions: perms,
+        },
       });
       setEmail("");
       setFullName("");
+      setSurname("");
       setAccountLink(result.invitation_url ?? null);
       setMsg(
         result.invitation_url
@@ -146,7 +158,7 @@ function ColaboradoresPage() {
       setMsg(
         result.recovery_url
           ? "Enlace de recuperación preparado para su titular."
-          : "Email de recuperación enviado. Solo el titular puede elegir su nueva contraseña.",
+          : "Solicitud de recuperación aceptada. La entrega del correo no está confirmada; solo el titular elige su contraseña.",
       );
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "No se ha podido completar la operación");
@@ -192,7 +204,8 @@ function ColaboradoresPage() {
       <section className="bg-card/60 border border-neon/25 rounded-2xl p-6 max-w-2xl">
         <h3 className="font-display text-lg text-foreground">Crear colaborador</h3>
         <form onSubmit={onCreate} className="mt-4 grid gap-3">
-          <Input label="Nombre completo" value={fullName} onChange={setFullName} required />
+          <Input label="Nombre" value={fullName} onChange={setFullName} required />
+          <Input label="Apellidos" value={surname} onChange={setSurname} required />
           <Input label="Email" type="email" value={email} onChange={setEmail} required />
           <div>
             <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim mb-2">

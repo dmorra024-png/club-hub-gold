@@ -1,3 +1,5 @@
+> Aggiornamento completamento 7 novembre 2026: vedere [SNOOP_COMPLETION_RESULTS.md](SNOOP_COMPLETION_RESULTS.md). Il profilo ora abilita voce e **solo dati pubblici di catalogo** con Cloudflare; dati personali e documenti restano esclusi. Gli inviti tentano la consegna email già configurata con fallback monouso. Le due nuove migrazioni sono preparate e collaudate **solo localmente**, non applicate a Snoop-pilot. Le istruzioni storiche di inizializzazione sotto non vanno ripetute sul database esistente.
+
 # SNOOP: consegna per il primo collaudo gratuito
 
 Ramo `codex/stabilize-independent-club`, PR #1. Il progetto esistente prosegue: non è stato ricreato. Nessuna risorsa, configurazione, segreto, dominio o dato di Security PSG è stato modificato. Nessun deployment pubblico o merge eseguito.

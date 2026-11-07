@@ -86,7 +86,12 @@ export const createClubAdmin = createServerFn({ method: "POST" })
     if (cErr) throw cErr;
 
     const { resolveInvitedAccount, addClubRole } = await import("./account-access.server");
-    const { userId, invited, invitationUrl } = await resolveInvitedAccount(supabaseAdmin, data);
+    const {
+      userId,
+      invited,
+      invitationUrl,
+      emailAccepted: authEmailAccepted,
+    } = await resolveInvitedAccount(supabaseAdmin, data);
 
     const { data: isPlatform, error: platformError } = await supabaseAdmin.rpc("is_super_admin", {
       _user_id: userId,
@@ -107,7 +112,12 @@ export const createClubAdmin = createServerFn({ method: "POST" })
       ],
     });
 
-    return { user_id: userId, email: data.email, invited, invitation_url: invitationUrl };
+    return {
+      user_id: userId,
+      email: data.email,
+      invited,
+      invitation_url: invitationUrl,
+    };
   });
 
 // ─── Admin: collaborators ─────────────────────────────────────────
@@ -166,7 +176,12 @@ export const createCollaborator = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { resolveInvitedAccount, addClubRole } = await import("./account-access.server");
-    const { userId, invited, invitationUrl } = await resolveInvitedAccount(supabaseAdmin, data);
+    const {
+      userId,
+      invited,
+      invitationUrl,
+      emailAccepted: authEmailAccepted,
+    } = await resolveInvitedAccount(supabaseAdmin, data);
 
     await addClubRole(supabaseAdmin, {
       user_id: userId,
@@ -175,30 +190,18 @@ export const createCollaborator = createServerFn({ method: "POST" })
       permissions: data.permissions,
     });
 
-    // Send the one-time link only when a verified email provider has been configured.
-    // Otherwise preserve the manual link; never report a message as sent without a provider receipt.
-    let emailAccepted = false;
-    if (invitationUrl && process.env.EMAIL_API_KEY && process.env.EMAIL_FROM) {
-      try {
-        const { sendProviderEmail } = await import("./email-provider.server");
-        await sendProviderEmail({
-          to: data.email.trim().toLowerCase(),
-          from: process.env.EMAIL_FROM,
-          subject: "SNOOP — Activa tu acceso de colaborador",
-          text: `Has sido invitado a SNOOP. Abre este enlace personal de un solo uso para elegir tu contraseña: ${invitationUrl}\nSi no esperabas este mensaje, ignóralo.`,
-          html: `<p>Has sido invitado a SNOOP.</p><p>Para crear tu contraseña, abre este enlace personal de un solo uso:</p><p><a href="${invitationUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">Activar acceso</a></p><p>Si no esperabas este mensaje, ignóralo.</p>`,
-          idempotency_key: `snoop-collaborator-invite-${userId}`,
-        }, { apiKey: process.env.EMAIL_API_KEY });
-        emailAccepted = true;
-      } catch (error) {
-        // Account and permissions exist; allow the administrator to share the same link manually.
-        console.error("Collaborator invite provider delivery failed", error instanceof Error ? error.name : "unknown");
-      }
-    }
+    const { deliverPreparedInvitation } = await import("./invitation-delivery.server");
+    const delivery = invitationUrl
+      ? await deliverPreparedInvitation(data.email, invitationUrl)
+      : { emailAccepted: authEmailAccepted ?? false, deliveryIssue: null };
+
     return {
-      user_id: userId, email: data.email, invited,
-      invitation_url: emailAccepted ? null : invitationUrl,
-      email_accepted: emailAccepted,
+      user_id: userId,
+      email: data.email,
+      invited,
+      invitation_url: delivery.emailAccepted ? null : invitationUrl,
+      email_accepted: delivery.emailAccepted,
+      delivery_issue: delivery.deliveryIssue,
     };
   });
 
@@ -206,7 +209,10 @@ export const updateCollaboratorPermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { role_id: string; permissions: Perm[] }) =>
     z
-      .object({ role_id: z.string().uuid(), permissions: z.array(z.enum(PERMISSIONS)) })
+      .object({
+        role_id: z.string().uuid(),
+        permissions: z.array(z.enum(PERMISSIONS)),
+      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -218,7 +224,9 @@ export const updateCollaboratorPermissions = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const requestCollaboratorPasswordReset = createServerFn({ method: "POST" })
+export const requestCollaboratorPasswordReset = createServerFn({
+  method: "POST",
+})
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { role_id: string }) =>
     z.object({ role_id: z.string().uuid() }).parse(input),

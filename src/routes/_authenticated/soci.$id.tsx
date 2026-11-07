@@ -1,7 +1,7 @@
 import { madridToday, addCalendarDays, isAdult } from "@/lib/member-administration";
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -24,7 +24,12 @@ export const Route = createFileRoute("/_authenticated/soci/$id")({
   component: SocioDetail,
 });
 
-type Plan = { id: string; name: string; duration_days: number; price_cents: number };
+type Plan = {
+  id: string;
+  name: string;
+  duration_days: number;
+  price_cents: number;
+};
 type Member = {
   id: string;
   member_number: string;
@@ -55,6 +60,8 @@ function SocioDetail() {
   const [dniUrl, setDniUrl] = useState<string>("");
   const [sigUrl, setSigUrl] = useState<string>("");
   const [qrUrl, setQrUrl] = useState<string>("");
+  const renewalRequest = useRef<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("cash");
   const [renewing, setRenewing] = useState(false);
   const [newPlanId, setNewPlanId] = useState("");
   const [editing, setEditing] = useState(false);
@@ -175,18 +182,18 @@ function SocioDetail() {
     setRenewing(true);
     try {
       const chosen = plans.find((p) => p.id === newPlanId)!;
-      const today = madridToday();
-      const base = member && member.expires_at > today ? member.expires_at : today;
-      const expires = addCalendarDays(base, chosen.duration_days);
-      const { error } = await supabase
-        .from("members")
-        .update({
-          plan_id: chosen.id,
-          expires_at: expires,
-        })
-        .eq("id", id);
+      renewalRequest.current ??= crypto.randomUUID();
+      const { error } = await (supabase as any).rpc("save_membership_with_receipt", {
+        p_member: { id },
+        p_plan_id: chosen.id,
+        p_method: paymentMethod,
+        p_request: renewalRequest.current,
+        p_renew: true,
+        p_expected: member?.expires_at,
+      });
       if (error) throw error;
-      toast.success("Cuota renovada");
+      renewalRequest.current = null;
+      toast.success("Cuota renovada y pago registrado");
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -429,7 +436,10 @@ function SocioDetail() {
             </div>
             <select
               value={newPlanId}
-              onChange={(e) => setNewPlanId(e.target.value)}
+              onChange={(e) => {
+                setNewPlanId(e.target.value);
+                renewalRequest.current = null;
+              }}
               className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
             >
               {plans.map((p) => (
@@ -438,6 +448,23 @@ function SocioDetail() {
                 </option>
               ))}
             </select>
+            <label className="block text-xs text-neon">
+              Método de pago de renovación
+              <select
+                aria-label="Método de pago de renovación"
+                value={paymentMethod}
+                onChange={(e) => {
+                  setPaymentMethod(e.target.value);
+                  renewalRequest.current = null;
+                }}
+                className="w-full bg-input border border-border p-2"
+              >
+                <option value="cash">Efectivo</option>
+                <option value="card">Tarjeta</option>
+                <option value="transfer">Transferencia</option>
+                <option value="other">Otro</option>
+              </select>
+            </label>
             <button
               onClick={renew}
               disabled={renewing}

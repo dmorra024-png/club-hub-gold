@@ -1,0 +1,114 @@
+{
+  "date": "2026-11-07",
+  "branch": "codex/stabilize-independent-club",
+  "tests": {
+    "automatic": {
+      "pass": 159,
+      "fail": 0
+    },
+    "typescript": "PASS",
+    "node_build": "PASS",
+    "worker_build": "PASS synthetic configuration",
+    "worker_dry_run": "PASS",
+    "public_secret_scan": {
+      "status": "PASS",
+      "artifacts": 61
+    },
+    "production_pwa": "PASS",
+    "member_browser": "PASS synthetic HTTP",
+    "voice_it_es": "PASS synthetic microphone and simulated transcription",
+    "mobile": [
+      {
+        "device": "Android Chromium",
+        "status": "PASS",
+        "tests": [
+          "logo, navigation, responsive",
+          "category rename/archive/restore",
+          "stock confirmation/history",
+          "manual description/image upload",
+          "AI proposal/license/explicit confirmation",
+          "product archive/history/restore",
+          "Caja membership report",
+          "invitation acceptance/manual fallback",
+          "owner password setup",
+          "staff permission navigation"
+        ],
+        "transport": "isolated HTTP doubles; SQL authorization tested separately"
+      },
+      {
+        "device": "iPhone Chromium emulation",
+        "status": "PASS",
+        "tests": [
+          "logo, navigation, responsive",
+          "category rename/archive/restore",
+          "stock confirmation/history",
+          "manual description/image upload",
+          "AI proposal/license/explicit confirmation",
+          "product archive/history/restore",
+          "Caja membership report",
+          "invitation acceptance/manual fallback",
+          "owner password setup",
+          "staff permission navigation"
+        ],
+        "transport": "isolated HTTP doubles; SQL authorization tested separately"
+      },
+      {
+        "device": "iPhone WebKit",
+        "status": "PASS",
+        "tests": [
+          "logo, navigation, responsive",
+          "category rename/archive/restore",
+          "stock confirmation/history",
+          "manual description/image upload",
+          "AI proposal/license/explicit confirmation",
+          "product archive/history/restore",
+          "Caja membership report",
+          "invitation acceptance/manual fallback",
+          "owner password setup",
+          "staff permission navigation"
+        ],
+        "transport": "isolated HTTP doubles; SQL authorization tested separately"
+      }
+    ],
+    "commons_live_search": {
+      "status": "PASS",
+      "http": 200,
+      "query": "Measuring cup",
+      "pages": 6,
+      "licensed_candidates": 2
+    },
+    "smtp_live": "BLOCKED: HTTP 403 auth_config_read",
+    "cloudflare_live_inference": "BLOCKED: not deployed",
+    "physical_devices": "BLOCKED: not available"
+  },
+  "migrations": [
+    {
+      "path": "supabase/migrations/20261107120000_catalog_lifecycle.sql",
+      "sha256": "0c46c376275c9f3aa01b3315ce390c939beeeeaccad1befb29defcc0e80ae8cf",
+      "applied_remotely": false
+    },
+    {
+      "path": "supabase/migrations/20261107123000_membership_payment_flow.sql",
+      "sha256": "cb6592b9245457a8bd7f2c63c0a56c7fb33edf5e906aeb660b5dd34d9567a1e0",
+      "applied_remotely": false
+    }
+  ],
+  "remote_writes": false,
+  "deployed": false,
+  "merged": false,
+  "snoop_read_only_schema_preflight": {
+    "access_context_present": true,
+    "audited_stock_present": true,
+    "category_upgrade_present": false,
+    "membership_upgrade_present": false,
+    "image_attribution_present": false
+  },
+  "github_sync": {
+    "status": "BLOCKED",
+    "git_error": "Invalid username or token",
+    "api_http_status": 401,
+    "api_error": "Bad credentials",
+    "pr_updated": false,
+    "last_verified_remote_head": "b71c2501f6fdc3f393932d6ceef55ff6d3721b06"
+  }
+}

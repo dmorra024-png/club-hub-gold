@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import logoAsset from "@/assets/snoop-logo.png.asset.json";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/reset-password")({
@@ -9,7 +8,10 @@ export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
       { title: "Cambiar contraseña | SNOOP" },
-      { name: "description", content: "Crea una nueva contraseña segura para tu cuenta SNOOP." },
+      {
+        name: "description",
+        content: "Crea una nueva contraseña segura para tu cuenta SNOOP.",
+      },
       { name: "referrer", content: "no-referrer" },
       { property: "og:title", content: "Cambiar contraseña | SNOOP" },
       {
@@ -29,6 +31,7 @@ function ResetPassword() {
   const [pw2, setPw2] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const verification = useRef<Promise<boolean> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,91 +45,66 @@ function ResetPassword() {
       }
     });
 
-    (async () => {
-      try {
-        const url = new URL(window.location.href);
-        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-        const errorDesc =
-          hash.get("error_description") || url.searchParams.get("error_description");
-        if (errorDesc) {
-          setErrorMsg(errorDesc);
-          return;
-        }
-
-        const clean = () => window.history.replaceState({}, "", "/reset-password");
-
-        // Implicit flow: #access_token=...&refresh_token=...&type=recovery
-        const accessToken = hash.get("access_token");
-        const refreshToken = hash.get("refresh_token");
-        if (accessToken && refreshToken) {
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (error) {
-            setErrorMsg(error.message);
-            return;
-          }
-          clean();
-          if (!cancelled) setReady(true);
-          return;
-        }
-
-        // Invitations and recovery links both let the account owner choose a password.
-        const tokenHash = url.searchParams.get("token_hash") || hash.get("token_hash");
-        const type = url.searchParams.get("type") || hash.get("type");
-        if (tokenHash) {
-          if (type !== "recovery" && type !== "invite") {
-            throw new Error("Enlace inválido. Solicita una nueva invitación o recuperación.");
-          }
-          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-          if (error) {
-            setErrorMsg(error.message);
-            return;
-          }
-          clean();
-          if (!cancelled) setReady(true);
-          return;
-        }
-
-        // PKCE flow: ?code=...
-        const code = url.searchParams.get("code");
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            setErrorMsg(error.message);
-            return;
-          }
-          clean();
-          if (!cancelled) setReady(true);
-          return;
-        }
-
-        if (type === "recovery" || type === "invite") {
-          clean();
-          const { data } = await supabase.auth.getSession();
-          if (data.session && !cancelled) {
-            setReady(true);
-            return;
-          }
-        }
-
-        // No token in the URL: wait a bit in case the client is still parsing it.
-        for (let i = 0; i < 12; i++) {
-          const { data } = await supabase.auth.getSession();
-          if (cancelled) return;
-          if (data.session) {
-            setReady(true);
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 250));
-        }
-        if (!cancelled)
-          setErrorMsg("Enlace inválido o caducado. Solicita un nuevo email de recuperación.");
-      } catch (e: unknown) {
-        if (!cancelled) setErrorMsg(e instanceof Error ? e.message : "Error");
+    verification.current ??= (async () => {
+      const url = new URL(window.location.href);
+      const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+      const errorDesc = hash.get("error_description") || url.searchParams.get("error_description");
+      // Scrub the token before Auth events can invalidate/remount this route.
+      // Reuse the same in-flight promise when effects are mounted again.
+      const clean = () => window.history.replaceState({}, "", "/reset-password");
+      if (errorDesc) {
+        clean();
+        throw new Error(errorDesc);
       }
+      const accessToken = hash.get("access_token"),
+        refreshToken = hash.get("refresh_token");
+      if (accessToken && refreshToken) {
+        clean();
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw error;
+        return true;
+      }
+      const tokenHash = url.searchParams.get("token_hash") || hash.get("token_hash");
+      const type = url.searchParams.get("type") || hash.get("type");
+      if (tokenHash) {
+        clean();
+        if (type !== "invite" && type !== "recovery")
+          throw new Error("Enlace inválido. Solicita una nueva invitación o recuperación.");
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type,
+        });
+        if (error) throw error;
+        return true;
+      }
+      const code = url.searchParams.get("code");
+      if (code) {
+        clean();
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) throw error;
+        return true;
+      }
+      if (type === "invite" || type === "recovery") clean();
+      for (let i = 0; i < 12; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) return true;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      throw new Error("Enlace inválido o caducado. Solicita un nuevo email de recuperación.");
     })();
+    verification.current
+      .then(() => {
+        if (!cancelled) {
+          setReady(true);
+          setErrorMsg(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setErrorMsg(error instanceof Error ? error.message : "Error");
+      });
 
     return () => {
       cancelled = true;
@@ -158,7 +136,7 @@ function ResetPassword() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 scanline">
       <div className="w-full max-w-md">
-        <img src={logoAsset.url} alt="Snoop" className="w-52 mx-auto mb-8" />
+        <img src={"/icons/snoop-commercial.svg"} alt="Snoop" className="w-52 mx-auto mb-8" />
         {errorMsg ? (
           <div className="bg-card/80 backdrop-blur border border-destructive/40 rounded-2xl p-8 space-y-4 text-center">
             <h2 className="font-display text-xl text-destructive">Enlace no válido</h2>

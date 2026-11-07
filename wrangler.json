@@ -3,9 +3,7 @@
   "name": "snoop-pilot",
   "main": ".output/server/index.mjs",
   "compatibility_date": "2026-11-05",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
   "assets": {
@@ -25,8 +23,9 @@
     "AI_BROWSER_SPEECH_ENABLED": "false",
     "AI_CF_TEXT_MODEL": "@cf/meta/llama-3.2-3b-instruct",
     "AI_CF_TRANSCRIBE_MODEL": "@cf/openai/whisper-large-v3-turbo",
-    "SNOOP_INVITATION_DELIVERY": "manual",
+    "SNOOP_INVITATION_DELIVERY": "auto",
     "AI_VOICE_PROCESSING_ENABLED": "true",
-    "AI_VOICE_ONLY": "true"
+    "AI_VOICE_ONLY": "true",
+    "AI_CATALOG_PROCESSING_ENABLED": "true"
   }
 }

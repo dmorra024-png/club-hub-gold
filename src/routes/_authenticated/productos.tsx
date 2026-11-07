@@ -21,6 +21,8 @@ import {
 import { useServerFn } from "@tanstack/react-start";
 import { parseProductCommand } from "@/lib/products-voice.functions";
 import { getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
+import { readCatalogImage } from "@/lib/catalog-image";
+import type { CatalogImage } from "@/lib/catalog-enrichment.server";
 import { enrichProduct } from "@/lib/products-enrich.functions";
 
 export const Route = createFileRoute("/_authenticated/productos")({
@@ -249,7 +251,13 @@ function useDictation(onText: (t: string) => void, lang = "es-ES") {
 
 type UnitType = "gr" | "unit";
 type Strain = "indica" | "sativa" | "hibrida";
-type Category = { id: string; name: string; unit_type: UnitType; is_smokeable: boolean };
+type Category = {
+  id: string;
+  name: string;
+  unit_type: UnitType;
+  is_smokeable: boolean;
+  archived?: boolean;
+};
 type Product = {
   id: string;
   club_id: string;
@@ -262,6 +270,8 @@ type Product = {
   notes: string | null;
   image_url: string | null;
   description: string | null;
+  active?: boolean;
+  image_attribution?: CatalogImage | null;
 };
 type StockCommand = { text: string; at: number };
 
@@ -479,13 +489,19 @@ function ProductosPage() {
         setTab("nuevo");
       } else if (requestedTab && local.action === "none") {
         if (requestedTab === "nuevo")
-          setPrefillProduct({ name: cleanProductNameFromCommand(heard), _at: Date.now() });
+          setPrefillProduct({
+            name: cleanProductNameFromCommand(heard),
+            _at: Date.now(),
+          });
         setTab(requestedTab);
       }
     } catch (e: any) {
       if (local.action === "none") {
         if (requestedTab === "nuevo") {
-          setPrefillProduct({ name: cleanProductNameFromCommand(heard), _at: Date.now() });
+          setPrefillProduct({
+            name: cleanProductNameFromCommand(heard),
+            _at: Date.now(),
+          });
           setTab("nuevo");
         } else if (!requestedTab) toast.error(e?.message || "Error de voz");
       }
@@ -604,8 +620,10 @@ function ProductosPage() {
         <div className="text-muted-foreground">Cargando…</div>
       ) : tab === "stock" ? (
         <Stock
-          cats={cats}
-          prods={prods}
+          cats={cats.filter((c) => !c.archived)}
+          prods={prods.filter(
+            (p) => p.active !== false && !cats.find((c) => c.id === p.category_id)?.archived,
+          )}
           onChange={load}
           search={stockSearch}
           setSearch={setStockSearch}
@@ -614,7 +632,7 @@ function ProductosPage() {
         />
       ) : tab === "nuevo" ? (
         <NuevoProducto
-          cats={cats}
+          cats={cats.filter((c) => !c.archived)}
           onCreated={load}
           prefill={prefillProduct}
           clearPrefill={() => setPrefillProduct(null)}
@@ -627,6 +645,33 @@ function ProductosPage() {
           prefill={prefillCategory}
           clearPrefill={() => setPrefillCategory(null)}
         />
+      )}
+      {prods.some((p) => p.active === false) && (
+        <div className="mt-5 border border-border p-3 rounded space-y-2">
+          <h3 className="text-sm text-neon">Productos archivados</h3>
+          {prods
+            .filter((p) => p.active === false)
+            .map((p) => (
+              <div key={p.id} className="flex justify-between text-sm">
+                <span>{p.name}</span>
+                <button
+                  className="text-neon"
+                  onClick={async () => {
+                    if (!confirm(`¿Reactivar ${p.name}?`)) return;
+                    const { error } = await supabase
+                      .from("products")
+                      .update({ active: true })
+                      .eq("id", p.id)
+                      .eq("club_id", p.club_id);
+                    if (error) toast.error(error.message);
+                    else load();
+                  }}
+                >
+                  Reactivar producto
+                </button>
+              </div>
+            ))}
+        </div>
       )}
     </SnoopLayout>
   );
@@ -865,7 +910,12 @@ function Stock({
       toast.error(`Stock insuficiente (${prod.stock})`);
       return;
     }
-    setPendingAdj({ prod, delta: pendingChoice.delta, newStock, raw: pendingChoice.raw });
+    setPendingAdj({
+      prod,
+      delta: pendingChoice.delta,
+      newStock,
+      raw: pendingChoice.raw,
+    });
     setPendingChoice(null);
   }
 
@@ -949,31 +999,69 @@ function Stock({
       {/* Stock corrections are adjustments, never deletions of audit history. */}
       <div className="rounded-xl border border-neon/30 bg-card/60 p-4 space-y-3">
         <h3 className="font-display text-sm text-neon uppercase tracking-wide">Corregir stock</h3>
-        <p className="text-xs text-muted-foreground">Selecciona un producto y la cantidad final. El movimiento queda registrado en el historial.</p>
-        <select aria-label="Producto para ajustar stock" value={manualProductId}
+        <p className="text-xs text-muted-foreground">
+          Selecciona un producto y la cantidad final. El movimiento queda registrado en el
+          historial.
+        </p>
+        <select
+          aria-label="Producto para ajustar stock"
+          value={manualProductId}
           onChange={(e) => setManualProductId(e.target.value)}
-          className="w-full rounded-lg bg-input border border-border p-2 text-sm">
+          className="w-full rounded-lg bg-input border border-border p-2 text-sm"
+        >
           <option value="">Selecciona producto</option>
-          {prods.map((product) => <option key={product.id} value={product.id}>{product.name} — actual: {product.stock}</option>)}
+          {prods.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name} — actual: {product.stock}
+            </option>
+          ))}
         </select>
-        <input aria-label="Cantidad final de stock" type="number" min="0" step="any"
-          placeholder="Cantidad final" value={manualQuantity} onChange={(e) => setManualQuantity(e.target.value)}
-          className="w-full rounded-lg bg-input border border-border p-2 text-sm" />
-        <input aria-label="Motivo de la corrección" maxLength={160}
-          placeholder="Motivo de la corrección" value={manualReason} onChange={(e) => setManualReason(e.target.value)}
-          className="w-full rounded-lg bg-input border border-border p-2 text-sm" />
-        <button type="button" className="rounded-lg border border-neon/50 px-4 py-2 text-sm text-neon"
+        <input
+          aria-label="Cantidad final de stock"
+          type="number"
+          min="0"
+          step="any"
+          placeholder="Cantidad final"
+          value={manualQuantity}
+          onChange={(e) => setManualQuantity(e.target.value)}
+          className="w-full rounded-lg bg-input border border-border p-2 text-sm"
+        />
+        <input
+          aria-label="Motivo de la corrección"
+          maxLength={160}
+          placeholder="Motivo de la corrección"
+          value={manualReason}
+          onChange={(e) => setManualReason(e.target.value)}
+          className="w-full rounded-lg bg-input border border-border p-2 text-sm"
+        />
+        <button
+          type="button"
+          className="rounded-lg border border-neon/50 px-4 py-2 text-sm text-neon"
           onClick={() => {
             const product = prods.find((p) => p.id === manualProductId);
             const quantity = Number(manualQuantity);
-            if (!product || manualQuantity.trim() === "" || !Number.isFinite(quantity) || quantity < 0)
+            if (
+              !product ||
+              manualQuantity.trim() === "" ||
+              !Number.isFinite(quantity) ||
+              quantity < 0
+            )
               return toast.error("Selecciona un producto y una cantidad válida");
-            if (!manualReason.trim()) return toast.error("Indica un motivo para conservar el historial");
+            if (!manualReason.trim())
+              return toast.error("Indica un motivo para conservar el historial");
             const delta = quantity - Number(product.stock);
             if (delta === 0) return toast.info("El stock ya tiene esa cantidad");
-            setPendingAdj({ prod: product, delta, newStock: quantity, raw: `Corrección manual: ${manualReason.trim()}` });
+            setPendingAdj({
+              prod: product,
+              delta,
+              newStock: quantity,
+              raw: `Corrección manual: ${manualReason.trim()}`,
+            });
             toast.info("Revisa el movimiento y pulsa Confirmar");
-          }}>Preparar corrección</button>
+          }}
+        >
+          Preparar corrección
+        </button>
       </div>
 
       {/* Search bar (works on all categories) */}
@@ -1028,6 +1116,7 @@ function Stock({
         ))}
       </div>
 
+      <StockHistory key={prods.map((p) => p.id + ":" + p.stock).join(",")} />
       {cats
         .filter((c) => filter === "all" || c.id === filter)
         .map((c) => {
@@ -1059,25 +1148,67 @@ function Stock({
   );
 }
 
+function StockHistory() {
+  const [rows, setRows] = useState<any[]>([]),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("stock_movements")
+      .select("id,product_id,delta,reason,notes,created_by,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (!cancelled) {
+          setRows(data ?? []);
+          setError(error ? "No se pudo cargar el historial" : "");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return (
+    <details className="rounded-xl border border-border p-3">
+      <summary className="text-sm text-neon">Historial de inventario (últimos 100)</summary>
+      {error && <p role="alert">{error}</p>}
+      {rows.map((r) => (
+        <div key={r.id} className="text-xs border-t border-border py-2 break-words">
+          {new Date(r.created_at).toLocaleString("es-ES")} · {r.product_id} ·{" "}
+          {Number(r.delta) > 0 ? "+" : ""}
+          {r.delta} · {r.reason} · {r.notes} · Operador: {r.created_by}
+        </div>
+      ))}
+    </details>
+  );
+}
+
 function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange: () => void }) {
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Product>(p);
   const [enriching, setEnriching] = useState(false);
+  const [proposal, setProposal] = useState<Awaited<ReturnType<typeof enrichProduct>> | null>(null);
+  const [chosenImage, setChosenImage] = useState<CatalogImage | null>(null);
+  const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const enrich = useServerFn(enrichProduct);
   useEffect(() => setForm(p), [p]);
 
   async function save() {
-    const { error } = await (supabase as any).rpc("save_administrative_product", {
+    const { error } = await (supabase as any).rpc("save_administrative_product_checked", {
       p_id: p.id,
+      p_expected: Number(p.stock),
       p_values: {
         name: form.name,
         category_id: cat.id,
-        stock: form.stock,
+        stock: Number(p.stock),
         buy_price: form.buy_price,
         sell_price: form.sell_price,
         strain: cat.is_smokeable ? form.strain : null,
         notes: form.notes,
+        description: form.description,
+        image_url: form.image_url,
+        image_attribution: form.image_attribution ?? null,
       },
     });
     if (error) return toast.error(error.message);
@@ -1086,10 +1217,14 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
     onChange();
   }
   async function remove() {
-    if (!confirm(`Eliminar ${p.name}?`)) return;
-    const { error } = await supabase.from("products").delete().eq("id", p.id);
+    if (!confirm(`¿Archivar ${p.name}? Se conservarán su stock y todo el historial.`)) return;
+    const { error } = await supabase
+      .from("products")
+      .update({ active: false })
+      .eq("id", p.id)
+      .eq("club_id", p.club_id);
     if (error) return toast.error(error.message);
-    toast.success("Eliminado");
+    toast.success("Producto archivado; historial conservado");
     onChange();
   }
   async function runEnrich() {
@@ -1103,25 +1238,9 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
           category_name: cat.name,
         },
       });
-      const patch: any = {};
-      if (r.description) patch.description = r.description;
-      if (r.image_url) patch.image_url = r.image_url;
-      if (Object.keys(patch).length === 0) {
-        toast.error("La IA no devolvió datos");
-      } else {
-        if (
-          !confirm(
-            `Propuesta IA (información no verificada):\n${r.description || "Imagen propuesta"}\n¿Aplicar a la ficha?`,
-          )
-        )
-          return;
-        const { error } = await supabase.from("products").update(patch).eq("id", p.id);
-        if (error) toast.error(error.message);
-        else {
-          toast.success("Enriquecido con IA");
-          onChange();
-        }
-      }
+      setProposal(r);
+      setChosenImage(null);
+      if (r.warning) toast.info(r.warning);
     } catch (e: any) {
       toast.error(e?.message ?? "Error enriqueciendo");
     } finally {
@@ -1131,68 +1250,159 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
 
   if (!edit) {
     return (
-      <div className="flex items-start gap-3 bg-input/40 rounded-lg px-3 py-2">
-        <div className="w-14 h-14 rounded-md bg-background/60 border border-border overflow-hidden flex items-center justify-center shrink-0">
-          {p.image_url ? (
-            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-          ) : (
-            <ImageIcon className="w-5 h-5 text-muted-foreground" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm text-foreground truncate">
-            {p.name}
-            {p.strain && (
-              <span className="ml-2 text-[10px] uppercase tracking-widest text-neon-dim">
-                {p.strain}
-              </span>
-            )}
+      <div className="rounded-lg bg-input/40 p-3 space-y-3">
+        {proposal && (
+          <div className="border border-neon/40 rounded p-3 space-y-3">
+            <p className="text-xs text-neon">Propuesta de ficha — revisa antes de guardar</p>
+            <p className="text-sm">{proposal.description}</p>
+            <p className="text-xs text-muted-foreground">{proposal.warning}</p>
+            {proposal.images?.map((image) => (
+              <label key={image.url} className="block text-xs space-y-1">
+                <input
+                  type="radio"
+                  name={`catalog-image-${p.id}`}
+                  checked={chosenImage?.url === image.url}
+                  onChange={() => setChosenImage(image)}
+                />{" "}
+                Seleccionar tras comprobar coincidencia exacta
+                <img
+                  src={image.url}
+                  alt={image.title}
+                  referrerPolicy="no-referrer"
+                  className="w-24 h-24 object-contain"
+                />
+                <a
+                  href={image.source}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-neon underline"
+                >
+                  {image.title}
+                </a>
+                <span>
+                  {" "}
+                  — {image.author} — {image.license}
+                </span>
+              </label>
+            ))}
+            <button
+              disabled={busy || (!proposal.description && !chosenImage)}
+              className="text-neon border border-neon/40 rounded p-2 text-xs"
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const patch: any = {};
+                  if (proposal.description) patch.description = proposal.description;
+                  if (chosenImage) {
+                    patch.image_url = chosenImage.url;
+                    patch.image_attribution = chosenImage;
+                  }
+                  const { error } = await supabase
+                    .from("products")
+                    .update(patch)
+                    .eq("id", p.id)
+                    .eq("club_id", p.club_id);
+                  if (error) throw error;
+                  setProposal(null);
+                  toast.success("Propuesta confirmada");
+                  onChange();
+                } catch (e: any) {
+                  toast.error(e.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Confirmar ficha
+            </button>
+            <button onClick={() => setProposal(null)} className="text-xs p-2">
+              Cancelar propuesta
+            </button>
           </div>
-          <div className="text-[11px] text-muted-foreground">
-            Stock:{" "}
-            <span className="text-foreground">
-              {Number(p.stock)} {cat.unit_type === "gr" ? "gr" : "u"}
-            </span>
-            {" · "}Compra: €{Number(p.buy_price).toFixed(2)} · Venta: €
-            {Number(p.sell_price).toFixed(2)}
-          </div>
-          {p.description && (
-            <div className="text-[11px] text-muted-foreground mt-1">
-              <div className={expanded ? "whitespace-pre-wrap" : "line-clamp-2"}>
-                {p.description}
-              </div>
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="mt-0.5 text-neon hover:underline text-[10px] uppercase tracking-widest"
-              >
-                {expanded ? "Leer menos" : "Leer más"}
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-1 shrink-0">
-          <button
-            onClick={runEnrich}
-            disabled={enriching}
-            className="p-2 text-muted-foreground hover:text-neon disabled:opacity-50"
-            title="Enriquecer con IA (foto + descripción)"
-          >
-            {enriching ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+        )}
+        <div className="flex items-start gap-3">
+          <div className="w-14 h-14 rounded-md bg-background/60 border border-border overflow-hidden flex items-center justify-center shrink-0">
+            {p.image_url ? (
+              <img
+                src={p.image_url}
+                alt={p.name}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <Sparkles className="w-4 h-4" />
+              <ImageIcon className="w-5 h-5 text-muted-foreground" />
             )}
-          </button>
-          <button
-            onClick={() => setEdit(true)}
-            className="p-2 text-muted-foreground hover:text-neon"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-          <button onClick={remove} className="p-2 text-muted-foreground hover:text-destructive">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm text-foreground truncate">
+              {p.name}
+              {p.strain && (
+                <span className="ml-2 text-[10px] uppercase tracking-widest text-neon-dim">
+                  {p.strain}
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Stock:{" "}
+              <span className="text-foreground">
+                {Number(p.stock)} {cat.unit_type === "gr" ? "gr" : "u"}
+              </span>
+              {" · "}Compra: €{Number(p.buy_price).toFixed(2)} · Venta: €
+              {Number(p.sell_price).toFixed(2)}
+            </div>
+            {p.image_attribution && (
+              <a
+                href={p.image_attribution.source}
+                target="_blank"
+                rel="noreferrer"
+                className="block text-[10px] text-neon underline"
+              >
+                {p.image_attribution.author} · {p.image_attribution.license}
+              </a>
+            )}
+            {p.description && (
+              <div className="text-[11px] text-muted-foreground mt-1">
+                <div className={expanded ? "whitespace-pre-wrap" : "line-clamp-2"}>
+                  {p.description}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                  className="mt-0.5 text-neon hover:underline text-[10px] uppercase tracking-widest"
+                >
+                  {expanded ? "Leer menos" : "Leer más"}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <button
+              onClick={runEnrich}
+              disabled={enriching}
+              className="p-2 text-muted-foreground hover:text-neon disabled:opacity-50"
+              title="Proponer descripción e imágenes con licencia"
+            >
+              {enriching ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+            </button>
+            <button
+              aria-label={`Editar ${p.name}`}
+              onClick={() => setEdit(true)}
+              className="p-2 text-muted-foreground hover:text-neon"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              aria-label={`Archivar ${p.name}`}
+              onClick={remove}
+              className="p-2 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1202,15 +1412,12 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
     <div className="bg-input/40 rounded-lg p-3 space-y-2">
       <input
         className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm"
+        aria-label="Nombre del producto"
         value={form.name}
         onChange={(e) => setForm({ ...form, name: e.target.value })}
       />
       <div className="grid grid-cols-3 gap-2">
-        <NumField
-          label={`Stock (${cat.unit_type})`}
-          value={form.stock}
-          onChange={(v) => setForm({ ...form, stock: v })}
-        />
+        <p className="text-xs">Stock: {p.stock}. Usa Corregir stock para registrar cambios.</p>
         <NumField
           label="Compra €"
           value={form.buy_price}
@@ -1222,10 +1429,44 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
           onChange={(v) => setForm({ ...form, sell_price: v })}
         />
       </div>
+      <label className="block text-xs">
+        Descripción manual
+        <textarea
+          aria-label="Descripción manual"
+          value={form.description ?? ""}
+          maxLength={2000}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className="block w-full bg-input border border-border p-2"
+        />
+      </label>
+      <label className="block text-xs">
+        Cargar imagen propia (JPG, PNG, WebP, máx. 5 MB)
+        <input
+          aria-label="Cargar imagen propia"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              const image = await readCatalogImage(file);
+              setForm({ ...form, image_url: image, image_attribution: null });
+            } catch (error: any) {
+              toast.error(error.message);
+            }
+            e.target.value = "";
+          }}
+        />
+      </label>
       {cat.is_smokeable && (
         <select
           value={form.strain ?? ""}
-          onChange={(e) => setForm({ ...form, strain: (e.target.value || null) as Strain | null })}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              strain: (e.target.value || null) as Strain | null,
+            })
+          }
           className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm"
         >
           <option value="">— tipo —</option>
@@ -1475,6 +1716,8 @@ function NuevaCategoria({
   prefill: any;
   clearPrefill: () => void;
 }) {
+  const [editing, setEditing] = useState<Category | null>(null);
+  const [editName, setEditName] = useState("");
   const [name, setName] = useState("");
   const [unit, setUnit] = useState<UnitType>("unit");
   const [smokeable, setSmokeable] = useState(false);
@@ -1512,25 +1755,65 @@ function NuevaCategoria({
     setSmokeable(false);
     onCreated();
   }
+  async function updateCategory(category: Category, archived: boolean, newName = category.name) {
+    if (!newName.trim()) return toast.error("Nombre obligatorio");
+    if (
+      archived !== !!category.archived &&
+      !confirm(
+        archived
+          ? "¿Archivar la categoría? Sus productos e historial se conservan."
+          : "¿Reactivar la categoría?",
+      )
+    )
+      return;
+    setSaving(true);
+    try {
+      const { error } = await (supabase as any).rpc("manage_administrative_category", {
+        p_id: category.id,
+        p_name: newName.trim(),
+        p_archived: archived,
+      });
+      if (error) throw error;
+      setEditing(null);
+      onCreated();
+      toast.success("Categoría actualizada");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
   async function removeCategory(category: Category) {
     if (products.some((product) => product.category_id === category.id)) {
-      toast.error("Esta categoría contiene productos. Traslada o retira sus productos antes de eliminarla.");
+      toast.error(
+        "Esta categoría contiene productos: usa Archivar para conservar todos los datos.",
+      );
       return;
     }
-    if (!confirm(`¿Eliminar la categoría "${category.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar la categoría "${category.name}"? Esta acción no se puede deshacer.`))
+      return;
     setSaving(true);
     try {
       const { getCurrentClubId } = await import("@/lib/club");
       const clubId = await getCurrentClubId();
       if (!clubId) throw new Error("No tienes un club asignado");
-      const { count, error: checkError } = await supabase.from("products")
-        .select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("category_id", category.id);
+      const { count, error: checkError } = await supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("club_id", clubId)
+        .eq("category_id", category.id);
       if (checkError) throw checkError;
-      if (count !== 0) throw new Error("Esta categoría tiene productos asociados y no se puede eliminar.");
-      const { data, error } = await supabase.from("product_categories").delete()
-        .eq("id", category.id).eq("club_id", clubId).select("id");
+      if (count !== 0)
+        throw new Error("Esta categoría tiene productos asociados y no se puede eliminar.");
+      const { data, error } = await supabase
+        .from("product_categories")
+        .delete()
+        .eq("id", category.id)
+        .eq("club_id", clubId)
+        .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("No se pudo eliminar la categoría. Verifica los permisos del club.");
+      if (!data?.length)
+        throw new Error("No se pudo eliminar la categoría. Verifica los permisos del club.");
       toast.success("Categoría eliminada");
       onCreated();
     } catch (error) {
@@ -1602,14 +1885,64 @@ function NuevaCategoria({
       </button>
       <div className="border-t border-border pt-4 space-y-2">
         <h3 className="text-xs uppercase tracking-widest text-neon">Categorías existentes</h3>
-        {categories.length === 0 && <p className="text-sm text-muted-foreground">Aún no hay categorías.</p>}
+        {categories.length === 0 && (
+          <p className="text-sm text-muted-foreground">Aún no hay categorías.</p>
+        )}
         {categories.map((category) => (
-          <div key={category.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-            <span className="text-sm">{category.name}</span>
-            <button type="button" disabled={saving || products.some((p) => p.category_id === category.id)}
+          <div
+            key={category.id}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+          >
+            <div className="min-w-0 flex-1 text-sm">
+              {category.name}
+              {category.archived && " (archivada)"}
+              {editing?.id === category.id && (
+                <div className="space-y-2 mt-2">
+                  <input
+                    aria-label="Nuevo nombre de categoría"
+                    maxLength={120}
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-input border border-border p-2"
+                  />
+                  <button
+                    disabled={saving}
+                    onClick={() => updateCategory(category, !!category.archived, editName)}
+                    className="text-neon p-2"
+                  >
+                    Guardar categoría
+                  </button>
+                </div>
+              )}
+            </div>
+            <button
+              disabled={saving}
+              onClick={() => {
+                setEditing(category);
+                setEditName(category.name);
+              }}
+              className="text-xs text-neon"
+            >
+              Editar
+            </button>
+            <button
+              disabled={saving}
+              onClick={() => updateCategory(category, !category.archived)}
+              className="text-xs text-neon"
+            >
+              {category.archived ? "Reactivar" : "Archivar"}
+            </button>
+            <button
+              type="button"
+              disabled={saving || products.some((p) => p.category_id === category.id)}
               onClick={() => removeCategory(category)}
-              title={products.some((p) => p.category_id === category.id) ? "Primero retira los productos asociados" : "Eliminar categoría vacía"}
-              className="px-3 py-1.5 rounded border border-red-500/40 text-red-300 text-xs disabled:opacity-40">
+              title={
+                products.some((p) => p.category_id === category.id)
+                  ? "Primero retira los productos asociados"
+                  : "Eliminar categoría vacía"
+              }
+              className="px-3 py-1.5 rounded border border-red-500/40 text-red-300 text-xs disabled:opacity-40"
+            >
               Eliminar
             </button>
           </div>

@@ -18,7 +18,13 @@ afterEach(() => {
   else process.env.APP_URL = initialAppUrl;
 });
 
-type Row = { id: string; user_id: string; club_id: string; role: string; permissions?: string[] };
+type Row = {
+  id: string;
+  user_id: string;
+  club_id: string;
+  role: string;
+  permissions?: string[];
+};
 type User = { id: string; email: string };
 function fixture(
   options: {
@@ -106,7 +112,10 @@ function fixture(
         },
         inviteUserByEmail: async (email: string, input: unknown) => {
           record("invite", email, input);
-          return { data: { user: { id: "invited", email } }, error: options.inviteError ?? null };
+          return {
+            data: { user: { id: "invited", email } },
+            error: options.inviteError ?? null,
+          };
         },
         getUserById: async (id: string) => {
           record("getUser", id);
@@ -126,7 +135,12 @@ function fixture(
       },
     },
   };
-  return { client: client as unknown as Parameters<typeof addClubRole>[0], rows, users, calls };
+  return {
+    client: client as unknown as Parameters<typeof addClubRole>[0],
+    rows,
+    users,
+    calls,
+  };
 }
 const role = (overrides: Partial<Row> = {}): Row => ({
   id: "role-1",
@@ -137,12 +151,18 @@ const role = (overrides: Partial<Row> = {}): Row => ({
 });
 
 test("existing account is reused without changing password, metadata or sending an invitation", async () => {
-  const f = fixture({ users: [{ id: "shared", email: "Shared@example.test" }] });
+  const f = fixture({
+    users: [{ id: "shared", email: "Shared@example.test" }],
+  });
   const result = await resolveInvitedAccount(f.client, {
     email: " shared@EXAMPLE.test ",
     full_name: "New label",
   });
-  assert.deepEqual(result, { userId: "shared", invited: false });
+  assert.deepEqual(result, {
+    userId: "shared",
+    invited: false,
+    emailAccepted: false,
+  });
   assert.deepEqual(
     f.calls.map((c) => c.method),
     ["listUsers"],
@@ -153,10 +173,14 @@ test("new account receives one-time invitation with configured trusted origin", 
   process.env.APP_URL = "https://club.example.test";
   const f = fixture();
   assert.deepEqual(
-    await resolveInvitedAccount(f.client, { email: " NEW@example.test ", full_name: "Employee" }),
+    await resolveInvitedAccount(f.client, {
+      email: " NEW@example.test ",
+      full_name: "Employee",
+    }),
     {
       userId: "invited",
       invited: true,
+      emailAccepted: true,
     },
   );
   assert.deepEqual(f.calls.at(-1), {
@@ -184,7 +208,10 @@ test("account search continues beyond the original twenty-page limit", async () 
 test("directory errors never cause invitations or credential resets", async () => {
   const f = fixture({ authError: new Error("directory unavailable") });
   await assert.rejects(
-    resolveInvitedAccount(f.client, { email: "a@example.test", full_name: "A" }),
+    resolveInvitedAccount(f.client, {
+      email: "a@example.test",
+      full_name: "A",
+    }),
     /directory unavailable/,
   );
   assert.deepEqual(
@@ -197,7 +224,10 @@ test("duplicate/invitation races fail without a password fallback", async () => 
   process.env.APP_URL = "https://club.example.test";
   const f = fixture({ inviteError: new Error("already registered") });
   await assert.rejects(
-    resolveInvitedAccount(f.client, { email: "a@example.test", full_name: "A" }),
+    resolveInvitedAccount(f.client, {
+      email: "a@example.test",
+      full_name: "A",
+    }),
     /already registered/,
   );
   assert.deepEqual(
@@ -225,12 +255,18 @@ test("redirect requires APP_URL and refuses remote HTTP, credentials, paths and 
 });
 
 test("an admin role in another club does not authorize this club", async () => {
-  const f = fixture({ currentClub: "club-b", rows: [role({ user_id: "caller", role: "admin" })] });
+  const f = fixture({
+    currentClub: "club-b",
+    rows: [role({ user_id: "caller", role: "admin" })],
+  });
   await assert.rejects(requireClubAdmin({ supabase: f.client, userId: "caller" }), /Forbidden/);
 });
 
 test("platform and club administration use disjoint authoritative roles", async () => {
-  const f = fixture({ currentClub: "club-a", rows: [role({ user_id: "caller", role: "admin" })] });
+  const f = fixture({
+    currentClub: "club-a",
+    rows: [role({ user_id: "caller", role: "admin" })],
+  });
   assert.equal(await requireClubAdmin({ supabase: f.client, userId: "caller" }), "club-a");
   const superAdmin = fixture({ currentClub: "club-a", superAdmin: true });
   await assertSuperAdmin({ supabase: superAdmin.client, userId: "root" });
@@ -239,7 +275,10 @@ test("platform and club administration use disjoint authoritative roles", async 
     /platform account/,
   );
   await assert.rejects(assertSuperAdmin({ supabase: f.client, userId: "caller" }), /Forbidden/);
-  const broken = fixture({ rpcError: new Error("RPC unavailable"), superAdmin: true });
+  const broken = fixture({
+    rpcError: new Error("RPC unavailable"),
+    superAdmin: true,
+  });
   await assert.rejects(
     requireClubAdmin({ supabase: broken.client, userId: "root" }),
     /RPC unavailable/,
@@ -307,7 +346,9 @@ test("revocation and permission changes reject cross-club/admin/missing targets"
 });
 
 test("permission updates apply only to the selected collaborator and report failure", async () => {
-  const f = fixture({ rows: [role(), role({ id: "other", club_id: "club-b" })] });
+  const f = fixture({
+    rows: [role(), role({ id: "other", club_id: "club-b" })],
+  });
   await updateClubPermissions(f.client, "club-a", "role-1", ["view_reports"]);
   assert.deepEqual(f.rows[0].permissions, ["view_reports"]);
   assert.equal(f.rows[1].permissions, undefined);
@@ -322,7 +363,10 @@ test("permission updates apply only to the selected collaborator and report fail
 
 test("password recovery sends email to the verified collaborator, never sets a password", async () => {
   process.env.APP_URL = "https://club.example.test";
-  const f = fixture({ rows: [role()], users: [{ id: "employee", email: "owner@example.test" }] });
+  const f = fixture({
+    rows: [role()],
+    users: [{ id: "employee", email: "owner@example.test" }],
+  });
   await requestClubPasswordReset(f.client, "club-a", "role-1");
   assert.deepEqual(f.calls.at(-1), {
     method: "reset",
@@ -368,7 +412,9 @@ test("free pilot manual invitation uses one-time Auth link without email or plai
       return {
         data: {
           user: { id: "manual-invite" },
-          properties: { action_link: "https://auth.example.test/verify?token=synthetic-one-time" },
+          properties: {
+            action_link: "https://auth.example.test/verify?token=synthetic-one-time",
+          },
         },
         error: null,
       };
@@ -384,6 +430,36 @@ test("free pilot manual invitation uses one-time Auth link without email or plai
     assert.equal(inviteUrl.search, "");
     assert.equal(new URLSearchParams(inviteUrl.hash.slice(1)).get("type"), "invite");
     assert.ok(!calls.some((c) => c.method === "invite"));
+  } finally {
+    if (previous === undefined) delete process.env.SNOOP_INVITATION_DELIVERY;
+    else process.env.SNOOP_INVITATION_DELIVERY = previous;
+  }
+});
+
+test("SMTP failure prepares a one-use manual link and does not report provider acceptance", async () => {
+  const previous = process.env.SNOOP_INVITATION_DELIVERY;
+  process.env.SNOOP_INVITATION_DELIVERY = "auto";
+  process.env.APP_URL = "https://snoop.example.test";
+  try {
+    const f = fixture({ inviteError: new Error("synthetic SMTP unavailable") });
+    (f.client.auth.admin as any).generateLink = async () => ({
+      error: null,
+      data: {
+        user: { id: "fallback-user" },
+        properties: {
+          action_link: "https://auth.example.test/verify?token=synthetic-fallback",
+          hashed_token: "synthetic-fallback",
+        },
+      },
+    });
+    const result = await resolveInvitedAccount(f.client, {
+      email: "synthetic@example.test",
+      full_name: "Persona Demo",
+    });
+    assert.equal(result.emailAccepted, false);
+    assert.equal(result.userId, "fallback-user");
+    assert.match(result.invitationUrl!, /#token_hash=synthetic-fallback/);
+    assert.equal(new URL(result.invitationUrl!).search, "");
   } finally {
     if (previous === undefined) delete process.env.SNOOP_INVITATION_DELIVERY;
     else process.env.SNOOP_INVITATION_DELIVERY = previous;

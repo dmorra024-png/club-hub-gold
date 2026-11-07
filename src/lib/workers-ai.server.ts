@@ -7,7 +7,10 @@ export const FREE_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
 export function workersAiBinding(): SnoopAiBinding {
   const bindings = (
     globalThis as typeof globalThis & {
-      __env__?: { SNOOP_AI?: SnoopAiBinding; SNOOP_RESOURCE_NAMESPACE?: string };
+      __env__?: {
+        SNOOP_AI?: SnoopAiBinding;
+        SNOOP_RESOURCE_NAMESPACE?: string;
+      };
     }
   ).__env__;
   if (bindings?.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot" || !bindings.SNOOP_AI?.run)
@@ -22,7 +25,10 @@ export function authorizeWorkersAi(
   if (purpose === "transcription") {
     if (process.env.AI_VOICE_PROCESSING_ENABLED !== "true")
       throw new Error("Transcripción de voz no autorizada");
-  } else if (process.env.AI_VOICE_ONLY === "true") {
+  } else if (
+    process.env.AI_VOICE_ONLY === "true" &&
+    !(purpose === "catalog" && process.env.AI_CATALOG_PROCESSING_ENABLED === "true")
+  ) {
     throw new Error(
       "Perfil de voz: no se envían campos, historial ni documentos a modelos de texto",
     );
@@ -62,22 +68,39 @@ export function workersAiFetch(binding: SnoopAiBinding): typeof fetch {
             }
           : body.response_format;
     // Bound the wait, without issuing retries or switching to a billable provider.
-    const result = (await Promise.race([
-      binding.run(FREE_TEXT_MODEL, input),
-      new Promise<never>((_, reject) => {
-        const timeout = setTimeout(() => reject(new Error("Workers AI timeout")), 25_000);
-        timeout.unref?.();
-      }),
-    ])) as {
-      response?: string;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let result: {
+      response?: string | Record<string, unknown>;
       tool_calls?: { name: string; arguments: unknown }[];
       usage?: Record<string, number>;
     };
-    if (typeof result?.response !== "string") throw new Error("Respuesta Workers AI no válida");
+    try {
+      result = (await Promise.race([
+        binding.run(FREE_TEXT_MODEL, input),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Workers AI timeout")), 25000);
+          timer.unref?.();
+        }),
+      ])) as typeof result;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    const responseText =
+      typeof result?.response === "string"
+        ? result.response
+        : result?.response && typeof result.response === "object" && !Array.isArray(result.response)
+          ? JSON.stringify(result.response)
+          : undefined;
+    if (responseText === undefined && !result?.tool_calls?.length)
+      throw new Error("Respuesta Workers AI no válida");
     const calls = result.tool_calls?.map((call, index) => ({
       id: `snoop-tool-${index}`,
       type: "function",
-      function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+      function: {
+        name: call.name,
+        arguments:
+          typeof call.arguments === "string" ? call.arguments : JSON.stringify(call.arguments),
+      },
     }));
     return Response.json({
       id: "snoop-workers-ai",
@@ -89,13 +112,17 @@ export function workersAiFetch(binding: SnoopAiBinding): typeof fetch {
           index: 0,
           message: {
             role: "assistant",
-            content: result.response,
+            content: responseText ?? "",
             ...(calls?.length ? { tool_calls: calls } : {}),
           },
           finish_reason: calls?.length ? "tool_calls" : "stop",
         },
       ],
-      usage: result.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      usage: result.usage ?? {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      },
     });
   };
 }
@@ -108,7 +135,12 @@ export async function transcribeWorkersAudio(
   let result: { text?: unknown };
   try {
     result = (await Promise.race([
-      binding.run(FREE_AUDIO_MODEL, { audio, language, task: "transcribe", vad_filter: true }),
+      binding.run(FREE_AUDIO_MODEL, {
+        audio,
+        language,
+        task: "transcribe",
+        vad_filter: true,
+      }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Workers AI transcription timeout")), 25000);
         timer.unref?.();
