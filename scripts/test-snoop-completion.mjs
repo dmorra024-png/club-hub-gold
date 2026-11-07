@@ -389,6 +389,7 @@ for (const [label, engine, device, options] of engines) {
     await page.getByPlaceholder("Repite contraseña").fill("Synthetic-only-2026!");
     await page.getByRole("button", { name: "Actualizar", exact: true }).click();
     await page.waitForURL(base + "/");
+    await page.waitForLoadState("networkidle");
     assert.equal(otp, 1, "one-use link must be consumed exactly once");
     assert.equal(passwordUpdates, 1, "password must be updated exactly once");
     await page.evaluate(
