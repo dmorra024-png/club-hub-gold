@@ -621,6 +621,8 @@ function ProductosPage() {
         />
       ) : (
         <NuevaCategoria
+          categories={cats}
+          products={prods}
           onCreated={load}
           prefill={prefillCategory}
           clearPrefill={() => setPrefillCategory(null)}
@@ -1428,10 +1430,14 @@ function NuevoProducto({
 /* ---------------- NUEVA CATEGORIA ---------------- */
 
 function NuevaCategoria({
+  categories,
+  products,
   onCreated,
   prefill,
   clearPrefill,
 }: {
+  categories: Category[];
+  products: Product[];
   onCreated: () => void;
   prefill: any;
   clearPrefill: () => void;
@@ -1472,6 +1478,33 @@ function NuevaCategoria({
     setUnit("unit");
     setSmokeable(false);
     onCreated();
+  }
+  async function removeCategory(category: Category) {
+    if (products.some((product) => product.category_id === category.id)) {
+      toast.error("Esta categoría contiene productos. Traslada o retira sus productos antes de eliminarla.");
+      return;
+    }
+    if (!confirm(`¿Eliminar la categoría "${category.name}"? Esta acción no se puede deshacer.`)) return;
+    setSaving(true);
+    try {
+      const { getCurrentClubId } = await import("@/lib/club");
+      const clubId = await getCurrentClubId();
+      if (!clubId) throw new Error("No tienes un club asignado");
+      const { count, error: checkError } = await supabase.from("products")
+        .select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("category_id", category.id);
+      if (checkError) throw checkError;
+      if (count !== 0) throw new Error("Esta categoría tiene productos asociados y no se puede eliminar.");
+      const { data, error } = await supabase.from("product_categories").delete()
+        .eq("id", category.id).eq("club_id", clubId).select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("No se pudo eliminar la categoría. Verifica los permisos del club.");
+      toast.success("Categoría eliminada");
+      onCreated();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar la categoría");
+    } finally {
+      setSaving(false);
+    }
   }
   const ejemplos = ["Flores", "Hash", "Extracciones", "Bebidas", "Parafernalia", "Prerolled"];
 
@@ -1534,6 +1567,21 @@ function NuevaCategoria({
       >
         <Plus className="w-4 h-4 inline mr-2" /> {saving ? "Creando…" : "Crear categoría"}
       </button>
+      <div className="border-t border-border pt-4 space-y-2">
+        <h3 className="text-xs uppercase tracking-widest text-neon">Categorías existentes</h3>
+        {categories.length === 0 && <p className="text-sm text-muted-foreground">Aún no hay categorías.</p>}
+        {categories.map((category) => (
+          <div key={category.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <span className="text-sm">{category.name}</span>
+            <button type="button" disabled={saving || products.some((p) => p.category_id === category.id)}
+              onClick={() => removeCategory(category)}
+              title={products.some((p) => p.category_id === category.id) ? "Primero retira los productos asociados" : "Eliminar categoría vacía"}
+              className="px-3 py-1.5 rounded border border-red-500/40 text-red-300 text-xs disabled:opacity-40">
+              Eliminar
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
