@@ -24,7 +24,8 @@ export function useAuth() {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        setTimeout(() => loadAccess(s.user.id), 0);
+        setLoading(true);
+        setTimeout(() => { void loadAccess(s.user.id); }, 0);
       } else {
         if (_e === "SIGNED_OUT") {
           try {
@@ -50,17 +51,22 @@ export function useAuth() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (data.session?.user) loadAccess(data.session.user.id);
+      if (data.session?.user) void loadAccess(data.session.user.id);
       else setLoading(false);
-    });
+    }).catch(() => setLoading(false));
 
     return () => sub.subscription.unsubscribe();
   }, []);
 
   async function loadAccess(_uid: string) {
-    const { data, error } = await supabase.rpc("snoop_access_context");
-    setAccess(error ? { ...EMPTY_ACCESS } : parseAccountAccess(data));
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.rpc("snoop_access_context");
+      setAccess(error ? { ...EMPTY_ACCESS } : parseAccountAccess(data));
+    } catch {
+      setAccess({ ...EMPTY_ACCESS });
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     if (!user?.id) return;
