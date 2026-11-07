@@ -134,7 +134,7 @@ for (const [label, engine, device] of engines) {
       ({ auth, key }) => localStorage.setItem(key, JSON.stringify(auth)),
       { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
     );
-    const page = await context.newPage();
+    let page = await context.newPage();
     page.setDefaultTimeout(15000);
     page.on("dialog", (d) => d.accept());
     await page.goto(base + "/ajustes/colaboradores", { waitUntil: "networkidle" });
@@ -159,6 +159,8 @@ for (const [label, engine, device] of engines) {
     assert.equal(mutations, 0);
     assert.equal(updates, 0);
     for (const type of ["invite", "recovery"]) {
+      await page.close();
+      page = await context.newPage();
       const before = otp;
       await page.goto(base + "/reset-password#token_hash=synthetic-" + type + "&type=" + type, {
         waitUntil: "networkidle",
@@ -176,6 +178,8 @@ for (const [label, engine, device] of engines) {
       assert.equal(otp, before + 1, "consume OTP exactly once");
       assert.equal(await page.evaluate(() => location.hash), "");
     }
+    await page.close();
+    page = await context.newPage();
     const before = updates;
     await page.goto(base + "/reset-password#token_hash=expired&type=recovery", {
       waitUntil: "networkidle",

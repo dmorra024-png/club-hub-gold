@@ -19,6 +19,25 @@ No deployment, remote database mutation, migration, account recreation or paid s
 - Public specialist live probe with synthetic catalog search “Blue Dream”: search returned a challenge/no useful results; Leafly robots prohibited the requested page; another publisher was unavailable. No documented description or licensed specialist photo was retrieved. Live specialist usefulness remains BLOCKED; parser/fallback tests do not prove live search works.
 - Physical Samsung/iPhone process termination, installation, camera/microphone prompts and real invitation delivery are not verified. Browser device emulation and actual desktop WebKit are simulations, not physical-device certification.
 
+## Executed checks
+
+| Check | Result | Evidence / scope |
+| --- | --- | --- |
+| Unit and isolated database security tests | PASS | 174/174; synthetic fixtures, multi-club RLS and privilege checks |
+| TypeScript | PASS | Application and test projects |
+| Production build / public secret scan | PASS | No local service-role/AI test secrets in public bundle |
+| Cloudflare build / Wrangler dry run | PASS | Local sandbox configuration; no upload |
+| PWA | PASS | Manifest, icons, Chromium installability, public-only offline cache |
+| Member administration | PASS | Synthetic creation, duplicate guard, renewal confirm/cancel, QR |
+| Catalog / staff administration | PASS | Android Chromium, iPhone Chromium and actual desktop WebKit emulation; synthetic API responses |
+| Account links | PASS | One-use invitation/recovery/password flow and regeneration; same three browser configurations; no live emails |
+| Resume and home/Caja | PASS | Android Chromium and iPhone WebKit; Chromium CDP freeze/resume, network retry, retained draft, new-context route restoration, amounts and permission fence |
+| Voice forms Italian/Spanish | PASS | Local MediaRecorder with simulated transcription; zero automatic writes |
+| Worker APP_URL | PASS | Single read-only settings GET: HTTP 200, CANONICAL; Actions run 42390462004, deployment job skipped |
+| Production Auth redirects | BLOCKED | Synthetic invalid-token probe redirects to localhost; auth_config_read missing |
+| Specialist live results | BLOCKED | Public sources unavailable/restricted; no verified live excerpt/photo |
+| Physical Samsung/iPhone | BLOCKED | Hardware unavailable; emulation is not physical validation |
+
 ## Activation
 
 After explicit authorization: correct only Snoop-pilot Auth URLs/templates, deploy only the reviewed `snoop-pilot` Worker version, then regenerate affected collaborator links and perform physical phone checks. No database migrations are needed for these code changes.

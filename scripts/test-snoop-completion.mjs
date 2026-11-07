@@ -398,13 +398,27 @@ for (const [label, engine, device, options] of engines) {
     );
     role = "collaborator";
     permissions = ["manage_members"];
-    await page.goto(base + "/productos", { waitUntil: "commit" });
+    await page.goto(base + "/productos", { waitUntil: "commit" }).catch((error) => {
+      if (
+        !label.includes("WebKit") ||
+        !error.message.includes(`interrupted by another navigation to "${base}/"`)
+      )
+        throw error;
+    });
     await page.waitForURL(base + "/");
     await page.waitForLoadState("networkidle");
     assert.equal(await page.getByLabel("Producto para ajustar stock").count(), 0);
-    await page.goto(base + "/ajustes/colaboradores", {
-      waitUntil: "commit",
-    });
+    await page
+      .goto(base + "/ajustes/colaboradores", {
+        waitUntil: "commit",
+      })
+      .catch((error) => {
+        if (
+          !label.includes("WebKit") ||
+          !error.message.includes(`interrupted by another navigation to "${base}/"`)
+        )
+          throw error;
+      });
     await page.waitForURL(base + "/");
     await page.waitForLoadState("networkidle");
     assert.equal(await page.getByLabel("Email", { exact: true }).count(), 0);
