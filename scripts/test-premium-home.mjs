@@ -368,7 +368,7 @@ for (const [label, engine, device] of runs) {
     role = "super_admin";
     permissions = [];
     page = await context.newPage();
-    await page.clock.setFixedTime(new Date(fixtureNow));
+    // The fixed clock init script is already installed for this browser context.
     page.setDefaultTimeout(20000);
     page.on("pageerror", (error) => errors.push(error.message));
     privateRequests = [];
