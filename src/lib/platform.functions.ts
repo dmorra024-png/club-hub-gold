@@ -175,7 +175,31 @@ export const createCollaborator = createServerFn({ method: "POST" })
       permissions: data.permissions,
     });
 
-    return { user_id: userId, email: data.email, invited, invitation_url: invitationUrl };
+    // Send the one-time link only when a verified email provider has been configured.
+    // Otherwise preserve the manual link; never report a message as sent without a provider receipt.
+    let emailAccepted = false;
+    if (invitationUrl && process.env.EMAIL_API_KEY && process.env.EMAIL_FROM) {
+      try {
+        const { sendProviderEmail } = await import("./email-provider.server");
+        await sendProviderEmail({
+          to: data.email.trim().toLowerCase(),
+          from: process.env.EMAIL_FROM,
+          subject: "SNOOP — Activa tu acceso de colaborador",
+          text: `Has sido invitado a SNOOP. Abre este enlace personal de un solo uso para elegir tu contraseña: ${invitationUrl}\nSi no esperabas este mensaje, ignóralo.`,
+          html: `<p>Has sido invitado a SNOOP.</p><p>Para crear tu contraseña, abre este enlace personal de un solo uso:</p><p><a href="${invitationUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">Activar acceso</a></p><p>Si no esperabas este mensaje, ignóralo.</p>`,
+          idempotency_key: `snoop-collaborator-invite-${userId}`,
+        }, { apiKey: process.env.EMAIL_API_KEY });
+        emailAccepted = true;
+      } catch (error) {
+        // Account and permissions exist; allow the administrator to share the same link manually.
+        console.error("Collaborator invite provider delivery failed", error instanceof Error ? error.name : "unknown");
+      }
+    }
+    return {
+      user_id: userId, email: data.email, invited,
+      invitation_url: emailAccepted ? null : invitationUrl,
+      email_accepted: emailAccepted,
+    };
   });
 
 export const updateCollaboratorPermissions = createServerFn({ method: "POST" })
