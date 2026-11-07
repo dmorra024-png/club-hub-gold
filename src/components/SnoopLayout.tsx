@@ -48,12 +48,6 @@ const NAV: NavItem[] = [
     icon: Package,
     show: (a) => a.hasClub && a.can("manage_products"),
   },
-  {
-    to: "/cuotas",
-    label: "Cuotas e ingresos",
-    icon: Banknote,
-    show: (a) => a.hasClub && (a.can("use_cash") || a.can("view_reports")),
-  },
   { to: "/caja", label: "Caja", icon: Banknote, show: (a) => a.hasClub && a.can("use_cash") },
   {
     to: "/ajustes/informes",
