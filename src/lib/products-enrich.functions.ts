@@ -24,6 +24,7 @@ export const enrichProduct = createServerFn({ method: "POST" })
 
     // --- 1) Descripción (texto) ---
     let description = "";
+    let descriptionError = "";
     try {
       const ctx = data.is_smokeable
         ? `Es una variedad cannábica${data.strain ? ` (${data.strain})` : ""}. No afirmes haber consultado fuentes externas; describe solo información general y señala lo no verificado.`
@@ -41,6 +42,7 @@ export const enrichProduct = createServerFn({ method: "POST" })
         .slice(0, 400);
     } catch (e) {
       console.error("enrich description failed", e);
+      descriptionError = "La descripción IA no está disponible en este momento. Comprueba la configuración de Workers AI.";
     }
 
     // --- 2) Imagen (Gemini Nano Banana) ---
@@ -85,5 +87,8 @@ export const enrichProduct = createServerFn({ method: "POST" })
       console.error("enrich image failed", e);
     }
 
+    if (!description && !image_url) {
+      throw new Error(descriptionError || "La IA no ha generado una descripción. Inténtalo de nuevo o escribe la ficha manualmente.");
+    }
     return { description, image_url };
   });
