@@ -652,6 +652,9 @@ function Stock({
   clearStockCommand: () => void;
 }) {
   const [filter, setFilter] = useState<string>("all");
+  const [manualProductId, setManualProductId] = useState("");
+  const [manualQuantity, setManualQuantity] = useState("");
+  const [manualReason, setManualReason] = useState("");
   const [pendingAdj, setPendingAdj] = useState<{
     prod: Product;
     delta: number;
@@ -942,6 +945,36 @@ function Stock({
           </div>
         </div>
       )}
+
+      {/* Stock corrections are adjustments, never deletions of audit history. */}
+      <div className="rounded-xl border border-neon/30 bg-card/60 p-4 space-y-3">
+        <h3 className="font-display text-sm text-neon uppercase tracking-wide">Corregir stock</h3>
+        <p className="text-xs text-muted-foreground">Selecciona un producto y la cantidad final. El movimiento queda registrado en el historial.</p>
+        <select aria-label="Producto para ajustar stock" value={manualProductId}
+          onChange={(e) => setManualProductId(e.target.value)}
+          className="w-full rounded-lg bg-input border border-border p-2 text-sm">
+          <option value="">Selecciona producto</option>
+          {prods.map((product) => <option key={product.id} value={product.id}>{product.name} — actual: {product.stock}</option>)}
+        </select>
+        <input aria-label="Cantidad final de stock" type="number" min="0" step="any"
+          placeholder="Cantidad final" value={manualQuantity} onChange={(e) => setManualQuantity(e.target.value)}
+          className="w-full rounded-lg bg-input border border-border p-2 text-sm" />
+        <input aria-label="Motivo de la corrección" maxLength={160}
+          placeholder="Motivo de la corrección" value={manualReason} onChange={(e) => setManualReason(e.target.value)}
+          className="w-full rounded-lg bg-input border border-border p-2 text-sm" />
+        <button type="button" className="rounded-lg border border-neon/50 px-4 py-2 text-sm text-neon"
+          onClick={() => {
+            const product = prods.find((p) => p.id === manualProductId);
+            const quantity = Number(manualQuantity);
+            if (!product || manualQuantity.trim() === "" || !Number.isFinite(quantity) || quantity < 0)
+              return toast.error("Selecciona un producto y una cantidad válida");
+            if (!manualReason.trim()) return toast.error("Indica un motivo para conservar el historial");
+            const delta = quantity - Number(product.stock);
+            if (delta === 0) return toast.info("El stock ya tiene esa cantidad");
+            setPendingAdj({ prod: product, delta, newStock: quantity, raw: `Corrección manual: ${manualReason.trim()}` });
+            toast.info("Revisa el movimiento y pulsa Confirmar");
+          }}>Preparar corrección</button>
+      </div>
 
       {/* Search bar (works on all categories) */}
       <div className="flex items-center gap-2 bg-input/40 border border-border rounded-lg px-3 py-2 focus-within:border-neon">
