@@ -235,7 +235,7 @@ export const requestCollaboratorPasswordReset = createServerFn({
     const { requireClubAdmin, requestClubPasswordReset } = await import("./account-access.server");
     const clubId = await requireClubAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const result = await requestClubPasswordReset(supabaseAdmin, clubId, data.role_id);
+    const result = await requestClubPasswordReset(supabaseAdmin, clubId, data.role_id, true);
     return { ok: true, recovery_url: result?.recoveryUrl };
   });
 

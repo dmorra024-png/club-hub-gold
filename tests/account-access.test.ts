@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 import {
   accountRedirectUrl,
   addClubRole,
@@ -13,7 +13,10 @@ import {
 } from "../src/lib/account-access.server.ts";
 
 const initialAppUrl = process.env.APP_URL;
+const initialNamespace = process.env.SNOOP_RESOURCE_NAMESPACE;
+beforeEach(() => { delete process.env.SNOOP_RESOURCE_NAMESPACE; });
 afterEach(() => {
+  if(initialNamespace===undefined)delete process.env.SNOOP_RESOURCE_NAMESPACE;else process.env.SNOOP_RESOURCE_NAMESPACE=initialNamespace;
   if (initialAppUrl === undefined) delete process.env.APP_URL;
   else process.env.APP_URL = initialAppUrl;
 });
@@ -464,4 +467,29 @@ test("SMTP failure prepares a one-use manual link and does not report provider a
     if (previous === undefined) delete process.env.SNOOP_INVITATION_DELIVERY;
     else process.env.SNOOP_INVITATION_DELIVERY = previous;
   }
+});
+
+
+test("pilot never generates links to localhost or another origin",()=>{
+ process.env.SNOOP_RESOURCE_NAMESPACE="snoop-pilot";
+ for(const origin of ["http://localhost:3000","http://127.0.0.1:3000","https://other.example.test","https://snoop-pilot.dmorra024.workers.dev/?token=wrong"]){
+  process.env.APP_URL=origin;assert.throws(()=>accountRedirectUrl(),/APP_URL del piloto/);
+ }
+ process.env.APP_URL="https://snoop-pilot.dmorra024.workers.dev";
+ assert.equal(accountRedirectUrl(),"https://snoop-pilot.dmorra024.workers.dev/reset-password");
+});
+test("regenerating access uses a direct fragment and preserves collaborator account and roles",async()=>{
+ process.env.SNOOP_RESOURCE_NAMESPACE="snoop-pilot";process.env.APP_URL="https://snoop-pilot.dmorra024.workers.dev";
+ const f=fixture({rows:[role()],users:[{id:"employee",email:"synthetic@example.test"}]});
+ const original=structuredClone(f.rows);let links=0;
+ (f.client.auth.admin as any).generateLink=async(input:any)=>{
+  links++;assert.equal(input.type,"recovery");assert.equal(input.email,"synthetic@example.test");
+  assert.equal(input.options.redirectTo,"https://snoop-pilot.dmorra024.workers.dev/reset-password");
+  return {error:null,data:{properties:{action_link:"https://auth.example.test/verify?token=synthetic-"+links,hashed_token:"synthetic-"+links}}};
+ };
+ const one=await requestClubPasswordReset(f.client,"club-a","role-1",true);
+ const two=await requestClubPasswordReset(f.client,"club-a","role-1",true);
+ assert.notEqual(one?.recoveryUrl,two?.recoveryUrl);
+ const url=new URL(two!.recoveryUrl!);assert.equal(url.origin,"https://snoop-pilot.dmorra024.workers.dev");assert.equal(url.pathname,"/reset-password");assert.equal(url.search,"");assert.equal(new URLSearchParams(url.hash.slice(1)).get("type"),"recovery");
+ assert.deepEqual(f.rows,original);assert.equal(f.calls.some(c=>["reset","update","delete","invite"].includes(c.method)),false);
 });

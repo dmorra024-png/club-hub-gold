@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   inspectSnoopCloudflare,
+  snoopAppUrlState,
   SNOOP_CLOUDFLARE_USER_AGENT,
 } from "../scripts/lib/snoop-cloudflare-access.mjs";
 const options = { account: "a".repeat(32), token: "synthetic-private-token" };
@@ -115,4 +116,11 @@ test("own-token policy inspection is optional and does not disclose token or acc
   assert.deepEqual(result.token_policy.permission_groups, ["Workers Scripts Write"]);
   assert.equal(JSON.stringify(result).includes(tokenId), false);
   assert.equal(JSON.stringify(result).includes(options.account), false);
+});
+
+test("APP_URL diagnostic reveals only a classification, never private URL content",()=>{
+ assert.equal(snoopAppUrlState([{name:"APP_URL",type:"plain_text",text:"https://snoop-pilot.dmorra024.workers.dev"}]),"CANONICAL");
+ assert.equal(snoopAppUrlState([{name:"APP_URL",type:"plain_text",text:"http://localhost:3000"}]),"LOCALHOST");
+ assert.equal(snoopAppUrlState([{name:"APP_URL",type:"secret_text",text:"synthetic-secret"}]),"PROTECTED_NOT_READABLE");
+ assert.equal(snoopAppUrlState([{name:"APP_URL",type:"plain_text",text:"https://other.example.test/?secret=synthetic"}]),"WRONG_ORIGIN");
 });

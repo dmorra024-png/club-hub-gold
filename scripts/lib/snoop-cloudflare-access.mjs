@@ -1,5 +1,16 @@
 // Fixed SNOOP target; this module never writes resources or logs credentials.
 export const SNOOP_CLOUDFLARE_USER_AGENT = "wrangler/4.157.0";
+export function snoopAppUrlState(bindings) {
+  const binding=bindings?.find(b=>b.name==="APP_URL");
+  if(!binding)return "MISSING";
+  if(binding.type==="secret_text")return "PROTECTED_NOT_READABLE";
+  if(binding.type!=="plain_text"||typeof binding.text!=="string")return "INVALID";
+  try {
+    const url=new URL(binding.text);
+    if(["localhost","127.0.0.1","[::1]"].includes(url.hostname))return "LOCALHOST";
+    return url.href==="https://snoop-pilot.dmorra024.workers.dev/"?"CANONICAL":"WRONG_ORIGIN";
+  }catch{return "INVALID";}
+}
 export async function inspectSnoopCloudflare({
   account,
   token,
@@ -78,6 +89,7 @@ export async function inspectSnoopCloudflare({
   }
   return {
     ...(tokenPolicy ? { token_policy: tokenPolicy } : {}),
+    ...(path==="settings"&&response.ok?{app_url_state:snoopAppUrlState(json?.result?.bindings)}:{}),
     http: response.status,
     success: response.ok && json?.success === true,
     error_codes: (json?.errors ?? []).map((e) => e.code).filter((n) => typeof n === "number"),

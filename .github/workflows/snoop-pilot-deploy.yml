@@ -91,11 +91,12 @@ jobs:
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
 
   diagnose-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/stabilize-independent-club' && inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/stabilize-independent-club' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL') }}
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 5
     env:
+      SNOOP_CHECK_APP_URL: ${{ inputs.confirm == 'CHECK-SNOOP-APP-URL' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
     steps:

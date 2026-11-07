@@ -157,7 +157,7 @@ function ColaboradoresPage() {
       setAccountLink(result.recovery_url ?? null);
       setMsg(
         result.recovery_url
-          ? "Enlace de recuperación preparado para su titular."
+          ? "Enlace seguro regenerado. Compártelo únicamente con su titular para que elija su contraseña."
           : "Solicitud de recuperación aceptada. La entrega del correo no está confirmada; solo el titular elige su contraseña.",
       );
     } catch (e: unknown) {
@@ -294,7 +294,7 @@ function CollabRow({
               type="button"
               disabled={resetting}
               onClick={async () => {
-                if (!confirm("¿Enviar un enlace de recuperación al email del colaborador?")) return;
+                if (!confirm("¿Regenerar un enlace personal de un solo uso? La cuenta y sus permisos se conservarán.")) return;
                 setResetting(true);
                 try {
                   await onPasswordReset(row.id);
@@ -303,8 +303,8 @@ function CollabRow({
                 }
               }}
               className="p-2 rounded-md border border-neon/30 text-neon hover:bg-neon/10 disabled:opacity-50"
-              title="Enviar recuperación por email"
-              aria-label={`Enviar recuperación a ${row.full_name ?? row.email}`}
+              title="Regenerar enlace seguro de acceso"
+              aria-label={`Regenerar enlace para ${row.full_name ?? row.email}`}
             >
               {resetting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

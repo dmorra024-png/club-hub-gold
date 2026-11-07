@@ -41,6 +41,10 @@ export function accountRedirectUrl(): string {
   const value = process.env.APP_URL;
   if (!value) throw new Error("Configura APP_URL para enviar invitaciones y recuperación");
   const url = new URL(value);
+  if (process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
+      (url.origin !== "https://snoop-pilot.dmorra024.workers.dev" || url.pathname !== "/" || url.search || url.hash || url.username || url.password)) {
+    throw new Error("APP_URL del piloto debe ser https://snoop-pilot.dmorra024.workers.dev; no se ha enviado ningún enlace");
+  }
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
   if (
     (url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
@@ -209,7 +213,7 @@ export async function revokeClubCollaborator(admin: Client, clubId: string, role
   // Auth identity, profile, other clubs and historical records remain intact.
 }
 
-export async function requestClubPasswordReset(admin: Client, clubId: string, roleId: string) {
+export async function requestClubPasswordReset(admin: Client, clubId: string, roleId: string, directLink = false) {
   const { data: role, error } = await admin
     .from("user_roles")
     .select("user_id")
@@ -222,7 +226,7 @@ export async function requestClubPasswordReset(admin: Client, clubId: string, ro
   const { data, error: userError } = await admin.auth.admin.getUserById(role.user_id);
   if (userError) throw userError;
   if (!data.user?.email) throw new Error("La cuenta no tiene email");
-  if (process.env.SNOOP_INVITATION_DELIVERY === "manual") {
+  if (directLink || process.env.SNOOP_INVITATION_DELIVERY === "manual") {
     const { data: link, error } = await admin.auth.admin.generateLink({
       type: "recovery",
       email: data.user.email,
