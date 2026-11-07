@@ -79,7 +79,13 @@
     },
     "smtp_live": "BLOCKED: HTTP 403 auth_config_read",
     "cloudflare_live_inference": "BLOCKED: not deployed",
-    "physical_devices": "BLOCKED: not available"
+    "physical_devices": "BLOCKED: not available",
+    "github_actions": {
+      "status": "PASS",
+      "run_id": 42370189638,
+      "application_commit": "e47f143097b0a7d37e4e4847520ed6cdcdc559d2",
+      "url": "https://github.com/dmorra024-png/club-hub-gold/actions/runs/42370189638"
+    }
   },
   "migrations": [
     {
@@ -104,11 +110,13 @@
     "image_attribution_present": false
   },
   "github_sync": {
-    "status": "BLOCKED",
-    "git_error": "Invalid username or token",
-    "api_http_status": 401,
-    "api_error": "Bad credentials",
-    "pr_updated": false,
-    "last_verified_remote_head": "b71c2501f6fdc3f393932d6ceef55ff6d3721b06"
+    "status": "PASS",
+    "pr_updated": true,
+    "verified_application_commit": "e47f143097b0a7d37e4e4847520ed6cdcdc559d2",
+    "verification": [
+      "git ls-remote",
+      "gh pr view headRefOid"
+    ],
+    "public_history_rewritten": false
   }
 }

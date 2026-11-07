@@ -17,6 +17,7 @@ Ramo: `codex/stabilize-independent-club`, PR #1. Sincronizzato con fast-forward 
 | Verifica | Esito | Prova e limite |
 |---|---|---|
 | Suite automatica completa | PASS | **159/159**, zero fallimenti |
+| GitHub Actions sul commit applicativo | PASS | [Run 42370189638](https://github.com/dmorra024-png/club-hub-gold/actions/runs/42370189638): test, TypeScript, build, sicurezza HTTP, PWA e browser Chromium/WebKit |
 | TypeScript applicazione e test | PASS | `npm run typecheck` |
 | Build produzione Node | PASS | `npm run build` |
 | Build Cloudflare | PASS | `npm run build:worker:test`, configurazione sintetica locale |
@@ -48,4 +49,4 @@ L'eventuale verifica SMTP richiede soltanto la capacità esatta `auth_config_rea
 
 ## Sincronizzazione GitHub finale
 
-Il codice è conservato in un commit locale e in una patch Git completa esportata. Il push finale è **BLOCKED**: Git rifiuta le credenziali (`Invalid username or token`); anche GitHub API/CLI ora risponde `HTTP 401 Bad credentials`. Il ramo remoto verificato prima del blocco era `b71c250`; la PR #1 non contiene ancora questa correzione. Non sono stati creati token, riscritta la cronologia pubblicata o avviati workflow/deployment. Il collegamento GitHub dell'ambiente deve essere ripristinato prima della pubblicazione; non occorre rifare codice o test.
+Push riuscito sul ramo esistente, senza forzature. Il commit applicativo `e47f143097b0a7d37e4e4847520ed6cdcdc559d2` è stato verificato sia tramite Git remoto sia come head della PR #1. Nessun merge o deployment. Una patch completa e un bundle sono conservati anche localmente come copia esportabile.
