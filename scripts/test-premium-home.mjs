@@ -201,7 +201,7 @@ for (const [label, engine, device] of runs) {
         body: JSON.stringify(data),
       });
     });
-    const page = await context.newPage();
+    let page = await context.newPage();
     await page.clock.setFixedTime(new Date(fixtureNow));
     page.setDefaultTimeout(20000);
     const errors = [];
@@ -362,11 +362,23 @@ for (const [label, engine, device] of runs) {
       .waitFor();
     await page.locator(".premium-cash-amount").getByText(/0,00/).waitFor();
     await page.waitForLoadState("networkidle");
+    // Stop the old account document before changing the server-side fixture.
+    // Its visibility/access refresh may otherwise redirect the new navigation.
+    await page.close();
     role = "super_admin";
     permissions = [];
+    page = await context.newPage();
+    await page.clock.setFixedTime(new Date(fixtureNow));
+    page.setDefaultTimeout(20000);
+    page.on("pageerror", (error) => errors.push(error.message));
     privateRequests = [];
     await page.goto(base + "/perfil", { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
+    try {
+      await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
+    } catch (error) {
+      console.error("Platform profile failure", page.url(), await page.locator("body").innerText(), errors);
+      throw error;
+    }
     await page.getByText("Super Admin", { exact: true }).waitFor();
     assert.equal(privateRequests.length, 0, "Platform profile reads no private club tables");
     await page.evaluate(() => sessionStorage.setItem("snoop-test-signed-out", "true"));

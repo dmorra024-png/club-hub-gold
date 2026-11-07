@@ -148,7 +148,9 @@ function ProfilePage() {
     </section>
   );
   if (isSuperAdmin) return <PlatformLayout>{body}</PlatformLayout>;
-  if (!loading && access.status !== "active")
+  // Do not mount the operational layout until this profile has verified access.
+  // Its independent auth hook could otherwise redirect a platform user first.
+  if (loading || access.status !== "active")
     return (
       <main className="premium-main">
         <SnoopWordmark />
