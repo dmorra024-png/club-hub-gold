@@ -110,20 +110,7 @@ export function SnoopLayout({
   }
 
   return (
-    <div className="relative min-h-screen flex scanline">
-      {/* Watermark */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden"
-      >
-        <BrandImage
-          src={"/icons/snoop-commercial.svg"}
-          alt=""
-          className="w-[min(120vh,120vw)] max-w-none opacity-[0.04] select-none"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/20 to-background" />
-      </div>
-
+    <div className="relative min-h-screen flex bg-background">
       {/* Sidebar desktop */}
       <aside className="relative z-10 hidden md:flex w-64 flex-col border-r border-neon/20 bg-card/60 backdrop-blur-md">
         <div className="px-6 py-8 border-b border-neon/15 flex flex-col items-center text-center">
@@ -174,7 +161,7 @@ export function SnoopLayout({
       </aside>
 
       {/* Mobile top bar */}
-      <header className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 h-14 bg-card/95 backdrop-blur border-b border-neon/20">
+      <header className="md:hidden fixed top-0 inset-x-0 z-30 flex items-center justify-between px-4 h-14 bg-[#081523]/95 backdrop-blur-xl border-b border-[#e5bc78]/20">
         <BrandImage
           src={"/icons/snoop-commercial.svg"}
           alt="Snoop"
@@ -183,7 +170,7 @@ export function SnoopLayout({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="h-10 w-10 rounded-full border border-neon/40 bg-input text-neon flex items-center justify-center glow-neon-soft"
+          className="h-10 w-10 rounded-xl border border-[#e5bc78]/25 bg-[#12253a] text-[#e5bc78] flex items-center justify-center"
           aria-label={open ? "Cerrar menú" : "Abrir menú"}
         >
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
