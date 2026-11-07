@@ -1,3 +1,5 @@
+import { clubDayRange, cashAmounts } from "@/lib/cash-summary";
+import { madridToday } from "@/lib/member-administration";
 import type { Receipt } from "@/lib/membership-receipts";
 import { MembershipIncome } from "@/components/MembershipIncome";
 import { parseCashCents } from "@/lib/member-administration";
@@ -44,14 +46,10 @@ function fmtEur(cents: number) {
   });
 }
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return madridToday();
 }
 function dayRange(dateISO: string) {
-  const start = new Date(dateISO + "T00:00:00");
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start: start.toISOString(), end: end.toISOString() };
+  return clubDayRange(dateISO);
 }
 
 function CajaPage() {
@@ -438,8 +436,9 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
   }, [orders, fees]);
 
-  const feeTotal = fees.reduce((sum, fee) => sum + fee.amount_cents, 0);
-  const total = orders.reduce((a, o) => a + (o.total_cents ?? 0), 0) + feeTotal;
+  const amounts = cashAmounts(orders, fees);
+  const feeTotal = amounts.feeCents;
+  const total = amounts.totalCents;
 
   if (loading) return <div className="text-sm text-muted-foreground">Cargando…</div>;
 

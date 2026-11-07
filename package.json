@@ -35,7 +35,8 @@
     "test:voice:activation": "node --test --experimental-test-isolation=none tests/voice-activation.test.ts tests/snoop-runtime-bindings.test.mjs",
     "test:voice:browser": "node scripts/test-voice-forms.mjs",
     "test:completion:mobile": "node scripts/test-snoop-completion.mjs",
-    "test:account-links": "node scripts/test-account-links.mjs"
+    "test:account-links": "node scripts/test-account-links.mjs",
+    "test:pwa:resume": "node scripts/test-pwa-resume.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

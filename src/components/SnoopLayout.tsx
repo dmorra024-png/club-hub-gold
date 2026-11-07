@@ -86,7 +86,7 @@ export function SnoopLayout({
   title?: string;
   subtitle?: string;
 }) {
-  const { user, access, isAdmin, isSuperAdmin, can, loading } = useAuth();
+  const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
@@ -100,8 +100,8 @@ export function SnoopLayout({
     }),
   );
 
-  if (!loading && isSuperAdmin) return <Navigate to="/snoop-admin" />;
-  if (!loading && access.status !== "active") return <Navigate to="/club-status" />;
+  if (!loading && !accessError && isSuperAdmin) return <Navigate to="/snoop-admin" />;
+  if (!loading && !accessError && access.status !== "active") return <Navigate to="/club-status" />;
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -247,7 +247,23 @@ export function SnoopLayout({
               <div className="mt-3 h-[2px] w-16 bg-gradient-neon rounded-full glow-neon-soft" />
             </div>
           )}
-          {children}
+          {(loading || accessError) && (
+            <div
+              role={accessError ? "alert" : "status"}
+              className="rounded-xl border border-neon/30 bg-card p-5 text-neon"
+            >
+              {accessError || "Verificando sesión y permisos…"}
+              {accessError && (
+                <button
+                  className="block mt-3 border border-neon/30 rounded px-4 py-2"
+                  onClick={() => void retryAccess()}
+                >
+                  Reintentar acceso
+                </button>
+              )}
+            </div>
+          )}
+          <div hidden={loading || !!accessError}>{children}</div>
         </div>
       </main>
     </div>

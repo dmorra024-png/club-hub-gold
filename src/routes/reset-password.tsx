@@ -125,7 +125,7 @@ function ResetPassword() {
       const { error } = await supabase.auth.updateUser({ password: pw });
       if (error) throw error;
       toast.success("Contraseña actualizada");
-      nav({ to: "/" });
+      await nav({ to: "/" });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "No se ha podido cambiar la contraseña");
     } finally {

@@ -1,3 +1,5 @@
+import { verifiedAccess, authDeadline } from "@/lib/auth-access";
+import { resumeRoute } from "@/lib/resume-route";
 import { BrandImage } from "@/components/BrandImage";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -55,10 +57,16 @@ function AuthPage() {
     }
   }
 
+  async function enter() {
+    const { data, error } = await authDeadline(supabase.auth.getSession());
+    if (error) throw error;
+    if (data.session) {
+      const access = await verifiedAccess(data.session.user.id);
+      await nav({ to: resumeRoute(data.session.user.id, access) as "/", replace: true });
+    }
+  }
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) nav({ to: "/" });
-    });
+    void enter().catch(() => {});
   }, [nav]);
 
   async function submit(e: React.FormEvent) {
@@ -88,7 +96,7 @@ function AuthPage() {
         });
         if (error) throw error;
       }
-      nav({ to: "/" });
+      await enter();
     } catch (err: any) {
       toast.error(err.message ?? "Error de acceso");
     } finally {

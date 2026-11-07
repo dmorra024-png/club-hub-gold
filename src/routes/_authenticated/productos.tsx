@@ -1188,6 +1188,7 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
   const [form, setForm] = useState<Product>(p);
   const [enriching, setEnriching] = useState(false);
   const [proposal, setProposal] = useState<Awaited<ReturnType<typeof enrichProduct>> | null>(null);
+  const [chosenDescription, setChosenDescription] = useState("");
   const [chosenImage, setChosenImage] = useState<CatalogImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -1239,6 +1240,7 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
         },
       });
       setProposal(r);
+      setChosenDescription("");
       setChosenImage(null);
       if (r.warning) toast.info(r.warning);
     } catch (e: any) {
@@ -1254,7 +1256,30 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
         {proposal && (
           <div className="border border-neon/40 rounded p-3 space-y-3">
             <p className="text-xs text-neon">Propuesta de ficha — revisa antes de guardar</p>
+            <p className="text-xs text-muted-foreground">Borrador IA sin verificación externa</p>
             <p className="text-sm">{proposal.description}</p>
+            {proposal.descriptions?.map((candidate) => (
+              <label
+                key={candidate.source}
+                className="block rounded border border-border p-2 text-xs space-y-2"
+              >
+                <input
+                  type="radio"
+                  name={`catalog-description-${p.id}`}
+                  checked={chosenDescription === candidate.source}
+                  onChange={() => setChosenDescription(candidate.source)}
+                />
+                <span>{candidate.excerpt}</span>
+                <a
+                  className="block text-neon underline"
+                  href={candidate.source}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {candidate.title} — Fuente
+                </a>
+              </label>
+            ))}
             <p className="text-xs text-muted-foreground">{proposal.warning}</p>
             {proposal.images?.map((image) => (
               <label key={image.url} className="block text-xs space-y-1">
@@ -1286,13 +1311,18 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
               </label>
             ))}
             <button
-              disabled={busy || (!proposal.description && !chosenImage)}
+              disabled={busy || (!proposal.description && !chosenImage && !chosenDescription)}
               className="text-neon border border-neon/40 rounded p-2 text-xs"
               onClick={async () => {
                 setBusy(true);
                 try {
                   const patch: any = {};
-                  if (proposal.description) patch.description = proposal.description;
+                  const selected = proposal.descriptions?.find(
+                    (candidate) => candidate.source === chosenDescription,
+                  );
+                  if (selected)
+                    patch.description = selected.excerpt + "\nFuente: " + selected.source;
+                  else if (proposal.description) patch.description = proposal.description;
                   if (chosenImage) {
                     patch.image_url = chosenImage.url;
                     patch.image_attribution = chosenImage;

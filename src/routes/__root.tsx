@@ -1,3 +1,5 @@
+import { rememberRoute, forgetRoute } from "@/lib/resume-route";
+import { useAuth } from "@/hooks/useAuth";
 import "@fontsource/space-grotesk/400.css";
 import "@fontsource/space-grotesk/500.css";
 import "@fontsource/space-grotesk/600.css";
@@ -11,10 +13,11 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
@@ -120,10 +123,32 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const auth = useAuth();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [identity, setIdentity] = useState<string | null>(null);
+  useEffect(() => {
+    if (
+      auth.user?.id &&
+      auth.access.clubId &&
+      auth.access.status === "active" &&
+      !auth.loading &&
+      !auth.accessError
+    )
+      rememberRoute(auth.user.id, auth.access.clubId, pathname);
+  }, [
+    auth.user?.id,
+    auth.access.clubId,
+    auth.access.status,
+    auth.loading,
+    auth.accessError,
+    pathname,
+  ]);
   useEffect(() => {
     let previousUserId: string | null | undefined;
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       const userId = session?.user.id ?? null;
+      const changed = previousUserId !== undefined && userId !== previousUserId;
+      setIdentity(userId);
       if (event === "SIGNED_OUT" || (previousUserId !== undefined && userId !== previousUserId)) {
         queryClient.clear();
         clearClubCache();
@@ -134,7 +159,8 @@ function RootComponent() {
         }
       }
       previousUserId = userId;
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+      if (changed || event === "SIGNED_OUT") {
+        if (event === "SIGNED_OUT") forgetRoute();
         router.invalidate();
         if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
       }
@@ -144,7 +170,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <Outlet key={identity ?? "anonymous"} />
       <PwaInstall />
       <Toaster
         theme="dark"

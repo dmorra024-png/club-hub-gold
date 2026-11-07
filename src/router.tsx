@@ -8,7 +8,12 @@ function DefaultNotFound() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-display text-gradient-gold">404</h1>
         <p className="mt-4 text-muted-foreground">Pagina non trovata.</p>
-        <a href="/" className="mt-6 inline-block px-6 py-2 bg-gradient-gold text-primary-foreground rounded-md uppercase tracking-widest text-xs">Home</a>
+        <a
+          href="/"
+          className="mt-6 inline-block px-6 py-2 bg-gradient-gold text-primary-foreground rounded-md uppercase tracking-widest text-xs"
+        >
+          Home
+        </a>
       </div>
     </div>
   );
@@ -33,6 +38,11 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
+    defaultPendingComponent: () => (
+      <div role="status" className="min-h-screen bg-background text-neon p-8">
+        Restaurando SNOOP…
+      </div>
+    ),
     defaultNotFoundComponent: DefaultNotFound,
     defaultErrorComponent: DefaultError,
   });
