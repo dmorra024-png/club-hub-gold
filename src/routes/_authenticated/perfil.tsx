@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserRound, LogOut, LockKeyhole } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/perfil")({ component: ProfilePage });
 function ProfilePage() {
+  const verifiedRouteAccess = Route.useRouteContext().access;
   const { user, access, isSuperAdmin, loading } = useAuth();
   const [current, setCurrent] = useState(""),
     [password, setPassword] = useState(""),
@@ -147,10 +148,11 @@ function ProfilePage() {
       </button>
     </section>
   );
-  if (isSuperAdmin) return <PlatformLayout>{body}</PlatformLayout>;
-  // Do not mount the operational layout until this profile has verified access.
-  // Its independent auth hook could otherwise redirect a platform user first.
-  if (loading || access.status !== "active")
+  // The route already verified the identity before rendering. Keep its shell
+  // during refreshes, without granting any operational permissions from it.
+  if (isSuperAdmin || (loading && verifiedRouteAccess.role === "super_admin"))
+    return <PlatformLayout>{body}</PlatformLayout>;
+  if (!loading && access.status !== "active")
     return (
       <main className="premium-main">
         <SnoopWordmark />
