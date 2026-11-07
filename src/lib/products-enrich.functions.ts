@@ -52,7 +52,7 @@ export const enrichProduct = createServerFn({ method: "POST" })
         ? `un cogollo (flor) de cannabis variedad "${data.name}"${data.strain ? `, tipo ${data.strain}` : ""}, fotografía macro profesional sobre fondo oscuro, tricomas visibles, estilo catálogo de seedbank`
         : `producto "${data.name}"${data.category_name ? ` (${data.category_name})` : ""}, fotografía de producto sobre fondo neutro`;
 
-      if (!config || !process.env.AI_IMAGE_MODEL) return { description, image_url };
+      if (config && process.env.AI_IMAGE_MODEL) {
       const res = await providerFetch(`${config.baseURL}/chat/completions`, {
         method: "POST",
         headers: {
@@ -82,6 +82,7 @@ export const enrichProduct = createServerFn({ method: "POST" })
         if (typeof url === "string" && url.startsWith("data:")) image_url = url;
       } else {
         console.error("image gen http", res.status);
+      }
       }
     } catch (e) {
       console.error("enrich image failed", e);
