@@ -14,9 +14,18 @@ for (const [label, path, userAgent] of [
   ["token-verification", "verify", SNOOP_CLOUDFLARE_USER_AGENT],
   ["settings-default-client", "settings", undefined],
   ["settings-wrangler-client", "settings", SNOOP_CLOUDFLARE_USER_AGENT],
+  ["modern-script-settings", "script-settings", SNOOP_CLOUDFLARE_USER_AGENT],
+  ["worker-secret-names", "secrets", SNOOP_CLOUDFLARE_USER_AGENT],
+  ["worker-deployment-metadata", "deployments", SNOOP_CLOUDFLARE_USER_AGENT],
 ]) {
   try {
-    const result = await inspectSnoopCloudflare({ account, token, path, userAgent });
+    const result = await inspectSnoopCloudflare({
+      account,
+      token,
+      path,
+      userAgent,
+      readPolicy: path === "verify",
+    });
     // Never include binding values, token IDs, account IDs, headers or raw error bodies.
     output.checks.push({ label, ...result });
     console.log(

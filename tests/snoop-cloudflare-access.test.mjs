@@ -84,3 +84,35 @@ test("diagnostic job cannot select the deployment branch and contains no write c
   );
   assert.match(deployment, /inputs.confirm == 'DEPLOY-SNOOP-PILOT'/);
 });
+
+test("own-token policy inspection is optional and does not disclose token or account IDs", async () => {
+  let calls = 0;
+  const tokenId = "b".repeat(32);
+  const result = await inspectSnoopCloudflare({
+    ...options,
+    path: "verify",
+    readPolicy: true,
+    request: async (url, init) => {
+      assert.equal(init.method, "GET");
+      calls++;
+      return calls === 1
+        ? Response.json({ success: true, result: { id: tokenId, status: "active" } })
+        : Response.json({
+            success: true,
+            result: {
+              policies: [
+                {
+                  effect: "allow",
+                  permission_groups: [{ name: "Workers Scripts Write" }],
+                  resources: { ["com.cloudflare.api.account." + options.account]: "*" },
+                },
+              ],
+            },
+          });
+    },
+  });
+  assert.equal(result.token_policy.snoop_account_in_scope, true);
+  assert.deepEqual(result.token_policy.permission_groups, ["Workers Scripts Write"]);
+  assert.equal(JSON.stringify(result).includes(tokenId), false);
+  assert.equal(JSON.stringify(result).includes(options.account), false);
+});
