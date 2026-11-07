@@ -1690,15 +1690,7 @@ function NuevoProducto({
       </Field>
 
       <div className="grid grid-cols-3 gap-3">
-        <Field label={`Stock${cat ? ` (${cat.unit_type})` : ""}`}>
-          <input
-            type="number"
-            step="0.01"
-            value={stock}
-            onChange={(e) => setStock(parseFloat(e.target.value) || 0)}
-            className="w-full bg-input border border-border rounded-lg px-3 py-2.5 text-sm"
-          />
-        </Field>
+        <MoneyField label={`Stock${cat ? ` (${cat.unit_type})` : ""}`} value={stock} onChange={setStock} />
         <MoneyField label="P. compra €" value={buy} onChange={setBuy} />
         <MoneyField label="P. venta €" value={sell} onChange={setSell} />
       </div>
