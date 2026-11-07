@@ -223,10 +223,10 @@ export function SnoopLayout({
         </Link>
         {can("manage_members") ? (
           <Link
-            to="/control-acceso"
+            to="/soci/gestisci"
             search={{ scanner: true }}
             className="premium-qr"
-            aria-label="Abrir lector QR"
+            aria-label="Escanear socio para dispensación"
           >
             <QrAccessIcon />
           </Link>
