@@ -70,8 +70,9 @@ function Home() {
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-[-10%] top-0 h-80 rounded-full bg-neon/10 blur-[90px]" />
         <div className="relative text-center mb-8 sm:mb-10">
           <h1 className="font-display text-4xl sm:text-6xl font-bold tracking-[0.08em] text-white">
-            SNOOP <span className="text-neon italic">Pilot</span>
+            <span className="text-neon">SNOOP</span>
           </h1>
+          <h2 className="mt-2 text-xl sm:text-2xl font-semibold text-white">{clubName}</h2>
           <p className="mt-3 text-[10px] sm:text-xs tracking-[0.25em] uppercase text-neon/80">
             Tu operación, en control
           </p>
