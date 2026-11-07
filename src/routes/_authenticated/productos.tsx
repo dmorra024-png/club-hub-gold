@@ -1549,10 +1549,10 @@ function MoneyField({ label, value, onChange }: {
         value={raw}
         onChange={(event) => {
           const input = event.target.value.replace(",", ".");
-          if (!/^\\d*(?:\\.\\d{0,2})?$/.test(input)) return;
+          if (!/^\d*(?:\.\d{0,2})?$/.test(input)) return;
           // A typed zero must not remain as a prefix: 0 → 03 → 03.2
           // becomes 0 → 3 → 3.2, preserving 0.25 and decimal input.
-          const next = input.replace(/^0+(?=\\d)/, "");
+          const next = input.replace(/^0+(?=\d)/, "");
           setRaw(next);
           onChange(next === "" || next === "." ? 0 : Number(next));
         }}
