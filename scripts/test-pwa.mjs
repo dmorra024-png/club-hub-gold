@@ -42,6 +42,18 @@ try {
   const { installabilityErrors } = await session.send("Page.getInstallabilityErrors");
   assert.deepEqual(installabilityErrors, [], "Chromium installation criteria");
   for (const icon of manifest.icons) {
+    if (icon.type === "image/svg+xml") {
+      assert.equal(icon.sizes, "any", "Vector icons must advertise arbitrary sizes");
+      const valid = await page.evaluate(async (src) => {
+        const response = await fetch(src);
+        if (!response.ok) return false;
+        const document = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
+        return document.documentElement.tagName.toLowerCase() === "svg" &&
+          !document.querySelector("parsererror") && !!document.documentElement.getAttribute("viewBox");
+      }, icon.src);
+      assert.ok(valid, "SVG icon is well-formed and has a viewBox");
+      continue;
+    }
     const dimensions = await page.evaluate(async (src) => {
       const image = await createImageBitmap(await (await fetch(src)).blob());
       return `${image.width}x${image.height}`;
