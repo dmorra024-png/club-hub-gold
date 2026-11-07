@@ -398,13 +398,15 @@ for (const [label, engine, device, options] of engines) {
     );
     role = "collaborator";
     permissions = ["manage_members"];
-    await page.goto(base + "/productos", { waitUntil: "networkidle" });
+    await page.goto(base + "/productos", { waitUntil: "commit" });
     await page.waitForURL(base + "/");
+    await page.waitForLoadState("networkidle");
     assert.equal(await page.getByLabel("Producto para ajustar stock").count(), 0);
     await page.goto(base + "/ajustes/colaboradores", {
-      waitUntil: "networkidle",
+      waitUntil: "commit",
     });
     await page.waitForURL(base + "/");
+    await page.waitForLoadState("networkidle");
     assert.equal(await page.getByLabel("Email", { exact: true }).count(), 0);
     assert.deepEqual(pageErrors, []);
     await mkdir(".sandbox/screenshots", { recursive: true });
