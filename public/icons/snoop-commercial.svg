@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SNOOP">
+<rect width="512" height="512" rx="104" fill="#050906"/>
+<rect x="16" y="16" width="480" height="480" rx="94" fill="none" stroke="#39ff14" stroke-width="12"/>
+<g stroke="#39ff14" stroke-width="8" fill="none" stroke-linecap="round">
+<path d="M115 170V142Q115 116 141 116H371Q397 116 397 142V170"/>
+<path d="M115 307V332Q115 355 141 355H371Q397 355 397 332V307"/>
+</g>
+<g fill="#39ff14"><circle cx="256" cy="104" r="22"/><circle cx="202" cy="123" r="16"/><circle cx="310" cy="123" r="16"/><path d="M216 160a40 40 0 0 1 80 0v7h-80zM169 166a33 33 0 0 1 43-32v33h-43zM300 134a33 33 0 0 1 43 32v1h-43z"/></g>
+<text x="256" y="277" fill="#ffffff" font-family="Arial,Helvetica,sans-serif" font-size="91" font-weight="800" letter-spacing="2" text-anchor="middle">SNOOP</text>
+<path d="M115 297H397" stroke="#39ff14" stroke-width="6" stroke-linecap="round"/>
+<g fill="none" stroke="#39ff14" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="133" cy="396" r="13"/><circle cx="170" cy="396" r="13"/><path d="M111 436q0-26 22-26t22 26M148 425q6-15 22-15t22 26"/>
+<path d="m232 397 24-13 24 13v30l-24 13-24-13zM232 397l24 13 24-13M256 410v30"/>
+<path d="M326 435v-19M348 435v-30M370 435v-42M392 435v-57"/>
+</g></svg>
