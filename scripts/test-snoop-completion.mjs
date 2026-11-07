@@ -280,12 +280,9 @@ for (const [label, engine, device, options] of engines) {
   try {
     await page.goto(base + "/productos", { waitUntil: "networkidle" });
     await page.getByLabel("Producto para ajustar stock").waitFor();
-    assert.equal(
-      await page
-        .locator('img[src="/icons/snoop-commercial.svg"]')
-        .last()
-        .evaluate((img) => img.complete && img.naturalWidth > 0),
-      true,
+    assert.ok(
+      await page.getByRole("img", { name: "SNOOP", exact: true }).first().isVisible(),
+      "Metallic vector wordmark renders",
     );
     assert.equal(
       await page.getByRole("link", { name: "Cuotas e ingresos", exact: true }).count(),

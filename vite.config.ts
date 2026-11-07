@@ -1,3 +1,4 @@
+import { qrCameraCompatibility, guardQrCameraPlayback } from "./scripts/lib/camera-compat.mjs";
 import { guardWorkerOutput } from "./scripts/lib/cloudflare-compat.mjs";
 import { defineConfig, loadEnv } from "vite";
 import { fileURLToPath } from "node:url";
@@ -34,16 +35,15 @@ export default defineConfig(({ command, mode }) => {
       throw new Error(
         "Configure the dedicated SNOOP pilot project using Cloudflare build environment variables or a local .env.pilot.local.",
       );
-    for (const key of [
-      "VITE_SUPABASE_PUBLISHABLE_KEY",
-      "SUPABASE_PUBLISHABLE_KEY",
-    ])
+    for (const key of ["VITE_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_PUBLISHABLE_KEY"])
       if (!env[key] || /REPLACE_|YOUR_/.test(env[key]))
         throw new Error(`Missing dedicated SNOOP pilot setting: ${key}`);
     // A publishable key is public, but an access token, secret, or service-role
     // key must never be embedded in the browser bundle.
     if (!env.VITE_SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_"))
-      throw new Error("SNOOP pilot requires a Supabase sb_publishable_ key for the browser; do not use access tokens or private keys.");
+      throw new Error(
+        "SNOOP pilot requires a Supabase sb_publishable_ key for the browser; do not use access tokens or private keys.",
+      );
     if (env.VITE_SUPABASE_PUBLISHABLE_KEY !== env.SUPABASE_PUBLISHABLE_KEY)
       throw new Error("Browser and server must use the same dedicated SNOOP publishable key");
     const expected = `https://${env.SNOOP_SUPABASE_PROJECT_REF}.supabase.co`;
@@ -60,7 +60,21 @@ export default defineConfig(({ command, mode }) => {
       process.env[name] = env[name];
   }
   return {
+    optimizeDeps: {
+      rolldownOptions: {
+        plugins: [
+          {
+            name: "snoop-qr-camera-prebundle",
+            transform(code, id) {
+              const guarded = guardQrCameraPlayback(code, id);
+              return guarded === null ? null : { code: guarded, map: null };
+            },
+          },
+        ],
+      },
+    },
     plugins: [
+      qrCameraCompatibility(),
       tailwindcss(),
       tanstackStart({ server: { entry: "server" } }),
       command === "build" &&

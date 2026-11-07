@@ -36,7 +36,8 @@
     "test:voice:browser": "node scripts/test-voice-forms.mjs",
     "test:completion:mobile": "node scripts/test-snoop-completion.mjs",
     "test:account-links": "node scripts/test-account-links.mjs",
-    "test:pwa:resume": "node scripts/test-pwa-resume.mjs"
+    "test:pwa:resume": "node scripts/test-pwa-resume.mjs",
+    "test:premium:home": "node scripts/test-premium-home.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

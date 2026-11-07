@@ -6,7 +6,7 @@ export async function getCurrentClubId(): Promise<string | null> {
   const version = generation;
   const { data, error } = await supabase.rpc("current_club_id" as any);
   if (error) throw error;
-  if (version !== generation) throw new Error("La sesión ha cambiado. Reintenta la operación.");
+  if (version !== generation) return null; // Discard a cancelled read; never publish an old identity's club.
   cached = (data as string) ?? null;
   return cached;
 }

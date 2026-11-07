@@ -67,3 +67,14 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:completion:mobile
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:account-links
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:pwa:resume
+          TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:premium:home
+      - name: Save real premium home browser renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-premium-home
+          path: |
+            .sandbox/screenshots/premium/
+            .sandbox/PREMIUM_HOME_RESULTS.json
+          if-no-files-found: ignore
+          retention-days: 7

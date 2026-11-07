@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { clearClubCache } from "@/lib/club";
 import { authDeadline, verifiedAccess } from "@/lib/auth-access";
 import { forgetRoute } from "@/lib/resume-route";
 import { EMPTY_ACCESS, type AccountAccess, type Permission } from "@/lib/access-context";
@@ -14,7 +13,6 @@ export function useAuth() {
     [access, setAccess] = useState<UserAccess>({ ...EMPTY_ACCESS }),
     [loading, setLoading] = useState(true),
     [accessError, setAccessError] = useState<string | null>(null);
-  const verifiedClub = useRef<string | null>(null);
   const mounted = useRef(false),
     identity = useRef<string | null>(null),
     sequence = useRef(0),
@@ -26,12 +24,6 @@ export function useAuth() {
     try {
       const value = await verifiedAccess(uid);
       if (mounted.current && identity.current === uid && sequence.current === version) {
-        if (
-          (verifiedClub.current !== null && verifiedClub.current !== value.clubId) ||
-          value.status !== "active"
-        )
-          clearClubCache();
-        verifiedClub.current = value.clubId;
         setAccess(value);
       }
     } catch {
@@ -51,7 +43,6 @@ export function useAuth() {
       const uid = s?.user.id ?? null;
       if (identity.current !== uid) {
         sequence.current++;
-        clearClubCache();
         setAccess({ ...EMPTY_ACCESS });
       }
       identity.current = uid;

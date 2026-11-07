@@ -91,7 +91,10 @@ function getSpeechRecognition(): any {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
 }
 
-export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
+export function VoiceAgent({
+  clubName,
+  hideIdleControls = false,
+}: { clubName?: string | null; hideIdleControls?: boolean } = {}) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingStream = useRef<MediaStream | null>(null);
   const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -547,12 +550,13 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
       : status === "processing"
         ? "bg-gradient-neon text-primary-foreground glow-neon"
         : status === "listening"
-          ? "bg-gradient-neon text-primary-foreground glow-neon shadow-[0_0_40px_-5px_oklch(0.85_0.25_140)] animate-pulse"
+          ? "bg-gradient-neon text-primary-foreground glow-neon shadow-[0_0_22px_-5px_#d1a95488] animate-pulse"
           : "bg-card border border-neon/40 text-neon";
 
   return (
     <>
       <select
+        hidden={hideIdleControls && !enabled}
         aria-label="Idioma de voz / Lingua voce"
         value={language}
         onChange={(event) => {
@@ -561,7 +565,7 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
           window.localStorage.setItem("snoop:voice-language", event.target.value);
           if (recRef.current) recRef.current.lang = event.target.value;
         }}
-        className="fixed bottom-24 right-5 z-40 rounded border border-neon/30 bg-card p-1 text-xs text-neon"
+        className="snoop-voice-language fixed bottom-24 right-5 z-40 rounded border border-neon/30 bg-card p-1 text-xs text-neon"
       >
         <option value="es-ES">ES</option>
         <option value="it-IT">IT</option>
@@ -570,8 +574,9 @@ export function VoiceAgent({ clubName }: { clubName?: string | null } = {}) {
         type="button"
         onClick={toggle}
         disabled={status === "processing"}
+        hidden={hideIdleControls && !enabled}
         aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
-        className={`fixed z-40 bottom-5 right-5 md:bottom-8 md:right-8 h-16 w-16 rounded-full flex items-center justify-center transition-all ${ringClass}`}
+        className={`snoop-voice-toggle fixed z-40 bottom-5 right-5 md:bottom-8 md:right-8 h-16 w-16 rounded-full flex items-center justify-center transition-all ${ringClass}`}
       >
         {status === "processing" ? (
           <Loader2 className="w-6 h-6 animate-spin" />

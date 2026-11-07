@@ -89,10 +89,10 @@ function AjustesSocios() {
               <div key={f.key} className="grid grid-cols-[1fr_90px_110px] items-center px-4 py-3 border-b border-neon/10 last:border-0">
                 <div className="text-sm text-foreground">{f.label}</div>
                 <div className="text-center">
-                  <input type="checkbox" checked={v.visible} onChange={(e) => update(f.key, { visible: e.target.checked })} className="h-4 w-4 accent-[#39ff14]" />
+                  <input type="checkbox" checked={v.visible} onChange={(e) => update(f.key, { visible: e.target.checked })} className="h-4 w-4 accent-primary" />
                 </div>
                 <div className="text-center">
-                  <input type="checkbox" checked={v.required} onChange={(e) => update(f.key, { required: e.target.checked })} className="h-4 w-4 accent-[#39ff14]" />
+                  <input type="checkbox" checked={v.required} onChange={(e) => update(f.key, { required: e.target.checked })} className="h-4 w-4 accent-primary" />
                 </div>
               </div>
             );

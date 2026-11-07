@@ -18,10 +18,12 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthenticatedSnoopAdminRouteImport } from './routes/_authenticated/snoop-admin'
 import { Route as AuthenticatedProductosRouteImport } from './routes/_authenticated/productos'
+import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedCuotasRouteImport } from './routes/_authenticated/cuotas'
 import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
 import { Route as AuthenticatedClubStatusRouteImport } from './routes/_authenticated/club-status'
 import { Route as AuthenticatedCajaRouteImport } from './routes/_authenticated/caja'
+import { Route as AuthenticatedActividadesRouteImport } from './routes/_authenticated/actividades'
 import { Route as AuthenticatedSociIndexRouteImport } from './routes/_authenticated/soci.index'
 import { Route as AuthenticatedAjustesIndexRouteImport } from './routes/_authenticated/ajustes.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -86,6 +88,11 @@ const AuthenticatedProductosRoute = AuthenticatedProductosRouteImport.update({
   path: '/productos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCuotasRoute = AuthenticatedCuotasRouteImport.update({
   id: '/cuotas',
   path: '/cuotas',
@@ -107,6 +114,12 @@ const AuthenticatedCajaRoute = AuthenticatedCajaRouteImport.update({
   path: '/caja',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedActividadesRoute =
+  AuthenticatedActividadesRouteImport.update({
+    id: '/actividades',
+    path: '/actividades',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSociIndexRoute = AuthenticatedSociIndexRouteImport.update({
   id: '/soci/',
   path: '/soci/',
@@ -221,10 +234,12 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/actividades': typeof AuthenticatedActividadesRoute
   '/caja': typeof AuthenticatedCajaRoute
   '/club-status': typeof AuthenticatedClubStatusRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/cuotas': typeof AuthenticatedCuotasRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
   '/productos': typeof AuthenticatedProductosRoute
   '/snoop-admin': typeof AuthenticatedSnoopAdminRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -253,10 +268,12 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/actividades': typeof AuthenticatedActividadesRoute
   '/caja': typeof AuthenticatedCajaRoute
   '/club-status': typeof AuthenticatedClubStatusRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/cuotas': typeof AuthenticatedCuotasRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
   '/productos': typeof AuthenticatedProductosRoute
   '/snoop-admin': typeof AuthenticatedSnoopAdminRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -288,10 +305,12 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unsubscribe': typeof UnsubscribeRoute
+  '/_authenticated/actividades': typeof AuthenticatedActividadesRoute
   '/_authenticated/caja': typeof AuthenticatedCajaRoute
   '/_authenticated/club-status': typeof AuthenticatedClubStatusRoute
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/_authenticated/cuotas': typeof AuthenticatedCuotasRoute
+  '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/productos': typeof AuthenticatedProductosRoute
   '/_authenticated/snoop-admin': typeof AuthenticatedSnoopAdminRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -324,10 +343,12 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/unsubscribe'
+    | '/actividades'
     | '/caja'
     | '/club-status'
     | '/control-acceso'
     | '/cuotas'
+    | '/perfil'
     | '/productos'
     | '/snoop-admin'
     | '/email/unsubscribe'
@@ -356,10 +377,12 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/unsubscribe'
+    | '/actividades'
     | '/caja'
     | '/club-status'
     | '/control-acceso'
     | '/cuotas'
+    | '/perfil'
     | '/productos'
     | '/snoop-admin'
     | '/email/unsubscribe'
@@ -390,10 +413,12 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/unsubscribe'
+    | '/_authenticated/actividades'
     | '/_authenticated/caja'
     | '/_authenticated/club-status'
     | '/_authenticated/control-acceso'
     | '/_authenticated/cuotas'
+    | '/_authenticated/perfil'
     | '/_authenticated/productos'
     | '/_authenticated/snoop-admin'
     | '/email/unsubscribe'
@@ -500,6 +525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProductosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/perfil': {
+      id: '/_authenticated/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/cuotas': {
       id: '/_authenticated/cuotas'
       path: '/cuotas'
@@ -526,6 +558,13 @@ declare module '@tanstack/react-router' {
       path: '/caja'
       fullPath: '/caja'
       preLoaderRoute: typeof AuthenticatedCajaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/actividades': {
+      id: '/_authenticated/actividades'
+      path: '/actividades'
+      fullPath: '/actividades'
+      preLoaderRoute: typeof AuthenticatedActividadesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/soci/': {
@@ -676,10 +715,12 @@ const AuthenticatedSociIdRouteWithChildren =
   AuthenticatedSociIdRoute._addFileChildren(AuthenticatedSociIdRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedActividadesRoute: typeof AuthenticatedActividadesRoute
   AuthenticatedCajaRoute: typeof AuthenticatedCajaRoute
   AuthenticatedClubStatusRoute: typeof AuthenticatedClubStatusRoute
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
   AuthenticatedCuotasRoute: typeof AuthenticatedCuotasRoute
+  AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProductosRoute: typeof AuthenticatedProductosRoute
   AuthenticatedSnoopAdminRoute: typeof AuthenticatedSnoopAdminRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -697,10 +738,12 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedActividadesRoute: AuthenticatedActividadesRoute,
   AuthenticatedCajaRoute: AuthenticatedCajaRoute,
   AuthenticatedClubStatusRoute: AuthenticatedClubStatusRoute,
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
   AuthenticatedCuotasRoute: AuthenticatedCuotasRoute,
+  AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProductosRoute: AuthenticatedProductosRoute,
   AuthenticatedSnoopAdminRoute: AuthenticatedSnoopAdminRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,

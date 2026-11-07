@@ -94,7 +94,7 @@ export function PwaInstall() {
     return (
       <button
         type="button"
-        className="fixed bottom-5 left-5 z-40 rounded-lg border border-neon/40 bg-card px-4 py-2 text-xs text-neon"
+        className="snoop-install-control snoop-update-control fixed bottom-5 left-5 z-40 rounded-lg border border-neon/40 bg-card px-4 py-2 text-xs text-neon"
         onClick={() => {
           if (
             !confirm(
@@ -115,7 +115,7 @@ export function PwaInstall() {
     );
   if (!prompt)
     return ios ? (
-      <details className="fixed bottom-5 left-5 z-40 max-w-[65vw] rounded-lg border border-neon/40 bg-card p-3 text-xs text-neon">
+      <details className="snoop-install-control fixed bottom-5 left-5 z-40 max-w-[65vw] rounded-lg border border-neon/40 bg-card p-3 text-xs text-neon">
         <summary>Instalar en iPhone / Installa su iPhone</summary>
         <p className="mt-2">
           Safari: Compartir / Condividi → Añadir a pantalla de inicio / Aggiungi alla schermata
@@ -127,7 +127,7 @@ export function PwaInstall() {
     <button
       type="button"
       disabled={busy}
-      className="fixed bottom-5 left-5 z-40 rounded-lg border border-neon/40 bg-card px-4 py-2 text-xs text-neon"
+      className="snoop-install-control fixed bottom-5 left-5 z-40 rounded-lg border border-neon/40 bg-card px-4 py-2 text-xs text-neon"
       onClick={async () => {
         setBusy(true);
         try {

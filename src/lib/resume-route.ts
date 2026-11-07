@@ -1,7 +1,7 @@
 import { accessRedirect, type AccountAccess } from "./access-context.ts";
 const key = "snoop:resume-route";
 export function safeResumePath(path: string) {
-  return /^\/(?:productos|caja|control-acceso|soci(?:\/(?:nuovo|gestisci|importar|[a-f0-9-]{36}))?|ajustes(?:\/(?:colaboradores|socios|cuotas|informes|dispositivos))?)$/.test(
+  return /^\/(?:productos|caja|control-acceso|perfil|actividades|soci(?:\/(?:nuovo|gestisci|importar|[a-f0-9-]{36}))?|ajustes(?:\/(?:colaboradores|socios|cuotas|informes|dispositivos))?)$/.test(
     path,
   );
 }

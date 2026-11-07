@@ -63,6 +63,7 @@ try {
     }, icon.src);
     assert.equal(dimensions, icon.sizes);
   }
+  await page.locator('input[type="email"]').waitFor({ state: "visible" });
   assert.ok(await page.locator('input[type="email"]').isVisible(), "Login renders after hydration");
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),

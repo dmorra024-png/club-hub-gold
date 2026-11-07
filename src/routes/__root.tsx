@@ -17,7 +17,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
@@ -68,11 +68,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
+      },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "SNOOP" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "theme-color", content: "#080d0a" },
+      { name: "theme-color", content: "#020b13" },
       { title: "SNOOP — Club access in Spain" },
       {
         name: "description",
@@ -124,6 +128,18 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const auth = useAuth();
+  const verifiedScope = useRef<string | null>(null);
+  useEffect(() => {
+    if (auth.loading) return;
+    const next =
+      !auth.accessError && auth.access.status === "active" && auth.user?.id && auth.access.clubId
+        ? `${auth.user.id}:${auth.access.clubId}`
+        : null;
+    // Invalidate once in the persistent root, not whenever a page mounts a
+    // useAuth consumer. Real identity/club changes still cancel stale reads.
+    if (!next || (verifiedScope.current && verifiedScope.current !== next)) clearClubCache();
+    verifiedScope.current = next;
+  }, [auth.loading, auth.accessError, auth.user?.id, auth.access.clubId, auth.access.status]);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [identity, setIdentity] = useState<string | null>(null);
   useEffect(() => {
@@ -177,9 +193,9 @@ function RootComponent() {
         position="top-right"
         toastOptions={{
           style: {
-            background: "oklch(0.12 0.015 150)",
-            color: "oklch(0.96 0.01 150)",
-            border: "1px solid oklch(0.3 0.05 150 / 0.4)",
+            background: "#0b1827",
+            color: "#f3f4f7",
+            border: "1px solid #c6a76b55",
           },
         }}
       />

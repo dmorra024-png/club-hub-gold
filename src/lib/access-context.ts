@@ -57,6 +57,7 @@ export function operationalPermission(path: string): Permission | null {
   return null;
 }
 export function accessRedirect(access: AccountAccess, path: string): string | null {
+  if (path === "/perfil") return null;
   if (access.role === "super_admin") return path === "/snoop-admin" ? null : "/snoop-admin";
   if (access.status !== "active") return path === "/club-status" ? null : "/club-status";
   if (path === "/snoop-admin" || path === "/club-status") return "/";

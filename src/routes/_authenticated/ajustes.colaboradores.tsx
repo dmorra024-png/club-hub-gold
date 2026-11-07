@@ -221,7 +221,7 @@ function ColaboradoresPage() {
                     type="checkbox"
                     checked={perms.includes(p.key)}
                     onChange={() => togglePerm(p.key)}
-                    className="accent-[#39ff14]"
+                    className="accent-primary"
                   />
                   <span className="text-sm text-foreground">{p.label}</span>
                 </label>
@@ -338,7 +338,7 @@ function CollabRow({
                       a.includes(p.key) ? a.filter((x) => x !== p.key) : [...a, p.key],
                     )
                   }
-                  className="accent-[#39ff14]"
+                  className="accent-primary"
                 />
                 {p.label}
               </label>

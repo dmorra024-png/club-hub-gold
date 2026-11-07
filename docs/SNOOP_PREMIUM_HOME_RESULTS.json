@@ -1,0 +1,39 @@
+{
+  "results": [
+    {
+      "device": "android-pixel",
+      "result": "PASS",
+      "physical": false,
+      "fixtures": "synthetic, intercepted local API",
+      "screenshot": ".sandbox/screenshots/premium/android-pixel.png"
+    },
+    {
+      "device": "android-samsung",
+      "result": "PASS",
+      "physical": false,
+      "fixtures": "synthetic, intercepted local API",
+      "screenshot": ".sandbox/screenshots/premium/android-samsung.png"
+    },
+    {
+      "device": "small-screen",
+      "result": "PASS",
+      "physical": false,
+      "fixtures": "synthetic, intercepted local API",
+      "screenshot": ".sandbox/screenshots/premium/small-screen.png"
+    },
+    {
+      "device": "iphone-webkit",
+      "result": "PASS",
+      "physical": false,
+      "fixtures": "synthetic, intercepted local API",
+      "screenshot": ".sandbox/screenshots/premium/iphone-webkit.png"
+    },
+    {
+      "device": "iphone-large",
+      "result": "PASS",
+      "physical": false,
+      "fixtures": "synthetic, intercepted local API",
+      "screenshot": ".sandbox/screenshots/premium/iphone-large.png"
+    }
+  ]
+}

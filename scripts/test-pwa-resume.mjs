@@ -192,13 +192,19 @@ for (const [label, engine, device] of engines) {
     await page.waitForURL(base + "/productos");
     await page.getByLabel("Producto para ajustar stock").waitFor();
     await page.goto(base + "/", { waitUntil: "networkidle" });
-    const summary = page.getByRole("region", { name: "Resumen de hoy" });
+    const summary = page.getByRole("region", { name: "Caja de hoy" });
     await summary.getByText(/10,00/).waitFor();
     assert.equal(
-      await page.getByRole("navigation", { name: "Accesos principales" }).getByRole("link").count(),
+      await page
+        .getByRole("navigation", { name: "Navegación principal" })
+        .getByRole("link")
+        .count(),
       3,
     );
-    assert.match(await summary.innerText(), /Club Sintetico Realista/);
+    assert.match(
+      await page.getByRole("region", { name: "Bienvenida al club" }).innerText(),
+      /Club Sintetico Realista/,
+    );
     assert.doesNotMatch(await summary.innerText(), /\d+ socios|\d+ productos/i);
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
     await page.getByRole("tab", { name: "Informe de hoy", exact: true }).click();
@@ -206,16 +212,13 @@ for (const [label, engine, device] of engines) {
     permitted = false;
     queries.length = 0;
     await page.goto(base + "/", { waitUntil: "networkidle" });
-    await page.getByRole("navigation", { name: "Accesos principales" }).waitFor();
-    assert.equal(await page.getByText("Caja hoy", { exact: true }).count(), 0);
+    await page.getByRole("navigation", { name: "Navegación principal" }).waitFor();
+    assert.equal(await page.locator(".premium-cash-amount").count(), 0);
     assert.equal(queries.length, 0);
-    assert.equal(
-      await page
-        .getByRole("navigation", { name: "Accesos principales" })
-        .locator("[aria-disabled=true]")
-        .count(),
-      2,
-    );
+    await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
+    const menu = page.getByRole("dialog", { name: "Menú principal" });
+    assert.equal(await menu.getByRole("link", { name: "Productos", exact: true }).count(), 0);
+    assert.equal(await menu.getByRole("link", { name: "Caja", exact: true }).count(), 0);
     console.log(
       "PASS " +
         label +

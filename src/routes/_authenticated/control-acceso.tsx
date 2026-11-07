@@ -1,13 +1,23 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowRight, ArrowLeft as ArrowLeftIcon, Camera, CameraOff, KeyboardIcon, Users } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowLeft as ArrowLeftIcon,
+  Camera,
+  CameraOff,
+  KeyboardIcon,
+  Users,
+} from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
-import { getCurrentClubId } from "@/lib/club";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/_authenticated/control-acceso")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    scanner: search.scanner === true || search.scanner === "true",
+  }),
   component: ControlAccesoPage,
 });
 
@@ -21,8 +31,19 @@ type Recent = {
 };
 
 function ControlAccesoPage() {
-  const [clubId, setClubId] = useState<string | null>(null);
+  const { scanner: openScanner } = Route.useSearch();
+  const { access, can, loading: accessLoading, accessError } = useAuth();
+  const canScan = can("manage_members");
+  const scanPermission = useRef(false);
+  scanPermission.current = canScan;
+  const autoStarted = useRef(false);
+  const clubId = access.clubId;
   const [scannerOn, setScannerOn] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const cameraLife = useRef(0);
+  const cameraPending = useRef(false);
+  const cameraMounted = useRef(false);
+  const cameraFailed = useRef(false);
   const [scanning, setScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,11 +55,10 @@ function ControlAccesoPage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastScanRef = useRef<{ code: string; t: number }>({ code: "", t: 0 });
 
-  useEffect(() => { getCurrentClubId().then(setClubId); }, []);
-
   async function refreshStats() {
-    if (!clubId) return;
-    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    if (!clubId || !scanPermission.current) return;
+    const startToday = new Date();
+    startToday.setHours(0, 0, 0, 0);
     const { data } = await supabase
       .from("check_ins")
       .select("id,direction,created_at,member_id,members(member_number,first_name,last_name)")
@@ -65,13 +85,20 @@ function ControlAccesoPage() {
     for (const r of list) {
       if (!seen.has(r.member_number)) seen.set(r.member_number, r.direction);
     }
-    let inside = 0; seen.forEach((v) => { if (v === "in") inside++; });
+    let inside = 0;
+    seen.forEach((v) => {
+      if (v === "in") inside++;
+    });
     setInsideNow(inside);
   }
-  useEffect(() => { refreshStats(); /* eslint-disable-next-line */ }, [clubId]);
+  useEffect(() => {
+    refreshStats(); /* eslint-disable-next-line */
+  }, [clubId, canScan]);
 
   // Focus manual input for hardware scanners
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    if (!openScanner) inputRef.current?.focus();
+  }, [openScanner]);
 
   function parseCode(raw: string): string | null {
     const trimmed = raw.trim();
@@ -82,9 +109,19 @@ function ControlAccesoPage() {
   }
 
   async function registerScan(rawCode: string) {
-    if (!clubId) { toast.error("Sin club"); return; }
+    if (!scanPermission.current) {
+      toast.error("Sin permiso de gestión de socios");
+      return;
+    }
+    if (!clubId) {
+      toast.error("Sin club");
+      return;
+    }
     const code = parseCode(rawCode);
-    if (!code) { toast.error("Código no válido"); return; }
+    if (!code) {
+      toast.error("Código no válido");
+      return;
+    }
     // De-bounce identical scans within 3s
     const now = Date.now();
     if (lastScanRef.current.code === code && now - lastScanRef.current.t < 3000) return;
@@ -98,10 +135,14 @@ function ControlAccesoPage() {
         .eq("club_id", clubId)
         .eq("member_number", code)
         .maybeSingle();
-      if (!member) { toast.error(`Socio ${code} no encontrado`); return; }
+      if (!member) {
+        toast.error(`Socio ${code} no encontrado`);
+        return;
+      }
 
       // Determine direction: alternate based on last event today
-      const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+      const startToday = new Date();
+      startToday.setHours(0, 0, 0, 0);
       const { data: last } = await supabase
         .from("check_ins")
         .select("direction")
@@ -123,7 +164,7 @@ function ControlAccesoPage() {
       if (error) throw error;
 
       toast.success(
-        `${nextDir === "in" ? "✓ Entrada" : "↩ Salida"} · ${(member as any).first_name} ${(member as any).last_name}`
+        `${nextDir === "in" ? "✓ Entrada" : "↩ Salida"} · ${(member as any).first_name} ${(member as any).last_name}`,
       );
       refreshStats();
     } catch (e: any) {
@@ -136,14 +177,24 @@ function ControlAccesoPage() {
   }
 
   async function toggleCamera() {
+    if (!scanPermission.current) return;
+    if (cameraPending.current) return;
+    const version = ++cameraLife.current;
     if (scannerOn) {
-      try { await readerRef.current?.stop(); } catch {}
-      try { await readerRef.current?.clear(); } catch {}
+      try {
+        await readerRef.current?.stop();
+      } catch {}
+      try {
+        await readerRef.current?.clear();
+      } catch {}
       readerRef.current = null;
       setScannerOn(false);
       setScanning(false);
       return;
     }
+    cameraPending.current = true;
+    cameraFailed.current = false;
+    setCameraStarting(true);
     try {
       const reader = new Html5Qrcode("qr-reader");
       readerRef.current = reader;
@@ -157,21 +208,94 @@ function ControlAccesoPage() {
         },
         () => {},
       );
+      if (version !== cameraLife.current) {
+        await reader.stop().catch(() => {});
+        return;
+      }
       setScannerOn(true);
     } catch (e: any) {
-      toast.error(e?.message ?? "No se pudo acceder a la cámara");
+      if (version === cameraLife.current)
+        toast.error(e?.message ?? "No se pudo acceder a la cámara");
+    } finally {
+      cameraPending.current = false;
+      if (cameraMounted.current) {
+        if (version !== cameraLife.current && !cameraFailed.current) autoStarted.current = false;
+        setCameraStarting(false);
+      }
     }
   }
 
   useEffect(() => {
+    if (!openScanner || !clubId || !canScan || autoStarted.current) return;
+    // Let the route settle; StrictMode's probe mount must not acquire a camera.
+    const timer = setTimeout(() => {
+      if (
+        !cameraMounted.current ||
+        !scanPermission.current ||
+        autoStarted.current ||
+        cameraPending.current
+      )
+        return;
+      autoStarted.current = true;
+      void toggleCamera();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [openScanner, clubId, canScan, cameraStarting]);
+  useEffect(() => {
+    if (!accessLoading && (!canScan || accessError)) {
+      cameraLife.current++;
+      const reader = readerRef.current;
+      readerRef.current = null;
+      setScannerOn(false);
+      setCameraStarting(false);
+      if (reader)
+        void Promise.resolve()
+          .then(() => reader.stop())
+          .catch(() => {});
+    }
+  }, [accessLoading, canScan, accessError]);
+  useEffect(() => {
+    cameraMounted.current = true;
     return () => {
-      try { readerRef.current?.stop(); } catch {}
-      try { readerRef.current?.clear(); } catch {}
+      cameraMounted.current = false;
+      autoStarted.current = false;
+      cameraLife.current++;
+      const reader = readerRef.current;
+      if (reader)
+        void Promise.resolve()
+          .then(() => reader.stop())
+          .catch(() => {});
     };
   }, []);
 
+  useEffect(() => {
+    const element = document.getElementById("qr-reader");
+    const failed = () => {
+      cameraFailed.current = true;
+      cameraLife.current++;
+      const reader = readerRef.current;
+      readerRef.current = null;
+      setScannerOn(false);
+      setCameraStarting(false);
+      if (reader)
+        void Promise.resolve()
+          .then(() => reader.stop())
+          .catch(() => {});
+      toast.error(
+        "No se pudo reproducir la cámara. Revisa los permisos o utiliza el código manual.",
+      );
+    };
+    element?.addEventListener("snoop:camera-play-error", failed);
+    return () => element?.removeEventListener("snoop:camera-play-error", failed);
+  }, []);
+
+  if (!accessLoading && !canScan) return <Navigate to="/" />;
+
   return (
-    <SnoopLayout title="Control de acceso" subtitle="Escanea el QR del socio para registrar entrada o salida">
+    <SnoopLayout
+      title="Control de acceso"
+      subtitle="Escanea el QR del socio para registrar entrada o salida"
+    >
       <div className="grid md:grid-cols-3 gap-4 mb-6">
         <Stat label="Dentro ahora" value={insideNow} icon={Users} accent />
         <Stat label="Entradas hoy" value={inToday} icon={ArrowRight} />
@@ -187,13 +311,30 @@ function ControlAccesoPage() {
             </div>
             <button
               onClick={toggleCamera}
+              disabled={cameraStarting || !canScan}
               className="text-[11px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-1.5"
             >
-              {scannerOn ? <><CameraOff className="w-3.5 h-3.5" /> Detener</> : <><Camera className="w-3.5 h-3.5" /> Empezar</>}
+              {scannerOn ? (
+                <>
+                  <CameraOff className="w-3.5 h-3.5" /> Detener
+                </>
+              ) : (
+                <>
+                  <Camera className="w-3.5 h-3.5" /> Empezar
+                </>
+              )}
             </button>
           </div>
-          <div id="qr-reader" className="w-full aspect-square bg-black/60 rounded-xl overflow-hidden flex items-center justify-center">
-            {!scannerOn && <div className="text-xs text-muted-foreground">Pulsa "Empezar" para activar la cámara</div>}
+          <div className="relative w-full aspect-square bg-black/60 rounded-xl overflow-hidden">
+            {/* Html5Qrcode exclusively owns this empty element's children. */}
+            <div id="qr-reader" className="w-full" />
+            {!scannerOn && (
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs text-muted-foreground">
+                {cameraStarting
+                  ? "Solicitando acceso a la cámara…"
+                  : 'Pulsa "Empezar" para activar la cámara'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -202,23 +343,32 @@ function ControlAccesoPage() {
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-neon-dim mb-3">
             <KeyboardIcon className="w-4 h-4 text-neon" /> Lector físico / código manual
           </div>
-          <form onSubmit={(e) => { e.preventDefault(); if (manualCode) registerScan(manualCode); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (manualCode) registerScan(manualCode);
+            }}
+          >
             <input
               ref={inputRef}
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
               placeholder="Nº de socio o SNOOP:0000123"
-              autoFocus
+              autoFocus={!openScanner}
               className="w-full bg-input border border-border rounded-lg px-4 py-3 text-lg font-mono focus:border-neon outline-none"
-              disabled={busy}
+              disabled={busy || !canScan}
             />
-            <button type="submit" disabled={busy || !manualCode}
-              className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={busy || !manualCode || !canScan}
+              className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
+            >
               Registrar
             </button>
           </form>
           <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
-            Enfoca este campo y pasa el código con tu lector USB/Bluetooth. Se registra automáticamente entrada o salida según el último movimiento del día.
+            Enfoca este campo y pasa el código con tu lector USB/Bluetooth. Se registra
+            automáticamente entrada o salida según el último movimiento del día.
           </p>
         </div>
       </div>
@@ -233,15 +383,29 @@ function ControlAccesoPage() {
         ) : (
           <div className="divide-y divide-neon/10">
             {recents.map((r) => (
-              <Link key={r.id} to="/soci" className="flex items-center justify-between px-5 py-3 hover:bg-neon/5">
+              <Link
+                key={r.id}
+                to="/soci"
+                className="flex items-center justify-between px-5 py-3 hover:bg-neon/5"
+              >
                 <div className="flex items-center gap-3">
-                  <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full ${r.direction === "in" ? "bg-neon/15 text-neon border border-neon/40" : "bg-destructive/10 text-destructive border border-destructive/40"}`}>
-                    {r.direction === "in" ? <ArrowRight className="w-3 h-3" /> : <ArrowLeftIcon className="w-3 h-3" />}
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full ${r.direction === "in" ? "bg-neon/15 text-neon border border-neon/40" : "bg-destructive/10 text-destructive border border-destructive/40"}`}
+                  >
+                    {r.direction === "in" ? (
+                      <ArrowRight className="w-3 h-3" />
+                    ) : (
+                      <ArrowLeftIcon className="w-3 h-3" />
+                    )}
                     {r.direction === "in" ? "Entrada" : "Salida"}
                   </span>
                   <div>
-                    <div className="text-sm text-foreground">{r.first_name} {r.last_name}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">Nº {r.member_number}</div>
+                    <div className="text-sm text-foreground">
+                      {r.first_name} {r.last_name}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      Nº {r.member_number}
+                    </div>
                   </div>
                 </div>
                 <div className="text-[11px] text-muted-foreground">
@@ -256,13 +420,27 @@ function ControlAccesoPage() {
   );
 }
 
-function Stat({ label, value, icon: Icon, accent }: { label: string; value: number; icon: any; accent?: boolean }) {
+function Stat({
+  label,
+  value,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: number;
+  icon: any;
+  accent?: boolean;
+}) {
   return (
-    <div className={`rounded-2xl border p-5 ${accent ? "border-neon/50 bg-neon/5 glow-neon-soft" : "border-neon/20 bg-card/60"}`}>
+    <div
+      className={`rounded-2xl border p-5 ${accent ? "border-neon/50 bg-neon/5 glow-neon-soft" : "border-neon/20 bg-card/60"}`}
+    >
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-neon-dim">
         <Icon className="w-3.5 h-3.5 text-neon" /> {label}
       </div>
-      <div className={`mt-2 font-display text-3xl ${accent ? "text-neon" : "text-foreground"}`}>{value}</div>
+      <div className={`mt-2 font-display text-3xl ${accent ? "text-neon" : "text-foreground"}`}>
+        {value}
+      </div>
     </div>
   );
 }
