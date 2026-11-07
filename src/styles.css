@@ -239,7 +239,7 @@ a {
 .snoop-lettering {
   width: 100%;
   height: auto;
-  aspect-ratio: 8 / 1;
+  aspect-ratio: 8.5 / 1;
   display: block;
   position: relative;
   z-index: 1;
@@ -247,8 +247,8 @@ a {
 }
 .snoop-brand-orbit {
   position: absolute;
-  width: 116px;
-  height: 116px;
+  width: 104px;
+  height: 104px;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -260,36 +260,38 @@ a {
     calc(var(--snoop-nav-height) + var(--snoop-safe-bottom) + 14px);
 }
 .premium-shell-home .premium-topbar {
-  height: 105px;
+  height: 82px;
+  padding-inline: 8px;
   max-width: 600px;
   margin-inline: auto;
 }
 .premium-welcome {
   position: relative;
   text-align: center;
-  padding: 55px 24px 60px;
+  padding: 40px 24px 59px;
   overflow: hidden;
 }
 .premium-welcome h1 {
-  width: min(68%, 340px);
-  margin: 0 auto 39px;
+  width: min(58.6vw, 340px);
+  margin: 0 auto 48px;
+  transform: translateX(2px);
   position: relative;
   z-index: 1;
 }
 .premium-eyebrow {
-  font-size: 13px;
-  letter-spacing: 0.38em;
-  padding-left: 0.38em;
-  margin-bottom: 4px;
-  line-height: 1.5;
+  font-size: clamp(12.5px, 3.46vw, 15.5px);
+  letter-spacing: 0.48em;
+  padding-left: 0.48em;
+  margin-bottom: 1px;
+  line-height: 1.3;
   color: #f8f5ed;
 }
 .premium-club-name {
   position: relative;
   z-index: 1;
   font-family: var(--font-body);
-  font-size: clamp(24px, 6vw, 34px);
-  line-height: 1.3;
+  font-size: clamp(24px, 6.92vw, 34px);
+  line-height: 1.25;
   font-weight: 650;
   overflow-wrap: anywhere;
   color: #ebc476;
@@ -304,14 +306,14 @@ a {
   left: 0;
   bottom: -1px;
   width: 100%;
-  height: 97px;
+  height: 105px;
   overflow: visible;
 }
 .premium-cash {
   position: relative;
   margin: 0 0 0;
-  padding: 19px 29px 30px;
-  min-height: 138px;
+  padding: 15px 29px 30px;
+  min-height: 142px;
 }
 .premium-cash::after {
   content: "";
@@ -321,20 +323,24 @@ a {
   left: 3%;
   right: 3%;
   background: linear-gradient(90deg, transparent, #0971ba, #bdf3ff 45%, #08639e, transparent);
-  box-shadow: 0 0 10px 1px #007fd34d;
+  box-shadow: 0 0 12px 2px #007fd373;
 }
 .premium-cash h2 {
   font-family: var(--font-body);
   font-size: 19px;
   font-weight: 450;
-  margin-bottom: 2px;
+  line-height: 1.25;
+  margin-bottom: -1px;
 }
 .premium-cash-amount {
-  font-family: var(--font-display);
-  font-weight: 500;
+  position: relative;
+  z-index: 2;
+  font-family: "Snoop Cash", var(--font-display);
+  font-weight: 600;
   font-size: clamp(42px, 11.8vw, 62px);
   line-height: 1.25;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
+  text-shadow: 0 2px 8px #020b13;
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
@@ -345,7 +351,7 @@ a {
   max-width: 260px;
 }
 .premium-activities {
-  padding: 27px 22px 0;
+  padding: 24px 19px 0;
   position: relative;
   z-index: 1;
 }
@@ -354,7 +360,7 @@ a {
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 7px;
 }
 .premium-section-heading h2 {
   font-family: var(--font-body);
@@ -382,13 +388,13 @@ a {
 .premium-activity {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 0;
-  min-height: 60px;
+  gap: 18px;
+  padding: 6px 0;
+  min-height: 54px;
 }
 .premium-activity-icon {
-  flex: 0 0 44px;
-  height: 44px;
+  flex: 0 0 42px;
+  height: 42px;
   display: grid;
   place-items: center;
   border-radius: 13px;
@@ -396,8 +402,9 @@ a {
     radial-gradient(ellipse at 0 0, #bc88273b, transparent 70%),
     linear-gradient(150deg, #18202880, #07141b);
   box-shadow:
-    inset 1px 1px #b997566b,
-    inset -1px -1px #0f3045;
+    inset 1px 1px #f1ca83a6,
+    inset -1px -1px #0f3045,
+    -3px -2px 13px #e7b54c12;
   color: #ecc76d;
 }
 .premium-activity-icon svg {
@@ -424,7 +431,7 @@ a {
 }
 .premium-activity time {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 11.5px;
   color: #afb8c8;
   align-self: center;
 }
@@ -440,13 +447,14 @@ a {
 }
 .premium-footer-waves {
   position: relative;
-  height: 91px;
-  margin-top: 20px;
+  height: 74px;
+  flex-shrink: 0;
+  margin-top: auto;
   overflow: hidden;
 }
 .premium-waves-lower {
-  height: 100px;
-  bottom: -2px;
+  height: 74px;
+  bottom: 0;
 }
 .premium-bottom-nav {
   position: fixed;
@@ -494,17 +502,18 @@ a {
 }
 .premium-qr {
   position: relative;
-  width: 84px;
-  height: 84px;
-  border: 2px solid #d2a34a;
+  width: 90px;
+  height: 90px;
+  border: 2px solid #efc979;
   border-radius: 50%;
   justify-self: center;
   display: grid;
   place-items: center;
   background: radial-gradient(ellipse at top, #2c200c50, #02090e 68%);
   box-shadow:
-    inset 0 0 9px #dba8493b,
-    0 -2px 8px #dba84952;
+    inset 0 0 12px #dba8494d,
+    0 -2px 8px #ffdb8d7d,
+    0 0 20px #c98f2633;
   color: #fff;
   margin-top: -17px;
 }
@@ -782,23 +791,6 @@ body:has(.premium-shell[data-keyboard-open="true"]) .snoop-install-control,
   }
 }
 
-@media (max-height: 800px) and (max-width: 767px) {
-  .premium-welcome {
-    padding-top: 48px;
-    padding-bottom: 54px;
-  }
-  .premium-welcome h1 {
-    margin-bottom: 34px;
-  }
-  .premium-cash {
-    min-height: 133px;
-    padding-top: 16px;
-  }
-  .premium-activities {
-    padding-top: 22px;
-  }
-}
-
 /* Installation guidance is in document flow in the app: never over a form or activity. */
 .snoop-install-control {
   position: relative;
@@ -815,4 +807,97 @@ body:has(.premium-shell) .snoop-install-control {
 
 .premium-shell[data-keyboard-open="true"] .premium-main {
   padding-bottom: 24px;
+}
+
+@font-face {
+  font-family: "Snoop Cash";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/chakra-petch-latin-600.woff2") format("woff2");
+}
+.premium-shell-home .premium-main > div:last-child {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100svh - var(--snoop-nav-height) - var(--snoop-safe-bottom));
+}
+.premium-welcome,
+.premium-cash,
+.premium-activities {
+  flex-shrink: 0;
+}
+.premium-membership-chart {
+  position: absolute;
+  top: 28px;
+  right: 18px;
+  width: 185px;
+  margin: 0;
+  z-index: 1;
+}
+.premium-membership-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.premium-membership-chart figcaption {
+  color: #bda075;
+  font-size: 9px;
+  text-align: right;
+  margin-right: 8px;
+}
+.premium-bottom-nav .premium-qr::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  border-radius: 50%;
+  border-top: 2px solid #fff4c9;
+  border-bottom: 1px solid #8c5b18;
+  transform: rotate(-24deg);
+}
+
+.premium-shell-home .premium-header-button svg {
+  width: 26px;
+  height: 26px;
+}
+.premium-activity-list {
+  padding-inline: 11px 0;
+}
+.premium-activity-list li {
+  position: relative;
+}
+.premium-activity-list li + li {
+  border-top: 0;
+}
+.premium-activity-list li + li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 42px;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, #baaf8e36, #31495a66);
+}
+
+.premium-cash::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 45%;
+  width: 48px;
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, #e2faff, transparent);
+  box-shadow: 0 0 10px 2px #138ed878;
+}
+.premium-activity-icon svg {
+  stroke-width: 1.7;
+  filter: drop-shadow(0 1px 0 #b57b2444);
+}
+
+.premium-membership-chart figcaption {
+  position: absolute;
+  right: 8px;
+  bottom: 12px;
+  margin: 0;
 }

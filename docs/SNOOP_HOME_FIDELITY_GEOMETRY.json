@@ -1,0 +1,74 @@
+{
+  ".snoop-lettering": {
+    "x": 82.734375,
+    "y": 40,
+    "width": 228.53125,
+    "height": 26.875
+  },
+  ".snoop-brand-orbit": {
+    "x": 145,
+    "y": 1.4375,
+    "width": 104,
+    "height": 104
+  },
+  ".premium-eyebrow": {
+    "x": 24,
+    "y": 114.875,
+    "width": 342,
+    "height": 17.546875
+  },
+  ".premium-club-name": {
+    "x": 24,
+    "y": 133.421875,
+    "width": 342,
+    "height": 33.71875
+  },
+  ".premium-waves": {
+    "x": 0,
+    "y": 122.140625,
+    "width": 390,
+    "height": 105
+  },
+  ".premium-cash": {
+    "x": 0,
+    "y": 226.140625,
+    "width": 390,
+    "height": 142
+  },
+  ".premium-cash-amount": {
+    "x": 29,
+    "y": 263.890625,
+    "width": 332,
+    "height": 57.515625
+  },
+  ".premium-section-heading": {
+    "x": 19,
+    "y": 392.140625,
+    "width": 352,
+    "height": 36
+  },
+  ".premium-activity": {
+    "x": 30,
+    "y": 435.140625,
+    "width": 341,
+    "height": 54
+  },
+  ".premium-footer-waves": {
+    "x": 0,
+    "y": 600,
+    "width": 390,
+    "height": 74
+  },
+  ".premium-bottom-nav": {
+    "x": 0,
+    "y": 674,
+    "width": 390,
+    "height": 106
+  },
+  ".premium-qr": {
+    "x": 150,
+    "y": 676,
+    "width": 90,
+    "height": 90
+  }
+}

@@ -8,6 +8,8 @@ import { Navigate } from "@tanstack/react-router";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { PremiumWaves } from "@/components/PremiumWaves";
 import { ClubActivities } from "@/components/ClubActivities";
+import { membershipTimeline, type ReceiptPoint } from "@/lib/membership-timeline";
+import { MembershipSparkline } from "@/components/MembershipSparkline";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -17,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/")({
 function Home() {
   const { access, isAdmin, isSuperAdmin, can, user } = useAuth();
   const [cashCents, setCashCents] = useState<number | null>(null);
+  const [receiptPoints, setReceiptPoints] = useState<ReceiptPoint[]>([]);
   const [cashError, setCashError] = useState(false);
   const [cashScope, setCashScope] = useState("");
   const clubName = access.clubName ?? "—";
@@ -31,6 +34,7 @@ function Home() {
     let canceled = false;
     let request = 0;
     setCashCents(null);
+    setReceiptPoints([]);
     setCashError(false);
     setCashScope(scope);
     async function loadCash() {
@@ -45,7 +49,7 @@ function Home() {
           .lt("created_at", end);
         let receipts = supabase
           .from("membership_receipts")
-          .select("id,amount_cents")
+          .select("id,amount_cents,recorded_at", { count: "exact" })
           .eq("club_id", access.clubId!)
           .gte("recorded_at", start)
           .lt("recorded_at", end);
@@ -61,6 +65,9 @@ function Home() {
         } else {
           setCashError(false);
           setCashCents(cashAmounts(sales.data ?? [], fees.data ?? []).totalCents);
+          setReceiptPoints(
+            fees.count === fees.data?.length ? membershipTimeline(fees.data ?? [], start, end) : [],
+          );
         }
       } catch {
         if (!canceled && version === request) {
@@ -109,6 +116,9 @@ function Home() {
           </p>
         ) : (
           <p className="premium-cash-private">Importes reservados a usuarios autorizados</p>
+        )}
+        {canSeeCash && !cashError && cashScope === scope && cashCents !== null && (
+          <MembershipSparkline points={receiptPoints} />
         )}
       </section>
       <ClubActivities />

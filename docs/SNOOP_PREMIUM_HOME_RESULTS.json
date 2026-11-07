@@ -1,6 +1,13 @@
 {
   "results": [
     {
+      "device": "reference-content",
+      "result": "PASS",
+      "physical": false,
+      "fixtures": "synthetic, intercepted local API",
+      "screenshot": ".sandbox/screenshots/premium/reference-content.png"
+    },
+    {
       "device": "android-pixel",
       "result": "PASS",
       "physical": false,
