@@ -158,6 +158,16 @@ for (const [label, engine, device, options] of engines) {
       });
     }
     if (!isApi) return route.continue();
+    const cors = {
+      "access-control-allow-origin": new URL(base).origin,
+      "access-control-allow-credentials": "true",
+      "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "access-control-allow-headers":
+        req.headers()["access-control-request-headers"] ||
+        "authorization,apikey,content-type,prefer,x-client-info,x-supabase-api-version",
+      "access-control-expose-headers": "content-range",
+    };
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     let result = [],
       status = 200;
     if (url.pathname.endsWith("/auth/v1/user")) {
@@ -263,6 +273,7 @@ for (const [label, engine, device, options] of engines) {
       status,
       contentType: "application/json",
       headers: {
+        ...cors,
         "content-range": `0-${Math.max(result?.length - 1, 0)}/${result?.length ?? 1}`,
       },
       body: JSON.stringify(result),
@@ -353,6 +364,8 @@ for (const [label, engine, device, options] of engines) {
     page.once("dialog", (d) => d.accept());
     await page.getByRole("button", { name: "Reactivar producto", exact: true }).click();
     await page.getByLabel("Editar Synthetic Cup").waitFor();
+    // Drain background fixture reads before replacing the WebKit document.
+    await page.waitForLoadState("networkidle");
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),

@@ -32,3 +32,5 @@ The global control now uses bounded user-initiated Whisper recording rather than
 - Screenshots: `docs/screenshots/voice2-samsung.png`, `docs/screenshots/voice2-iphone-webkit.png`. All identities/club/member data are synthetic.
 
 No physical Samsung/iPhone speech recording or live Cloudflare inference/quota probe was performed. Remaining real-device checks: permission grant/deny, actual IT/ES accents and noisy-room accuracy, Safari audio codec behavior, OS interruption/backgrounding, and free-quota exhaustion/manual fallback. Voice recognition precision is **not certified** until these checks run. There is no new external setup required by these code changes; publishing still needs separate explicit deployment authorization.
+
+CI initially exposed a WebKit access-control error in the pre-existing synthetic administrative browser fixture, before reaching the voice suites. The fixture now responds to CORS preflight/exposes its synthetic response headers and drains pending reads before document navigation. No inventory/photo application code or error assertion was changed. The failed run remains available for audit.
