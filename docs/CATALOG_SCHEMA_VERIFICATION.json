@@ -1,0 +1,82 @@
+{
+  "project_ref": "bnwanxbmprbymbutoths",
+  "inspection": "read-only SELECT of schema metadata; no business or personal rows read",
+  "relationships": [
+    {
+      "name": "products_category_id_fkey",
+      "definition": "FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "products_category_same_club",
+      "definition": "FOREIGN KEY (category_id, club_id) REFERENCES product_categories(id, club_id) NOT VALID"
+    }
+  ],
+  "rls": [
+    {
+      "table": "product_categories",
+      "enabled": true,
+      "forced": false
+    },
+    {
+      "table": "products",
+      "enabled": true,
+      "forced": false
+    }
+  ],
+  "select_policies": [
+    {
+      "table": "product_categories",
+      "name": "categories_catalog_read",
+      "permissive": "PERMISSIVE",
+      "roles": ["authenticated"],
+      "command": "SELECT",
+      "using": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+      "check": null
+    },
+    {
+      "table": "product_categories",
+      "name": "snoop_permission_read",
+      "permissive": "RESTRICTIVE",
+      "roles": ["authenticated"],
+      "command": "SELECT",
+      "using": "(can_operate_club(club_id, 'manage_products'::app_permission) OR can_operate_club(club_id, 'use_cash'::app_permission) OR can_operate_club(club_id, 'view_reports'::app_permission))",
+      "check": null
+    },
+    {
+      "table": "product_categories",
+      "name": "snoop_tenant_fence",
+      "permissive": "RESTRICTIVE",
+      "roles": ["authenticated"],
+      "command": "ALL",
+      "using": "user_has_club_access(club_id)",
+      "check": "user_has_club_access(club_id)"
+    },
+    {
+      "table": "products",
+      "name": "products_catalog_read",
+      "permissive": "PERMISSIVE",
+      "roles": ["authenticated"],
+      "command": "SELECT",
+      "using": "(is_super_admin(auth.uid()) OR (club_id = current_club_id()))",
+      "check": null
+    },
+    {
+      "table": "products",
+      "name": "snoop_permission_read",
+      "permissive": "RESTRICTIVE",
+      "roles": ["authenticated"],
+      "command": "SELECT",
+      "using": "(can_operate_club(club_id, 'manage_products'::app_permission) OR can_operate_club(club_id, 'use_cash'::app_permission) OR can_operate_club(club_id, 'view_reports'::app_permission))",
+      "check": null
+    },
+    {
+      "table": "products",
+      "name": "snoop_tenant_fence",
+      "permissive": "RESTRICTIVE",
+      "roles": ["authenticated"],
+      "command": "ALL",
+      "using": "user_has_club_access(club_id)",
+      "check": "user_has_club_access(club_id)"
+    }
+  ]
+}

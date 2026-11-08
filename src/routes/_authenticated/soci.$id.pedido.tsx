@@ -17,21 +17,20 @@ import {
 } from "lucide-react";
 import { parseOrderItems, transcribeAudio } from "@/lib/voice-agent.functions";
 import { formatPrice } from "@/lib/snoop";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  readOnlyCatalog,
+  filterReadOnlyCatalog,
+  catalogReadMessage,
+  type ReadOnlyCatalog,
+  type ReadOnlyCatalogProduct,
+} from "@/lib/read-only-catalog";
 
 export const Route = createFileRoute("/_authenticated/soci/$id/pedido")({
   component: PedidoPage,
 });
 
-type Product = {
-  id: string;
-  category_id: string;
-  category_name: string;
-  name: string;
-  stock: number;
-  /** stored as euros in the DB (numeric) */
-  sell_price_eur: number;
-  unit_type: "gr" | "unit";
-};
+type Product = ReadOnlyCatalogProduct;
 
 type Cart = {
   product_id: string;
@@ -64,7 +63,24 @@ function PedidoPage() {
     last_name: string;
     member_number: string;
   } | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const { user, access, loading: authLoading, accessError, can, retryAccess } = useAuth();
+  const catalogAllowed = can("use_cash") || can("manage_products") || can("view_reports");
+  const catalogScope = JSON.stringify([
+    user?.id,
+    access.clubId,
+    access.role,
+    access.status,
+    [...access.permissions].sort(),
+  ]);
+  const [catalogState, setCatalogState] = useState<{
+    scope: string;
+    data?: ReadOnlyCatalog;
+    error?: string;
+    loading: boolean;
+  } | null>(null);
+  const [catalogRetry, setCatalogRetry] = useState(0);
+  const catalog = catalogState?.scope === catalogScope ? catalogState : null;
+  const products: Product[] = !accessError && catalogAllowed ? (catalog?.data?.products ?? []) : [];
   const [cart, setCart] = useState<Cart[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,31 +111,43 @@ function PedidoPage() {
   const transcribe = useServerFn(transcribeAudio);
 
   useEffect(() => {
-    (async () => {
-      const [{ data: m }, { data: p }] = await Promise.all([
-        supabase
-          .from("members")
-          .select("first_name,last_name,member_number")
-          .eq("id", id)
-          .maybeSingle(),
-        supabase
-          .from("products")
-          .select("id,category_id,name,stock,sell_price,product_categories(name,unit_type)")
-          .order("name"),
-      ]);
-      setMember((m as any) ?? null);
-      const flat: Product[] = ((p as any[]) ?? []).map((row) => ({
-        id: row.id,
-        category_id: row.category_id,
-        category_name: row.product_categories?.name ?? "Sin categoría",
-        name: row.name,
-        stock: Number(row.stock ?? 0),
-        sell_price_eur: Number(row.sell_price ?? 0),
-        unit_type: (row.product_categories?.unit_type ?? "unit") as "gr" | "unit",
-      }));
-      setProducts(flat);
-    })();
-  }, [id]);
+    if (authLoading || !access.clubId || !can("manage_members")) return;
+    let active = true;
+    setMember(null);
+    supabase
+      .from("members")
+      .select("first_name,last_name,member_number")
+      .eq("id", id)
+      .eq("club_id", access.clubId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setMember(data ?? null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, catalogScope, authLoading]);
+
+  useEffect(() => {
+    if (authLoading || !access.clubId || !catalogAllowed) return;
+    let active = true;
+    setCatalogState({ scope: catalogScope, loading: true });
+    readOnlyCatalog(supabase, access.clubId)
+      .then((data) => {
+        if (active) setCatalogState({ scope: catalogScope, data, loading: false });
+      })
+      .catch((error) => {
+        if (active)
+          setCatalogState({
+            scope: catalogScope,
+            error: catalogReadMessage(error),
+            loading: false,
+          });
+      });
+    return () => {
+      active = false;
+    };
+  }, [catalogScope, authLoading, catalogRetry]);
 
   // Listen to the floating assistant mic when we're on this page
   useEffect(() => {
@@ -132,21 +160,12 @@ function PedidoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, products]);
 
-  const categories = useMemo(() => {
-    const m = new Map<string, string>();
-    products.forEach((p) => m.set(p.category_id, p.category_name));
-    return Array.from(m, ([id, name]) => ({ id, name }));
-  }, [products]);
+  const categories = !accessError && catalogAllowed ? (catalog?.data?.categories ?? []) : [];
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return products.filter((p) => {
-      if (activeCat !== "all" && p.category_id !== activeCat) return false;
-      if (q && !p.name.toLowerCase().includes(q) && !p.category_name.toLowerCase().includes(q))
-        return false;
-      return true;
-    });
-  }, [products, search, activeCat]);
+  const filtered = useMemo(
+    () => filterReadOnlyCatalog(products, activeCat, search),
+    [products, search, activeCat],
+  );
 
   const grouped = useMemo(() => {
     const g = new Map<string, Product[]>();
@@ -578,8 +597,11 @@ function PedidoPage() {
             )}
           </div>
 
-          {/* Quick catalog */}
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-5 space-y-3">
+          {/* Quick catalog: read-only loading and filtering. */}
+          <div
+            data-testid="catalogo-lectura"
+            className="bg-card/60 border border-neon/20 rounded-2xl p-5 space-y-3"
+          >
             <div className="flex items-center justify-between gap-2">
               <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Catálogo</div>
             </div>
@@ -614,16 +636,50 @@ function PedidoPage() {
               </div>
             )}
 
-            {products.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No hay productos. Crea alguno en{" "}
-                <Link to="/productos" className="text-neon underline">
-                  Productos
-                </Link>
-                .
+            {accessError ? (
+              <div role="alert" className="text-sm">
+                No se pudo verificar el acceso al catálogo.{" "}
+                <button onClick={retryAccess} className="text-neon underline">
+                  Reintentar acceso
+                </button>
               </div>
+            ) : !authLoading && !catalogAllowed ? (
+              <p role="alert" className="text-sm">
+                No tienes permiso para consultar este catálogo.
+              </p>
+            ) : authLoading || !catalog || catalog.loading ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                Cargando catálogo…
+              </p>
+            ) : catalog.error ? (
+              <div role="alert" className="text-sm space-y-2">
+                <p>{catalog.error}</p>
+                <button
+                  onClick={() => setCatalogRetry((n) => n + 1)}
+                  className="text-neon underline"
+                >
+                  Reintentar catálogo
+                </button>
+              </div>
+            ) : products.length === 0 ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                {catalog.data!.hiddenRowCount > 0
+                  ? "No hay productos activos en las categorías disponibles."
+                  : "No hay productos visibles en el catálogo de este club."}
+              </p>
             ) : grouped.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Sin resultados.</div>
+              <div role="status" className="text-sm text-muted-foreground">
+                No hay coincidencias para estos filtros.{" "}
+                <button
+                  className="text-neon underline"
+                  onClick={() => {
+                    setSearch("");
+                    setActiveCat("all");
+                  }}
+                >
+                  Limpiar filtros
+                </button>
+              </div>
             ) : (
               <div className="space-y-4">
                 {grouped.map((grp) => (

@@ -42,6 +42,7 @@
     "verify:genetics:live": "node scripts/check-genetics-sources.mjs",
     "test:voice2:browser": "node scripts/test-voice2-administration.mjs",
     "test:critical:browser": "node scripts/test-critical-stabilization.mjs && node scripts/test-pwa-update-consent.mjs",
+    "test:catalog:browser": "node scripts/test-read-only-catalog.mjs",
     "test:cash:browser": "node --test tests/simple-cash.test.mjs && node scripts/test-cash-sessions.mjs"
   },
   "dependencies": {

@@ -1,0 +1,132 @@
+{
+  "outcomes": [
+    {
+      "device": "samsung",
+      "scenario": "loaded",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "error",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "empty",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "inactive",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "forbidden",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "category-error",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "scope-error",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "samsung",
+      "scenario": "denied",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "loaded",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "error",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "empty",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "inactive",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "forbidden",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "category-error",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "scope-error",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "scenario": "denied",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic read-only API responses",
+      "databaseWrites": 0
+    }
+  ]
+}
