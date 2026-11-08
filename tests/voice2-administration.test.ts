@@ -117,3 +117,14 @@ test("actual plan names must resolve uniquely; an ambiguous alias never picks th
   assert.equal(parseAdministrativeDictation("cuota Mensual", ["Mensual", "MENSUAL"]).plan_name, "");
   assert.equal(parseAdministrativeDictation("cuota Mensual", ["Mensual Premium"]).plan_name, "");
 });
+
+test("literal name initials and city articles are retained outside an explicit change-to command", () => {
+  assert.deepEqual(parseAdministrativeDictation("nombre A García ciudad A Coruña"), {
+    first_name: "A García",
+    city: "A Coruña",
+  });
+  assert.deepEqual(parseAdministrativeDictation("No, la ciudad es A Coruña"), { city: "A Coruña" });
+  assert.deepEqual(parseAdministrativeDictation("cambia la ciudad a A Coruña"), {
+    city: "A Coruña",
+  });
+});

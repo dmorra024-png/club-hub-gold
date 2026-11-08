@@ -25,7 +25,7 @@ The global control now uses bounded user-initiated Whisper recording rather than
 
 ## Verification
 
-- 195/195 unit/security tests PASS (six new meaningful administrative suites); TypeScript and production build PASS; public-bundle secret scan PASS.
+- 196/196 unit/security tests PASS (seven new meaningful administrative suites); TypeScript and production build PASS; public-bundle secret scan PASS.
 - New Samsung Chromium and iPhone WebKit suite PASS: complete administrative phrase, fee binding, corrections, manual edit vs late response, scoped local search, ambiguous-name handling, permission fences, one microphone for double starts, explicit cancellation, track release, unavailable provider, permission denial, offline/navigation cancellation, network errors and zero writes. Browser API/Whisper responses are **simulated**, not an acoustic accuracy claim.
 - Existing IT/ES form suite PASS with the real Chromium MediaRecorder API and a **synthetic microphone**, simulated transcription, local field extraction and zero automatic writes. It now asserts zero field-model calls.
 - Existing PWA/member-administration and six-viewport premium-home regression suites PASS locally. CI also runs both voice browser suites. See PR #1/current CI for final aggregate evidence.
@@ -36,3 +36,5 @@ No physical Samsung/iPhone speech recording or live Cloudflare inference/quota p
 CI initially exposed a WebKit access-control error in the pre-existing synthetic administrative browser fixture, before reaching the voice suites. The fixture now responds to CORS preflight/exposes its synthetic response headers and drains pending reads before document navigation. No inventory/photo application code or error assertion was changed. The failed run remains available for audit.
 
 The voice permission-revocation fixture also waits for actual recorder shutdown and completion of the denied access response before restoring permissions. A disabled button alone can mean an access refresh is pending; immediately restoring at that point races the existing in-flight request coalescing. No production authorization rule was loosened.
+
+A final parser regression test preserves literal initials/articles such as “A García” and “A Coruña”; only explicit change-to instructions remove a leading spoken preposition.

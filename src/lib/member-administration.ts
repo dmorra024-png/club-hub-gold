@@ -192,7 +192,11 @@ export function parseAdministrativeDictation(
     const text = raw
       .slice(value, hits[n + 1]?.start ?? raw.length)
       .replace(/^(?:es|è|é|son|sono)\s+/i, "")
-      .replace(/^(?:a|en)\s+/i, "")
+      .replace(/^(?:a|en)\s+/i, (prefix) =>
+        /^(?:snoop[\s,:]+)?(?:no[\s,:]+)?(?:cambia|corrige|correggi|modifica)\b/i.test(raw)
+          ? ""
+          : prefix,
+      )
       .replace(/\s+(?:y|e)(?:\s+(?:el|la|il|con))?\s*[,;]?$/i, "")
       .replace(/^[\s:,-]+|[\s,.]+$/g, "");
     if (!text) continue;
