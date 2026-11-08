@@ -1,0 +1,46 @@
+{
+  "physical": false,
+  "externalServices": false,
+  "results": [
+    {
+      "device": "samsung",
+      "case": "same-user refresh, focus/online/pageshow, transient failure/retry preserve the same draft node",
+      "result": "PASS"
+    },
+    {
+      "device": "samsung",
+      "case": "overlay keyboard hides nav, scrolls actual member/profile/cash fields, preserves focus/text, restores nav",
+      "result": "PASS"
+    },
+    {
+      "device": "samsung",
+      "case": "actual member QR email status UI: pending/accepted/delivered/error/unknown remain distinct",
+      "result": "PASS"
+    },
+    {
+      "device": "samsung",
+      "case": "real shift report rendering: admin 42.50, own collaborator 17.50, member/operator separated, server Madrid day",
+      "result": "PASS"
+    },
+    {
+      "device": "iphone",
+      "case": "same-user refresh, focus/online/pageshow, transient failure/retry preserve the same draft node",
+      "result": "PASS"
+    },
+    {
+      "device": "iphone",
+      "case": "overlay keyboard hides nav, scrolls actual member/profile/cash fields, preserves focus/text, restores nav",
+      "result": "PASS"
+    },
+    {
+      "device": "iphone",
+      "case": "actual member QR email status UI: pending/accepted/delivered/error/unknown remain distinct",
+      "result": "PASS"
+    },
+    {
+      "device": "iphone",
+      "case": "real shift report rendering: admin 42.50, own collaborator 17.50, member/operator separated, server Madrid day",
+      "result": "PASS"
+    }
+  ]
+}

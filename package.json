@@ -40,7 +40,8 @@
     "test:premium:home": "node scripts/test-premium-home.mjs",
     "test:genetics:browser": "node scripts/test-genetics-information.mjs",
     "verify:genetics:live": "node scripts/check-genetics-sources.mjs",
-    "test:voice2:browser": "node scripts/test-voice2-administration.mjs"
+    "test:voice2:browser": "node scripts/test-voice2-administration.mjs",
+    "test:critical:browser": "node scripts/test-critical-stabilization.mjs && node scripts/test-pwa-update-consent.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

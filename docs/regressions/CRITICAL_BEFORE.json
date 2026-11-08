@@ -1,0 +1,20 @@
+[
+  {
+    "case": "draft-remount",
+    "baseline": "eb20b3c",
+    "result": "EXPECTED_FAIL",
+    "evidence": "AssertionError [ERR_ASSERTION]: Same draft input must stay mounted during access refresh\n"
+  },
+  {
+    "case": "keyboard-overlay",
+    "baseline": "eb20b3c",
+    "result": "EXPECTED_FAIL",
+    "evidence": "AssertionError [ERR_ASSERTION]: /soci/nuovo active field must be above keyboard, got {\"x\":47,\"y\":677.890625,\"width\":266,\"height\":42}\n"
+  },
+  {
+    "case": "update-listener",
+    "baseline": "eb20b3c",
+    "result": "EXPECTED_FAIL",
+    "evidence": "AssertionError [ERR_ASSERTION]: Expired confirmation listener must not reload on an unrelated controller change\n\n1 !== 0\n\n"
+  }
+]

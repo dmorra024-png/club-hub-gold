@@ -1,3 +1,4 @@
+import { MembershipShifts } from "@/components/MembershipShifts";
 import { clubDayRange, cashAmounts } from "@/lib/cash-summary";
 import { madridToday } from "@/lib/member-administration";
 import type { Receipt } from "@/lib/membership-receipts";
@@ -53,9 +54,9 @@ function dayRange(dateISO: string) {
 }
 
 function CajaPage() {
-  const { can, loading } = useAuth();
+  const { can, loading, accessError, retryAccess } = useAuth();
   if (loading) return <SnoopLayout title="Caja">Cargando…</SnoopLayout>;
-  if (!can("use_cash"))
+  if (!can("use_cash") && !accessError)
     return (
       <SnoopLayout title="Caja">
         <div role="alert">No tienes permiso para usar la caja.</div>
@@ -63,26 +64,38 @@ function CajaPage() {
     );
   return (
     <SnoopLayout title="Caja" subtitle="Abre y cierra tu caja, consulta los informes del día">
-      <Tabs defaultValue="mia" className="w-full">
-        <TabsList className="grid grid-cols-2 sm:flex h-auto w-full sm:w-fit gap-1 bg-card/60 border border-neon/20">
-          <TabsTrigger value="mia">Mi caja</TabsTrigger>
-          <TabsTrigger value="hoy">Informe de hoy</TabsTrigger>
-          <TabsTrigger value="fecha">Informe por fecha</TabsTrigger>
-          <TabsTrigger value="cuotas">Historial de cuotas</TabsTrigger>
-        </TabsList>
-        <TabsContent value="mia">
-          <MyCash />
-        </TabsContent>
-        <TabsContent value="hoy">
-          <DayReport dateISO={todayISO()} title="Hoy" />
-        </TabsContent>
-        <TabsContent value="fecha">
-          <DateReportPicker />
-        </TabsContent>
-        <TabsContent value="cuotas">
-          <MembershipIncome />
-        </TabsContent>
-      </Tabs>
+      {accessError && (
+        <div role="alert">
+          No se pudo verificar el acceso. Los datos del formulario se conservan.{" "}
+          <button onClick={retryAccess}>Reintentar</button>
+        </div>
+      )}
+      <fieldset disabled={!!accessError}>
+        <Tabs defaultValue="mia" className="w-full">
+          <TabsList className="grid grid-cols-2 sm:flex h-auto w-full sm:w-fit gap-1 bg-card/60 border border-neon/20">
+            <TabsTrigger value="turnos">Turnos administrativos</TabsTrigger>
+            <TabsTrigger value="mia">Mi caja</TabsTrigger>
+            <TabsTrigger value="hoy">Informe de hoy</TabsTrigger>
+            <TabsTrigger value="fecha">Informe por fecha</TabsTrigger>
+            <TabsTrigger value="cuotas">Historial de cuotas</TabsTrigger>
+          </TabsList>
+          <TabsContent value="turnos">
+            <MembershipShifts />
+          </TabsContent>
+          <TabsContent value="mia">
+            <MyCash />
+          </TabsContent>
+          <TabsContent value="hoy">
+            <DayReport dateISO={todayISO()} title="Hoy" />
+          </TabsContent>
+          <TabsContent value="fecha">
+            <DateReportPicker />
+          </TabsContent>
+          <TabsContent value="cuotas">
+            <MembershipIncome />
+          </TabsContent>
+        </Tabs>
+      </fieldset>
     </SnoopLayout>
   );
 }

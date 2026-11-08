@@ -68,6 +68,17 @@ function SocioDetail() {
   const [form, setForm] = useState<Partial<Member>>({});
   const [savingEdit, setSavingEdit] = useState(false);
   const [resendingQr, setResendingQr] = useState(false);
+  const [qrMailStatus, setQrMailStatus] = useState("");
+  async function checkQrMail() {
+    try {
+      const { getMemberMailStatus } = await import("@/lib/member-mail.functions");
+      const { memberMailLabel } = await import("@/lib/member-mail-state");
+      const result = await getMemberMailStatus({ data: { memberId: member!.id } });
+      setQrMailStatus(memberMailLabel(result.status));
+    } catch {
+      setQrMailStatus("Estado no disponible: entrega no verificada.");
+    }
+  }
 
   async function resendQr() {
     if (!member) return;
@@ -85,14 +96,16 @@ function SocioDetail() {
         .eq("id", (m2 as any)?.club_id ?? "")
         .maybeSingle();
       const { sendMemberQrEmail } = await import("@/lib/member-qr");
-      await sendMemberQrEmail({
+      const mail = await sendMemberQrEmail({
         memberId: member.id,
         memberNumber: member.member_number,
         fullName: `${member.first_name} ${member.last_name}`.trim(),
         email: member.email,
         clubName: (club as any)?.name ?? "Club",
       });
-      toast.success("Envío del QR en cola");
+      const { memberMailLabel } = await import("@/lib/member-mail-state");
+      setQrMailStatus(memberMailLabel(mail.status));
+      toast.info(memberMailLabel(mail.status));
     } catch (e: any) {
       toast.error(e.message ?? "No se pudo reenviar");
     } finally {
@@ -418,8 +431,17 @@ function SocioDetail() {
               className="mt-4 w-full flex items-center justify-center gap-2 border border-neon/40 text-neon py-2 rounded-lg text-[11px] uppercase tracking-widest hover:bg-neon/10 disabled:opacity-50"
               title={member.email ? "" : "Este socio no tiene email"}
             >
-              <Mail className="w-3.5 h-3.5" /> {resendingQr ? "Enviando…" : "Reenviar QR por email"}
+              <Mail className="w-3.5 h-3.5" />{" "}
+              {resendingQr ? "Solicitando…" : "Reenviar QR por email"}
             </button>
+            <button type="button" className="mt-2 text-sm underline" onClick={checkQrMail}>
+              Consultar estado del email QR
+            </button>
+            {qrMailStatus && (
+              <p role="status" className="text-xs mt-2">
+                {qrMailStatus}
+              </p>
+            )}
           </div>
 
           <button

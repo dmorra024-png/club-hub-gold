@@ -977,3 +977,23 @@ body:has(.premium-shell) .snoop-install-control {
 .premium-shell[data-keyboard-open="true"] .snoop-voice-feedback {
   display: none;
 }
+/* Visible viewport is shared with portalled forms while the virtual keyboard is open. */
+body[data-snoop-keyboard="true"] [role="dialog"][data-state="open"]:not(.premium-menu),
+body[data-snoop-keyboard="true"] [role="alertdialog"][data-state="open"] {
+  max-height: calc(var(--snoop-visible-height) - 32px);
+  overflow-y: auto;
+  top: calc(var(--snoop-visible-top) + var(--snoop-visible-height) / 2);
+}
+body[data-snoop-keyboard="true"] .premium-bottom-nav {
+  display: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  scroll-margin-block: 24px;
+}
+
+/* Overlay keyboards do not shrink the layout viewport. Keep room to scroll the final field. */
+body[data-snoop-keyboard="true"] .premium-shell .premium-main {
+  padding-bottom: calc(24px + var(--snoop-keyboard-inset, 0px));
+}

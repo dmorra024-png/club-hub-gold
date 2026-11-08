@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
+import { privateCatalogCommand } from "../src/lib/private-voice.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3040";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
@@ -120,6 +121,15 @@ for (const [name, engine, device] of [
         let result = { available, documents: false, browserSpeech: false };
         if (req.method() === "POST") {
           const data = fromJSON(JSON.parse(req.postData())).data;
+          if (data.transcript && Array.isArray(data.categories)) {
+            return route.fulfill({
+              contentType: "application/json",
+              body: JSON.stringify({
+                result: privateCatalogCommand(data.transcript, data.categories),
+                context: {},
+              }),
+            });
+          }
           assert.deepEqual(
             Object.keys(data).sort(),
             ["audioBase64", "language", "mimeType"],
@@ -155,9 +165,13 @@ for (const [name, engine, device] of [
           status: "active",
           clubId: club,
           clubName: "Club Sintético",
-          permissions: denied ? [] : ["manage_members"],
+          permissions: denied ? [] : ["manage_members", "manage_products"],
         };
       else if (u.pathname.endsWith("/rpc/current_club_id")) data = club;
+      else if (u.pathname.endsWith("/product_categories"))
+        data = [
+          { id: plan, club_id: club, name: "Material", unit_type: "unit", is_smokeable: false },
+        ];
       else if (u.pathname.endsWith("/membership_plans")) {
         assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
         data = [
@@ -225,6 +239,41 @@ for (const [name, engine, device] of [
       await start();
       await page.getByRole("button", { name: "Apagar Snoop", exact: true }).click();
     }
+    await page.goto(base + "/", { waitUntil: "networkidle" });
+    await say("Crea un socio Mario Rossi, nato il 15 marzo 1990, residente a Palma");
+    await page.waitForURL(base + "/soci/nuovo");
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll("input")).some((i) => i.value === "Mario"),
+    );
+    assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Mario");
+    assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Rossi");
+    assert.equal(
+      await page.getByLabel("Fecha de nacimiento *", { exact: true }).inputValue(),
+      "1990-03-15",
+    );
+    assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Palma");
+    assert.equal(writes, 0);
+    await page.goto(base + "/", { waitUntil: "networkidle" });
+    await say("Crea un producto Libreta en categoría Material stock 25");
+    await page.waitForURL(base + "/productos");
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll("input")).some((i) => i.value === "Libreta"),
+    );
+    assert.equal(
+      await page.getByRole("combobox", { name: "Categoría", exact: true }).inputValue(),
+      plan,
+    );
+    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    const productName = page.getByPlaceholder("ej. Amnesia Haze");
+    await productName.fill("Libreta manual");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.waitForTimeout(300);
+    assert.equal(await productName.inputValue(), "Libreta manual");
+    assert.equal(writes, 0);
+    await page.screenshot({
+      path: `docs/screenshots/critical-voice-supplies-${name}.png`,
+      scale: "css",
+    });
     await page.goto(base + "/", { waitUntil: "networkidle" });
     await say(
       "SNOOP, registra un socio Persona Sintetica, nato il ventiquattro luglio millenovecentonovantacinque, residente a Palma, telefono sei sei sei sette sette sette otto otto otto, email prova chiocciola esempio punto test, quota Mensile",
@@ -381,6 +430,8 @@ for (const [name, engine, device] of [
       transcription: "simulated, synthetic recorder",
       checks: [
         "complete IT/ES administrative drafts",
+        "exact Mario Rossi real-user phrase into actual member fields",
+        "generic non-smokeable Libreta creation routed into actual category/name/quantity fields",
         "actual plan binding",
         "single-field corrections",
         "scoped local member search",

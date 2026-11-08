@@ -16,19 +16,20 @@ export function useAuth() {
   const mounted = useRef(false),
     identity = useRef<string | null>(null),
     sequence = useRef(0),
-    events = useRef(0);
+    events = useRef(0),
+    verifiedIdentity = useRef<string | null>(null);
   const loadAccess = useCallback(async (uid: string) => {
     const version = ++sequence.current;
-    setLoading(true);
-    setAccessError(null);
+    if (verifiedIdentity.current !== uid) setLoading(true);
     try {
       const value = await verifiedAccess(uid);
       if (mounted.current && identity.current === uid && sequence.current === version) {
+        verifiedIdentity.current = uid;
         setAccess(value);
+        setAccessError(null);
       }
     } catch {
       if (mounted.current && identity.current === uid && sequence.current === version) {
-        setAccess({ ...EMPTY_ACCESS });
         setAccessError("No se pudo verificar el acceso. Comprueba la conexión y reintenta.");
       }
     } finally {
@@ -43,13 +44,14 @@ export function useAuth() {
       const uid = s?.user.id ?? null;
       if (identity.current !== uid) {
         sequence.current++;
+        verifiedIdentity.current = null;
         setAccess({ ...EMPTY_ACCESS });
       }
       identity.current = uid;
       setSession(s);
       setUser(s?.user ?? null);
       if (uid) {
-        setLoading(true);
+        if (verifiedIdentity.current !== uid) setLoading(true);
         setTimeout(() => {
           if (mounted.current && identity.current === uid) void loadAccess(uid);
         }, 0);

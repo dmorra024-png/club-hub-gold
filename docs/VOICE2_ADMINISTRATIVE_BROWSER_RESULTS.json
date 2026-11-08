@@ -7,6 +7,8 @@
       "transcription": "simulated, synthetic recorder",
       "checks": [
         "complete IT/ES administrative drafts",
+        "exact Mario Rossi real-user phrase into actual member fields",
+        "generic non-smokeable Libreta creation routed into actual category/name/quantity fields",
         "actual plan binding",
         "single-field corrections",
         "scoped local member search",
@@ -31,6 +33,8 @@
       "transcription": "simulated, synthetic recorder",
       "checks": [
         "complete IT/ES administrative drafts",
+        "exact Mario Rossi real-user phrase into actual member fields",
+        "generic non-smokeable Libreta creation routed into actual category/name/quantity fields",
         "actual plan binding",
         "single-field corrections",
         "scoped local member search",

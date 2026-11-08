@@ -28,6 +28,7 @@ import { Route as AuthenticatedActividadesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSociIndexRouteImport } from './routes/_authenticated/soci.index'
 import { Route as AuthenticatedAjustesIndexRouteImport } from './routes/_authenticated/ajustes.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiWebhooksMemberMailRouteImport } from './routes/api/webhooks/member-mail'
 import { Route as AuthenticatedSociNuovoRouteImport } from './routes/_authenticated/soci.nuovo'
 import { Route as AuthenticatedSociImportarRouteImport } from './routes/_authenticated/soci.importar'
 import { Route as AuthenticatedSociGestisciRouteImport } from './routes/_authenticated/soci.gestisci'
@@ -140,6 +141,11 @@ const AuthenticatedAjustesIndexRoute =
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksMemberMailRoute = ApiWebhooksMemberMailRouteImport.update({
+  id: '/api/webhooks/member-mail',
+  path: '/api/webhooks/member-mail',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSociNuovoRoute = AuthenticatedSociNuovoRouteImport.update({
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/soci/gestisci': typeof AuthenticatedSociGestisciRoute
   '/soci/importar': typeof AuthenticatedSociImportarRoute
   '/soci/nuovo': typeof AuthenticatedSociNuovoRoute
+  '/api/webhooks/member-mail': typeof ApiWebhooksMemberMailRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/ajustes/': typeof AuthenticatedAjustesIndexRoute
   '/soci/': typeof AuthenticatedSociIndexRoute
@@ -295,6 +302,7 @@ export interface FileRoutesByTo {
   '/soci/gestisci': typeof AuthenticatedSociGestisciRoute
   '/soci/importar': typeof AuthenticatedSociImportarRoute
   '/soci/nuovo': typeof AuthenticatedSociNuovoRoute
+  '/api/webhooks/member-mail': typeof ApiWebhooksMemberMailRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/ajustes': typeof AuthenticatedAjustesIndexRoute
   '/soci': typeof AuthenticatedSociIndexRoute
@@ -333,6 +341,7 @@ export interface FileRoutesById {
   '/_authenticated/soci/gestisci': typeof AuthenticatedSociGestisciRoute
   '/_authenticated/soci/importar': typeof AuthenticatedSociImportarRoute
   '/_authenticated/soci/nuovo': typeof AuthenticatedSociNuovoRoute
+  '/api/webhooks/member-mail': typeof ApiWebhooksMemberMailRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/ajustes/': typeof AuthenticatedAjustesIndexRoute
   '/_authenticated/soci/': typeof AuthenticatedSociIndexRoute
@@ -371,6 +380,7 @@ export interface FileRouteTypes {
     | '/soci/gestisci'
     | '/soci/importar'
     | '/soci/nuovo'
+    | '/api/webhooks/member-mail'
     | '/lovable/email/suppression'
     | '/ajustes/'
     | '/soci/'
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/soci/gestisci'
     | '/soci/importar'
     | '/soci/nuovo'
+    | '/api/webhooks/member-mail'
     | '/lovable/email/suppression'
     | '/ajustes'
     | '/soci'
@@ -444,6 +455,7 @@ export interface FileRouteTypes {
     | '/_authenticated/soci/gestisci'
     | '/_authenticated/soci/importar'
     | '/_authenticated/soci/nuovo'
+    | '/api/webhooks/member-mail'
     | '/lovable/email/suppression'
     | '/_authenticated/ajustes/'
     | '/_authenticated/soci/'
@@ -463,6 +475,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  ApiWebhooksMemberMailRoute: typeof ApiWebhooksMemberMailRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicQrCodeRoute: typeof ApiPublicQrCodeRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -605,6 +618,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/member-mail': {
+      id: '/api/webhooks/member-mail'
+      path: '/api/webhooks/member-mail'
+      fullPath: '/api/webhooks/member-mail'
+      preLoaderRoute: typeof ApiWebhooksMemberMailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/soci/nuovo': {
@@ -792,6 +812,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  ApiWebhooksMemberMailRoute: ApiWebhooksMemberMailRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicQrCodeRoute: ApiPublicQrCodeRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,

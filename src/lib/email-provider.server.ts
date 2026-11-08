@@ -91,9 +91,11 @@ export async function sendProviderEmail(
     unsubscribe_token?: string;
     [key: string]: unknown;
   },
-  options: { apiKey: string },
+  options: { apiKey: string; from?: string; endpoint?: string },
 ) {
-  const endpoint = new URL(process.env.EMAIL_API_URL || "https://api.resend.com/emails");
+  const endpoint = new URL(
+    options.endpoint || process.env.EMAIL_API_URL || "https://api.resend.com/emails",
+  );
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
   if (
     (endpoint.protocol !== "https:" && !(local && endpoint.protocol === "http:")) ||
@@ -103,7 +105,7 @@ export async function sendProviderEmail(
     endpoint.hash
   )
     throw new Error("EMAIL_API_URL must be HTTPS");
-  const from = process.env.EMAIL_FROM;
+  const from = options.from || process.env.EMAIL_FROM;
   if (!from || !options.apiKey) throw new Error("Configure EMAIL_FROM and EMAIL_API_KEY");
   if (!payload.idempotency_key) throw new Error("Email idempotency key required");
   const response = await fetch(endpoint, {

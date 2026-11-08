@@ -1,3 +1,4 @@
+import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
 import { VoiceAgent } from "@/components/VoiceAgent";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
@@ -50,27 +51,10 @@ export function SnoopLayout({
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [open, setOpen] = useState(false),
-    [keyboard, setKeyboard] = useState(false);
+  const [open, setOpen] = useState(false);
+  const keyboard = useMobileKeyboard();
   const trigger = useRef<HTMLButtonElement>(null),
     drawer = useRef<HTMLElement>(null);
-  useEffect(() => {
-    let largest = window.visualViewport?.height || innerHeight;
-    const resize = () => {
-      const height = window.visualViewport?.height || innerHeight;
-      const editing = document.activeElement?.matches("input,textarea,[contenteditable=true]");
-      if (!editing) largest = height;
-      setKeyboard(!!editing && largest - height > 100);
-    };
-    window.visualViewport?.addEventListener("resize", resize);
-    window.addEventListener("focusin", resize);
-    window.addEventListener("focusout", resize);
-    return () => {
-      window.visualViewport?.removeEventListener("resize", resize);
-      window.removeEventListener("focusin", resize);
-      window.removeEventListener("focusout", resize);
-    };
-  }, []);
   useEffect(() => {
     if (!open) return;
     drawer.current?.querySelector<HTMLAnchorElement>("a")?.focus();

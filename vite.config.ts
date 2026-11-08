@@ -83,6 +83,15 @@ export default defineConfig(({ command, mode }) => {
           ...(cloudflare
             ? {
                 minify: true,
+                experimental: { tasks: true },
+                tasks: {
+                  "snoop:mail": {
+                    handler: fileURLToPath(
+                      new URL("./server/tasks/snoop-mail.ts", import.meta.url),
+                    ),
+                  },
+                },
+                scheduledTasks: { "*/5 * * * *": ["snoop:mail"] },
                 cloudflare: { nodeCompat: true },
                 hooks: {
                   "rollup:before": (nitro) => {

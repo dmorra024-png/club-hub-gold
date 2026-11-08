@@ -446,14 +446,15 @@ function NewSocio() {
             .eq("id", clubId)
             .maybeSingle();
           const { sendMemberQrEmail } = await import("@/lib/member-qr");
-          await sendMemberQrEmail({
+          const mail = await sendMemberQrEmail({
             memberId,
             memberNumber: (created as any)?.member_number ?? "",
             fullName: `${form.first_name} ${form.last_name}`.trim(),
             email: form.email.trim(),
             clubName: (club as any)?.name ?? "Club",
           });
-          toast.success("Socio creado — envío del QR en cola");
+          const { memberMailLabel } = await import("@/lib/member-mail-state");
+          toast.success("Socio creado — " + memberMailLabel(mail.status));
         } else {
           toast.success("Socio creado (sin email: no se envió el QR)");
         }

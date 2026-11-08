@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 interface InstallPrompt extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 export function PwaInstall() {
+  const updateCleanup = useRef<() => void>(() => {});
+  useEffect(() => () => updateCleanup.current(), []);
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [ios, setIos] = useState(false);
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
@@ -94,6 +96,7 @@ export function PwaInstall() {
     return (
       <button
         type="button"
+        disabled={busy}
         className="snoop-install-control snoop-update-control fixed bottom-5 left-5 z-40 rounded-lg border border-neon/40 bg-card px-4 py-2 text-xs text-neon"
         onClick={() => {
           if (
@@ -102,12 +105,30 @@ export function PwaInstall() {
             )
           )
             return;
-          navigator.serviceWorker.addEventListener(
-            "controllerchange",
-            () => window.location.reload(),
-            { once: true },
-          );
-          waiting.postMessage({ type: "SKIP_WAITING" });
+          if (busy) return;
+          setBusy(true);
+          const changed = () => {
+            if (navigator.serviceWorker.controller !== waiting) return;
+            cleanup();
+            window.location.reload();
+          };
+          const timeout = setTimeout(() => {
+            cleanup();
+            setBusy(false);
+          }, 30000);
+          const cleanup = () => {
+            clearTimeout(timeout);
+            navigator.serviceWorker.removeEventListener("controllerchange", changed);
+          };
+          updateCleanup.current();
+          updateCleanup.current = cleanup;
+          navigator.serviceWorker.addEventListener("controllerchange", changed);
+          try {
+            waiting.postMessage({ type: "SKIP_WAITING" });
+          } catch {
+            cleanup();
+            setBusy(false);
+          }
         }}
       >
         Actualizar app / Aggiorna app

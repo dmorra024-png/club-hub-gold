@@ -138,10 +138,13 @@ function RootComponent() {
     // Invalidate once in the persistent root, not whenever a page mounts a
     // useAuth consumer. Real identity/club changes still cancel stale reads.
     if (!next || (verifiedScope.current && verifiedScope.current !== next)) clearClubCache();
-    verifiedScope.current = next;
+    if (next && verifiedScope.current && verifiedScope.current !== next)
+      setIdentity((value) => value + 1);
+    if (next) verifiedScope.current = next;
+    else if (!auth.user?.id) verifiedScope.current = null;
   }, [auth.loading, auth.accessError, auth.user?.id, auth.access.clubId, auth.access.status]);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [identity, setIdentity] = useState<string | null>(null);
+  const [identity, setIdentity] = useState(0);
   useEffect(() => {
     if (
       auth.user?.id &&
@@ -164,7 +167,7 @@ function RootComponent() {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       const userId = session?.user.id ?? null;
       const changed = previousUserId !== undefined && userId !== previousUserId;
-      setIdentity(userId);
+      if (changed) setIdentity((value) => value + 1);
       if (event === "SIGNED_OUT" || (previousUserId !== undefined && userId !== previousUserId)) {
         queryClient.clear();
         clearClubCache();
@@ -186,7 +189,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet key={identity ?? "anonymous"} />
+      <Outlet key={identity} />
       <PwaInstall />
       <Toaster
         theme="dark"
