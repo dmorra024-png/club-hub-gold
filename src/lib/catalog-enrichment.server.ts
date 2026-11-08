@@ -119,6 +119,7 @@ export async function describeCatalog(input: {
   name: string;
   category_name: string;
   strain: string;
+  sources?: { title: string; source: string; excerpt: string }[];
 }) {
   // Only the three explicitly validated public catalog fields; never member data,
   // documents, conversation history, inventory, prices or club/user identifiers.
@@ -126,7 +127,7 @@ export async function describeCatalog(input: {
     model: administrativeModel("catalog"),
     maxRetries: 0,
     system:
-      "Redacta en español una ficha administrativa informativa de hasta 2 frases usando exclusivamente los datos proporcionados. No inventes propiedades, composición, origen, efectos, marcas, resultados de búsqueda ni datos medicinales. Señala que cualquier detalle no proporcionado está pendiente de verificación. No uses markdown ni recomendaciones de consumo.",
+      "Redacta en español una ficha informativa breve y original usando exclusivamente los datos proporcionados y los extractos de fuentes públicas atribuidas. Si existen fuentes, resume sus hechos sin copiar literalmente y sin afirmaciones adicionales. Si no existen fuentes, indica que los detalles botánicos están pendientes de verificación. No inventes composición, genealogía, efectos, datos médicos ni resultados de búsqueda. No uses markdown ni recomendaciones de consumo.",
     prompt: JSON.stringify(input),
   });
   let output = text.trim();
