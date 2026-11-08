@@ -28,7 +28,8 @@ export function receiptShift(serverTimestamp: string) {
 export type ShiftReceipt = {
   id: string;
   recorded_at: string;
-  recorded_by: string;
+  recorded_by: string | null;
+  source?: "fee" | "order";
   amount_cents: number;
   shift?: number | null;
   shift_day?: string;
@@ -39,6 +40,7 @@ export function reconcileAdministrativeShifts(rows: ShiftReceipt[], day: string)
     totals = { morning: 0, afternoon: 0, outside: 0, day: 0 },
     operators: Record<string, number> = {};
   for (const r of rows) {
+    const identity = `${r.source ?? "fee"}:${r.id}`;
     const signature = JSON.stringify([
       r.recorded_at,
       r.recorded_by,
@@ -46,12 +48,12 @@ export function reconcileAdministrativeShifts(rows: ShiftReceipt[], day: string)
       r.shift,
       r.shift_day,
     ]);
-    if (seen.has(r.id)) {
-      if (seen.get(r.id) !== signature) throw new Error("Recibo duplicado con datos distintos");
+    if (seen.has(identity)) {
+      if (seen.get(identity) !== signature) throw new Error("Recibo duplicado con datos distintos");
       continue;
     }
-    seen.set(r.id, signature);
-    if (!r.id || !r.recorded_by || !Number.isSafeInteger(r.amount_cents) || r.amount_cents < 0)
+    seen.set(identity, signature);
+    if (!r.id || !Number.isSafeInteger(r.amount_cents) || r.amount_cents < 0)
       throw new Error("Movimiento no válido");
     const computed = receiptShift(r.recorded_at),
       date = r.shift_day ?? computed.day,
@@ -61,10 +63,30 @@ export function reconcileAdministrativeShifts(rows: ShiftReceipt[], day: string)
     const key = shift === 1 ? "morning" : shift === 2 ? "afternoon" : "outside";
     totals[key] += r.amount_cents;
     totals.day += r.amount_cents;
-    operators[r.recorded_by] = (operators[r.recorded_by] ?? 0) + r.amount_cents;
+    const owner = r.recorded_by ?? "unassigned";
+    operators[owner] = (operators[owner] ?? 0) + r.amount_cents;
     if (!Number.isSafeInteger(totals.day)) throw new Error("Total fuera de rango");
   }
   if (totals.day !== totals.morning + totals.afternoon + totals.outside)
     throw new Error("No se pudo reconciliar el día");
   return { totals, operators };
+}
+
+/** Combined report: each source has its own ID namespace, and opening balances are never inputs. */
+export function cashShiftBreakdown(rows: ShiftReceipt[], day: string) {
+  const reconciliation = reconcileAdministrativeShifts(rows, day);
+  const valid = Array.from(
+    new Map(rows.map((r) => [`${r.source ?? "fee"}:${r.id}`, r])).values(),
+  ).filter((r) => (r.shift_day ?? receiptShift(r.recorded_at).day) === day);
+  const sources = { orders: 0, fees: 0 };
+  const staff: Record<string, ReturnType<typeof reconcileAdministrativeShifts>["totals"]> = {};
+  for (const r of valid) {
+    sources[r.source === "order" ? "orders" : "fees"] += r.amount_cents;
+    const owner = r.recorded_by ?? "unassigned";
+    const values = (staff[owner] ??= { morning: 0, afternoon: 0, outside: 0, day: 0 });
+    const shift = r.shift === undefined ? receiptShift(r.recorded_at).shift : r.shift;
+    values[shift === 1 ? "morning" : shift === 2 ? "afternoon" : "outside"] += r.amount_cents;
+    values.day += r.amount_cents;
+  }
+  return { ...reconciliation, sources, staff };
 }

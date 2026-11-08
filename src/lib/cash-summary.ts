@@ -31,3 +31,14 @@ export function cashAmounts(
   if (!Number.isSafeInteger(sum)) throw new Error("Total fuera de rango");
   return { orderCents, feeCents, totalCents: sum };
 }
+
+export function uniqueLedgerRows<T extends { id: string }>(rows: T[]): T[] {
+  const seen = new Map<string, T>();
+  for (const row of rows) {
+    if (!row.id) throw new Error("Movimiento sin identificador");
+    if (seen.has(row.id) && JSON.stringify(seen.get(row.id)) !== JSON.stringify(row))
+      throw new Error("Operación duplicada incoherente");
+    seen.set(row.id, row);
+  }
+  return [...seen.values()];
+}

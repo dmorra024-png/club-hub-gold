@@ -44,6 +44,7 @@ function Home() {
         let orders = supabase
           .from("orders")
           .select("id,total_cents")
+          .eq("status", "completed")
           .eq("club_id", access.clubId!)
           .gte("created_at", start)
           .lt("created_at", end);

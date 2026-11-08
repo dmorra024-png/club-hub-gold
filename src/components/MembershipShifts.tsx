@@ -1,15 +1,23 @@
+import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { getMembershipShifts } from "@/lib/administrative-shifts.functions";
-import {
-  receiptShift,
-  reconcileAdministrativeShifts,
-  CLUB_SHIFTS,
-} from "@/lib/administrative-shifts";
+import { receiptShift, cashShiftBreakdown, CLUB_SHIFTS } from "@/lib/administrative-shifts";
 export function MembershipShifts() {
+  const { user, access, loading, accessError, can } = useAuth();
+  const scope = JSON.stringify([
+    user?.id,
+    access.clubId,
+    access.role,
+    access.status,
+    [...access.permissions].sort(),
+  ]);
   const [day, setDay] = useState<string | null>(null),
-    [data, setData] = useState<any>(null),
+    [stored, setData] = useState<any>(null),
     [error, setError] = useState("");
+  const data = stored?.scope === scope && !loading && !accessError ? stored : null;
   useEffect(() => {
+    setData(null);
+    if (loading || accessError || !can("use_cash")) return;
     let valid = true;
     setError("");
     getMembershipShifts({ data: { day, operator: null } })
@@ -21,7 +29,8 @@ export function MembershipShifts() {
         }
         setData({
           ...result.report,
-          reconciliation: reconcileAdministrativeShifts(result.report.rows, result.report.day),
+          scope,
+          reconciliation: cashShiftBreakdown(result.report.rows, result.report.day),
         });
       })
       .catch(() => {
@@ -33,7 +42,7 @@ export function MembershipShifts() {
     return () => {
       valid = false;
     };
-  }, [day]);
+  }, [day, scope, loading, accessError]);
   const money = (v: number) =>
     (v / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
   const current = data ? receiptShift(data.server_now) : null;
@@ -42,11 +51,14 @@ export function MembershipShifts() {
       className="space-y-3 border border-neon/25 p-4 rounded-xl"
       aria-label="Caja administrativa por turnos"
     >
-      <h2>Caja de cuotas · colaborador y turno</h2>
-      <p>
-        Solo cuotas asociativas. No modifica ni representa pedidos u otras operaciones del catálogo.
+      <h2>Caja · pedidos y cuotas por turno</h2>
+      <p>Pedidos completados y cuotas registradas. El fondo inicial no es un ingreso.</p>
+      <p className="text-sm">
+        Los pedidos no registran confirmación bancaria ni método de pago. Los importes son registros
+        contables; no acreditan una entrega de efectivo.
       </p>
       {error && <p role="alert">{error}</p>}
+      {!error && !data && <p role="status">Cargando informe del servidor…</p>}
       {!error && data && (
         <>
           <p>
@@ -86,13 +98,23 @@ export function MembershipShifts() {
             {data.admin ? "TOTAL DÍA (todos los colaboradores)" : "TOTAL PROPIO DEL DÍA"}:{" "}
             <strong>{money(data.reconciliation.totals.day)}</strong>
           </p>
-          {data.admin &&
-            Object.entries(data.reconciliation.operators).map(([id, total]) => (
-              <p key={id}>
-                Colaborador: {data.rows.find((r: any) => r.recorded_by === id)?.operator_name ?? id}{" "}
-                · {money(total as number)}
-              </p>
-            ))}
+          <p>
+            Pedidos: {money(data.reconciliation.sources.orders)} · Cuotas:{" "}
+            {money(data.reconciliation.sources.fees)}
+          </p>
+          {Object.entries(data.reconciliation.operators).map(([id, total]) => (
+            <p key={id}>
+              Colaborador:{" "}
+              {data.rows.find((r: any) => (r.recorded_by ?? "unassigned") === id)?.operator_name ??
+                id}{" "}
+              · Total: {money(total as number)}
+              <span className="block">
+                Mañana: {money(data.reconciliation.staff[id].morning)} · Tarde:{" "}
+                {money(data.reconciliation.staff[id].afternoon)} · Fuera de turno:{" "}
+                {money(data.reconciliation.staff[id].outside)}
+              </span>
+            </p>
+          ))}
           <details>
             <summary>Movimientos administrativos y atribución</summary>
             {data.rows.map((r: any) => (
@@ -108,7 +130,8 @@ export function MembershipShifts() {
                   {new Date(r.recorded_at).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}
                 </p>
                 <p>
-                  {r.type} · {money(r.amount_cents)} · {r.payment_method}
+                  {r.type} · {money(r.amount_cents)} ·{" "}
+                  {r.payment_method ?? "Método de pago no registrado"}
                 </p>
                 <p>{r.attribution_source}</p>
               </article>

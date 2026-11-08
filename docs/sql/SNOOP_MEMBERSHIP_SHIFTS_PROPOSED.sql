@@ -1,3 +1,4 @@
+-- Historical dues-only proposal. To activate unified Caja, use SNOOP_CASH_SHIFTS_PROPOSED.sql instead.
 -- REVIEW/APPROVAL REQUIRED. Not an applied Supabase migration.
 -- Additive only: no receipt/account changes, no backfill, no existing RLS changes.
 BEGIN;

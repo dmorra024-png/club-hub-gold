@@ -17,10 +17,10 @@ export const getMembershipShifts = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { data: report, error } = await (context.supabase as any).rpc(
-      "snoop_membership_shift_report",
-      { p_day: data.day, p_operator: data.operator },
-    );
+    const { data: report, error } = await (context.supabase as any).rpc("snoop_cash_shift_report", {
+      p_day: data.day,
+      p_operator: data.operator,
+    });
     if (error)
       return {
         available: false as const,

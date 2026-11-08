@@ -1,0 +1,30 @@
+{
+  "outcomes": [
+    {
+      "device": "samsung",
+      "result": "PASS",
+      "checks": [
+        "actual report component with SQL-produced synthetic rows",
+        "admin combined sources/shift/day",
+        "own collaborator only",
+        "no opening funds",
+        "unknown order payment is explicit",
+        "responsive"
+      ],
+      "physical": false
+    },
+    {
+      "device": "iphone",
+      "result": "PASS",
+      "checks": [
+        "actual report component with SQL-produced synthetic rows",
+        "admin combined sources/shift/day",
+        "own collaborator only",
+        "no opening funds",
+        "unknown order payment is explicit",
+        "responsive"
+      ],
+      "physical": false
+    }
+  ]
+}

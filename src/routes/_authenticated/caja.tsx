@@ -1,5 +1,6 @@
+import { cashShiftBreakdown } from "@/lib/administrative-shifts";
 import { MembershipShifts } from "@/components/MembershipShifts";
-import { clubDayRange, cashAmounts } from "@/lib/cash-summary";
+import { clubDayRange, cashAmounts, uniqueLedgerRows } from "@/lib/cash-summary";
 import { madridToday } from "@/lib/member-administration";
 import type { Receipt } from "@/lib/membership-receipts";
 import { MembershipIncome } from "@/components/MembershipIncome";
@@ -129,6 +130,7 @@ function MyCash() {
       const { data: orders, error: ordersError } = await supabase
         .from("orders")
         .select("id, total_cents, created_by, created_at, cash_session_id")
+        .eq("status", "completed")
         .eq("cash_session_id", (data as any).id);
       const { data: receipts, error: receiptError } = await supabase
         .from("membership_receipts")
@@ -355,6 +357,8 @@ type Collab = {
 function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
   const { isAdmin, user } = useAuth();
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const accessScope = `${user?.id ?? ""}:${isAdmin}`;
+  const [reportScope, setReportScope] = useState("");
   const [fees, setFees] = useState<Receipt[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -370,6 +374,7 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       let oq = supabase
         .from("orders")
         .select("id, total_cents, created_by, created_at, cash_session_id")
+        .eq("status", "completed")
         .gte("created_at", start)
         .lt("created_at", end);
       if (!isAdmin && user) oq = oq.eq("created_by", user.id);
@@ -391,7 +396,12 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       const { data: receipts, error: receiptError } = await fq;
       if (cancel) return;
       setLoadError(Boolean(orderError || sessionError || receiptError));
-      setFees((receipts ?? []) as Receipt[]);
+      try {
+        setFees(uniqueLedgerRows((receipts ?? []) as Receipt[]));
+        setOrders(uniqueLedgerRows((o ?? []) as OrderRow[]));
+      } catch {
+        setLoadError(true);
+      }
 
       // collect user ids and load profiles
       const ids = Array.from(
@@ -417,9 +427,10 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
       }
 
       if (cancel) return;
-      setOrders((o as OrderRow[]) ?? []);
+
       setSessions((s as Session[]) ?? []);
       setPeople(pmap);
+      setReportScope(accessScope);
       setLoading(false);
     })();
     return () => {
@@ -452,8 +463,33 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
   const amounts = cashAmounts(orders, fees);
   const feeTotal = amounts.feeCents;
   const total = amounts.totalCents;
+  let shiftReport: ReturnType<typeof cashShiftBreakdown> | null = null;
+  try {
+    shiftReport = cashShiftBreakdown(
+      [
+        ...orders.map((o) => ({
+          id: o.id,
+          source: "order" as const,
+          recorded_at: o.created_at,
+          recorded_by: o.created_by,
+          amount_cents: o.total_cents,
+        })),
+        ...fees.map((r) => ({
+          id: r.id,
+          source: "fee" as const,
+          recorded_at: r.recorded_at,
+          recorded_by: r.recorded_by,
+          amount_cents: r.amount_cents,
+        })),
+      ],
+      dateISO,
+    );
+  } catch {
+    /* Invalid server timestamps must not produce an invented shift. */
+  }
 
-  if (loading) return <div className="text-sm text-muted-foreground">Cargando…</div>;
+  if (loading || reportScope !== accessScope)
+    return <div className="text-sm text-muted-foreground">Cargando…</div>;
 
   if (loadError)
     return (
@@ -471,6 +507,21 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
         <Stat label="Colaboradores activos" value={String(byUser.length)} />
       </div>
 
+      <section aria-label="Resumen de turnos" className="space-y-2">
+        <h3>Turnos · Europe/Madrid</h3>
+        {shiftReport ? (
+          <>
+            <p>11:00–17:00 · Mañana: {fmtEur(shiftReport.totals.morning)}</p>
+            <p>17:00–23:00 · Tarde: {fmtEur(shiftReport.totals.afternoon)}</p>
+            <p>Fuera de turno: {fmtEur(shiftReport.totals.outside)}</p>
+            <p>Total día: {fmtEur(shiftReport.totals.day)} · Fondo inicial excluido</p>
+          </>
+        ) : (
+          <p role="alert">
+            No se pudieron verificar las fechas de los movimientos. No se atribuyen turnos.
+          </p>
+        )}
+      </section>
       <Card className="p-5 bg-card/60 border-neon/30">
         <div className="flex items-center gap-2 mb-3 text-neon">
           <UsersIcon className="w-4 h-4" />
@@ -497,6 +548,25 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
                     <div className="text-[11px] text-muted-foreground">
                       {row.count} pedidos · {row.receipts} cuotas · {sess.length} caja(s)
                     </div>
+                    {shiftReport?.staff[row.user_id === "—" ? "unassigned" : row.user_id] && (
+                      <p className="text-xs">
+                        Mañana:{" "}
+                        {fmtEur(
+                          shiftReport.staff[row.user_id === "—" ? "unassigned" : row.user_id]
+                            .morning,
+                        )}{" "}
+                        · Tarde:{" "}
+                        {fmtEur(
+                          shiftReport.staff[row.user_id === "—" ? "unassigned" : row.user_id]
+                            .afternoon,
+                        )}{" "}
+                        · Fuera de turno:{" "}
+                        {fmtEur(
+                          shiftReport.staff[row.user_id === "—" ? "unassigned" : row.user_id]
+                            .outside,
+                        )}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-4 text-right">
                     <div>
@@ -544,9 +614,10 @@ function DayReport({ dateISO, title }: { dateISO: string; title: string }) {
                     {new Date(s.opened_at).toLocaleTimeString("es-ES", {
                       hour: "2-digit",
                       minute: "2-digit",
+                      timeZone: "Europe/Madrid",
                     })}
                     {s.closed_at
-                      ? ` → ${new Date(s.closed_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}`
+                      ? ` → ${new Date(s.closed_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" })}`
                       : " · abierta"}
                   </div>
                 </div>

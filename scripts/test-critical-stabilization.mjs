@@ -389,7 +389,7 @@ for (const [label, engine, device] of [
       await page.goto(base + "/caja", { waitUntil: "networkidle" });
       await page.getByRole("tab", { name: "Turnos administrativos", exact: true }).click();
       const report = page.getByRole("region", { name: "Caja administrativa por turnos" });
-      await report.getByText(/42,50/).waitFor();
+      await report.getByText(/TOTAL DÍA.*42,50/).waitFor();
       assert.match(await report.innerText(), /35,00/);
       assert.match(await report.innerText(), /5,00/);
       assert.match(await report.innerText(), /2,50/);
@@ -404,7 +404,7 @@ for (const [label, engine, device] of [
       staff = true;
       await page.reload({ waitUntil: "networkidle" });
       await page.getByRole("tab", { name: "Turnos administrativos", exact: true }).click();
-      await report.getByText(/17,50/).waitFor();
+      await report.getByText(/TOTAL PROPIO DEL DÍA.*17,50/).waitFor();
       assert.doesNotMatch(await report.innerText(), /42,50|Operador sintético B/);
       staff = false;
       await page.goto(base + "/soci/" + pid, { waitUntil: "networkidle" });

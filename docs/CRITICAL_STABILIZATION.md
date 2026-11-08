@@ -1,5 +1,7 @@
 # SNOOP — critical stabilization, 8 November 2026
 
+Update: the dues-only Caja scope below is superseded by [CAJA_UNIFIED.md](CAJA_UNIFIED.md). Use its single SQL proposal for the unified report; this document retains the earlier stabilization evidence.
+
 Scope: existing branch `codex/stabilize-independent-club`, integrated through `eb20b3c`. No production SQL, remote writes, secrets, accounts, deployment or merge. The photo/Genetics implementation is unchanged. All fixtures are synthetic.
 
 ## Reproducible regressions
