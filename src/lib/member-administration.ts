@@ -153,11 +153,11 @@ export function parseAdministrativeDictation(
       /\b(?:crea(?:r|re)?|registra(?:r)?|aggiungi|agregar)\s+(?:(?:un|un nuovo|un nuevo|nuevo|nuovo)\s+)?(?:socio|miembro)\s+([\p{L}'’-]+)\s+([\p{L}'’-]+)(?=\s*[,;]|\s+(?:fecha|ciudad|telefono|teléfono|dni|cuota|plan)\b|$)/iu.exec(
         raw,
       );
-    if (named) raw = raw.replace(named[0], `nombre ${named[1]} apellido ${named[2]}`);
+    if (named) raw = raw.replace(named[0], `nombre ${named[1]}, apellido ${named[2]}`);
   }
   raw = raw.replace(
     /\b(?:chiamato|llamado|mi chiamo|me llamo)\s+([\p{L}'’-]+)\s+([\p{L}'’-]+)(?=\s*[,;]|\s+(?:fecha|ciudad|telefono|teléfono|dni|cuota|plan)\b|$)/giu,
-    "nombre $1 apellido $2",
+    "nombre $1, apellido $2",
   );
   const patterns: [keyof MemberDictation, RegExp][] = [
     ["first_name", /\b(?:nombre|nome)\s*:?\s*/i],
@@ -254,6 +254,14 @@ export function parseAdministrativeDictation(
         .replace(/\b(?:punto|dot)\b/g, ".")
         .replace(/\s+/g, "");
       if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) result[key] = email;
+    } else if (key === "first_name" || key === "last_name") {
+      // Never place an entire transcription or subsequent field labels in a
+      // person's name. An uncertain name must remain empty for manual review.
+      const words = text.split(/\s+/).filter(Boolean);
+      const unexpected = /\b(?:fecha|nacimiento|nato|nata|nacido|nacida|ciudad|residente|residencia|telefono|teléfono|email|correo|dni|apellido|apellidos|cognome|nombre|nome|plan|cuota)\b/i;
+      if (words.length <= 4 && text.length <= 80 &&
+          !unexpected.test(text) && /^[\p{L}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,3}$/u.test(text))
+        result[key] = text;
     } else result[key] = text;
   }
   if (result.plan_name && plans) {
