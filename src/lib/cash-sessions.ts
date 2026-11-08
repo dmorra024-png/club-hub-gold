@@ -67,3 +67,35 @@ export function inCashDay(m: CashMovement, start: string, end: string) {
   if (!Number.isFinite(at)) throw new Error("Fecha del movimiento no válida");
   return at >= Date.parse(start) && at < Date.parse(end);
 }
+
+/** Unknown payment methods never become assumed cash. Opening floats are balances, not revenue. */
+export function reconcileCash(session: CashSession, movements: CashMovement[]) {
+  const entries = movements.filter((m) => m.session_id === session.id && m.by === session.user_id);
+  const cash = entries.filter((m) => m.payment_method === "cash").reduce((n, m) => n + m.cents, 0);
+  const unknown = entries.some(
+    (m) => !["cash", "card", "transfer"].includes(m.payment_method ?? ""),
+  );
+  const expected = unknown ? null : session.opening_cash_cents + cash;
+  return {
+    cash,
+    expected,
+    difference:
+      expected !== null && session.status === "closed" && session.closing_cash_cents !== null
+        ? session.closing_cash_cents - expected
+        : null,
+  };
+}
+
+/** Count closing observations on their closing date, not on every day an overnight session overlaps. */
+export function countedCashOnDay(sessions: CashSession[], start: string, end: string) {
+  return sessions
+    .filter(
+      (s) =>
+        s.status === "closed" &&
+        s.closed_at !== null &&
+        Date.parse(s.closed_at) >= Date.parse(start) &&
+        Date.parse(s.closed_at) < Date.parse(end) &&
+        s.closing_cash_cents !== null,
+    )
+    .reduce((total, s) => total + s.closing_cash_cents!, 0);
+}

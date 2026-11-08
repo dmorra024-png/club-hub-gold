@@ -42,7 +42,7 @@ export async function closeSession(
   if (error || !data) throw new Error("No se pudo cerrar la caja o ya está cerrada.");
   return { id: data.id };
 }
-export async function loadCash(client: any, scope: CashScope, day: string) {
+export async function loadCash(client: any, scope: CashScope, day: string, now = () => new Date()) {
   const { data: admin, error } = await client.rpc("is_current_user_club_admin", {
     _club_id: scope.clubId,
   });
@@ -76,10 +76,10 @@ export async function loadCash(client: any, scope: CashScope, day: string) {
   );
   // Full session intervals are needed for overnight sessions; day totals are filtered separately.
   const earliest = sessions.reduce((a: any, s: any) => (s.opened_at < a ? s.opened_at : a), start);
-  const latest = sessions.reduce(
-    (a: any, s: any) => (s.closed_at && s.closed_at > a ? s.closed_at : a),
-    end,
-  );
+  const latest = sessions.reduce((a: any, s: any) => {
+    const until = s.closed_at ?? now().toISOString();
+    return Date.parse(until) > Date.parse(a) ? until : a;
+  }, end);
   const orders = await all(() =>
     own(
       client

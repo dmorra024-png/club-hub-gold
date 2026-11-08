@@ -3,7 +3,14 @@ import { useEffect, useState } from "react";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { getCashReport, openCash, closeCash } from "@/lib/cash-sessions.functions";
-import { inCashDay, dayRevenue, sessionRevenue, type CashSession } from "@/lib/cash-sessions";
+import {
+  inCashDay,
+  dayRevenue,
+  sessionRevenue,
+  reconcileCash,
+  countedCashOnDay,
+  type CashSession,
+} from "@/lib/cash-sessions";
 import { parseCashCents } from "@/lib/member-administration";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -67,6 +74,7 @@ function Caja() {
   const session: CashSession | undefined = data?.sessions.find(
     (s: CashSession) => s.user_id === user?.id && s.status === "open",
   );
+  const reconciliation = session && data ? reconcileCash(session, data.movements) : null;
   async function submit(kind: "open" | "close") {
     if (busy || !can("use_cash") || !navigator.onLine) return;
     const cents = parseCashCents(kind === "open" ? opening : closing);
@@ -134,6 +142,18 @@ function Caja() {
                           Ingresos registrados:{" "}
                           <strong>{money(sessionRevenue(session, data.movements))}</strong>
                         </p>
+                        <p>Ingresos en efectivo: {money(reconciliation!.cash)}</p>
+                        <p>
+                          Efectivo esperado:{" "}
+                          {reconciliation!.expected === null
+                            ? "No determinable: hay pagos sin método identificado"
+                            : money(reconciliation!.expected)}
+                        </p>
+                        {reconciliation!.expected !== null && parseCashCents(closing) !== null && (
+                          <p>
+                            Diferencia: {money(parseCashCents(closing)! - reconciliation!.expected)}
+                          </p>
+                        )}
                         <label className="block">
                           Dinero contado (€)
                           <Input
@@ -188,6 +208,10 @@ function Caja() {
                     <p className="text-2xl" aria-label="Total del día">
                       {money(dayRevenue(data.movements, data.start, data.end))}
                     </p>
+                    <p>
+                      Contado en cierres del día:{" "}
+                      {money(countedCashOnDay(data.sessions, data.start, data.end))}
+                    </p>
                     <section aria-label="Sesiones de caja" className="space-y-3">
                       <h3>Sesiones</h3>
                       {data.sessions.length === 0 && <p>Sin sesiones este día.</p>}
@@ -208,6 +232,32 @@ function Caja() {
                               ? ` · Contado al cierre: ${money(s.closing_cash_cents)}`
                               : ""}
                           </p>
+                          <p>
+                            Efectivo esperado:{" "}
+                            {reconcileCash(s, data.movements).expected === null
+                              ? "No determinable: hay pagos sin método identificado"
+                              : money(reconcileCash(s, data.movements).expected!)}
+                          </p>
+                          {reconcileCash(s, data.movements).difference !== null && (
+                            <p>Diferencia: {money(reconcileCash(s, data.movements).difference!)}</p>
+                          )}
+                          {s.notes && <p>Notas: {s.notes}</p>}
+                          <details>
+                            <summary className="cursor-pointer py-2">
+                              Ver movimientos de la sesión
+                            </summary>
+                            {data.movements
+                              .filter((m: any) => m.session_id === s.id && m.by === s.user_id)
+                              .map((m: any) => (
+                                <p
+                                  key={`${m.source}:${m.id}`}
+                                  className="border-b border-border py-2 text-sm"
+                                >
+                                  {m.source === "fee" ? "Cuota asociativa" : "Pedido"} ·{" "}
+                                  {money(m.cents)} · {name(m.by)} · {time(m.at)}
+                                </p>
+                              ))}
+                          </details>
                         </Card>
                       ))}
                     </section>

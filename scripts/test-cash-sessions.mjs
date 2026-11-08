@@ -243,6 +243,14 @@ for (const [label, engine, device] of [
     assert.match(text, /Bruno Sintético/);
     assert.match(text, /Sin sesión/);
     assert.match(text, /Ingresos: 9,00/);
+    assert.match(text, /No determinable: hay pagos sin método identificado/);
+    const detail = page
+      .locator('section[aria-label="Sesiones de caja"]')
+      .locator("details")
+      .filter({ hasText: "2,00" });
+    await detail.locator("summary").click();
+    await detail.getByText(/Cuota asociativa.*2,00/).waitFor();
+    assert.match(await detail.innerText(), /Ana Sintética/);
     await page.screenshot({
       path: `docs/screenshots/caja-simple-${label}.png`,
       fullPage: true,
