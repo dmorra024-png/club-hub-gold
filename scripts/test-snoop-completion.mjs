@@ -93,7 +93,9 @@ for (const [label, engine, device, options] of engines) {
         id: pid,
         club_id: club,
         category_id: catId,
-        name: "Synthetic Cup",
+        // Keep the accented fixture stable: search tests must not reload a page
+        // while its mounted access/history effects have pending cross-origin reads.
+        name: "Cuaderno sintético",
         stock: 10,
         buy_price: 0,
         sell_price: 0,
@@ -156,7 +158,7 @@ for (const [label, engine, device, options] of engines) {
               {
                 url: "https://upload.wikimedia.org/test/Synthetic_Cup.jpg",
                 source: "https://commons.wikimedia.org/wiki/File:Synthetic_Cup.jpg",
-                title: "Synthetic Cup",
+                title: "Cuaderno sintético",
                 author: "Synthetic Author",
                 license: "CC BY-SA 4.0",
                 license_url: "https://creativecommons.org/licenses/by-sa/4.0/",
@@ -320,8 +322,6 @@ for (const [label, engine, device, options] of engines) {
     failCatalog = false;
     await page.getByRole("button", { name: "Reintentar catálogo", exact: true }).click();
     await page.getByLabel("Producto para ajustar stock").waitFor();
-    products[0].name = "Cuaderno sintético";
-    await page.reload({ waitUntil: "networkidle" });
     const catalogSearch = page.getByPlaceholder("Buscar en todos los productos…");
     await catalogSearch.fill("sintetico");
     await page.getByLabel("Editar Cuaderno sintético").waitFor();
@@ -345,9 +345,6 @@ for (const [label, engine, device, options] of engines) {
       writesBeforeSearch,
       "catalog search/category navigation never writes",
     );
-    products[0].name = "Synthetic Cup";
-    await page.reload({ waitUntil: "networkidle" });
-    await page.getByLabel("Producto para ajustar stock").waitFor();
     assert.ok(
       await page.getByRole("img", { name: "SNOOP", exact: true }).first().isVisible(),
       "Metallic vector wordmark renders",
@@ -387,10 +384,10 @@ for (const [label, engine, device, options] of engines) {
     await page.waitForFunction(() => document.body.innerText.includes("Stock actual") === false);
     await page
       .getByLabel("Producto para ajustar stock")
-      .getByText("Synthetic Cup — actual: 7", { exact: true })
+      .getByText("Cuaderno sintético — actual: 7", { exact: true })
       .waitFor({ state: "attached" });
     assert.equal(history.length, 1);
-    await page.getByLabel("Editar Synthetic Cup").click();
+    await page.getByLabel("Editar Cuaderno sintético").click();
     await page.getByLabel("Descripción manual").fill("Descripción manual sintética");
     await page.getByLabel("Cargar imagen propia").setInputFiles({
       name: "synthetic.png",
@@ -398,7 +395,7 @@ for (const [label, engine, device, options] of engines) {
       buffer: picture,
     });
     await page.getByRole("button", { name: "Guardar", exact: true }).click();
-    await page.getByLabel("Editar Synthetic Cup").waitFor();
+    await page.getByLabel("Editar Cuaderno sintético").waitFor();
     assert.equal(products[0].description, "Descripción manual sintética");
     assert.ok(products[0].image_url.startsWith("data:image/jpeg"));
     const before = writes.length;
@@ -415,7 +412,7 @@ for (const [label, engine, device, options] of engines) {
     await page.getByText("Synthetic Author · CC BY-SA 4.0", { exact: true }).waitFor();
     assert.ok(products[0].image_attribution);
     assert.equal(products[0].description, "Propuesta corregida sintética");
-    await page.getByLabel("Editar Synthetic Cup").click();
+    await page.getByLabel("Editar Cuaderno sintético").click();
     await page.getByLabel("Descripción manual").fill("Borrador manual conservado");
     const editBefore = writes.length;
     await page.getByTitle("Proponer descripción e imágenes con licencia").click();
@@ -429,18 +426,18 @@ for (const [label, engine, device, options] of engines) {
     await page.getByTitle("Proponer descripción e imágenes con licencia").click();
     await page.getByLabel("Descripción propuesta").fill("Confirmación en la misma ficha");
     await page.getByRole("button", { name: "Confirmar ficha", exact: true }).click();
-    await page.getByLabel("Editar Synthetic Cup").waitFor();
+    await page.getByLabel("Editar Cuaderno sintético").waitFor();
     assert.equal(products[0].description, "Confirmación en la misma ficha");
     assert.equal(products[0].stock, 7);
     assert.equal(history.length, 1);
     page.once("dialog", (d) => d.accept());
-    await page.getByLabel("Archivar Synthetic Cup").click();
+    await page.getByLabel("Archivar Cuaderno sintético").click();
     await page.getByRole("button", { name: "Reactivar producto", exact: true }).waitFor();
     assert.equal(products[0].active, false);
     assert.equal(history.length, 1);
     page.once("dialog", (d) => d.accept());
     await page.getByRole("button", { name: "Reactivar producto", exact: true }).click();
-    await page.getByLabel("Editar Synthetic Cup").waitFor();
+    await page.getByLabel("Editar Cuaderno sintético").waitFor();
     // Drain background fixture reads before replacing the WebKit document.
     await page.waitForLoadState("networkidle");
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
