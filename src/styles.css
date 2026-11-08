@@ -901,3 +901,74 @@ body:has(.premium-shell) .snoop-install-control {
   bottom: 12px;
   margin: 0;
 }
+
+/* Informational archive: original navy/champagne tokens, no commercial controls. */
+.genetics-editor,
+.genetics-record {
+  margin: 24px 0;
+  padding: 18px 0;
+  border-top: 1px solid #d7ba7540;
+  overflow-wrap: anywhere;
+}
+.genetics-editor label {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.genetics-editor input:not([type="checkbox"]),
+.genetics-editor textarea,
+.genetics-editor select {
+  min-width: 0;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d7ba7550;
+  border-radius: 8px;
+  background: #091623;
+  color: #f5f4ef;
+}
+.genetics-editor button {
+  padding: 11px 14px;
+  margin: 6px 6px 6px 0;
+  border: 1px solid #d7ba75;
+  border-radius: 8px;
+  color: #f0d49a;
+  max-width: 100%;
+}
+.genetics-editor button:disabled {
+  opacity: 0.45;
+}
+.genetics-editor fieldset {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid #d7ba7540;
+}
+.genetics-editor h2,
+.genetics-record h2 {
+  font-size: 22px;
+  margin-bottom: 14px;
+}
+.genetics-editor p,
+.genetics-record p {
+  margin: 12px 0;
+  line-height: 1.6;
+}
+.genetics-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.genetics-images img,
+.genetics-preview,
+.genetics-record img {
+  max-width: 100%;
+  width: 280px;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.genetics-editor a,
+.genetics-record a {
+  color: #e7c47b;
+  text-decoration: underline;
+}

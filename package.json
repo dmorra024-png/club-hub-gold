@@ -37,7 +37,9 @@
     "test:completion:mobile": "node scripts/test-snoop-completion.mjs",
     "test:account-links": "node scripts/test-account-links.mjs",
     "test:pwa:resume": "node scripts/test-pwa-resume.mjs",
-    "test:premium:home": "node scripts/test-premium-home.mjs"
+    "test:premium:home": "node scripts/test-premium-home.mjs",
+    "test:genetics:browser": "node scripts/test-genetics-information.mjs",
+    "verify:genetics:live": "node scripts/check-genetics-sources.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

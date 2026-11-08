@@ -1,0 +1,36 @@
+{
+  "results": [
+    {
+      "device": "samsung",
+      "result": "PASS",
+      "physical": false,
+      "backend": "isolated intercepted APIs",
+      "image": "Live-verified Commons photograph; local captured bytes, not generated",
+      "checks": [
+        "informational preview",
+        "source attribution",
+        "confirmation gate",
+        "single explicit save",
+        "unavailable source manual fallback",
+        "collaborator read-only",
+        "no economic writes"
+      ]
+    },
+    {
+      "device": "iphone-webkit",
+      "result": "PASS",
+      "physical": false,
+      "backend": "isolated intercepted APIs",
+      "image": "Live-verified Commons photograph; local captured bytes, not generated",
+      "checks": [
+        "informational preview",
+        "source attribution",
+        "confirmation gate",
+        "single explicit save",
+        "unavailable source manual fallback",
+        "collaborator read-only",
+        "no economic writes"
+      ]
+    }
+  ]
+}

@@ -102,6 +102,38 @@ export function decodeMemberDraft(
     return null;
   }
 }
+/** Calendar dates spoken with IT/ES month names; unsupported speech stays empty. */
+export function spokenAdministrativeDate(value: string): string | null {
+  const direct = calendarDate(value);
+  if (direct) return direct;
+  const months = [
+    ["gennaio", "enero"],
+    ["febbraio", "febrero"],
+    ["marzo"],
+    ["aprile", "abril"],
+    ["maggio", "mayo"],
+    ["giugno", "junio"],
+    ["luglio", "julio"],
+    ["agosto"],
+    ["settembre", "septiembre", "setiembre"],
+    ["ottobre", "octubre"],
+    ["novembre", "noviembre"],
+    ["dicembre", "diciembre"],
+  ];
+  const normalized = value
+    .toLowerCase()
+    .replace(/\b(de|del|di|il|el)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const match = /^(\d{1,2}) ([a-z]+) (\d{4})$/.exec(normalized);
+  if (!match) return null;
+  const month = months.findIndex((names) => names.includes(match[2]));
+  if (month < 0) return null;
+  return calendarDate(
+    `${match[3]}-${String(month + 1).padStart(2, "0")}-${match[1].padStart(2, "0")}`,
+  );
+}
+
 export function parseAdministrativeDictation(
   transcript: string,
   plans?: string[],
@@ -130,15 +162,53 @@ export function parseAdministrativeDictation(
     const { key, value } = hits[n];
     const text = raw
       .slice(value, hits[n + 1]?.start ?? raw.length)
+      .replace(/^(?:es|è|é)\s+/i, "")
       .replace(/^[\s:,-]+|[\s,.]+$/g, "");
     if (!text) continue;
     if (key === "birth_date") {
-      const date = calendarDate(text);
+      const date = spokenAdministrativeDate(text);
       if (date) result[key] = date;
     } else if (key === "dni_number") result[key] = text.replace(/[^a-z0-9]/gi, "").toUpperCase();
-    else if (key === "phone") result[key] = text.replace(/(?!^\+)[^0-9]/g, "");
-    else if (key === "email") result[key] = text.replace(/\s+/g, "").toLowerCase();
-    else result[key] = text;
+    else if (key === "phone") {
+      const digits: Record<string, string> = {
+        zero: "0",
+        cero: "0",
+        uno: "1",
+        una: "1",
+        un: "1",
+        due: "2",
+        dos: "2",
+        tre: "3",
+        tres: "3",
+        quattro: "4",
+        cuatro: "4",
+        cinque: "5",
+        cinco: "5",
+        sei: "6",
+        seis: "6",
+        sette: "7",
+        siete: "7",
+        otto: "8",
+        ocho: "8",
+        nove: "9",
+        nueve: "9",
+      };
+      const spoken = text
+        .toLowerCase()
+        .replace(
+          /\b(zero|cero|uno|una|un|due|dos|tre|tres|quattro|cuatro|cinque|cinco|sei|seis|sette|siete|otto|ocho|nove|nueve)\b/g,
+          (word) => digits[word],
+        );
+      const normalized = spoken.replace(/(?!^\+)[^0-9]/g, "");
+      if (normalized.length >= 6 && normalized.length <= 15) result[key] = normalized;
+    } else if (key === "email") {
+      const email = text
+        .toLowerCase()
+        .replace(/\b(?:arroba|chiocciola)\b/g, "@")
+        .replace(/\b(?:punto|dot)\b/g, ".")
+        .replace(/\s+/g, "");
+      if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) result[key] = email;
+    } else result[key] = text;
   }
   if (result.plan_name && plans) {
     const normalize = (s: string) =>

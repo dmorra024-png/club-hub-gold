@@ -19,6 +19,7 @@ import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe
 import { Route as AuthenticatedSnoopAdminRouteImport } from './routes/_authenticated/snoop-admin'
 import { Route as AuthenticatedProductosRouteImport } from './routes/_authenticated/productos'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as AuthenticatedGeneticasRouteImport } from './routes/_authenticated/geneticas'
 import { Route as AuthenticatedCuotasRouteImport } from './routes/_authenticated/cuotas'
 import { Route as AuthenticatedControlAccesoRouteImport } from './routes/_authenticated/control-acceso'
 import { Route as AuthenticatedClubStatusRouteImport } from './routes/_authenticated/club-status'
@@ -91,6 +92,11 @@ const AuthenticatedProductosRoute = AuthenticatedProductosRouteImport.update({
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
   id: '/perfil',
   path: '/perfil',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedGeneticasRoute = AuthenticatedGeneticasRouteImport.update({
+  id: '/geneticas',
+  path: '/geneticas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedCuotasRoute = AuthenticatedCuotasRouteImport.update({
@@ -239,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/club-status': typeof AuthenticatedClubStatusRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/cuotas': typeof AuthenticatedCuotasRoute
+  '/geneticas': typeof AuthenticatedGeneticasRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/productos': typeof AuthenticatedProductosRoute
   '/snoop-admin': typeof AuthenticatedSnoopAdminRoute
@@ -273,6 +280,7 @@ export interface FileRoutesByTo {
   '/club-status': typeof AuthenticatedClubStatusRoute
   '/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/cuotas': typeof AuthenticatedCuotasRoute
+  '/geneticas': typeof AuthenticatedGeneticasRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/productos': typeof AuthenticatedProductosRoute
   '/snoop-admin': typeof AuthenticatedSnoopAdminRoute
@@ -310,6 +318,7 @@ export interface FileRoutesById {
   '/_authenticated/club-status': typeof AuthenticatedClubStatusRoute
   '/_authenticated/control-acceso': typeof AuthenticatedControlAccesoRoute
   '/_authenticated/cuotas': typeof AuthenticatedCuotasRoute
+  '/_authenticated/geneticas': typeof AuthenticatedGeneticasRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/productos': typeof AuthenticatedProductosRoute
   '/_authenticated/snoop-admin': typeof AuthenticatedSnoopAdminRoute
@@ -348,6 +357,7 @@ export interface FileRouteTypes {
     | '/club-status'
     | '/control-acceso'
     | '/cuotas'
+    | '/geneticas'
     | '/perfil'
     | '/productos'
     | '/snoop-admin'
@@ -382,6 +392,7 @@ export interface FileRouteTypes {
     | '/club-status'
     | '/control-acceso'
     | '/cuotas'
+    | '/geneticas'
     | '/perfil'
     | '/productos'
     | '/snoop-admin'
@@ -418,6 +429,7 @@ export interface FileRouteTypes {
     | '/_authenticated/club-status'
     | '/_authenticated/control-acceso'
     | '/_authenticated/cuotas'
+    | '/_authenticated/geneticas'
     | '/_authenticated/perfil'
     | '/_authenticated/productos'
     | '/_authenticated/snoop-admin'
@@ -530,6 +542,13 @@ declare module '@tanstack/react-router' {
       path: '/perfil'
       fullPath: '/perfil'
       preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/geneticas': {
+      id: '/_authenticated/geneticas'
+      path: '/geneticas'
+      fullPath: '/geneticas'
+      preLoaderRoute: typeof AuthenticatedGeneticasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/cuotas': {
@@ -720,6 +739,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClubStatusRoute: typeof AuthenticatedClubStatusRoute
   AuthenticatedControlAccesoRoute: typeof AuthenticatedControlAccesoRoute
   AuthenticatedCuotasRoute: typeof AuthenticatedCuotasRoute
+  AuthenticatedGeneticasRoute: typeof AuthenticatedGeneticasRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProductosRoute: typeof AuthenticatedProductosRoute
   AuthenticatedSnoopAdminRoute: typeof AuthenticatedSnoopAdminRoute
@@ -743,6 +763,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClubStatusRoute: AuthenticatedClubStatusRoute,
   AuthenticatedControlAccesoRoute: AuthenticatedControlAccesoRoute,
   AuthenticatedCuotasRoute: AuthenticatedCuotasRoute,
+  AuthenticatedGeneticasRoute: AuthenticatedGeneticasRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProductosRoute: AuthenticatedProductosRoute,
   AuthenticatedSnoopAdminRoute: AuthenticatedSnoopAdminRoute,

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Mic, MicOff, Loader2, Volume2, Ear } from "lucide-react";
 import { toast } from "sonner";
+import { informationalVoiceCommand } from "@/lib/informational-voice";
 import { parseAdministrativeDictation } from "@/lib/member-administration";
 import {
   agentRespond,
@@ -177,6 +178,31 @@ export function VoiceAgent({
         const path = locRef.current.pathname;
         const lower = text.toLowerCase();
         const normalized = normalizeVoiceText(text);
+
+        // Informational research must never fall through to member/product search.
+        const informational = informationalVoiceCommand(text);
+        if (informational) {
+          window.sessionStorage.setItem(
+            "snoop:genetics-query",
+            JSON.stringify({ at: Date.now(), query: informational.query }),
+          );
+          if (path === "/geneticas") window.dispatchEvent(new Event("snoop:genetics-query"));
+          else navigate({ to: "/geneticas" });
+          toast.info("Revisa el nombre y pulsa Buscar. No se ha guardado nada.");
+          return;
+        }
+        // Apply only explicitly mentioned administrative fields to the open form.
+        // This also prevents 'cuota mensual' from incorrectly leaving the form.
+        const administrativePatch = parseAdministrativeDictation(text);
+        if (path === "/soci/nuovo" && Object.keys(administrativePatch).length) {
+          window.sessionStorage.setItem(
+            "snoop:member-draft",
+            JSON.stringify({ at: Date.now(), fields: administrativePatch }),
+          );
+          window.dispatchEvent(new Event("snoop:member-draft"));
+          toast.info("Campos propuestos. Revisa y confirma: no se ha guardado nada.");
+          return;
+        }
 
         // --- 1) Global navigation intents (always win — user said a section name) ---
         const navHit = NAV_INTENTS.find((n) => n.rx.test(lower) || n.rx.test(normalized));

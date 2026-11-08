@@ -1,3 +1,4 @@
+import { informationalVoiceCommand } from "./informational-voice.ts";
 import { parseAdministrativeDictation } from "./member-administration.ts";
 import type { Permission } from "./access-context.ts";
 export function privateVoiceCommand(
@@ -12,7 +13,9 @@ export function privateVoiceCommand(
   let navigateTo: string | null = null;
   let permission: Permission | undefined;
   let memberDraft: Record<string, string> | null = null;
-  if (
+  if (informationalVoiceCommand(transcript)) {
+    navigateTo = "/geneticas";
+  } else if (
     (/\b(socio|soci|miembro)\b/.test(text) &&
       /\b(crea|creare|crear|nuovo|nuevo|nueva|alta|registrar)\b/.test(text)) ||
     (!/\b(cerca|buscar|busca|trova)\b/.test(text) &&

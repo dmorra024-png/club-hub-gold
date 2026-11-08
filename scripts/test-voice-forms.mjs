@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { chromium, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 import { parseAdministrativeDictation } from "../src/lib/member-administration.ts";
-const base = "http://127.0.0.1:3000",
+const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000",
   uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -24,6 +25,14 @@ const auth = {
   expires_at: exp,
   token_type: "bearer",
 };
+assert.ok(["127.0.0.1", "localhost"].includes(new URL(base).hostname));
+const api = new URL(
+  process.env.TEST_SUPABASE_URL ||
+    (process.env.TEST_BASE_URL
+      ? (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=[\"\']?([^\s\"\']+)/m)?.[1]
+      : "/sandbox-api"),
+  base,
+);
 const browser = await chromium.launch({
   executablePath: "/usr/bin/chromium",
   args: ["--no-sandbox", "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
@@ -53,7 +62,11 @@ try {
     await context.route("**/*", async (route) => {
       const req = route.request(),
         url = new URL(req.url());
-      if (url.origin !== base) return route.abort();
+      const isApi =
+        url.origin === api.origin &&
+        (!api.pathname.replace(/\/$/, "") ||
+          url.pathname.startsWith(api.pathname.replace(/\/$/, "") + "/"));
+      if (url.origin !== base && !isApi) return route.abort();
       if (url.pathname.includes("_serverFn")) {
         let result = { available: true, documents: false, browserSpeech: false };
         if (req.method() === "POST") {
@@ -83,7 +96,7 @@ try {
           body: JSON.stringify({ result, context: {} }),
         });
       }
-      if (!url.pathname.startsWith("/sandbox-api/")) return route.continue();
+      if (!isApi) return route.continue();
       let data = [];
       if (url.pathname.endsWith("/auth/v1/user")) data = user;
       else if (url.pathname.endsWith("/rpc/snoop_access_context"))
@@ -112,7 +125,11 @@ try {
           },
         ];
       else if (url.pathname.endsWith("/club_member_field_config")) data = [];
-      else if ((url.pathname.endsWith("/members") && req.method() !== "GET") || url.pathname.endsWith("/rpc/save_membership_with_receipt")) writes++;
+      else if (
+        (url.pathname.endsWith("/members") && req.method() !== "GET") ||
+        url.pathname.endsWith("/rpc/save_membership_with_receipt")
+      )
+        writes++;
       if (req.headers().accept?.includes("vnd.pgrst.object+json") && Array.isArray(data))
         data = data[0] ?? null;
       return route.fulfill({
@@ -122,11 +139,11 @@ try {
       });
     });
     await context.addInitScript(
-      ({ auth, language }) => {
-        localStorage.setItem("sb-127-auth-token", JSON.stringify(auth));
+      ({ auth, language, key }) => {
+        localStorage.setItem(key, JSON.stringify(auth));
         localStorage.setItem("snoop:voice-language", language + "-" + language.toUpperCase());
       },
-      { auth, language },
+      { auth, language, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
     );
     const page = await context.newPage();
     page.on("dialog", (d) => d.accept());

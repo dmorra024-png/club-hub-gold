@@ -1,0 +1,144 @@
+{
+  "at": "2026-11-08T06:23:23.488Z",
+  "method": "Real HTTP GET to documented public Wikimedia APIs; no simulated source data, CAPTCHA bypass, commercial APIs or AI generation",
+  "rows": [
+    {
+      "name": "Amnesia Haze",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "No se encontró una fotografía con nombre exacto y licencia reutilizable comprobada. Puedes aportar una foto propia.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "Gelato 41",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "No se encontró una fotografía con nombre exacto y licencia reutilizable comprobada. Puedes aportar una foto propia.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "Runtz",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "No se encontró una fotografía con nombre exacto y licencia reutilizable comprobada. Puedes aportar una foto propia.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "Gorilla Glue",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "No se encontró una fotografía con nombre exacto y licencia reutilizable comprobada. Puedes aportar una foto propia.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "Wedding Cake",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [
+        {
+          "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3f/Wedding_Cake_Cannabis_Strain.jpg/960px-Wedding_Cake_Cannabis_Strain.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "source": "https://commons.wikimedia.org/wiki/File:Wedding_Cake_Cannabis_Strain.jpg",
+          "title": "Wedding Cake Cannabis Strain.jpg",
+          "author": "Forcefield21",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "Northern Lights",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [
+        {
+          "url": "https://upload.wikimedia.org/wikipedia/commons/e/e9/Northern-lights-flowering.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+          "source": "https://commons.wikimedia.org/wiki/File:Northern-lights-flowering.jpg",
+          "title": "Northern-lights-flowering.jpg",
+          "author": "User Dan",
+          "license": "CC BY-SA 3.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/3.0/"
+        }
+      ],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "White Widow",
+      "result": "PARTIAL",
+      "verified_facts": [
+        {
+          "field": "botany",
+          "value": "variedad de Cannabis identificada en Wikidata",
+          "source": "https://www.wikidata.org/wiki/Q2567779"
+        }
+      ],
+      "references": [
+        {
+          "title": "White widow",
+          "url": "https://www.wikidata.org/wiki/Q2567779"
+        }
+      ],
+      "images": [
+        {
+          "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/33/White_Widow.jpg/960px-White_Widow.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "source": "https://commons.wikimedia.org/wiki/File:White_Widow.jpg",
+          "title": "White Widow.jpg",
+          "author": "Coaster420",
+          "license": "Public domain",
+          "license_url": "https://commons.wikimedia.org/wiki/File:White_Widow.jpg"
+        },
+        {
+          "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/White_Widow_Dinafem.jpg/960px-White_Widow_Dinafem.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "source": "https://commons.wikimedia.org/wiki/File:White_Widow_Dinafem.jpg",
+          "title": "White Widow Dinafem.jpg",
+          "author": "Dinafem Seeds",
+          "license": "CC BY-SA 4.0",
+          "license_url": "https://creativecommons.org/licenses/by-sa/4.0"
+        }
+      ],
+      "warnings": [
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    },
+    {
+      "name": "Zkittlez",
+      "result": "BLOCKED",
+      "verified_facts": [],
+      "references": [],
+      "images": [],
+      "warnings": [
+        "Wikidata no ofrece una coincidencia botánica única y verificable. Breeder, genealogía y aroma requieren documentación del administrador.",
+        "No se encontró una fotografía con nombre exacto y licencia reutilizable comprobada. Puedes aportar una foto propia.",
+        "Las fuentes especializadas no se extraen automáticamente sin condiciones de reutilización verificadas. Revisa identidad, autor y licencia antes de confirmar."
+      ]
+    }
+  ]
+}
