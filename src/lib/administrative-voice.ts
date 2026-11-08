@@ -77,8 +77,11 @@ export function administrativeIntent(raw: string, path: string): AdministrativeI
     };
   }
   const nav: [RegExp, string][] = [
+    [
+      /\b(cassa|caja|incassi|ingresos)\b|\b(informe|report)\s+(?:de\s+)?(?:cuotas|quote)\b/,
+      "/caja",
+    ],
     [/\b(informes?|report|statistiche|estadisticas)\b/, "/ajustes/informes"],
-    [/\b(cassa|caja)\b/, "/caja"],
     [/\b(colaboradores|collaboratori|dipendenti)\b/, "/ajustes/colaboradores"],
     [/\b(impostazioni|ajustes)\b/, "/ajustes"],
     [/^(?:apri|abre|vai a|ir a)?\s*(?:soci|socios|miembros)\s*[.!]?$/, "/soci/gestisci"],

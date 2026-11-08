@@ -19,7 +19,7 @@
     },
     {
       "device": "samsung",
-      "case": "real shift report rendering: admin 42.50, own collaborator 17.50, member/operator separated, server Madrid day",
+      "case": "simple daily report: admin 42.50, own collaborator 17.50, no fixed shifts/UUID",
       "result": "PASS"
     },
     {
@@ -39,7 +39,7 @@
     },
     {
       "device": "iphone",
-      "case": "real shift report rendering: admin 42.50, own collaborator 17.50, member/operator separated, server Madrid day",
+      "case": "simple daily report: admin 42.50, own collaborator 17.50, no fixed shifts/UUID",
       "result": "PASS"
     }
   ]

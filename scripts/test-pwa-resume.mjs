@@ -1,3 +1,5 @@
+import { cashBrowserFixture } from "./lib/cash-browser-fixture.mjs";
+import { fromJSON } from "seroval";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -56,6 +58,32 @@ for (const [label, engine, device] of engines) {
         url = new URL(req.url()),
         isApi = url.origin === api.origin && (!prefix || url.pathname.startsWith(prefix + "/"));
       if (url.origin !== new URL(base).origin && !isApi) return route.abort();
+      if (
+        url.pathname.includes("_serverFn") &&
+        req.method() === "POST" &&
+        "day" in fromJSON(JSON.parse(req.postData())).data
+      )
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            result: cashBrowserFixture({
+              userId: uid,
+              orders: [
+                { id: "same-order", total_cents: 700 },
+                { id: "same-order", total_cents: 700 },
+              ],
+              fees: [
+                {
+                  id: "synthetic-receipt",
+                  amount_cents: 300,
+                  recorded_by: uid,
+                  payment_method: "cash",
+                },
+              ],
+            }),
+            context: {},
+          }),
+        });
       if (url.pathname.includes("_serverFn"))
         return route.fulfill({
           contentType: "application/json",
@@ -207,7 +235,7 @@ for (const [label, engine, device] of engines) {
     );
     assert.doesNotMatch(await summary.innerText(), /\d+ socios|\d+ productos/i);
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
-    await page.getByRole("tab", { name: "Informe de hoy", exact: true }).click();
+    await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
     await page.getByText(/10,00/).first().waitFor();
     permitted = false;
     queries.length = 0;

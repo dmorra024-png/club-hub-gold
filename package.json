@@ -42,7 +42,7 @@
     "verify:genetics:live": "node scripts/check-genetics-sources.mjs",
     "test:voice2:browser": "node scripts/test-voice2-administration.mjs",
     "test:critical:browser": "node scripts/test-critical-stabilization.mjs && node scripts/test-pwa-update-consent.mjs",
-    "test:cash:browser": "node --test tests/cash-shifts.test.mjs && node scripts/test-cash-shifts.mjs"
+    "test:cash:browser": "node --test tests/simple-cash.test.mjs && node scripts/test-cash-sessions.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

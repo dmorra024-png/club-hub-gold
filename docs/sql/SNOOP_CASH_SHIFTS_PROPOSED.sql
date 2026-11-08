@@ -1,3 +1,4 @@
+-- HISTORICAL: fixed-shift RPC is not used by the simplified session-based Caja. Do not reapply.
 -- ONE-TIME PROPOSAL ONLY. Replaces neither accounting rows nor existing RLS.
 -- Supersedes the dues-only report; independent of its proposal, and compatible if it already exists.
 BEGIN;

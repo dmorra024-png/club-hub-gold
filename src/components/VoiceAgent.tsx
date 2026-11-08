@@ -44,11 +44,11 @@ const NAV_INTENTS: Array<{ to: string; rx: RegExp; label: string; tab?: string }
     label: "Gestionar socios",
   },
   {
-    to: "/cuotas",
-    rx: /\b(incassi|ingresos|registro quote|incassi quote|informe cuotas|report quote)\b/i,
-    label: "Ingresos asociativos",
+    to: "/caja",
+    rx: /\b(incassi|ingresos|quote|cuotas|registro quote|incassi quote|informe cuotas|report quote)\b/i,
+    label: "Caja",
   },
-  { to: "/ajustes/cuotas", rx: /\b(cuotas|cuotas? mensual|planes)\b/i, label: "Cuotas" },
+  { to: "/ajustes/cuotas", rx: /\b(planes)\b/i, label: "Cuotas" },
   {
     to: "/ajustes/colaboradores",
     rx: /\b(colaboradores|colaborador|colaboradoras|staff|equipo)\b/i,
@@ -153,17 +153,27 @@ export function VoiceAgent({
         const lower = text.toLowerCase();
         const normalized = normalizeVoiceText(text);
 
-        // Informational research must never fall through to member/product search.
         const informational = informationalVoiceCommand(text);
         if (informational) {
-          allow("/geneticas");
-          window.sessionStorage.setItem(
-            "snoop:genetics-query",
-            JSON.stringify({ at: Date.now(), query: informational.query }),
+          allow("/productos");
+          const command = { text: `buscar ${informational.query}`, at: Date.now() };
+          if (path === "/productos")
+            window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: command }));
+          else {
+            window.sessionStorage.setItem("snoop:productos-cmd", JSON.stringify(command));
+            await navigate({ to: "/productos" });
+          }
+          return;
+        }
+        if (
+          path === "/productos" &&
+          document.querySelector("[data-snoop-product-form]") &&
+          /^(?:no\b|cambia\b|corrige\b|correggi\b|modifica\b)/i.test(text)
+        ) {
+          allow("/productos");
+          window.dispatchEvent(
+            new CustomEvent("snoop:productos-command", { detail: { text, tab: "nuevo" } }),
           );
-          if (path === "/geneticas") window.dispatchEvent(new Event("snoop:genetics-query"));
-          else navigate({ to: "/geneticas" });
-          toast.info("Revisa el nombre y pulsa Buscar. No se ha guardado nada.");
           return;
         }
         const intent = administrativeIntent(text, path);
@@ -262,10 +272,23 @@ export function VoiceAgent({
 
         // --- 2) Productos: any voice = category filter OR search ---
         if (path === "/productos") {
+          allow("/productos");
+          if (document.querySelector("[data-snoop-product-form]")) {
+            window.dispatchEvent(
+              new CustomEvent("snoop:productos-command", { detail: { text, tab: "nuevo" } }),
+            );
+            return;
+          }
           // Product creation must reach the parent form parser, not only the
           // stock-list category filter listening to productos-voice.
-          if (/\\b(?:crea|crear|creare|nuevo|nuovo|nueva|alta|añadir|anadir|agregar|registrar)\\b[\\s\\S]{0,80}\\b(?:producto|prodotti|prodotto|productos)\\b/i.test(text)) {
-            window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: { text, tab: "nuevo" } }));
+          if (
+            /\b(?:crea|crear|creare|nuevo|nuovo|nueva|alta|añadir|anadir|agregar|registrar)\b[\s\S]{0,80}\b(?:producto|prodotti|prodotto|productos)\b/i.test(
+              text,
+            )
+          ) {
+            window.dispatchEvent(
+              new CustomEvent("snoop:productos-command", { detail: { text, tab: "nuevo" } }),
+            );
           } else {
             window.dispatchEvent(new CustomEvent("snoop:productos-voice", { detail: { text } }));
           }
@@ -366,18 +389,36 @@ export function VoiceAgent({
     [navigate],
   );
 
+  const fieldEdits = useRef(0),
+    recordingEdits = useRef(0);
+  useEffect(() => {
+    const changed = () => {
+      fieldEdits.current++;
+    };
+    document.addEventListener("input", changed);
+    return () => document.removeEventListener("input", changed);
+  }, []);
   const dictation = useWhisperDictation({
     scope,
     language: language.startsWith("it") ? "it" : "es",
     available: aiStatus,
     transcribe: (data) => transcribe({ data }),
-    onTranscript: handleTranscript,
+    onTranscript: (text) => {
+      if (fieldEdits.current !== recordingEdits.current) {
+        toast.info("Se conserva tu edición manual. Repite el dictado si lo necesitas.");
+        return;
+      }
+      return handleTranscript(text);
+    },
   });
   const enabled = dictation.phase === "recording",
     busy = dictation.phase === "starting" || dictation.phase === "processing";
   const toggle = useCallback(() => {
     if (enabled) dictation.finish();
-    else if (!busy) void dictation.start();
+    else if (!busy) {
+      recordingEdits.current = fieldEdits.current;
+      void dictation.start();
+    }
   }, [enabled, busy, dictation.start, dictation.finish]);
   useEffect(() => {
     window.addEventListener("snoop:voice-start", toggle);

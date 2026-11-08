@@ -3,34 +3,24 @@
     {
       "device": "samsung",
       "result": "PASS",
-      "physical": false,
-      "backend": "isolated intercepted APIs",
-      "image": "Live-verified Commons photograph; local captured bytes, not generated",
       "checks": [
-        "informational preview",
-        "source attribution",
-        "confirmation gate",
-        "single explicit save",
-        "unavailable source manual fallback",
-        "collaborator read-only",
-        "no economic writes"
-      ]
+        "old archive link redirects to existing Products",
+        "no archive menu or API calls",
+        "zero database writes",
+        "same-product AI uses product name, not classification; editable/cancellable preview"
+      ],
+      "physical": false
     },
     {
       "device": "iphone-webkit",
       "result": "PASS",
-      "physical": false,
-      "backend": "isolated intercepted APIs",
-      "image": "Live-verified Commons photograph; local captured bytes, not generated",
       "checks": [
-        "informational preview",
-        "source attribution",
-        "confirmation gate",
-        "single explicit save",
-        "unavailable source manual fallback",
-        "collaborator read-only",
-        "no economic writes"
-      ]
+        "old archive link redirects to existing Products",
+        "no archive menu or API calls",
+        "zero database writes",
+        "same-product AI uses product name, not classification; editable/cancellable preview"
+      ],
+      "physical": false
     }
   ]
 }

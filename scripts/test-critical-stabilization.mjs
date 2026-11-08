@@ -1,3 +1,4 @@
+import { cashBrowserFixture } from "./lib/cash-browser-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -157,6 +158,16 @@ for (const [label, engine, device] of [
               ].filter((r) => !staff || r.recorded_by === uid),
             },
           };
+        }
+        if (result.available && result.report) {
+          const r = result.report;
+          result = cashBrowserFixture({
+            day: r.day,
+            userId: uid,
+            admin: r.admin,
+            fees: r.rows,
+            profiles: [{ id: uid, full_name: r.operator_name }],
+          });
         }
         return route.fulfill({
           contentType: "application/json",
@@ -387,25 +398,14 @@ for (const [label, engine, device] of [
     }
     if (!process.env.CRITICAL_CASE) {
       await page.goto(base + "/caja", { waitUntil: "networkidle" });
-      await page.getByRole("tab", { name: "Turnos administrativos", exact: true }).click();
-      const report = page.getByRole("region", { name: "Caja administrativa por turnos" });
-      await report.getByText(/TOTAL DÍA.*42,50/).waitFor();
-      assert.match(await report.innerText(), /35,00/);
-      assert.match(await report.innerText(), /5,00/);
-      assert.match(await report.innerText(), /2,50/);
-      await report.getByText("Movimientos administrativos y atribución").click();
-      assert.match(await report.innerText(), /Nombre del socio/);
-      assert.match(await report.innerText(), /Colaborador responsable/);
-      await page.screenshot({
-        path: `docs/screenshots/critical-shifts-${label}.png`,
-        fullPage: true,
-        scale: "css",
-      });
+      await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
+      await page.getByLabel("Total del día", { exact: true }).getByText(/42,50/).waitFor();
+      assert.doesNotMatch(await page.locator("main").innerText(), /Turnos|11:00–17:00|UUID/);
       staff = true;
       await page.reload({ waitUntil: "networkidle" });
-      await page.getByRole("tab", { name: "Turnos administrativos", exact: true }).click();
-      await report.getByText(/TOTAL PROPIO DEL DÍA.*17,50/).waitFor();
-      assert.doesNotMatch(await report.innerText(), /42,50|Operador sintético B/);
+      await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
+      await page.getByLabel("Total del día", { exact: true }).getByText(/17,50/).waitFor();
+      assert.doesNotMatch(await page.locator("main").innerText(), /42,50|Operador sintético B/);
       staff = false;
       await page.goto(base + "/soci/" + pid, { waitUntil: "networkidle" });
       for (const state of ["pending", "accepted", "delivered", "error", "unknown"]) {
@@ -439,7 +439,7 @@ for (const [label, engine, device] of [
       });
       results.push({
         device: label,
-        case: "real shift report rendering: admin 42.50, own collaborator 17.50, member/operator separated, server Madrid day",
+        case: "simple daily report: admin 42.50, own collaborator 17.50, no fixed shifts/UUID",
         result: "PASS",
       });
     }

@@ -30,7 +30,6 @@ const NAV: {
   { to: "/", label: "Inicio", icon: Home },
   { to: "/soci", label: "Socios", icon: Users, permission: "manage_members" },
   { to: "/productos", label: "Productos", icon: Package, permission: "manage_products" },
-  { to: "/geneticas", label: "Archivo informativo", icon: Package },
   { to: "/caja", label: "Caja", icon: Banknote, permission: "use_cash" },
   { to: "/control-acceso", label: "Control acceso", icon: ScanLine, permission: "manage_members" },
   { to: "/ajustes/informes", label: "Informes", icon: Banknote, permission: "view_reports" },
@@ -183,7 +182,7 @@ export function SnoopLayout({
           </aside>
         </>
       )}
-      {user && access.role && (
+      {user && access.role && !loading && !accessError && (
         <VoiceAgent
           clubName={access.clubName}
           access={access}

@@ -1,5 +1,7 @@
 # Caja unificata — 8 novembre 2026
 
+**Storico superato:** la richiesta successiva rimuove i turni fissi e usa sessioni reali. Vedi [SIMPLIFICATION_RESULTS.md](SIMPLIFICATION_RESULTS.md). Non applicare questa vecchia proposta dei turni per attivare la nuova UI; le funzioni già presenti possono restare.
+
 Il report comprende **pedidos con stato `completed` e ricevute delle quote associative**. Le schermate giornaliere, per data e per collaboratore usano le stesse fonti; la home esclude anch'essa i pedidos annullati/non completati. I fondi iniziali e le chiusure rimangono valori separati delle sessioni e non entrano negli incassi.
 
 Il pannello “Turnos administrativos” usa il nuovo RPC server `snoop_cash_shift_report`. La data predefinita viene dal server. Ogni movimento viene classificato dalla propria data registrata, in **Europe/Madrid**, negli intervalli **[11:00,17:00)** e **[17:00,23:00)**. Le operazioni fuori turno rimangono separate e incluse nel totale giornaliero. Non viene inventata un'assegnazione del personale. I movimenti senza responsabile sono indicati come tali e sono visibili soltanto agli amministratori.

@@ -1,3 +1,4 @@
+import { cashBrowserFixture } from "./lib/cash-browser-fixture.mjs";
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -122,7 +123,19 @@ for (const [label, engine, device, options] of engines) {
       let result = [];
       if (req.method() === "POST") {
         const data = fromJSON(JSON.parse(req.postData())).data;
-        if (data.email && data.full_name) {
+        if ("day" in data)
+          result = cashBrowserFixture({
+            userId: uid,
+            fees: [
+              {
+                id: "synthetic-receipt",
+                amount_cents: 1000,
+                recorded_by: uid,
+                payment_method: "cash",
+              },
+            ],
+          });
+        else if (data.email && data.full_name) {
           invites.push(data);
           result = {
             user_id: uid,
@@ -353,9 +366,29 @@ for (const [label, engine, device, options] of engines) {
       .waitFor();
     assert.equal(writes.length, before, "AI must not save before confirmation");
     await page.getByRole("radio").check();
+    await page.getByLabel("Descripción propuesta").fill("Propuesta corregida sintética");
     await page.getByRole("button", { name: "Confirmar ficha", exact: true }).click();
     await page.getByText("Synthetic Author · CC BY-SA 4.0", { exact: true }).waitFor();
     assert.ok(products[0].image_attribution);
+    assert.equal(products[0].description, "Propuesta corregida sintética");
+    await page.getByLabel("Editar Synthetic Cup").click();
+    await page.getByLabel("Descripción manual").fill("Borrador manual conservado");
+    const editBefore = writes.length;
+    await page.getByTitle("Proponer descripción e imágenes con licencia").click();
+    await page.getByLabel("Descripción propuesta").waitFor();
+    assert.equal(writes.length, editBefore);
+    await page.getByRole("button", { name: "Cancelar propuesta", exact: true }).click();
+    assert.equal(
+      await page.getByLabel("Descripción manual").inputValue(),
+      "Borrador manual conservado",
+    );
+    await page.getByTitle("Proponer descripción e imágenes con licencia").click();
+    await page.getByLabel("Descripción propuesta").fill("Confirmación en la misma ficha");
+    await page.getByRole("button", { name: "Confirmar ficha", exact: true }).click();
+    await page.getByLabel("Editar Synthetic Cup").waitFor();
+    assert.equal(products[0].description, "Confirmación en la misma ficha");
+    assert.equal(products[0].stock, 7);
+    assert.equal(history.length, 1);
     page.once("dialog", (d) => d.accept());
     await page.getByLabel("Archivar Synthetic Cup").click();
     await page.getByRole("button", { name: "Reactivar producto", exact: true }).waitFor();
@@ -372,8 +405,8 @@ for (const [label, engine, device, options] of engines) {
       true,
       "Caja mobile overflow",
     );
-    await page.getByRole("tab", { name: "Historial de cuotas", exact: true }).click();
-    await page.getByTestId("cash-membership-summary").getByText(/10.00/).waitFor();
+    await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
+    await page.getByLabel("Total del día", { exact: true }).getByText(/10.00/).waitFor();
     await page.goto(base + "/ajustes/colaboradores", {
       waitUntil: "networkidle",
     });

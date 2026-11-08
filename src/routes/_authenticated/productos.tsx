@@ -1,3 +1,7 @@
+import { useAuth } from "@/hooks/useAuth";
+import { useWhisperDictation } from "@/hooks/useWhisperDictation";
+import { transcribeAudio } from "@/lib/voice-agent.functions";
+import { productFormVoice } from "@/lib/product-form-voice";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -100,153 +104,52 @@ function mergeVoiceText(previous: string, incoming: string) {
 }
 
 // Web Speech dictation hook — manual stop: records until the user presses stop.
-function useDictation(onText: (t: string) => void, lang = "es-ES") {
-  const aiStatus = useServerFn(getAdministrativeAiStatus);
-  const [listening, setListening] = useState(false);
-  const [interim, setInterim] = useState("");
-  const recRef = useRef<any>(null);
-  const finalRef = useRef("");
-  const interimRef = useRef("");
-  const shouldListenRef = useRef(false);
-  const manualStopRef = useRef(false);
-  const restartTimerRef = useRef<number | null>(null);
-
-  function clearRestart() {
-    if (restartTimerRef.current) {
-      window.clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-  }
-
-  function combinedText() {
-    return compactVoiceText(
-      (finalRef.current + " " + interimRef.current).replace(/\s+/g, " ").trim(),
-    );
-  }
-
-  function finalize() {
-    const text = combinedText();
-    finalRef.current = "";
-    interimRef.current = "";
-    setInterim("");
-    setListening(false);
-    if (text) onText(text);
-  }
-
-  function startRecognition(SR: any) {
-    const r = new SR();
-    r.lang = lang;
-    r.interimResults = true;
-    r.continuous = true;
-    r.maxAlternatives = 1;
-    // Per-instance finalized buffer to avoid re-appending when the browser
-    // replays the same result indices after a silent restart.
-    const instanceFinal: string[] = [];
-    r.onresult = (e: any) => {
-      let interimTxt = "";
-      for (let i = e.resultIndex ?? 0; i < e.results.length; i++) {
-        const res = e.results[i];
-        const piece = String(res?.[0]?.transcript || "").trim();
-        if (!piece) continue;
-        if (res.isFinal) {
-          // Only record each final index once per instance.
-          if (instanceFinal[i] !== piece) instanceFinal[i] = piece;
-        } else {
-          interimTxt = `${interimTxt} ${piece}`.trim();
-        }
-      }
-      const instanceText = compactVoiceText(instanceFinal.filter(Boolean).join(" ").trim());
-      interimRef.current = interimTxt;
-      // Combined = previous instances' final + this instance's final + interim
-      const combined = mergeVoiceText(mergeVoiceText(finalRef.current, instanceText), interimTxt);
-      setInterim(combined);
-      // Store current instance's final so a graceful onend can commit it
-      (r as any)._committed = instanceText;
+function useDictation(onText: (text: string) => void) {
+  const status = useServerFn(getAdministrativeAiStatus),
+    transcribe = useServerFn(transcribeAudio);
+  const { user, access, can } = useAuth();
+  const allowed = can("manage_products");
+  const revision = useRef(0),
+    started = useRef(0);
+  useEffect(() => {
+    const edit = () => {
+      revision.current++;
     };
-    r.onend = () => {
-      const committed = (r as any)._committed || "";
-      if (committed) {
-        finalRef.current = mergeVoiceText(finalRef.current, committed);
-      }
-      recRef.current = null;
-      if (manualStopRef.current || !shouldListenRef.current) {
-        shouldListenRef.current = false;
-        finalize();
+    document.addEventListener("input", edit);
+    return () => document.removeEventListener("input", edit);
+  }, []);
+  const dict = useWhisperDictation({
+    scope: JSON.stringify([user?.id, access.clubId, access.role, access.permissions, allowed]),
+    language: "es",
+    getLanguage: () =>
+      localStorage.getItem("snoop:voice-language")?.startsWith("it") ? "it" : "es",
+    available: async () => (can("manage_products") ? status() : { available: false }),
+    transcribe: (data) => transcribe({ data }),
+    onTranscript: (text) => {
+      if (!can("manage_products")) return;
+      if (revision.current !== started.current) {
+        toast.info("Se conserva tu edición manual. Revisa el dictado.");
         return;
       }
-      // If Chrome mobile interrupts recognition before the user presses stop,
-      // continue listening but merge overlapping text so replayed chunks do not repeat.
-      const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SR) {
-        restartTimerRef.current = window.setTimeout(() => {
-          if (shouldListenRef.current && !recRef.current) startRecognition(SR);
-        }, 250);
-      }
-    };
-    r.onerror = (ev: any) => {
-      if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") {
-        shouldListenRef.current = false;
-        toast.error("Permiso de micrófono denegado");
-        finalize();
-        return;
-      }
-      if (ev?.error && ev.error !== "no-speech" && ev.error !== "aborted") {
-        toast.error("Error micrófono: " + ev.error);
-      }
-    };
-    recRef.current = r;
-    try {
-      r.start();
-    } catch {
-      recRef.current = null;
-      if (!shouldListenRef.current) finalize();
-    }
-  }
-
-  async function start() {
-    const status = await aiStatus();
-    if (!status.browserSpeech)
-      return toast.error(
-        "Usa el micrófono SNOOP con el proveedor autorizado o introduce los datos manualmente.",
-      );
-    if (
-      !confirm(
-        "El servicio de reconocimiento del navegador puede procesar el dictado fuera del dispositivo. ¿Continuar?",
-      )
-    )
-      return;
-    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      toast.error("Tu navegador no soporta dictado");
-      return;
-    }
-    clearRestart();
-    finalRef.current = "";
-    interimRef.current = "";
-    setInterim("");
-    shouldListenRef.current = true;
-    manualStopRef.current = false;
-    setListening(true);
-    startRecognition(SR);
-  }
-
-  function stop() {
-    manualStopRef.current = true;
-    shouldListenRef.current = false;
-    clearRestart();
-    const rec = recRef.current;
-    if (!rec) {
-      finalize();
-      return;
-    }
-    try {
-      rec.stop();
-    } catch {
-      finalize();
-    }
-  }
-
-  return { listening, interim, start, stop };
+      onText(text);
+    },
+  });
+  useEffect(() => {
+    if (!can("manage_products")) dict.cancel();
+  }, [access.role, access.permissions.join(","), access.status, allowed]);
+  useEffect(() => {
+    if (dict.error) toast.error(dict.error);
+  }, [dict.error]);
+  return {
+    listening: dict.phase === "recording",
+    busy: dict.phase === "starting" || dict.phase === "processing",
+    interim: dict.phase === "processing" ? "Procesando…" : "",
+    start: () => {
+      started.current = revision.current;
+      void dict.start();
+    },
+    stop: dict.finish,
+  };
 }
 
 type UnitType = "gr" | "unit";
@@ -423,6 +326,13 @@ function ProductosPage() {
   async function applyProductCommand(text: string, requestedTab?: TabId) {
     const heard = compactVoiceText(text);
     setLastHeard(heard);
+    const fields = productFormVoice(heard, cats);
+    if (fields) {
+      setPrefillProduct({ ...fields, _at: Date.now() });
+      setTab("nuevo");
+      return;
+    }
+
     if (requestedTab === "nuevo" || requestedTab === "categoria" || requestedTab === "stock")
       setTab(requestedTab);
 
@@ -564,6 +474,7 @@ function ProductosPage() {
       <div className="mb-4 sm:mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
         <button
           type="button"
+          disabled={pageDict.busy}
           onClick={pageDict.listening ? pageDict.stop : pageDict.start}
           className={`h-16 w-16 sm:h-14 sm:w-14 shrink-0 rounded-full flex items-center justify-center transition active:scale-95
             ${
@@ -634,6 +545,7 @@ function ProductosPage() {
         <NuevoProducto
           cats={cats.filter((c) => !c.archived)}
           onCreated={load}
+          onVoice={applyProductCommand}
           prefill={prefillProduct}
           clearPrefill={() => setPrefillProduct(null)}
         />
@@ -1082,6 +994,7 @@ function Stock({
           </button>
         )}
         <button
+          disabled={dict.busy}
           onClick={dict.listening ? dict.stop : dict.start}
           className={`p-1.5 rounded ${dict.listening ? "text-neon glow-neon" : "text-muted-foreground hover:text-neon"}`}
           title="Dictar búsqueda"
@@ -1116,7 +1029,7 @@ function Stock({
         ))}
       </div>
 
-      <StockHistory key={prods.map((p) => p.id + ":" + p.stock).join(",")} />
+      <StockHistory products={prods} key={prods.map((p) => p.id + ":" + p.stock).join(",")} />
       {cats
         .filter((c) => filter === "all" || c.id === filter)
         .map((c) => {
@@ -1148,7 +1061,8 @@ function Stock({
   );
 }
 
-function StockHistory() {
+function StockHistory({ products }: { products: Product[] }) {
+  const [people, setPeople] = useState<Record<string, string>>({});
   const [rows, setRows] = useState<any[]>([]),
     [error, setError] = useState("");
   useEffect(() => {
@@ -1158,7 +1072,18 @@ function StockHistory() {
       .select("id,product_id,delta,reason,notes,created_by,created_at")
       .order("created_at", { ascending: false })
       .limit(100)
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
+        const ids = [...new Set((data ?? []).map((r) => r.created_by).filter(Boolean))] as string[];
+        if (ids.length) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id,full_name")
+            .in("id", ids);
+          if (!cancelled)
+            setPeople(
+              Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name || "Colaborador"])),
+            );
+        }
         if (!cancelled) {
           setRows(data ?? []);
           setError(error ? "No se pudo cargar el historial" : "");
@@ -1174,9 +1099,10 @@ function StockHistory() {
       {error && <p role="alert">{error}</p>}
       {rows.map((r) => (
         <div key={r.id} className="text-xs border-t border-border py-2 break-words">
-          {new Date(r.created_at).toLocaleString("es-ES")} · {r.product_id} ·{" "}
+          {new Date(r.created_at).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })} ·{" "}
+          {products.find((p) => p.id === r.product_id)?.name ?? "Producto archivado"} ·{" "}
           {Number(r.delta) > 0 ? "+" : ""}
-          {r.delta} · {r.reason} · {r.notes} · Operador: {r.created_by}
+          {r.delta} · {r.reason} · {r.notes} · Operador: {people[r.created_by] ?? "Colaborador"}
         </div>
       ))}
     </details>
@@ -1195,27 +1121,31 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
   const enrich = useServerFn(enrichProduct);
   useEffect(() => setForm(p), [p]);
 
-  async function save() {
+  async function save(values: Product = form) {
     const { error } = await (supabase as any).rpc("save_administrative_product_checked", {
       p_id: p.id,
       p_expected: Number(p.stock),
       p_values: {
-        name: form.name,
+        name: values.name,
         category_id: cat.id,
         stock: Number(p.stock),
-        buy_price: form.buy_price,
-        sell_price: form.sell_price,
-        strain: cat.is_smokeable ? form.strain : null,
-        notes: form.notes,
-        description: form.description,
-        image_url: form.image_url,
-        image_attribution: form.image_attribution ?? null,
+        buy_price: values.buy_price,
+        sell_price: values.sell_price,
+        strain: cat.is_smokeable ? values.strain : null,
+        notes: values.notes,
+        description: values.description,
+        image_url: values.image_url,
+        image_attribution: values.image_attribution ?? null,
       },
     });
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
     toast.success("Producto actualizado");
     setEdit(false);
     onChange();
+    return true;
   }
   async function remove() {
     if (!confirm(`¿Archivar ${p.name}? Se conservarán su stock y todo el historial.`)) return;
@@ -1234,7 +1164,8 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
       const r = await enrich({
         data: {
           name: p.name,
-          strain: p.strain ?? "",
+          // Stored strain is a classification (indica/sativa), not the lookup name.
+          strain: "",
           is_smokeable: cat.is_smokeable,
           category_name: cat.name,
         },
@@ -1250,106 +1181,120 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
     }
   }
 
+  const proposalView = proposal && (
+    <div className="border border-neon/40 rounded p-3 space-y-3">
+      <p className="text-xs text-neon">Propuesta de ficha — revisa antes de guardar</p>
+      <p className="text-xs text-muted-foreground">Borrador IA sin verificación externa</p>
+      <textarea
+        aria-label="Descripción propuesta"
+        className="w-full bg-input border border-border p-2 text-sm"
+        value={proposal.description}
+        onChange={(event) => {
+          setChosenDescription("");
+          setProposal({ ...proposal, description: event.target.value });
+        }}
+      />
+      {proposal.descriptions?.map((candidate) => (
+        <label
+          key={candidate.source}
+          className="block rounded border border-border p-2 text-xs space-y-2"
+        >
+          <input
+            type="radio"
+            name={`catalog-description-${p.id}`}
+            checked={chosenDescription === candidate.source}
+            onChange={() => {
+              setChosenDescription(candidate.source);
+              setProposal({
+                ...proposal,
+                description: candidate.excerpt + "\nFuente: " + candidate.source,
+              });
+            }}
+          />
+          <span>{candidate.excerpt}</span>
+          <a
+            className="block text-neon underline"
+            href={candidate.source}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {candidate.title} — Fuente
+          </a>
+        </label>
+      ))}
+      <p className="text-xs text-muted-foreground">{proposal.warning}</p>
+      {proposal.images?.map((image) => (
+        <label key={image.url} className="block text-xs space-y-1">
+          <input
+            type="radio"
+            name={`catalog-image-${p.id}`}
+            checked={chosenImage?.url === image.url}
+            onChange={() => setChosenImage(image)}
+          />{" "}
+          Seleccionar tras comprobar coincidencia exacta
+          <img
+            src={image.url}
+            alt={image.title}
+            referrerPolicy="no-referrer"
+            className="w-24 h-24 object-contain"
+          />
+          <a href={image.source} target="_blank" rel="noreferrer" className="text-neon underline">
+            {image.title}
+          </a>
+          <span>
+            {" "}
+            — {image.author} — {image.license}
+          </span>
+        </label>
+      ))}
+      <button
+        disabled={busy || (!proposal.description && !chosenImage && !chosenDescription)}
+        className="text-neon border border-neon/40 rounded p-2 text-xs"
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const patch: any = {};
+            const selected = proposal.descriptions?.find(
+              (candidate) => candidate.source === chosenDescription,
+            );
+            if (selected) patch.description = selected.excerpt + "\nFuente: " + selected.source;
+            else if (proposal.description) patch.description = proposal.description;
+            if (chosenImage) {
+              patch.image_url = chosenImage.url;
+              patch.image_attribution = chosenImage;
+            }
+            if (edit) {
+              if (await save({ ...form, ...patch })) setProposal(null);
+              return;
+            }
+            const { error } = await supabase
+              .from("products")
+              .update(patch)
+              .eq("id", p.id)
+              .eq("club_id", p.club_id);
+            if (error) throw error;
+            setProposal(null);
+            toast.success("Propuesta confirmada");
+            onChange();
+          } catch (e: any) {
+            toast.error(e.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        Confirmar ficha
+      </button>
+      <button onClick={() => setProposal(null)} className="text-xs p-2">
+        Cancelar propuesta
+      </button>
+    </div>
+  );
+
   if (!edit) {
     return (
       <div className="rounded-lg bg-input/40 p-3 space-y-3">
-        {proposal && (
-          <div className="border border-neon/40 rounded p-3 space-y-3">
-            <p className="text-xs text-neon">Propuesta de ficha — revisa antes de guardar</p>
-            <p className="text-xs text-muted-foreground">Borrador IA sin verificación externa</p>
-            <p className="text-sm">{proposal.description}</p>
-            {proposal.descriptions?.map((candidate) => (
-              <label
-                key={candidate.source}
-                className="block rounded border border-border p-2 text-xs space-y-2"
-              >
-                <input
-                  type="radio"
-                  name={`catalog-description-${p.id}`}
-                  checked={chosenDescription === candidate.source}
-                  onChange={() => setChosenDescription(candidate.source)}
-                />
-                <span>{candidate.excerpt}</span>
-                <a
-                  className="block text-neon underline"
-                  href={candidate.source}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {candidate.title} — Fuente
-                </a>
-              </label>
-            ))}
-            <p className="text-xs text-muted-foreground">{proposal.warning}</p>
-            {proposal.images?.map((image) => (
-              <label key={image.url} className="block text-xs space-y-1">
-                <input
-                  type="radio"
-                  name={`catalog-image-${p.id}`}
-                  checked={chosenImage?.url === image.url}
-                  onChange={() => setChosenImage(image)}
-                />{" "}
-                Seleccionar tras comprobar coincidencia exacta
-                <img
-                  src={image.url}
-                  alt={image.title}
-                  referrerPolicy="no-referrer"
-                  className="w-24 h-24 object-contain"
-                />
-                <a
-                  href={image.source}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-neon underline"
-                >
-                  {image.title}
-                </a>
-                <span>
-                  {" "}
-                  — {image.author} — {image.license}
-                </span>
-              </label>
-            ))}
-            <button
-              disabled={busy || (!proposal.description && !chosenImage && !chosenDescription)}
-              className="text-neon border border-neon/40 rounded p-2 text-xs"
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const patch: any = {};
-                  const selected = proposal.descriptions?.find(
-                    (candidate) => candidate.source === chosenDescription,
-                  );
-                  if (selected)
-                    patch.description = selected.excerpt + "\nFuente: " + selected.source;
-                  else if (proposal.description) patch.description = proposal.description;
-                  if (chosenImage) {
-                    patch.image_url = chosenImage.url;
-                    patch.image_attribution = chosenImage;
-                  }
-                  const { error } = await supabase
-                    .from("products")
-                    .update(patch)
-                    .eq("id", p.id)
-                    .eq("club_id", p.club_id);
-                  if (error) throw error;
-                  setProposal(null);
-                  toast.success("Propuesta confirmada");
-                  onChange();
-                } catch (e: any) {
-                  toast.error(e.message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Confirmar ficha
-            </button>
-            <button onClick={() => setProposal(null)} className="text-xs p-2">
-              Cancelar propuesta
-            </button>
-          </div>
-        )}
+        {proposalView}
         <div className="flex items-start gap-3">
           <div className="w-14 h-14 rounded-md bg-background/60 border border-border overflow-hidden flex items-center justify-center shrink-0">
             {p.image_url ? (
@@ -1440,6 +1385,16 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
 
   return (
     <div className="bg-input/40 rounded-lg p-3 space-y-2">
+      <button
+        type="button"
+        title="Proponer descripción e imágenes con licencia"
+        onClick={runEnrich}
+        disabled={enriching}
+        className="text-neon p-2"
+      >
+        {enriching ? "Buscando…" : "✨"}
+      </button>
+      {proposalView}
       <input
         className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm"
         aria-label="Nombre del producto"
@@ -1516,7 +1471,7 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
           <X className="w-3 h-3 inline mr-1" /> Cancelar
         </button>
         <button
-          onClick={save}
+          onClick={() => save()}
           className="px-3 py-1.5 text-xs bg-gradient-neon text-primary-foreground rounded font-semibold"
         >
           <Save className="w-3 h-3 inline mr-1" /> Guardar
@@ -1528,12 +1483,16 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
 
 // Keep the user's decimal text while editing: converting on every keystroke
 // turns "3." into 3 and makes entering "3.2" impossible on mobile.
-function MoneyField({ label, value, onChange }: {
+function MoneyField({
+  label,
+  value,
+  onChange,
+}: {
   label: string;
   value: number;
   onChange: (value: number) => void;
 }) {
-  const [raw, setRaw] = useState(() => value === 0 ? "" : String(value));
+  const [raw, setRaw] = useState(() => (value === 0 ? "" : String(value)));
   useEffect(() => {
     setRaw(value === 0 ? "" : String(value));
   }, [value]);
@@ -1570,7 +1529,9 @@ function NuevoProducto({
   onCreated,
   prefill,
   clearPrefill,
+  onVoice,
 }: {
+  onVoice: (text: string) => void;
   cats: Category[];
   onCreated: () => void;
   prefill: any;
@@ -1587,22 +1548,21 @@ function NuevoProducto({
 
   useEffect(() => {
     if (!prefill) return;
-    const catId = prefill.category_id || "";
-    const nm = prefill.name || "";
-    const st = prefill.stock || 0;
-    const bp = prefill.buy_price || 0;
-    const sp = prefill.sell_price || 0;
-    const str = prefill.strain || "";
-    if (catId) setCategoryId(catId);
-    if (nm) setName(nm);
-    if (st) setStock(st);
-    if (bp) setBuy(bp);
-    if (sp) setSell(sp);
-    if (str) setStrain(str as Strain);
+    if (typeof prefill.category_id === "string") setCategoryId(prefill.category_id);
+    if (typeof prefill.name === "string") setName(prefill.name);
+    if (typeof prefill.stock === "number") setStock(prefill.stock);
+    if (typeof prefill.buy_price === "number") setBuy(prefill.buy_price);
+    if (typeof prefill.sell_price === "number") setSell(prefill.sell_price);
+    if (typeof prefill.strain === "string") setStrain(prefill.strain as Strain);
     clearPrefill();
   }, [prefill]);
 
-  const nameDict = useDictation((t) => setName(t));
+  const nameDict = useDictation((t) => {
+    if (productFormVoice(t, cats)) onVoice(t);
+    else if (/\b(crea|crear|creare|categoria|categoría|cantidad|quantità)\b/i.test(t))
+      toast.error("No identifiqué los campos. Revisa el dictado.");
+    else setName(t.trim().slice(0, 120));
+  });
 
   const enrich = useServerFn(enrichProduct);
 
@@ -1649,7 +1609,10 @@ function NuevoProducto({
     );
 
   return (
-    <div className="max-w-xl bg-card/60 border border-neon/20 rounded-2xl p-6 space-y-4">
+    <div
+      data-snoop-product-form
+      className="max-w-xl bg-card/60 border border-neon/20 rounded-2xl p-6 space-y-4"
+    >
       <Field label="Categoría">
         <select
           aria-label="Categoría"
@@ -1676,6 +1639,7 @@ function NuevoProducto({
           />
           <button
             type="button"
+            disabled={nameDict.busy}
             onClick={nameDict.listening ? nameDict.stop : nameDict.start}
             className={`px-3 rounded-lg border ${nameDict.listening ? "border-neon text-neon glow-neon" : "border-border text-muted-foreground"}`}
             title="Dictar nombre"
@@ -1690,7 +1654,11 @@ function NuevoProducto({
       </Field>
 
       <div className="grid grid-cols-3 gap-3">
-        <MoneyField label={`Stock${cat ? ` (${cat.unit_type})` : ""}`} value={stock} onChange={setStock} />
+        <MoneyField
+          label={`Stock${cat ? ` (${cat.unit_type})` : ""}`}
+          value={stock}
+          onChange={setStock}
+        />
         <MoneyField label="P. compra €" value={buy} onChange={setBuy} />
         <MoneyField label="P. venta €" value={sell} onChange={setSell} />
       </div>

@@ -3,28 +3,30 @@
     {
       "device": "samsung",
       "result": "PASS",
+      "physical": false,
+      "transport": "mocked server functions; session logic/SQL tested separately",
       "checks": [
-        "actual report component with SQL-produced synthetic rows",
-        "admin combined sources/shift/day",
-        "own collaborator only",
-        "no opening funds",
-        "unknown order payment is explicit",
-        "responsive"
-      ],
-      "physical": false
+        "open/close/reopen by another employee",
+        "automatic actor/time from response",
+        "session and whole-day totals including outside sessions",
+        "no opening fund/cancelled orders in income",
+        "no fixed shifts/UUIDs",
+        "own collaborator only"
+      ]
     },
     {
       "device": "iphone",
       "result": "PASS",
+      "physical": false,
+      "transport": "mocked server functions; session logic/SQL tested separately",
       "checks": [
-        "actual report component with SQL-produced synthetic rows",
-        "admin combined sources/shift/day",
-        "own collaborator only",
-        "no opening funds",
-        "unknown order payment is explicit",
-        "responsive"
-      ],
-      "physical": false
+        "open/close/reopen by another employee",
+        "automatic actor/time from response",
+        "session and whole-day totals including outside sessions",
+        "no opening fund/cancelled orders in income",
+        "no fixed shifts/UUIDs",
+        "own collaborator only"
+      ]
     }
   ]
 }

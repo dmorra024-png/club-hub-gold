@@ -265,7 +265,33 @@ for (const [name, engine, device] of [
     );
     assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
     const productName = page.getByPlaceholder("ej. Amnesia Haze");
+    transcript = "Crea un prodotto Quaderno, categoria Material, quantità venticinque";
+    await page.getByRole("button", { name: "Dictar nombre", exact: true }).click();
+    await page.locator('button[title="Dictar nombre"] .lucide-square').waitFor();
+    await page.getByRole("button", { name: "Dictar nombre", exact: true }).click();
+    await page.waitForFunction(
+      () => document.querySelector('input[placeholder="ej. Amnesia Haze"]')?.value === "Quaderno",
+    );
+    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    await say("No, lo stock è zero");
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Stock (unit)"]')?.value === "",
+    );
+    assert.equal(await productName.inputValue(), "Quaderno");
+    assert.equal(writes, 0);
     await productName.fill("Libreta manual");
+    holdTranscription = true;
+    resume = null;
+    await say("No, el nombre es Resultado tardío");
+    for (let n = 0; !resume && n < 100; n++) await page.waitForTimeout(20);
+    assert.ok(resume, "Product transcription is pending");
+    await productName.fill("Libreta manual definitiva");
+    holdTranscription = false;
+    resume();
+    await page.getByRole("button", { name: "Encender Snoop", exact: true }).waitFor();
+    assert.equal(await productName.inputValue(), "Libreta manual definitiva");
+    await productName.fill("Libreta manual");
+
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await page.waitForTimeout(300);
     assert.equal(await productName.inputValue(), "Libreta manual");
@@ -320,6 +346,9 @@ for (const [name, engine, device] of [
     resume();
     await page.getByRole("button", { name: "Encender Snoop", exact: true }).waitFor();
     assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Manual");
+    // “Encender” is also rendered while transcription is busy, but disabled.
+    // Observe completion before dispatching synthetic events that bypass native button gating.
+    await page.locator('button[aria-label="Encender Snoop"]:not(:disabled)').waitFor();
     const beforeDuplicate = await page.evaluate(() => window.__voice.created),
       beforeExplicitCancel = audioCalls;
     await page.evaluate(() => {

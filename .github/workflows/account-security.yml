@@ -88,6 +88,6 @@ jobs:
             docs/screenshots/critical-*.png
             docs/CRITICAL_BROWSER_RESULTS.json
             docs/CAJA_BROWSER_RESULTS.json
-            docs/screenshots/caja-unified-*.png
+            docs/screenshots/caja-simple-*.png
           if-no-files-found: ignore
           retention-days: 7
