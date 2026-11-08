@@ -30,21 +30,31 @@ export const enrichProduct = createServerFn({ method: "POST" })
       throw new Error(
         "Configura el binding gratuito SNOOP_AI. No se utiliza un proveedor de pago.",
       );
-    const result = await Promise.allSettled([
-      describeCatalog({
-        name: data.name,
-        category_name: data.category_name,
-        strain: data.strain,
-      }),
+    // Retrieve evidence first: the AI must not describe a strain without seeing
+    // the specialist source material. Each lookup fails independently.
+    const lookups = await Promise.allSettled([
       searchCatalogImages(data.strain.trim() || data.name),
       searchSpecialistCatalog(data.strain.trim() || data.name),
     ]);
-    const description = result[0].status === "fulfilled" ? result[0].value : "";
-    const images = result[1].status === "fulfilled" ? result[1].value : [];
+    const images = lookups[0].status === "fulfilled" ? lookups[0].value : [];
     const specialist =
-      result[2].status === "fulfilled"
-        ? result[2].value
+      lookups[1].status === "fulfilled"
+        ? lookups[1].value
         : { descriptions: [], images: [], warning: "Fuentes especializadas no disponibles." };
+    let description = "";
+    try {
+      description = await describeCatalog({
+        name: data.name,
+        category_name: data.category_name,
+        strain: data.strain,
+        sources: specialist.descriptions.map(({ title, source, excerpt }) => ({
+          title, source, excerpt,
+        })),
+      });
+    } catch {
+      // No invented facts or copied descriptions if the free model is unavailable.
+      // The short, attributable candidates are still offered for manual review.
+    }
     const warning = [
       specialist.warning,
       !description
