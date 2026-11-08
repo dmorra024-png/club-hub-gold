@@ -28,6 +28,9 @@ import {
   madridToday,
   addCalendarDays,
 } from "@/lib/member-administration";
+import { useAuth } from "@/hooks/useAuth";
+import { useWhisperDictation } from "@/hooks/useWhisperDictation";
+import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
@@ -52,13 +55,6 @@ function quickParseMemberTranscript(text: string, plans: Plan[]) {
   };
 }
 
-function pickMime(): string | null {
-  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/mpeg"];
-  for (const t of candidates) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
-  }
-  return null;
-}
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = new Uint8Array(await blob.arrayBuffer());
   let bin = "";
@@ -68,6 +64,8 @@ async function blobToBase64(blob: Blob): Promise<string> {
 
 function NewSocio() {
   const nav = useNavigate();
+  const routeContext = Route.useRouteContext();
+  const liveAuth = useAuth();
   const plansRef = useRef<Plan[]>([]);
   const [saving, setSaving] = useState(false);
   const registrationId = useRef(crypto.randomUUID());
@@ -96,18 +94,16 @@ function NewSocio() {
   });
 
   // Voice
-  const [recStatus, setRecStatus] = useState<"idle" | "recording" | "processing">("idle");
-  const [lastHeard, setLastHeard] = useState("");
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const voiceMounted = useRef(true);
-  const voiceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [lastHeard, setLastHeard] = useState(""),
+    [voiceSummary, setVoiceSummary] = useState("");
+  const voiceMounted = useRef(true),
+    plansReady = useRef(false);
   const formRef = useRef(form);
   formRef.current = form;
+  const voiceInitial = useRef(form);
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
-  const extract = useServerFn(extractMemberFields);
+
   const extractFromImages = useServerFn(extractMemberFieldsFromImages);
 
   // Document scan (OCR of DNI / passport)
@@ -117,7 +113,11 @@ function NewSocio() {
   useEffect(() => {
     voiceMounted.current = true;
     function applyPendingDraft(available: Plan[]) {
-      const draft = decodeMemberDraft(window.sessionStorage.getItem("snoop:member-draft"));
+      if (!plansReady.current) return;
+      const draft = scopedMemberDraft(window.sessionStorage.getItem("snoop:member-draft"), {
+        userId: routeContext.user.id,
+        clubId: routeContext.access.clubId ?? "",
+      });
       window.sessionStorage.removeItem("snoop:member-draft");
       const planName = draft?.plan_name
         ? parseAdministrativeDictation(
@@ -125,21 +125,37 @@ function NewSocio() {
             available.map((p) => p.name),
           ).plan_name
         : "";
-      if (draft)
-        setForm((current) => ({
-          ...current,
-          ...draft,
-          plan_id: available.find((p) => p.name === planName)?.id ?? current.plan_id,
-        }));
+      if (draft) {
+        const { plan_name, ...patch } = draft;
+        setForm((current) =>
+          mergeUneditedValues(current, voiceInitial.current, {
+            ...patch,
+            plan_id: available.find((p) => p.name === planName)?.id ?? current.plan_id,
+          }),
+        );
+        setVoiceSummary(
+          voiceDraftSummary(draft) +
+            (plan_name && !planName
+              ? " · Cuota no identificada de forma única: selecciónala manualmente."
+              : ""),
+        );
+      }
     }
     const onDraft = () => applyPendingDraft(plansRef.current);
     window.addEventListener("snoop:member-draft", onDraft);
+    const rememberInitial = () => {
+      voiceInitial.current = { ...formRef.current };
+    };
+    window.addEventListener("snoop:microphone-owner", rememberInitial);
     supabase
       .from("membership_plans")
       .select("id,name,duration_days,price_cents")
       .eq("active", true)
+      .eq("club_id", routeContext.access.clubId!)
       .order("sort_order")
       .then(({ data }) => {
+        if (!voiceMounted.current) return;
+        plansReady.current = true;
         const available = data ?? [];
         setPlans(available);
         applyPendingDraft(available);
@@ -157,9 +173,7 @@ function NewSocio() {
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
       voiceMounted.current = false;
-      if (voiceTimer.current) clearTimeout(voiceTimer.current);
-      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      window.removeEventListener("snoop:microphone-owner", rememberInitial);
     };
   }, []);
 
@@ -207,60 +221,33 @@ function NewSocio() {
   }
 
   async function applyTranscriptToForm(text: string) {
-    const initial = { ...formRef.current };
+    if (
+      !voiceMounted.current ||
+      liveAuth.accessError ||
+      !liveAuth.can("manage_members") ||
+      liveAuth.user?.id !== routeContext.user.id ||
+      liveAuth.access.clubId !== routeContext.access.clubId
+    )
+      return;
     setLastHeard(text);
-    setRecStatus("processing");
-    const quick = quickParseMemberTranscript(text, plans);
-    setForm((f) => ({
-      ...f,
-      first_name: quick.first_name || f.first_name,
-      last_name: quick.last_name || f.last_name,
-      birth_date: quick.birth_date || f.birth_date,
-      city: quick.city || f.city,
-      phone: quick.phone || f.phone,
-      email: quick.email || f.email,
-      dni_number: quick.dni_number || f.dni_number,
-      plan_id: quick.plan_id || f.plan_id,
-    }));
-    try {
-      const current = formRef.current;
-      const planForId = plans.find((p) => p.id === current.plan_id);
-      const { fields, warning } = await extract({
-        data: {
-          transcript: text,
-          current: {
-            first_name: current.first_name,
-            last_name: current.last_name,
-            birth_date: current.birth_date,
-            city: current.city,
-            phone: current.phone,
-            email: current.email,
-            dni_number: current.dni_number,
-            plan_name: planForId?.name ?? "",
-          },
-          available_plans: plans.map((p) => p.name),
-        },
-      });
-      const matchedPlan = fields.plan_name ? findDictatedPlan(fields.plan_name) : null;
-      setForm((f) =>
-        mergeUneditedValues(f, initial, {
-          first_name: fields.first_name || f.first_name,
-          last_name: fields.last_name || f.last_name,
-          birth_date: fields.birth_date || f.birth_date,
-          city: fields.city || f.city,
-          phone: fields.phone || f.phone,
-          email: (fields as any).email || f.email,
-          dni_number: fields.dni_number || f.dni_number,
-          plan_id: matchedPlan?.id ?? f.plan_id,
-        }),
-      );
-      if (warning) toast.info(warning);
-      else toast.success("Casillas rellenadas. Revisa los datos antes de guardar.");
-    } catch (e: any) {
-      toast.error(e.message ?? "Error en dictado");
-    } finally {
-      setRecStatus("idle");
-    }
+    const fields = parseAdministrativeDictation(
+      text,
+      plansRef.current.map((p) => p.name),
+    );
+    const { plan_name, ...patch } = fields;
+    const matchedPlan = plansRef.current.find((p) => p.name === plan_name);
+    setForm((current) =>
+      mergeUneditedValues(current, voiceInitial.current, {
+        ...patch,
+        plan_id: matchedPlan?.id ?? current.plan_id,
+      }),
+    );
+    setVoiceSummary(
+      voiceDraftSummary(fields) ||
+        "No se identificaron campos. Di el nombre del campo y su valor. Nada guardado.",
+    );
+    if (!Object.keys(fields).length)
+      toast.info("No se han cambiado los datos. Puedes completarlos manualmente.");
   }
 
   async function handleDniFile(file: File) {
@@ -341,87 +328,27 @@ function NewSocio() {
     }
   }
 
-  async function startRec() {
-    const status = await aiStatus();
-    if (!status.available) return toast.error("IA no disponible. Introduce los datos manualmente.");
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined")
-      return toast.error(
-        "Micrófono no disponible. Usa HTTPS y permite el acceso o rellena el formulario manualmente.",
-      );
-    if (!confirm("El audio se enviará al proveedor de IA configurado. ¿Continuar?")) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mime = pickMime();
-      if (!mime) {
-        stream.getTracks().forEach((t) => t.stop());
-        toast.error("Navegador no compatible.");
-        return;
-      }
-      const rec = new MediaRecorder(stream, { mimeType: mime });
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      rec.onstop = async () => {
-        if (voiceTimer.current) clearTimeout(voiceTimer.current);
-        stream.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-        if (!voiceMounted.current) return;
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType });
-        chunksRef.current = [];
-        if (blob.size > 8_000_000) {
-          setRecStatus("idle");
-          toast.error("Audio demasiado largo. Usa un dictado de hasta un minuto.");
-          return;
-        }
-        if (blob.size < 1500) {
-          setRecStatus("idle");
-          toast.error("No te he oído, vuelve a intentar.");
-          return;
-        }
-        setRecStatus("processing");
-        try {
-          const b64 = await blobToBase64(blob);
-          const { text } = await transcribe({
-            data: {
-              audioBase64: b64,
-              mimeType: rec.mimeType,
-              language: (
-                window.localStorage.getItem("snoop:voice-language") || navigator.language
-              ).startsWith("it")
-                ? "it"
-                : "es",
-            },
-          });
-          if (!text) {
-            setRecStatus("idle");
-            toast.error("No se entendió nada.");
-            return;
-          }
-          await applyTranscriptToForm(text);
-        } catch (e: any) {
-          toast.error(e.message ?? "Error en dictado");
-        } finally {
-          setRecStatus("idle");
-        }
-      };
-      recorderRef.current = rec;
-      rec.start();
-      voiceTimer.current = setTimeout(() => {
-        if (rec.state === "recording") rec.stop();
-      }, 60000);
-      setRecStatus("recording");
-    } catch {
-      toast.error("Permiso de micrófono denegado.");
-    }
-  }
-  function stopRec() {
-    recorderRef.current?.stop();
-  }
+  const voice = useWhisperDictation({
+    scope: `${liveAuth.user?.id}:${liveAuth.access.clubId}:${liveAuth.access.role}:${liveAuth.access.status}:${liveAuth.access.permissions.join(",")}:member-form`,
+    language: "es",
+    getLanguage: () =>
+      (window.localStorage.getItem("snoop:voice-language") || navigator.language).startsWith("it")
+        ? "it"
+        : "es",
+    available: async () => {
+      if (liveAuth.accessError || !liveAuth.can("manage_members")) return { available: false };
+      return aiStatus();
+    },
+    transcribe: (data) => transcribe({ data }),
+    onTranscript: applyTranscriptToForm,
+  });
+  const recStatus = voice.phase === "starting" ? "processing" : voice.phase;
   function toggleMic() {
-    if (recStatus === "recording") stopRec();
-    else if (recStatus === "idle") startRec();
+    if (recStatus === "recording") voice.finish();
+    else if (recStatus === "idle") {
+      voiceInitial.current = { ...formRef.current };
+      void voice.start();
+    }
   }
 
   async function submit() {
@@ -554,7 +481,7 @@ function NewSocio() {
         <button
           type="button"
           onClick={toggleMic}
-          disabled={recStatus === "processing"}
+          disabled={recStatus === "processing" || !liveAuth.can("manage_members")}
           className={`h-14 w-14 shrink-0 rounded-full flex items-center justify-center transition
             ${
               recStatus === "recording"
@@ -589,6 +516,29 @@ function NewSocio() {
           )}
         </div>
       </div>
+
+      {(voiceSummary || voice.error) && (
+        <section
+          className="max-w-3xl mb-6 rounded-lg border border-neon/30 p-3"
+          aria-label="Resumen del dictado"
+        >
+          <p role={voice.error ? "alert" : "status"}>{voice.error || voiceSummary}</p>
+          <p className="text-sm mt-2">
+            Audio a Cloudflare Whisper; campos interpretados localmente. Revisa el formulario y
+            pulsa Crear socio para guardar.
+          </p>
+        </section>
+      )}
+
+      {(recStatus === "recording" || recStatus === "processing") && (
+        <button
+          type="button"
+          className="mb-4 text-sm underline text-neon"
+          onClick={() => voice.cancel()}
+        >
+          Cancelar dictado
+        </button>
+      )}
 
       {/* Document scan (OCR): take 1-2 photos of the DNI, fields auto-fill */}
       <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4">
@@ -735,6 +685,7 @@ function NewSocio() {
                     key={p.id}
                     type="button"
                     onClick={() => set("plan_id", p.id)}
+                    aria-pressed={active}
                     className={`text-left rounded-xl p-4 border transition ${active ? "border-neon bg-neon/10 glow-neon-soft" : "border-border bg-input hover:border-neon/50"}`}
                   >
                     <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">

@@ -1,3 +1,4 @@
+import { scopedMemberSearch } from "@/lib/administrative-voice";
 import { createPortal } from "react-dom";
 import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -25,6 +26,7 @@ type Row = {
 };
 
 function GestisciSoci() {
+  const routeContext = Route.useRouteContext();
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,10 @@ function GestisciSoci() {
     if (params.get("scanner") !== "true") return;
     setScanOpen(true);
     params.delete("scanner");
-    const next = window.location.pathname + (params.size ? "?" + params.toString() : "") + window.location.hash;
+    const next =
+      window.location.pathname +
+      (params.size ? "?" + params.toString() : "") +
+      window.location.hash;
     window.history.replaceState(window.history.state, "", next);
   }, []);
 
@@ -51,6 +56,7 @@ function GestisciSoci() {
       .select(
         "id, member_number, first_name, last_name, dni_number, city, expires_at, plan:membership_plans!members_plan_id_fkey(name)",
       )
+      .eq("club_id", routeContext.access.clubId!)
       .order("member_number");
     setRows((data as any) ?? []);
     setLoading(false);
@@ -80,37 +86,21 @@ function GestisciSoci() {
     setQ(query);
     const norm = normalizeAdministrativeSearch;
     const tokens = norm(query).split(/\s+/).filter(Boolean);
-    const scored = rowsRef.current
-      .map((r) => {
-        const hay = norm(
-          `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`,
-        );
-        let score = 0;
-        for (const t of tokens) {
-          if (hay.includes(t)) score += 2;
-          else if (t.length >= 3) {
-            // partial: any word in hay starts with token or vice versa
-            const words = hay.split(/\s+/);
-            if (words.some((w) => w.startsWith(t.slice(0, 3)) || t.startsWith(w.slice(0, 3))))
-              score += 1;
-          }
-        }
-        return { r, score };
-      })
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score);
-    const exact = scored.filter((x) => x.score === tokens.length * 2);
+    const exact = rowsRef.current.filter((r) => {
+      const hay = norm(
+        `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`,
+      );
+      return tokens.length > 0 && tokens.every((t) => hay.includes(t));
+    });
     if (exact.length === 1) {
-      toast.success(`Abriendo ficha de ${exact[0].r.first_name} ${exact[0].r.last_name}`);
-      navigate({ to: "/soci/$id", params: { id: exact[0].r.id } });
-    } else if (scored.length === 0) {
-      toast.error("No se encontró ningún socio");
-    } else if (scored.length === 1) {
-      toast.success(`Abriendo ficha de ${scored[0].r.first_name} ${scored[0].r.last_name}`);
-      navigate({ to: "/soci/$id", params: { id: scored[0].r.id } });
-    } else {
-      toast.message(`${scored.length} resultados similares`);
-    }
+      toast.success(`Abriendo ficha de ${exact[0].first_name} ${exact[0].last_name}`);
+      navigate({ to: "/soci/$id", params: { id: exact[0].id } });
+    } else if (exact.length === 0 && query)
+      toast.error("No se encontró una coincidencia exacta. Revisa el nombre o número.");
+    else if (exact.length > 1)
+      toast.message(
+        `${exact.length} coincidencias. Selecciona el socio; no se abre una ficha por aproximación.`,
+      );
   }
 
   useEffect(() => {
@@ -131,8 +121,11 @@ function GestisciSoci() {
       const raw = window.sessionStorage.getItem("snoop:member-search-pending");
       if (!raw) return;
       window.sessionStorage.removeItem("snoop:member-search-pending");
-      const { query, at } = JSON.parse(raw);
-      if (query && Date.now() - at < 15000) runVoiceSearch(String(query));
+      const query = scopedMemberSearch(raw, {
+        userId: routeContext.user.id,
+        clubId: routeContext.access.clubId ?? "",
+      });
+      if (query) runVoiceSearch(query);
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, rows]);

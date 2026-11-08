@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "device": "samsung",
+      "result": "PASS",
+      "physical": false,
+      "transcription": "simulated, synthetic recorder",
+      "checks": [
+        "complete IT/ES administrative drafts",
+        "actual plan binding",
+        "single-field corrections",
+        "scoped local member search",
+        "no ambiguous auto-open",
+        "permissions before field handoff",
+        "live permission revocation cancels the form recorder",
+        "recording cancelled on navigation/offline",
+        "permission denial",
+        "network error recovery",
+        "late transcript preserves manual edits",
+        "double start opens one microphone",
+        "explicit cancel does not upload",
+        "unavailable service preserves manual entry",
+        "no text-model calls",
+        "zero writes"
+      ]
+    },
+    {
+      "device": "iphone-webkit",
+      "result": "PASS",
+      "physical": false,
+      "transcription": "simulated, synthetic recorder",
+      "checks": [
+        "complete IT/ES administrative drafts",
+        "actual plan binding",
+        "single-field corrections",
+        "scoped local member search",
+        "no ambiguous auto-open",
+        "permissions before field handoff",
+        "live permission revocation cancels the form recorder",
+        "recording cancelled on navigation/offline",
+        "permission denial",
+        "network error recovery",
+        "late transcript preserves manual edits",
+        "double start opens one microphone",
+        "explicit cancel does not upload",
+        "unavailable service preserves manual entry",
+        "no text-model calls",
+        "zero writes"
+      ]
+    }
+  ]
+}

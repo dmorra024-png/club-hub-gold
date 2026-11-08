@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, devices } from "playwright-core";
@@ -34,7 +35,7 @@ const api = new URL(
   base,
 );
 const browser = await chromium.launch({
-  executablePath: "/usr/bin/chromium",
+  executablePath: existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined,
   args: ["--no-sandbox", "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
   headless: true,
 });
@@ -163,7 +164,11 @@ try {
       "2000-01-02",
     );
     assert.equal(audioCalls, 1);
-    assert.equal(extractCalls, 1);
+    assert.equal(
+      extractCalls,
+      0,
+      "Administrative field extraction stays local; no text-model call",
+    );
     assert.equal(writes, 0, "Dictation must never save without confirmation");
     await context.close();
     console.log(

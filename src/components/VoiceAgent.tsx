@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Mic, MicOff, Loader2, Volume2, Ear } from "lucide-react";
+import { Mic, MicOff, Loader2, Ear } from "lucide-react";
 import { toast } from "sonner";
 import { informationalVoiceCommand } from "@/lib/informational-voice";
 import { parseAdministrativeDictation } from "@/lib/member-administration";
-import {
-  agentRespond,
-  synthesizeSpeech,
-  transcribeAudio,
-  getAdministrativeAiStatus,
-} from "@/lib/voice-agent.functions";
+import { transcribeAudio, getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
 
-type Status = "off" | "listening" | "processing" | "speaking";
+import { useWhisperDictation } from "@/hooks/useWhisperDictation";
+import {
+  administrativeIntent,
+  cleanVoiceCommand,
+  voiceIntentAllowed,
+  voiceMemberDraft,
+  voiceDraftSummary,
+} from "@/lib/administrative-voice";
+import { privateVoiceCommand } from "@/lib/private-voice";
+import type { AccountAccess } from "@/lib/access-context";
 
 // Client-side navigation intents (so home wake word can dispatch commands quickly).
 // Order matters: more specific intents first.
@@ -87,101 +91,72 @@ function looksLikeMemberLookup(value: string) {
   return /\b(busca|buscar|buscame|cerca|trova|trovami|encuentra|ficha|scheda)\b/.test(t);
 }
 
-function getSpeechRecognition(): any {
-  if (typeof window === "undefined") return null;
-  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
-}
-
 export function VoiceAgent({
   clubName,
   hideIdleControls = false,
-}: { clubName?: string | null; hideIdleControls?: boolean } = {}) {
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recordingStream = useRef<MediaStream | null>(null);
-  const recordingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
-  const aiStatus = useServerFn(getAdministrativeAiStatus);
-  const transcribe = useServerFn(transcribeAudio);
+  access,
+  userId,
+}: {
+  clubName?: string | null;
+  hideIdleControls?: boolean;
+  access: AccountAccess;
+  userId: string;
+}) {
   const [language, setLanguage] = useState("es-ES");
-  useEffect(() => {
-    const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
-    setLanguage(saved.startsWith("it") ? "it-IT" : "es-ES");
-  }, []);
-  const [status, setStatus] = useState<Status>("off");
-  const [enabled, setEnabled] = useState(false); // always-on toggle
-  const conversationRef = useRef<Array<{ role: "user" | "assistant"; content: string }>>([]);
-  const recRef = useRef<any>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const wantOnRef = useRef(false);
+  const [feedback, setFeedback] = useState("");
+  const aiStatus = useServerFn(getAdministrativeAiStatus),
+    transcribe = useServerFn(transcribeAudio);
   const processingRef = useRef(false);
-  const speakingRef = useRef(false);
-  const greetedRef = useRef(false);
-  const muteUntilRef = useRef(0);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const locRef = useRef(location);
+  const navigate = useNavigate(),
+    location = useLocation(),
+    locRef = useRef(location);
+  locRef.current = location;
+  const accessRef = useRef({ access, userId });
+  accessRef.current = { access, userId };
+  const scope = [
+    userId,
+    access.clubId,
+    access.status,
+    access.role,
+    ...access.permissions,
+    location.pathname,
+  ].join(":");
   useEffect(() => {
-    locRef.current = location;
-  }, [location]);
-
-  const respond = useServerFn(agentRespond);
-  const tts = useServerFn(synthesizeSpeech);
-
-  // --- TTS playback with barge-in ---
-  const stopSpeaking = useCallback(() => {
-    const a = audioRef.current;
-    if (a) {
-      try {
-        a.pause();
-        a.currentTime = 0;
-      } catch {}
+    try {
+      const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
+      setLanguage(saved.startsWith("it") ? "it-IT" : "es-ES");
+    } catch {
+      setLanguage(navigator.language.startsWith("it") ? "it-IT" : "es-ES");
     }
-    speakingRef.current = false;
-    setStatus((s) => (s === "speaking" ? (wantOnRef.current ? "listening" : "off") : s));
   }, []);
-
-  const speak = useCallback(
-    async (text: string) => {
-      try {
-        stopSpeaking();
-        speakingRef.current = true;
-        setStatus("speaking");
-        const { audioBase64, mimeType } = await tts({ data: { text } });
-        if (!speakingRef.current) return; // got interrupted while loading
-        const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
-        audioRef.current = audio;
-        audio.onended = () => {
-          speakingRef.current = false;
-          muteUntilRef.current = Date.now() + 700; // ignora eco residual
-          setStatus(wantOnRef.current ? "listening" : "off");
-        };
-        await audio.play().catch(() => {});
-      } catch (e: any) {
-        console.warn("TTS error:", e?.message);
-        speakingRef.current = false;
-        setStatus(wantOnRef.current ? "listening" : "off");
-      }
-    },
-    [stopSpeaking, tts],
-  );
-
+  useEffect(() => {
+    setFeedback("");
+  }, [scope]);
   // --- Process a final transcript ---
   const handleTranscript = useCallback(
     async (raw: string) => {
-      const text = raw.trim();
+      const text = cleanVoiceCommand(raw);
       if (!text) return;
       if (processingRef.current) return;
       processingRef.current = true;
-      setStatus("processing");
 
       try {
         const path = locRef.current.pathname;
+        const current = accessRef.current;
+        if (!current.userId || current.access.status !== "active" || !current.access.clubId)
+          throw new Error("Acceso no disponible. Revisa tu sesión.");
+        const scope = { userId: current.userId, clubId: current.access.clubId };
+        const allow = (to: string) => {
+          if (!voiceIntentAllowed(current.access, to))
+            throw new Error("No tienes permiso para esta función.");
+        };
         const lower = text.toLowerCase();
         const normalized = normalizeVoiceText(text);
 
         // Informational research must never fall through to member/product search.
         const informational = informationalVoiceCommand(text);
         if (informational) {
+          allow("/geneticas");
           window.sessionStorage.setItem(
             "snoop:genetics-query",
             JSON.stringify({ at: Date.now(), query: informational.query }),
@@ -191,22 +166,48 @@ export function VoiceAgent({
           toast.info("Revisa el nombre y pulsa Buscar. No se ha guardado nada.");
           return;
         }
-        // Apply only explicitly mentioned administrative fields to the open form.
-        // This also prevents 'cuota mensual' from incorrectly leaving the form.
-        const administrativePatch = parseAdministrativeDictation(text);
-        if (path === "/soci/nuovo" && Object.keys(administrativePatch).length) {
-          window.sessionStorage.setItem(
-            "snoop:member-draft",
-            JSON.stringify({ at: Date.now(), fields: administrativePatch }),
-          );
-          window.dispatchEvent(new Event("snoop:member-draft"));
-          toast.info("Campos propuestos. Revisa y confirma: no se ha guardado nada.");
+        const intent = administrativeIntent(text, path);
+        if (intent) {
+          allow(intent.to);
+          if (intent.kind === "member-draft") {
+            window.sessionStorage.setItem(
+              "snoop:member-draft",
+              voiceMemberDraft(intent.fields, scope),
+            );
+            if (path === intent.to) window.dispatchEvent(new Event("snoop:member-draft"));
+            else await navigate({ to: intent.to });
+            const message =
+              voiceDraftSummary(intent.fields) || "Indica los campos que quieres completar.";
+            setFeedback(message + " · Revisa y confirma en el formulario. Nada guardado.");
+            toast.info("Borrador preparado. Revisa los campos antes de guardar.");
+          } else if (intent.kind === "member-search") {
+            window.sessionStorage.removeItem("snoop:member-search-pending");
+            if (path === intent.to)
+              window.dispatchEvent(
+                new CustomEvent("snoop:search-members", { detail: { query: intent.query } }),
+              );
+            else {
+              if (intent.query)
+                window.sessionStorage.setItem(
+                  "snoop:member-search-pending",
+                  JSON.stringify({ version: 2, query: intent.query, at: Date.now(), ...scope }),
+                );
+              await navigate({ to: intent.to });
+            }
+            setFeedback(intent.query ? "Búsqueda local preparada." : "Gestionar socios");
+          } else if (intent.kind === "navigate") {
+            await navigate({ to: intent.to as any });
+          } else
+            setFeedback(
+              "No identifiqué un campo. Di nombre, apellido, nacimiento, documento, ciudad, teléfono o cuota. No se ha cambiado nada.",
+            );
           return;
         }
 
         // --- 1) Global navigation intents (always win — user said a section name) ---
         const navHit = NAV_INTENTS.find((n) => n.rx.test(lower) || n.rx.test(normalized));
         if (navHit) {
+          allow(navHit.to);
           if (navHit.to === "/soci/nuovo") {
             window.sessionStorage.setItem(
               "snoop:member-draft",
@@ -240,7 +241,8 @@ export function VoiceAgent({
           return;
         }
 
-        if (looksLikeMemberLookup(text)) {
+        if (looksLikeMemberLookup(text) && /\b(socio|miembro|soci|socios)\b/i.test(text)) {
+          allow("/soci/gestisci");
           const query = cleanMemberLookup(text);
           if (query.length > 1) {
             if (path !== "/soci/gestisci") {
@@ -336,260 +338,83 @@ export function VoiceAgent({
           }
         }
 
-        // --- 4) Fallback: full agent ---
-        const { navigateTo, reply, memberDraft } = await respond({
-          data: { transcript: text, history: conversationRef.current },
-        });
-        // Voz solo en el saludo inicial; las respuestas del agente se muestran en pantalla.
-        conversationRef.current = [
-          ...conversationRef.current,
-          { role: "user" as const, content: text.slice(0, 6000) },
-          { role: "assistant" as const, content: reply.slice(0, 6000) },
-        ].slice(-12);
-        if (memberDraft) conversationRef.current = [];
-        if (memberDraft)
-          window.sessionStorage.setItem(
-            "snoop:member-draft",
-            JSON.stringify({ at: Date.now(), fields: memberDraft }),
-          );
-        if (reply) toast.info(reply);
-        if (navigateTo) navigate({ to: navigateTo as any });
+        const command = privateVoiceCommand(text);
+        if (command.navigateTo) {
+          allow(command.navigateTo);
+          if (command.permission && !current.access.permissions.includes(command.permission))
+            throw new Error("No tienes permiso para esta función.");
+          if (command.memberDraft)
+            window.sessionStorage.setItem(
+              "snoop:member-draft",
+              voiceMemberDraft(command.memberDraft, scope),
+            );
+          await navigate({ to: command.navigateTo as any });
+        }
+        setFeedback(command.reply);
       } catch (e: any) {
         toast.error(e.message ?? "Error en el asistente");
       } finally {
         processingRef.current = false;
-        if (!speakingRef.current) setStatus(wantOnRef.current ? "listening" : "off");
       }
     },
-    [navigate, respond],
+    [navigate],
   );
 
-  // --- Continuous SpeechRecognition (always-on) ---
-  const ensureRec = useCallback(() => {
-    if (recRef.current) return recRef.current;
-    const SR = getSpeechRecognition();
-    if (!SR) return null;
-    const rec = new SR();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = window.localStorage.getItem("snoop:voice-language") || navigator.language || "es-ES";
-    rec.onresult = (e: any) => {
-      // HARD MUTE while Snoop habla (y un pequeño margen después) para evitar
-      // que el micro recoja su propia voz y se dispare en bucle ("hola hola hola").
-      if (speakingRef.current || Date.now() < muteUntilRef.current) {
-        return;
-      }
-      let finalText = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        const t = String(r[0].transcript || "");
-        if (r.isFinal) finalText += t + " ";
-      }
-      if (finalText.trim()) {
-        const txt = finalText.trim();
-        const cleaned = txt.replace(WAKE_RX, "").trim();
-        if (!cleaned) return;
-        // Ignora frases muy cortas que suelen ser ruido / eco
-        if (cleaned.length < 2) return;
-        handleTranscript(cleaned);
-      }
-    };
-    rec.onend = () => {
-      // auto-restart while user wants it on
-      if (wantOnRef.current) {
-        try {
-          rec.start();
-        } catch {}
-      }
-    };
-    rec.onerror = (ev: any) => {
-      // 'not-allowed' = mic permission denied; everything else: restart loop handles it
-      if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") {
-        wantOnRef.current = false;
-        setEnabled(false);
-        setStatus("off");
-        toast.error("Permiso de micrófono denegado.");
-      }
-    };
-    recRef.current = rec;
-    return rec;
-  }, [handleTranscript, stopSpeaking]);
-
-  const startListening = useCallback(async () => {
-    if (
-      !confirm(
-        "El reconocimiento de voz del navegador y el proveedor de IA pueden procesar el dictado fuera del dispositivo. ¿Continuar?",
-      )
-    )
-      return;
-    const config = await aiStatus();
-    if (!config.available) {
-      toast.error("IA no disponible. Puedes introducir los datos manualmente.");
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      toast.error("Micrófono no disponible: usa HTTPS o introduce los datos manualmente.");
-      return;
-    }
-    const SR = config.browserSpeech ? getSpeechRecognition() : null;
-    if (!SR) {
-      if (typeof MediaRecorder === "undefined") {
-        toast.error("Grabación no compatible. Introduce los datos manualmente.");
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recordingStream.current = stream;
-        const mime = [
-          "audio/webm;codecs=opus",
-          "audio/mp4",
-          "audio/webm",
-          "audio/ogg;codecs=opus",
-        ].find((type) => MediaRecorder.isTypeSupported(type));
-        if (!mime) {
-          stream.getTracks().forEach((t) => t.stop());
-          throw new Error("Formato no compatible");
-        }
-        const recorder = new MediaRecorder(stream, { mimeType: mime });
-        recorderRef.current = recorder;
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => {
-          if (e.data.size) chunks.push(e.data);
-        };
-        recorder.onstop = async () => {
-          stream.getTracks().forEach((t) => t.stop());
-          recordingStream.current = null;
-          if (recordingTimer.current) clearTimeout(recordingTimer.current);
-          recorderRef.current = null;
-          if (!mountedRef.current) return;
-          setEnabled(false);
-          setStatus("processing");
-          try {
-            const blob = new Blob(chunks, { type: recorder.mimeType });
-            if (!blob.size || blob.size > 8_000_000)
-              throw new Error("Audio vacío o demasiado largo");
-            const base64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result).split(",")[1]);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-            const { text } = await transcribe({
-              data: {
-                audioBase64: base64,
-                mimeType: recorder.mimeType,
-                language: language.startsWith("it") ? "it" : "es",
-              },
-            });
-            if (mountedRef.current) await handleTranscript(text);
-          } catch {
-            toast.error("No se pudo procesar el dictado. Introduce los datos manualmente.");
-          } finally {
-            if (mountedRef.current) setStatus("off");
-          }
-        };
-        recorder.start();
-        setEnabled(true);
-        setStatus("listening");
-        recordingTimer.current = setTimeout(() => {
-          if (recorder.state === "recording") recorder.stop();
-        }, 60_000);
-        toast.message("Escuchando. Pulsa otra vez para enviar el dictado.");
-      } catch {
-        recordingStream.current?.getTracks().forEach((t) => t.stop());
-        toast.error("Micrófono no disponible o permiso denegado. Usa la entrada manual.");
-      }
-      return;
-    }
-    // request mic perm explicitly so the prompt fires from user gesture
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      s.getTracks().forEach((t) => t.stop());
-    } catch {
-      toast.error("Permiso de micrófono denegado.");
-      return;
-    }
-    const rec = ensureRec();
-    if (!rec) return;
-    wantOnRef.current = true;
-    setEnabled(true);
-    setStatus("listening");
-    try {
-      rec.start();
-    } catch {}
-    if (!greetedRef.current) {
-      greetedRef.current = true;
-      const greet =
-        language === "it-IT"
-          ? `Ciao ${clubName || "club"}, come posso aiutarti?`
-          : `Hola ${clubName || "club"}, ¿cómo te puedo ayudar?`;
-      // Solo aquí hablamos en voz alta — el resto de comandos es silencioso.
-      speak(greet);
-    }
-  }, [clubName, ensureRec, speak, language, aiStatus, transcribe, handleTranscript]);
-
-  const stopListening = useCallback(() => {
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-    conversationRef.current = [];
-    wantOnRef.current = false;
-    setEnabled(false);
-    stopSpeaking();
-    try {
-      recRef.current?.stop?.();
-    } catch {}
-    setStatus("off");
-  }, [stopSpeaking]);
-
-  // Cleanup on unmount
+  const dictation = useWhisperDictation({
+    scope,
+    language: language.startsWith("it") ? "it" : "es",
+    available: aiStatus,
+    transcribe: (data) => transcribe({ data }),
+    onTranscript: handleTranscript,
+  });
+  const enabled = dictation.phase === "recording",
+    busy = dictation.phase === "starting" || dictation.phase === "processing";
+  const toggle = useCallback(() => {
+    if (enabled) dictation.finish();
+    else if (!busy) void dictation.start();
+  }, [enabled, busy, dictation.start, dictation.finish]);
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      if (recordingTimer.current) clearTimeout(recordingTimer.current);
-      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-      recordingStream.current?.getTracks().forEach((t) => t.stop());
-      wantOnRef.current = false;
-      try {
-        recRef.current?.stop?.();
-      } catch {}
-      audioRef.current?.pause();
-    };
-  }, []);
-
-  // External trigger
-  useEffect(() => {
-    function onStart() {
-      startListening();
-    }
-    window.addEventListener("snoop:voice-start", onStart);
-    return () => window.removeEventListener("snoop:voice-start", onStart);
-  }, [startListening]);
-
-  function toggle() {
-    if (enabled) stopListening();
-    else startListening();
-  }
-
-  const ringClass =
-    status === "speaking"
-      ? "bg-gradient-neon text-primary-foreground glow-neon animate-pulse"
-      : status === "processing"
-        ? "bg-gradient-neon text-primary-foreground glow-neon"
-        : status === "listening"
-          ? "bg-gradient-neon text-primary-foreground glow-neon shadow-[0_0_22px_-5px_#d1a95488] animate-pulse"
-          : "bg-card border border-neon/40 text-neon";
-
+    window.addEventListener("snoop:voice-start", toggle);
+    return () => window.removeEventListener("snoop:voice-start", toggle);
+  }, [toggle]);
   return (
     <>
+      {(feedback || dictation.error || busy || enabled) && (
+        <aside
+          aria-label="Respuesta del asistente"
+          className="snoop-voice-feedback fixed right-4 bottom-44 z-40 max-h-[35svh] overflow-auto max-w-[min(90vw,380px)] rounded-lg border border-neon/30 bg-card p-3 text-sm shadow-lg"
+        >
+          <p role={dictation.error ? "alert" : "status"}>
+            {dictation.error ||
+              (busy
+                ? "Procesando el dictado…"
+                : enabled
+                  ? "Escuchando. Pulsa el micrófono para enviar el audio a Cloudflare Whisper."
+                  : feedback)}
+          </p>
+          <button
+            type="button"
+            className="mt-2 underline"
+            onClick={() => {
+              setFeedback("");
+              dictation.cancel();
+            }}
+          >
+            {busy || enabled ? "Cancelar dictado" : "Cerrar"}
+          </button>
+        </aside>
+      )}
       <select
-        hidden={hideIdleControls && !enabled}
+        hidden={hideIdleControls && !enabled && !busy}
         aria-label="Idioma de voz / Lingua voce"
         value={language}
-        onChange={(event) => {
-          stopListening();
-          setLanguage(event.target.value);
-          window.localStorage.setItem("snoop:voice-language", event.target.value);
-          if (recRef.current) recRef.current.lang = event.target.value;
+        onChange={(e) => {
+          dictation.cancel();
+          setLanguage(e.target.value);
+          try {
+            window.localStorage.setItem("snoop:voice-language", e.target.value);
+          } catch {}
+          window.dispatchEvent(new Event("snoop:voice-language"));
         }}
         className="snoop-voice-language fixed bottom-24 right-5 z-40 rounded border border-neon/30 bg-card p-1 text-xs text-neon"
       >
@@ -599,19 +424,16 @@ export function VoiceAgent({
       <button
         type="button"
         onClick={toggle}
-        disabled={status === "processing"}
-        hidden={hideIdleControls && !enabled}
+        disabled={busy || access.status !== "active"}
+        hidden={hideIdleControls && !enabled && !busy}
         aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
-        className={`snoop-voice-toggle fixed z-40 bottom-5 right-5 md:bottom-8 md:right-8 h-16 w-16 rounded-full flex items-center justify-center transition-all ${ringClass}`}
+        title="Audio a Cloudflare Whisper; interpretación administrativa local. Pulsa otra vez para enviar."
+        className={`snoop-voice-toggle fixed z-40 bottom-5 right-5 md:bottom-8 md:right-8 h-16 w-16 rounded-full flex items-center justify-center transition-all ${enabled ? "bg-gradient-neon text-primary-foreground glow-neon animate-pulse" : "bg-card border border-neon/40 text-neon"}`}
       >
-        {status === "processing" ? (
+        {busy ? (
           <Loader2 className="w-6 h-6 animate-spin" />
-        ) : status === "speaking" ? (
-          <Volume2 className="w-6 h-6" />
-        ) : status === "listening" ? (
-          <Ear className="w-7 h-7" />
         ) : enabled ? (
-          <Mic className="w-7 h-7" />
+          <Ear className="w-7 h-7" />
         ) : (
           <MicOff className="w-7 h-7" />
         )}

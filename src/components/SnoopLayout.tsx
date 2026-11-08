@@ -200,7 +200,12 @@ export function SnoopLayout({
         </>
       )}
       {user && access.role && (
-        <VoiceAgent clubName={access.clubName} hideIdleControls={home && !open} />
+        <VoiceAgent
+          clubName={access.clubName}
+          access={access}
+          userId={user.id}
+          hideIdleControls={home && !open}
+        />
       )}
       <main id="main-content" className="premium-main" tabIndex={-1}>
         {title && (

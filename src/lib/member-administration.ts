@@ -1,3 +1,4 @@
+import { voiceInteger } from "./voice-numbers.ts";
 export function calendarDate(value: string): string | null {
   const text = value.trim();
   let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -125,36 +126,64 @@ export function spokenAdministrativeDate(value: string): string | null {
     .replace(/\b(de|del|di|il|el)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  const match = /^(\d{1,2}) ([a-z]+) (\d{4})$/.exec(normalized);
-  if (!match) return null;
-  const month = months.findIndex((names) => names.includes(match[2]));
-  if (month < 0) return null;
-  return calendarDate(
-    `${match[3]}-${String(month + 1).padStart(2, "0")}-${match[1].padStart(2, "0")}`,
-  );
+  for (let month = 0; month < months.length; month++)
+    for (const name of months[month]) {
+      const split = normalized.split(new RegExp(`\\b${name}\\b`));
+      if (split.length !== 2) continue;
+      const day = voiceInteger(split[0]),
+        year = voiceInteger(split[1]);
+      if (day === null || year === null) return null;
+      return calendarDate(
+        `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      );
+    }
+  return null;
 }
 
 export function parseAdministrativeDictation(
   transcript: string,
   plans?: string[],
 ): Partial<MemberDictation> {
-  const raw = transcript.replace(/[“”"]/g, " ").replace(/\s+/g, " ").trim();
+  let raw = transcript.replace(/[“”"]/g, " ").replace(/\s+/g, " ").trim();
+  raw = raw
+    .replace(/\b(?:nato|nata|nacido|nacida)\s+(?:il|el)?\s*/gi, "fecha de nacimiento ")
+    .replace(/\b(?:residente|residenza|residencia|vive|vivo)\s+(?:a|en)?\s*/gi, "ciudad ");
+  if (!/\b(?:nombre|nome|cognome|apellidos?|chiamato|llamado|me llamo|mi chiamo)\b/i.test(raw)) {
+    const named =
+      /\b(?:crea(?:r|re)?|registra(?:r)?|aggiungi|agregar)\s+(?:(?:un|un nuovo|un nuevo|nuevo|nuovo)\s+)?(?:socio|miembro)\s+([\p{L}'’-]+)\s+([\p{L}'’-]+)(?=\s*[,;]|\s+(?:fecha|ciudad|telefono|teléfono|dni|cuota|plan)\b|$)/iu.exec(
+        raw,
+      );
+    if (named) raw = raw.replace(named[0], `nombre ${named[1]} apellido ${named[2]}`);
+  }
+  raw = raw.replace(
+    /\b(?:chiamato|llamado|mi chiamo|me llamo)\s+([\p{L}'’-]+)\s+([\p{L}'’-]+)(?=\s*[,;]|\s+(?:fecha|ciudad|telefono|teléfono|dni|cuota|plan)\b|$)/giu,
+    "nombre $1 apellido $2",
+  );
   const patterns: [keyof MemberDictation, RegExp][] = [
     ["first_name", /\b(?:nombre|nome)\s*:?\s*/i],
     ["last_name", /\b(?:apellidos?|cognomi|cognome)\s*:?\s*/i],
     ["birth_date", /\b(?:fecha de nacimiento|nacimiento|data di nascita|nascita)\s*:?\s*/i],
     ["dni_number", /\b(?:numero de dni|numero dni|dni|nie|documento)\s*:?\s*/i],
     ["city", /\b(?:ciudad|citt[aà]|residencia)\s*:?\s*/i],
-    ["phone", /\b(?:tel[eé]fono|movil|móvil|cellulare)\s*:?\s*/i],
+    ["phone", /\b(?:tel[eé]fono|movil|móvil|cellulare|telefono)\s*:?\s*/i],
     ["email", /\b(?:email|correo|e-mail|mail)\s*:?\s*/i],
     ["plan_name", /\b(?:plan|cuota|quota|abono)\s*:?\s*/i],
   ];
   const hits = patterns
     .flatMap(([key, pattern]) => {
-      const found = raw.match(pattern);
-      return found?.index === undefined
-        ? []
-        : [{ key, start: found.index, value: found.index + found[0].length }];
+      return [...raw.matchAll(new RegExp(pattern.source, "gi"))]
+        .filter(
+          (found, index) =>
+            index === 0 ||
+            /(?:[,;]|\bno\b|\bcorrige\b|\bcorreggi\b|\bcambia\b|\bmodifica\b)\s*(?:[,;]\s*)?(?:(?:el|la|il)\s*)?$/i.test(
+              raw.slice(0, found.index),
+            ),
+        )
+        .map((found) => ({
+          key,
+          start: found.index!,
+          value: found.index! + found[0].length,
+        }));
     })
     .sort((a, b) => a.start - b.start);
   const result: Partial<MemberDictation> = {};
@@ -162,14 +191,27 @@ export function parseAdministrativeDictation(
     const { key, value } = hits[n];
     const text = raw
       .slice(value, hits[n + 1]?.start ?? raw.length)
-      .replace(/^(?:es|è|é)\s+/i, "")
+      .replace(/^(?:es|è|é|son|sono)\s+/i, "")
+      .replace(/^(?:a|en)\s+/i, "")
+      .replace(/\s+(?:y|e)(?:\s+(?:el|la|il|con))?\s*[,;]?$/i, "")
       .replace(/^[\s:,-]+|[\s,.]+$/g, "");
     if (!text) continue;
     if (key === "birth_date") {
       const date = spokenAdministrativeDate(text);
       if (date) result[key] = date;
-    } else if (key === "dni_number") result[key] = text.replace(/[^a-z0-9]/gi, "").toUpperCase();
-    else if (key === "phone") {
+    } else if (key === "dni_number") {
+      const spoken = text
+        .toLowerCase()
+        .replace(/\b(?:letra|lettera)\s+/g, "")
+        .split(/\s+/)
+        .map((w) => {
+          const n = voiceInteger(w);
+          return n !== null && n < 10 ? String(n) : w;
+        })
+        .join("");
+      const identifier = spoken.replace(/[ .-]/g, "").toUpperCase();
+      if (/^[A-Z0-9]{5,20}$/.test(identifier)) result[key] = identifier;
+    } else if (key === "phone") {
       const digits: Record<string, string> = {
         zero: "0",
         cero: "0",
@@ -223,10 +265,10 @@ export function parseAdministrativeDictation(
       annuale: ["anual", "annuale"],
       trimestrale: ["trimestral", "trimestrale"],
     };
-    result.plan_name =
-      plans.find(
-        (name) => normalize(name) === wanted || (aliases[wanted] ?? []).includes(normalize(name)),
-      ) ?? "";
+    const matches = plans.filter(
+      (name) => normalize(name) === wanted || (aliases[wanted] ?? []).includes(normalize(name)),
+    );
+    result.plan_name = matches.length === 1 ? matches[0] : "";
   }
   return result;
 }

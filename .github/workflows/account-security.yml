@@ -68,6 +68,8 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:account-links
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:pwa:resume
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:premium:home
+          TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice2:browser
+          TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:genetics:browser
       - name: Save real premium home browser renders
         if: always()
@@ -79,5 +81,7 @@ jobs:
             .sandbox/PREMIUM_HOME_RESULTS.json
             docs/screenshots/genetics-*.png
             docs/GENETICS_BROWSER_RESULTS.json
+            docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json
+            docs/screenshots/voice2-*.png
           if-no-files-found: ignore
           retention-days: 7

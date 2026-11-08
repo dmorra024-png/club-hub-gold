@@ -972,3 +972,8 @@ body:has(.premium-shell) .snoop-install-control {
   color: #e7c47b;
   text-decoration: underline;
 }
+
+/* Keep dictation feedback away from mobile keyboards. */
+.premium-shell[data-keyboard-open="true"] .snoop-voice-feedback {
+  display: none;
+}
