@@ -262,7 +262,13 @@ export function VoiceAgent({
 
         // --- 2) Productos: any voice = category filter OR search ---
         if (path === "/productos") {
-          window.dispatchEvent(new CustomEvent("snoop:productos-voice", { detail: { text } }));
+          // Product creation must reach the parent form parser, not only the
+          // stock-list category filter listening to productos-voice.
+          if (/\\b(?:crea|crear|creare|nuevo|nuovo|nueva|alta|añadir|anadir|agregar|registrar)\\b[\\s\\S]{0,80}\\b(?:producto|prodotti|prodotto|productos)\\b/i.test(text)) {
+            window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: { text, tab: "nuevo" } }));
+          } else {
+            window.dispatchEvent(new CustomEvent("snoop:productos-voice", { detail: { text } }));
+          }
           return;
         }
 
