@@ -68,8 +68,12 @@ for (const [name, engine, device] of [
               if (window.__voice.denied) throw new DOMException("Denied", "NotAllowedError");
               window.__voice.created++;
               const track = {
+                readyState: "live",
                 stop() {
-                  window.__voice.stopped++;
+                  if (this.readyState !== "ended") {
+                    this.readyState = "ended";
+                    window.__voice.stopped++;
+                  }
                 },
                 onended: null,
               };
@@ -307,6 +311,14 @@ for (const [name, engine, device] of [
       beforeRevocation,
       "Permission revocation discards the pending form recording",
     );
+    // Disabled can mean an access refresh is still in flight. Observe actual
+    // recorder cancellation before restoring the fixture's permission, otherwise
+    // verifiedAccess legitimately coalesces both refreshes into the same request.
+    await page
+      .getByText("● Escuchando… pulsa para parar", { exact: true })
+      .waitFor({ state: "hidden" });
+    await page.waitForLoadState("networkidle");
+    await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
     denied = false;
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:retry-access")));
     await page.waitForFunction(
