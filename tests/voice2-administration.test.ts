@@ -128,3 +128,25 @@ test("literal name initials and city articles are retained outside an explicit c
     city: "A Coruña",
   });
 });
+
+
+test("regression: a full spoken member sentence never enters Nombre as a whole transcript", () => {
+  for (const phrase of [
+    "Crea un socio Mario Rossi, nato il 15 marzo 1990, residente a Palma",
+    "Registra un socio Mario Rossi, nacido el 15 de marzo de 1990, residente en Palma",
+  ]) {
+    const intent = administrativeIntent(phrase, "/");
+    assert.equal(intent?.kind, "member-draft");
+    if (intent?.kind !== "member-draft") throw new Error("missing draft");
+    assert.equal(intent.fields.first_name, "Mario");
+    assert.equal(intent.fields.last_name, "Rossi");
+    assert.equal(intent.fields.birth_date, "1990-03-15");
+    assert.equal(intent.fields.city, "Palma");
+    assert.ok(!JSON.stringify(intent.fields.first_name).includes("fecha"));
+    assert.ok(!JSON.stringify(intent.fields.first_name).includes("Rossi"));
+  }
+  const malformed = parseAdministrativeDictation(
+    "nombre Mario Rossi, Mario Appadito Rossi, fecha el 15 marzo 1990",
+  );
+  assert.ok(!malformed.first_name || malformed.first_name.split(/\\s+/).length <= 4);
+});
