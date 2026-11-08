@@ -1,6 +1,8 @@
 import type { CatalogImage } from "./catalog-enrichment.server";
 export type CatalogDescription = { title: string; source: string; excerpt: string };
 const hosts = [
+  "www.strainpedia.com",
+  "strainpedia.com",
   "www.leafly.com",
   "leafly.com",
   "www.allbud.com",
@@ -228,7 +230,7 @@ export async function searchSpecialistCatalog(name: string, request: typeof fetc
     const search = new URL("https://html.duckduckgo.com/html/");
     search.searchParams.set(
       "q",
-      `"${name.replace(/["\\]/g, " ")}" (site:leafly.com/strains OR site:allbud.com/marijuana-strains OR site:wikileaf.com/strain OR site:seedfinder.eu)`,
+      `"${name.replace(/["\\]/g, " ")}" (site:leafly.com/strains OR site:allbud.com/marijuana-strains OR site:wikileaf.com/strain OR site:seedfinder.eu OR site:strainpedia.com)`,
     );
     const html = await textResponse(search, bounded, 120000);
     for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
