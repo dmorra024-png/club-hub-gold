@@ -69,7 +69,7 @@ export const enrichProduct = createServerFn({ method: "POST" })
     ]
       .filter(Boolean)
       .join(" ");
-    if (!description && !images.length && !specialist.descriptions.length) throw new Error(warning);
+    if (!description && !eligibleImages.length && !specialist.descriptions.length) throw new Error(warning);
     // No generated photography, automatic image selection, database writes or paid fallback.
     return {
       description,
