@@ -453,7 +453,10 @@ function ProductosPage() {
     return () => {
       catalogRequest.current++;
     };
-  }, [catalogScope, authLoading, accessError]);
+    // A transient access error hides the existing form in SnoopLayout. Retrying
+    // that same verified scope must not reload/unmount it and erase its draft.
+    // Identity, club or permission changes still trigger a fresh scoped read.
+  }, [catalogScope, authLoading]);
 
   // Reacciona a Snoop cuando navega aquí pidiendo un tab y/o un comando
   useEffect(() => {
