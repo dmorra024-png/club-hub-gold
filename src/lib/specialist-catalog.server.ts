@@ -212,9 +212,6 @@ async function textResponse(url: URL, request: typeof fetch, max = 220000) {
   return new TextDecoder().decode(result);
 }
 export async function searchSpecialistCatalog(name: string, request: typeof fetch = fetch) {
-  const deadline = AbortSignal.timeout(14000);
-  const bounded: typeof fetch = (url, init) =>
-    request(url, { ...init, signal: AbortSignal.any([deadline, init?.signal ?? deadline]) });
   const slug = norm(name).replace(/ /g, "-");
   if (slug.length < 3 || slug.length > 120)
     return {
@@ -222,58 +219,67 @@ export async function searchSpecialistCatalog(name: string, request: typeof fetc
       images: [] as CatalogImage[],
       warning: "Nombre no válido para buscar fuentes.",
     };
-  const candidates = [
-    `https://www.strainpedia.com/${slug}/`,
-    `https://www.leafly.com/strains/${slug}`,
-    `https://www.wikileaf.com/strain/${slug}/`,
+  const publishers = [
+    { host: "leafly.com", direct: `https://www.leafly.com/strains/${slug}` },
+    { host: "strainpedia.com", direct: `https://www.strainpedia.com/${slug}/` },
+    { host: "seedfinder.eu", direct: "" },
+    { host: "allbud.com", direct: "" },
+    { host: "wikileaf.com", direct: `https://www.wikileaf.com/strain/${slug}/` },
   ];
-  try {
-    const search = new URL("https://html.duckduckgo.com/html/");
-    search.searchParams.set(
-      "q",
-      `"${name.replace(/["\\]/g, " ")}" (site:leafly.com/strains OR site:allbud.com/marijuana-strains OR site:wikileaf.com/strain OR site:seedfinder.eu OR site:strainpedia.com)`,
-    );
-    const html = await textResponse(search, bounded, 120000);
-    for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
-      try {
-        const u = new URL(decode(m[1]), search),
-          destination = u.searchParams.get("uddg") || u.href;
-        const source = specialistUrl(destination);
-        if (source && !candidates.includes(source.href)) candidates.push(source.href);
-      } catch {}
-    }
-  } catch {
-    /* Direct known source pages and manual input remain available. */
-  }
+  const descriptions: CatalogDescription[] = [];
   const images: CatalogImage[] = [];
-  const descriptions: CatalogDescription[] = [],
-    used = new Set<string>();
-  // At most one documented alternative per independent publisher, no login or bot bypass.
-  for (const raw of candidates.slice(0, 8)) {
-    if (descriptions.length === 3 || deadline.aborted) break;
-    const url = specialistUrl(raw);
-    if (!url) continue;
-    const publisher = url.hostname.replace(/^www\./, "");
-    if (used.has(publisher)) continue;
+  const seen = new Set<string>();
+  // Priority is deterministic: start with Leafly and continue in order when
+  // there is no description or no licensed matching image.
+  for (const publisher of publishers) {
+    if (descriptions.length && images.length) break;
+    const candidates: string[] = [];
+    if (publisher.direct) candidates.push(publisher.direct);
+    // Search is restricted to one specialist publisher at a time. A failed
+    // search does not prevent a direct page from being checked.
     try {
-      const robots = await textResponse(new URL("/robots.txt", url), bounded, 32000);
-      if (!robotsAllow(robots, url.pathname)) continue;
-      const html = await textResponse(url, bounded);
-      const entry = specialistDescription(html, url.href, name);
-      if (entry) {
-        descriptions.push(entry);
-        images.push(...specialistImages(html, url.href, name));
-        used.add(publisher);
+      const search = new URL("https://html.duckduckgo.com/html/");
+      search.searchParams.set("q", `"${name.replace(/["\\\\]/g, " ")}" site:${publisher.host}`);
+      const html = await textResponse(search, request, 120000);
+      for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
+        try {
+          const link = new URL(decode(m[1]), search);
+          const destination = link.searchParams.get("uddg") || link.href;
+          const u = new URL(destination);
+          // Search engine may return query-bearing tracking URLs. Only use
+          // canonical HTTPS paths on approved specialist hosts.
+          if (!["https:"].includes(u.protocol)) continue;
+          u.search = "";
+          u.hash = "";
+          const approved = specialistUrl(u.href);
+          if (approved && approved.hostname.replace(/^www\\./, "") === publisher.host &&
+              !candidates.includes(approved.href)) candidates.push(approved.href);
+        } catch {}
       }
-    } catch {
-      /* Unavailable, restricted or unverified pages are never invented. */
+    } catch {}
+    for (const raw of candidates.slice(0, 5)) {
+      const url = specialistUrl(raw);
+      if (!url || seen.has(url.href)) continue;
+      seen.add(url.href);
+      try {
+        const robots = await textResponse(new URL("/robots.txt", url), request, 32000);
+        if (!robotsAllow(robots, url.pathname)) continue;
+        const html = await textResponse(url, request);
+        const entry = specialistDescription(html, url.href, name);
+        if (!entry) continue;
+        if (!descriptions.length) descriptions.push(entry);
+        if (!images.length) images.push(...specialistImages(html, url.href, name));
+        if (descriptions.length && images.length) break;
+      } catch {
+        // Unavailable, disallowed or unverifiable pages are never invented.
+      }
     }
   }
   return {
     descriptions,
     images: images.slice(0, 3),
     warning: descriptions.length
-      ? "Extractos breves de fuentes: revisa su correspondencia. Las fotos de estas webs no se copian sin licencia explícita."
-      : "No se pudieron verificar fuentes especializadas accesibles. Puedes completar la ficha y cargar una imagen propia.",
+      ? "Ficha informativa con fuente verificada. Las imágenes solo se incorporan con licencia explícita."
+      : "No se encontraron fuentes especializadas accesibles y verificadas; puedes aportar una imagen propia.",
   };
 }
