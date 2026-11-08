@@ -223,6 +223,7 @@ export async function searchSpecialistCatalog(name: string, request: typeof fetc
       warning: "Nombre no válido para buscar fuentes.",
     };
   const candidates = [
+    `https://www.strainpedia.com/${slug}/`,
     `https://www.leafly.com/strains/${slug}`,
     `https://www.wikileaf.com/strain/${slug}/`,
   ];
