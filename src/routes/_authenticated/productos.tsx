@@ -1,3 +1,4 @@
+import { loadAdministrativeCatalog } from "@/lib/administrative-catalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { transcribeAudio } from "@/lib/voice-agent.functions";
@@ -186,6 +187,17 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 function ProductosPage() {
+  const { user, access, loading: authLoading, accessError, can } = useAuth();
+  const catalogScope = JSON.stringify([
+    user?.id,
+    access.clubId,
+    access.role,
+    access.status,
+    [...access.permissions].sort(),
+  ]);
+  const [loadedScope, setLoadedScope] = useState("");
+  const [catalogError, setCatalogError] = useState("");
+  const catalogRequest = useRef(0);
   const [tab, setTab] = useState<TabId>("stock");
   const [cats, setCats] = useState<Category[]>([]);
   const [prods, setProds] = useState<Product[]>([]);
@@ -419,18 +431,29 @@ function ProductosPage() {
   }
 
   async function load() {
+    const request = ++catalogRequest.current;
+    if (authLoading || accessError || !access.clubId || !can("manage_products")) return;
     setLoading(true);
-    const [{ data: c }, { data: p }] = await Promise.all([
-      supabase.from("product_categories").select("*").order("name"),
-      supabase.from("products").select("*").order("name"),
-    ]);
-    setCats((c as any) ?? []);
-    setProds((p as any) ?? []);
-    setLoading(false);
+    setCatalogError("");
+    try {
+      const result = await loadAdministrativeCatalog(supabase, access.clubId);
+      if (request !== catalogRequest.current) return;
+      setCats(result.categories);
+      setProds(result.products);
+      setLoadedScope(catalogScope);
+    } catch {
+      if (request !== catalogRequest.current) return;
+      setCatalogError("No se pudo cargar el catálogo. Vuelve a intentarlo.");
+    } finally {
+      if (request === catalogRequest.current) setLoading(false);
+    }
   }
   useEffect(() => {
     load();
-  }, []);
+    return () => {
+      catalogRequest.current++;
+    };
+  }, [catalogScope, authLoading, accessError]);
 
   // Reacciona a Snoop cuando navega aquí pidiendo un tab y/o un comando
   useEffect(() => {
@@ -527,7 +550,14 @@ function ProductosPage() {
         ))}
       </div>
 
-      {loading ? (
+      {catalogError ? (
+        <div role="alert" className="space-y-2">
+          <p>{catalogError}</p>
+          <button onClick={load} className="text-neon">
+            Reintentar catálogo
+          </button>
+        </div>
+      ) : authLoading || loading || loadedScope !== catalogScope ? (
         <div className="text-muted-foreground">Cargando…</div>
       ) : tab === "stock" ? (
         <Stock
@@ -558,33 +588,36 @@ function ProductosPage() {
           clearPrefill={() => setPrefillCategory(null)}
         />
       )}
-      {prods.some((p) => p.active === false) && (
-        <div className="mt-5 border border-border p-3 rounded space-y-2">
-          <h3 className="text-sm text-neon">Productos archivados</h3>
-          {prods
-            .filter((p) => p.active === false)
-            .map((p) => (
-              <div key={p.id} className="flex justify-between text-sm">
-                <span>{p.name}</span>
-                <button
-                  className="text-neon"
-                  onClick={async () => {
-                    if (!confirm(`¿Reactivar ${p.name}?`)) return;
-                    const { error } = await supabase
-                      .from("products")
-                      .update({ active: true })
-                      .eq("id", p.id)
-                      .eq("club_id", p.club_id);
-                    if (error) toast.error(error.message);
-                    else load();
-                  }}
-                >
-                  Reactivar producto
-                </button>
-              </div>
-            ))}
-        </div>
-      )}
+      {loadedScope === catalogScope &&
+        !catalogError &&
+        !loading &&
+        prods.some((p) => p.active === false) && (
+          <div className="mt-5 border border-border p-3 rounded space-y-2">
+            <h3 className="text-sm text-neon">Productos archivados</h3>
+            {prods
+              .filter((p) => p.active === false)
+              .map((p) => (
+                <div key={p.id} className="flex justify-between text-sm">
+                  <span>{p.name}</span>
+                  <button
+                    className="text-neon"
+                    onClick={async () => {
+                      if (!confirm(`¿Reactivar ${p.name}?`)) return;
+                      const { error } = await supabase
+                        .from("products")
+                        .update({ active: true })
+                        .eq("id", p.id)
+                        .eq("club_id", p.club_id);
+                      if (error) toast.error(error.message);
+                      else load();
+                    }}
+                  >
+                    Reactivar producto
+                  </button>
+                </div>
+              ))}
+          </div>
+        )}
     </SnoopLayout>
   );
 }
@@ -625,7 +658,7 @@ function Stock({
   } | null>(null);
   const dict = useDictation((t) => applyVoice(t));
 
-  const q = search.trim().toLowerCase();
+  const q = norm(search);
 
   function norm(s: string) {
     return s
@@ -781,7 +814,7 @@ function Stock({
     const map = new Map<string, Product[]>();
     for (const p of prods) {
       if (filter !== "all" && p.category_id !== filter) continue;
-      if (q && !p.name.toLowerCase().includes(q)) continue;
+      if (q && !norm(p.name).includes(q)) continue;
       const arr = map.get(p.category_id) ?? [];
       arr.push(p);
       map.set(p.category_id, arr);

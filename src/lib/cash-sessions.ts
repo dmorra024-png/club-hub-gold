@@ -99,3 +99,51 @@ export function countedCashOnDay(sessions: CashSession[], start: string, end: st
     )
     .reduce((total, s) => total + s.closing_cash_cents!, 0);
 }
+
+/** Daily receipts and drawer observations are different measurements, never added together. */
+export function cashDaySummary(
+  movements: CashMovement[],
+  sessions: CashSession[],
+  start: string,
+  end: string,
+) {
+  const ledger = uniqueLedgerRows(movements.map((m) => ({ ...m, id: `${m.source}:${m.id}` })));
+  const day = ledger.filter((m) => inCashDay(m, start, end));
+  const amounts = cashAmounts(
+    day.filter((m) => m.source === "order").map((m) => ({ id: m.id, total_cents: m.cents })),
+    day.filter((m) => m.source === "fee").map((m) => ({ id: m.id, amount_cents: m.cents })),
+  );
+  const sum = (values: number[]) =>
+    values.reduce((total, value) => {
+      if (!Number.isSafeInteger(value) || !Number.isSafeInteger(total + value))
+        throw new Error("Importe contable no válido");
+      return total + value;
+    }, 0);
+  const closed = uniqueLedgerRows(sessions).filter(
+    (s) =>
+      s.status === "closed" &&
+      s.closed_at &&
+      Date.parse(s.closed_at) >= Date.parse(start) &&
+      Date.parse(s.closed_at) < Date.parse(end),
+  );
+  const balances = closed.map((s) => reconcileCash(s, ledger));
+  const complete = closed.every(
+    (s, i) => s.closing_cash_cents !== null && balances[i].difference !== null,
+  );
+  return {
+    ...amounts,
+    cashCents: sum(day.filter((m) => m.payment_method === "cash").map((m) => m.cents)),
+    unidentifiedCents: sum(
+      day
+        .filter((m) => !["cash", "card", "transfer"].includes(m.payment_method ?? ""))
+        .map((m) => m.cents),
+    ),
+    outsideSessionCents: sum(day.filter((m) => !m.session_id).map((m) => m.cents)),
+    countedCents: sum(
+      closed.filter((s) => s.closing_cash_cents !== null).map((s) => s.closing_cash_cents!),
+    ),
+    expectedAtClosures: complete ? sum(balances.map((b) => b.expected!)) : null,
+    differenceAtClosures: complete ? sum(balances.map((b) => b.difference!)) : null,
+    closedSessions: closed.length,
+  };
+}

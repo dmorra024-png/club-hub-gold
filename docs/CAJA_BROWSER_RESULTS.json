@@ -11,7 +11,11 @@
         "session and whole-day totals including outside sessions",
         "no opening fund/cancelled orders in income",
         "no fixed shifts/UUIDs",
-        "own collaborator only"
+        "own collaborator only",
+        "associative receipts separated from other recorded income and unknown payment methods",
+        "expandable session movements and closing reconciliation",
+        "350 euro associative cash receipt, 345 counted, -5 difference, persisted notes",
+        "blank counted input cannot close session"
       ]
     },
     {
@@ -25,7 +29,11 @@
         "session and whole-day totals including outside sessions",
         "no opening fund/cancelled orders in income",
         "no fixed shifts/UUIDs",
-        "own collaborator only"
+        "own collaborator only",
+        "associative receipts separated from other recorded income and unknown payment methods",
+        "expandable session movements and closing reconciliation",
+        "350 euro associative cash receipt, 345 counted, -5 difference, persisted notes",
+        "blank counted input cannot close session"
       ]
     }
   ]

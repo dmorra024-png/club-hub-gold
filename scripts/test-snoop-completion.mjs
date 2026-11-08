@@ -108,7 +108,8 @@ for (const [label, engine, device, options] of engines) {
     invites = [],
     writes = [],
     passwordUpdates = 0,
-    otp = 0;
+    otp = 0,
+    failCatalog = true;
   await context.route("**/*", async (route) => {
     const req = route.request(),
       url = new URL(req.url());
@@ -215,6 +216,14 @@ for (const [label, engine, device, options] of engines) {
         writes.push("delete_category");
       } else result = categories;
     } else if (url.pathname.endsWith("/products")) {
+      if (req.method() === "GET" && failCatalog) {
+        return route.fulfill({
+          status: 503,
+          headers: cors,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "synthetic provider failure" }),
+        });
+      }
       if (req.method() === "PATCH") {
         const patch = req.postDataJSON();
         Object.assign(products[0], patch);
@@ -303,6 +312,41 @@ for (const [label, engine, device, options] of engines) {
   page.on("pageerror", (e) => pageErrors.push(e.message));
   try {
     await page.goto(base + "/productos", { waitUntil: "networkidle" });
+    await page
+      .getByRole("alert")
+      .getByText("No se pudo cargar el catálogo. Vuelve a intentarlo.")
+      .waitFor();
+    assert.equal(await page.getByText("Sin productos.", { exact: true }).count(), 0);
+    failCatalog = false;
+    await page.getByRole("button", { name: "Reintentar catálogo", exact: true }).click();
+    await page.getByLabel("Producto para ajustar stock").waitFor();
+    products[0].name = "Cuaderno sintético";
+    await page.reload({ waitUntil: "networkidle" });
+    const catalogSearch = page.getByPlaceholder("Buscar en todos los productos…");
+    await catalogSearch.fill("sintetico");
+    await page.getByLabel("Editar Cuaderno sintético").waitFor();
+    const writesBeforeSearch = writes.length;
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new CustomEvent("snoop:productos-voice", { detail: { text: "buscar Cuaderno sintetico" } }),
+      ),
+    );
+    await page.waitForFunction(
+      () =>
+        document.querySelector('input[placeholder="Buscar en todos los productos…"]').value ===
+        "cuaderno sintetico",
+    );
+    await page.getByLabel("Editar Cuaderno sintético").waitFor();
+    await page.getByRole("button", { name: "Synthetic resources", exact: true }).click();
+    await catalogSearch.fill("");
+    await page.getByLabel("Editar Cuaderno sintético").waitFor();
+    assert.equal(
+      writes.length,
+      writesBeforeSearch,
+      "catalog search/category navigation never writes",
+    );
+    products[0].name = "Synthetic Cup";
+    await page.reload({ waitUntil: "networkidle" });
     await page.getByLabel("Producto para ajustar stock").waitFor();
     assert.ok(
       await page.getByRole("img", { name: "SNOOP", exact: true }).first().isVisible(),
@@ -475,6 +519,8 @@ for (const [label, engine, device, options] of engines) {
       device: label,
       status: "PASS",
       tests: [
+        "catalog failure is not empty; retry restores existing products",
+        "text/category/local voice catalog lookup with accented names; no writes",
         "logo, navigation, responsive",
         "category rename/archive/restore",
         "stock confirmation/history",

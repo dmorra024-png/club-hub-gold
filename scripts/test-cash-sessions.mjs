@@ -162,7 +162,7 @@ for (const [label, engine, device] of [
             assert.deepEqual(Object.keys(d), ["openingCash"]);
             opened++;
             sessions.push({
-              id: newSession,
+              id: staff ? newSession.replace(/3$/, "4") : newSession,
               user_id: staff ? other : uid,
               opened_at: day + "T15:00:00Z",
               closed_at: null,
@@ -171,7 +171,7 @@ for (const [label, engine, device] of [
               closing_cash_cents: null,
               status: "open",
             });
-            result = { id: newSession };
+            result = { id: staff ? newSession.replace(/3$/, "4") : newSession };
           } else if ("closingCash" in d) {
             assert.deepEqual(Object.keys(d).sort(), ["closingCash", "notes", "sessionId"]);
             closed++;
@@ -181,6 +181,7 @@ for (const [label, engine, device] of [
               closed_at: day + "T16:00:00Z",
               closed_by: staff ? other : uid,
               closing_cash_cents: d.closingCash,
+              notes: d.notes,
               status: "closed",
             });
             result = { id: session.id };
@@ -236,6 +237,8 @@ for (const [label, engine, device] of [
     assert.equal(closed, 1);
     await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
     await page.getByLabel("Total del día").getByText(/47,00/).waitFor();
+    await page.getByLabel("Aportaciones del día").getByText(/7,00/).waitFor();
+    await page.getByLabel("Efectivo del día").getByText(/7,00/).waitFor();
     assert.equal(await page.getByRole("tab").count(), 2);
     const text = await page.locator("main").innerText();
     assert.doesNotMatch(text, /Turnos|11:00–17:00|Archivo informativo|00000000-/);
@@ -251,6 +254,13 @@ for (const [label, engine, device] of [
     await detail.locator("summary").click();
     await detail.getByText(/Cuota asociativa.*2,00/).waitFor();
     assert.match(await detail.innerText(), /Ana Sintética/);
+    await page.waitForFunction(() => !document.querySelector("[data-sonner-toast]"), null, {
+      timeout: 12000,
+    });
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      window.scrollTo(0, 0);
+    });
     await page.screenshot({
       path: `docs/screenshots/caja-simple-${label}.png`,
       fullPage: true,
@@ -275,6 +285,47 @@ for (const [label, engine, device] of [
     await page.getByRole("button", { name: "Abrir caja", exact: true }).click();
     await page.getByLabel("Dinero contado (€)").waitFor();
     assert.equal(opened, 2);
+    fees.push({
+      id: "staff-associative-fee",
+      recorded_by: other,
+      recorded_at: day + "T15:30:00Z",
+      payment_method: "cash",
+      amount_cents: 35000,
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.getByText(/Efectivo esperado: 350,00/).waitFor();
+    assert.equal(await page.getByLabel("Dinero contado (€)").inputValue(), "");
+    await page.getByRole("button", { name: "Cerrar caja", exact: true }).click();
+    assert.equal(closed, 1, "empty counted cash must not close a session");
+    await page.getByLabel("Dinero contado (€)").fill("345");
+    await page.getByLabel("Notas de cierre").fill("Faltan 5 euros: prueba sintética");
+    await page.getByText(/Diferencia: -5,00/).waitFor();
+    await page.getByRole("button", { name: "Cerrar caja", exact: true }).click();
+    await page.getByRole("button", { name: "Abrir caja", exact: true }).waitFor();
+    assert.equal(closed, 2);
+    await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
+    await page
+      .getByLabel("Total del día")
+      .getByText(/370,00/)
+      .waitFor();
+    await page
+      .getByLabel("Aportaciones del día")
+      .getByText(/350,00/)
+      .waitFor();
+    await page.getByText("Notas: Faltan 5 euros: prueba sintética", { exact: true }).waitFor();
+    await page.getByText(/Diferencia: -5,00/).waitFor();
+    await page.waitForFunction(() => !document.querySelector("[data-sonner-toast]"), null, {
+      timeout: 12000,
+    });
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      window.scrollTo(0, 0);
+    });
+    await page.screenshot({
+      path: `docs/screenshots/caja-reconciliation-${label}.png`,
+      fullPage: true,
+      scale: "css",
+    });
     assert.equal(rawWrites, 0);
     assert.deepEqual(errors, []);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -290,6 +341,10 @@ for (const [label, engine, device] of [
         "no opening fund/cancelled orders in income",
         "no fixed shifts/UUIDs",
         "own collaborator only",
+        "associative receipts separated from other recorded income and unknown payment methods",
+        "expandable session movements and closing reconciliation",
+        "350 euro associative cash receipt, 345 counted, -5 difference, persisted notes",
+        "blank counted input cannot close session",
       ],
     });
     console.log("PASS simple Caja " + label);

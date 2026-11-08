@@ -8,7 +8,7 @@ import {
   dayRevenue,
   sessionRevenue,
   reconcileCash,
-  countedCashOnDay,
+  cashDaySummary,
   type CashSession,
 } from "@/lib/cash-sessions";
 import { parseCashCents } from "@/lib/member-administration";
@@ -35,7 +35,7 @@ function Caja() {
     [day, setDay] = useState<string | null>(null),
     [refresh, setRefresh] = useState(0),
     [opening, setOpening] = useState("0"),
-    [closing, setClosing] = useState("0"),
+    [closing, setClosing] = useState(""),
     [notes, setNotes] = useState(""),
     [busy, setBusy] = useState(false);
   const data = stored?.scope === scope && stored?.requestedDay === day ? stored : null;
@@ -74,6 +74,7 @@ function Caja() {
   const session: CashSession | undefined = data?.sessions.find(
     (s: CashSession) => s.user_id === user?.id && s.status === "open",
   );
+  const daily = data ? cashDaySummary(data.movements, data.sessions, data.start, data.end) : null;
   const reconciliation = session && data ? reconcileCash(session, data.movements) : null;
   async function submit(kind: "open" | "close") {
     if (busy || !can("use_cash") || !navigator.onLine) return;
@@ -86,7 +87,7 @@ function Caja() {
         await closeCash({ data: { sessionId: session.id, closingCash: cents, notes } });
       else return;
       setOpening("0");
-      setClosing("0");
+      setClosing("");
       setNotes("");
       setDay(null);
       setRefresh((n) => n + 1);
@@ -167,6 +168,7 @@ function Caja() {
                           Notas
                           <Input
                             aria-label="Notas de cierre"
+                            maxLength={2000}
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                           />
@@ -208,10 +210,43 @@ function Caja() {
                     <p className="text-2xl" aria-label="Total del día">
                       {money(dayRevenue(data.movements, data.start, data.end))}
                     </p>
-                    <p>
-                      Contado en cierres del día:{" "}
-                      {money(countedCashOnDay(data.sessions, data.start, data.end))}
-                    </p>
+                    <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-sm">
+                      <dt>Aportaciones asociativas (cuotas)</dt>
+                      <dd aria-label="Aportaciones del día">{money(daily!.feeCents)}</dd>
+                      <dt>Otros ingresos registrados</dt>
+                      <dd>{money(daily!.orderCents)}</dd>
+                      <dt>Efectivo identificado</dt>
+                      <dd aria-label="Efectivo del día">{money(daily!.cashCents)}</dd>
+                      <dt>Contado en cierres del día</dt>
+                      <dd>{money(daily!.countedCents)}</dd>
+                      <dt>Ingresos fuera de sesión</dt>
+                      <dd>{money(daily!.outsideSessionCents)}</dd>
+                    </dl>
+                    {daily!.unidentifiedCents > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Método de pago sin identificar: {money(daily!.unidentifiedCents)}
+                      </p>
+                    )}
+                    {daily!.closedSessions > 0 && (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer py-2">Conciliación de cierres</summary>
+                        <p>
+                          Previsto en los cierres:{" "}
+                          {daily!.expectedAtClosures === null
+                            ? "No determinable"
+                            : money(daily!.expectedAtClosures)}
+                        </p>
+                        <p>
+                          Diferencia total de cierres:{" "}
+                          {daily!.differenceAtClosures === null
+                            ? "No determinable"
+                            : money(daily!.differenceAtClosures)}
+                        </p>
+                        <p className="text-muted-foreground">
+                          Los fondos iniciales y el dinero contado no son ingresos del día.
+                        </p>
+                      </details>
+                    )}
                     <section aria-label="Sesiones de caja" className="space-y-3">
                       <h3>Sesiones</h3>
                       {data.sessions.length === 0 && <p>Sin sesiones este día.</p>}
