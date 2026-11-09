@@ -5,6 +5,7 @@ import {
   memberOrderHistory,
   annulFinancialRecord,
   activityFinancialDetail,
+  recordFinancialRefund,
 } from "./member-order-history.server";
 export const getMemberOrderHistory = createServerFn({ method: "POST" })
   .middleware([requireClubMemberAuth])
@@ -57,5 +58,30 @@ export const getActivityFinancialDetail = createServerFn({ method: "POST" })
       context.supabase,
       { userId: context.userId, clubId: context.clubId },
       data.orderId,
+    ),
+  );
+
+export const recordMemberFinancialRefund = createServerFn({ method: "POST" })
+  .middleware([requireClubMemberAuth])
+  .inputValidator((v: unknown) =>
+    z
+      .object({
+        memberId: z.string().uuid(),
+        orderId: z.string().uuid(),
+        method: z.enum(["cash", "card", "transfer"]),
+        reason: z.string().trim().min(5).max(2000),
+        confirmed: z.literal(true),
+      })
+      .strict()
+      .parse(v),
+  )
+  .handler(({ context, data }) =>
+    recordFinancialRefund(
+      context.supabase,
+      { userId: context.userId, clubId: context.clubId },
+      data.memberId,
+      data.orderId,
+      data.method,
+      data.reason,
     ),
   );

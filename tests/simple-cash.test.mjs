@@ -203,6 +203,7 @@ test("server report reads every page, applies verified club/employee filters, an
     ],
     membership_receipts: [],
     financial_order_reversals: [],
+    financial_order_refunds: [],
     profiles: [{ id: "employee-a", full_name: "Synthetic employee" }],
   };
   const client = {

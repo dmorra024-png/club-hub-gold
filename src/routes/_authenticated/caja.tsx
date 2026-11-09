@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from "@/lib/administrative-payment";
 import { FinancialRecordStatus, RECORDS_CHANGED } from "@/components/FinancialRecordDialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -147,10 +148,17 @@ function Caja() {
                           <strong>{money(sessionRevenue(session, data.movements))}</strong>
                         </p>
                         <p>Ingresos en efectivo: {money(reconciliation!.cash)}</p>
+                        {(session.refund_cash_cents ?? 0) > 0 && (
+                          <p>
+                            Reembolsos de efectivo registrados: {money(session.refund_cash_cents!)}
+                          </p>
+                        )}
                         <p>
                           Efectivo esperado:{" "}
                           {reconciliation!.expected === null
-                            ? "No determinable: hay pagos sin método identificado"
+                            ? session.unverified_cancelled_cash
+                              ? "No determinable: revisa el pago original de las anulaciones."
+                              : "No determinable: hay pagos sin método identificado"
                             : money(reconciliation!.expected)}
                         </p>
                         {reconciliation!.expected !== null && parseCashCents(closing) !== null && (
@@ -218,6 +226,23 @@ function Caja() {
                       <dd aria-label="Aportaciones del día">{money(daily!.feeCents)}</dd>
                       <dt>Otros ingresos registrados</dt>
                       <dd>{money(daily!.orderCents)}</dd>
+                      {(data.refunds ?? []).some(
+                        (r: any) => r.method === "cash" && inCashDay(r, data.start, data.end),
+                      ) && (
+                        <>
+                          <dt>Reembolsos efectivos registrados (salidas)</dt>
+                          <dd>
+                            {money(
+                              (data.refunds ?? [])
+                                .filter(
+                                  (r: any) =>
+                                    r.method === "cash" && inCashDay(r, data.start, data.end),
+                                )
+                                .reduce((n: number, r: any) => n + r.cents, 0),
+                            )}
+                          </dd>
+                        </>
+                      )}
                       <dt>Efectivo identificado</dt>
                       <dd aria-label="Efectivo del día">{money(daily!.cashCents)}</dd>
                       <dt>Contado en cierres del día</dt>
@@ -273,7 +298,9 @@ function Caja() {
                           <p>
                             Efectivo esperado:{" "}
                             {reconcileCash(s, data.movements).expected === null
-                              ? "No determinable: hay pagos sin método identificado"
+                              ? s.unverified_cancelled_cash
+                                ? "No determinable: revisa el pago original de las anulaciones."
+                                : "No determinable: hay pagos sin método identificado"
                               : money(reconcileCash(s, data.movements).expected!)}
                           </p>
                           {reconcileCash(s, data.movements).difference !== null && (
@@ -315,6 +342,26 @@ function Caja() {
                             <p>
                               {name(m.by)} · {time(m.at)}
                               {!m.session_id ? " · Sin sesión" : ""}
+                            </p>
+                          </div>
+                        ))}
+                      {(data.refunds ?? [])
+                        .filter((r: any) => inCashDay(r, data.start, data.end))
+                        .map((r: any) => (
+                          <div
+                            key={`refund:${r.id}`}
+                            className="rounded-xl border border-border p-4 text-sm space-y-1"
+                          >
+                            <p>
+                              Reembolso registrado: {money(-r.cents)} ·{" "}
+                              {paymentMethodLabel(r.method)}
+                            </p>
+                            <p>
+                              {name(r.by)} · {time(r.at)}
+                            </p>
+                            <p>{r.reason}</p>
+                            <p className="text-muted-foreground">
+                              Salida separada del total contable neto; no se descuenta dos veces.
                             </p>
                           </div>
                         ))}

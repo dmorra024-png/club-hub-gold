@@ -2,6 +2,7 @@ import {
   financialReversals,
   financialReversalsInPeriod,
   reversalDetail,
+  financialRefundsInPeriod,
 } from "./financial-reversals.server.ts";
 import { clubDayRange } from "./cash-summary.ts";
 import { cashMovements } from "./cash-sessions.ts";
@@ -109,6 +110,30 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
       "recorded_by",
     ),
   );
+  const refunds = await financialRefundsInPeriod(
+    client,
+    scope.clubId,
+    earliest,
+    latest,
+    admin ? undefined : scope.userId,
+  );
+  for (const session of sessions) {
+    session.refund_cash_cents = refunds
+      .filter(
+        (r: any) =>
+          r.method === "cash" &&
+          r.cash_session_id === session.id &&
+          r.recorded_by === session.user_id,
+      )
+      .reduce((n: number, r: any) => n + r.cents, 0);
+    // Original orders do not record payment method: annulment cannot imply cash was returned.
+    session.unverified_cancelled_cash = orders.some(
+      (o: any) =>
+        o.status === "cancelled" &&
+        o.cash_session_id === session.id &&
+        o.created_by === session.user_id,
+    );
+  }
   const movements = cashMovements(orders, fees, sessions);
   const cancelled = orders.filter((o: any) => o.status === "cancelled");
   const [linkedReversals, dayReversals] = await Promise.all([
@@ -155,6 +180,7 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
         ...sessions.flatMap((s: any) => [s.user_id, s.closed_by]),
         ...movements.map((m) => m.by),
         ...auditRecords.map((m) => m.by),
+        ...refunds.map((r: any) => r.recorded_by),
       ].filter(Boolean),
     ),
   ];
@@ -175,6 +201,15 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
     sessions,
     movements,
     auditRecords,
+    refunds: refunds.map((r: any) => ({
+      id: r.id,
+      at: r.recorded_at,
+      by: r.recorded_by,
+      cents: r.cents,
+      method: r.method,
+      reason: r.reason,
+      session_id: r.cash_session_id,
+    })),
     profiles,
     admin: !!admin,
     userId: scope.userId,

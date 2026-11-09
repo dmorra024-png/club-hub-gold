@@ -64,11 +64,14 @@ for (const [label, engine, device] of [
           cancelledBy: null,
           reason: null,
           reversal: null,
-          canCancel: mode === "admin",
+          canCancel: mode === "admin" || (mode === "staff" && n === 0),
+          canRefund: false,
+          annulmentAvailable: mode !== "missing-migration",
         }));
       let writes = 0,
         attempts = 0,
-        failOnce = mode === "admin";
+        failOnce = mode === "admin" || mode === "staff",
+        refundWrites = 0;
       const requests = [];
       const effectiveClub = mode === "foreign" ? "10000000-0000-4000-8000-000000000002" : club;
       const member = {
@@ -93,8 +96,35 @@ for (const [label, engine, device] of [
           if (!u.pathname.includes("_serverFn")) return route.continue();
           const d = req.method() === "POST" ? fromJSON(JSON.parse(req.postData())).data : null;
           let result = { available: false, documents: false };
-          if (d?.reason) {
-            assert.equal(mode, "admin");
+          if (d?.confirmed) {
+            assert.ok(["admin", "staff"].includes(mode));
+            assert.deepEqual(Object.keys(d).sort(), [
+              "confirmed",
+              "memberId",
+              "method",
+              "orderId",
+              "reason",
+            ]);
+            assert.equal(d.method, "cash");
+            assert.equal(d.memberId, mid);
+            assert.equal(d.orderId, oid);
+            const r = records.find((r) => r.id === d.orderId);
+            assert.equal(r.status, "cancelled");
+            assert.ok(!r.reversal.refund);
+            refundWrites++;
+            r.reversal.refund = {
+              reference: "DEV-1",
+              cents: r.cents,
+              method: d.method,
+              by: mode === "staff" ? "Operador sintético" : "Administrador sintético",
+              at: "2026-11-09T12:30:00Z",
+              reason: d.reason,
+            };
+            r.canRefund = false;
+            result = oid;
+          } else if (d?.reason) {
+            assert.ok(["admin", "staff"].includes(mode));
+            if (mode === "staff") assert.equal(d.orderId, oid);
             assert.deepEqual(Object.keys(d).sort(), ["memberId", "orderId", "reason"]);
             assert.equal(d.memberId, mid);
             assert.ok(d.reason.length >= 5);
@@ -114,9 +144,10 @@ for (const [label, engine, device] of [
             Object.assign(r, {
               status: "cancelled",
               canCancel: false,
+              canRefund: true,
               reason: d.reason,
               cancelledAt: "2026-11-09T12:00:00Z",
-              cancelledBy: "Administrador sintético",
+              cancelledBy: mode === "staff" ? "Operador sintético" : "Administrador sintético",
               reversal: {
                 reference: `REC-${writes}`,
                 cents: -r.cents,
@@ -146,7 +177,7 @@ for (const [label, engine, device] of [
                   ]
                 : [],
               hasMore: false,
-              ownOnly: mode === "staff",
+              ownOnly: false,
             };
           } else if (d && Object.hasOwn(d, "day")) {
             const original = records.filter((r) => r.status === "cancelled");
@@ -167,6 +198,17 @@ for (const [label, engine, device] of [
                   payment_method: null,
                 })),
               auditRecords: original.map((r) => ({ ...r, by: uid })),
+              refunds: records
+                .filter((r) => r.reversal?.refund)
+                .map((r) => ({
+                  id: r.id,
+                  at: r.reversal.refund.at,
+                  by: uid,
+                  cents: r.cents,
+                  method: r.reversal.refund.method,
+                  reason: r.reversal.refund.reason,
+                  session_id: null,
+                })),
               profiles: [{ id: uid, full_name: "Operador sintético" }],
               admin: true,
               userId: uid,
@@ -213,8 +255,12 @@ for (const [label, engine, device] of [
                   created_at: r.at,
                   total_cents: r.cents,
                   status: r.status,
-                  created_by: uid,
+                  created_by: r.id === oid ? uid : "00000000-0000-4000-8000-000000000002",
                 }));
+          if (u.searchParams.has("created_by")) {
+            assert.equal(u.searchParams.get("created_by"), `eq.${uid}`);
+            data = data.filter((r) => r.created_by === uid);
+          }
         } else if (u.pathname.endsWith("/order_items")) {
           assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
           data = records.map((r) => ({
@@ -238,10 +284,10 @@ for (const [label, engine, device] of [
       const page = await context.newPage();
       page.setDefaultTimeout(15000);
       page.on("pageerror", (e) => errors.push(e.message));
-      if (mode === "admin") {
+      if (["admin", "staff"].includes(mode)) {
         await page.goto(base + `/soci/${mid}`);
         await page.getByText("Historial de pedidos", { exact: true }).click();
-        await page.getByRole("button", { name: "Anular", exact: true }).first().click();
+        await page.getByRole("button", { name: "Anular operación", exact: true }).first().click();
         let dialog = page.getByRole("dialog");
         await dialog.getByText("Cuaderno de prueba", { exact: false }).waitFor();
         const confirm = dialog.getByRole("button", {
@@ -262,9 +308,27 @@ for (const [label, engine, device] of [
         assert.equal(writes, 1);
         assert.equal(attempts, 2);
         assert.equal(records[0].cents, 1500);
+        await dialog.getByText("Registrar reembolso ya realizado", { exact: true }).click();
+        const refundButton = dialog.getByRole("button", {
+          name: "Confirmar registro de reembolso",
+          exact: true,
+        });
+        assert.ok(await refundButton.isDisabled());
+        await dialog.getByLabel("Método real del reembolso").selectOption("cash");
+        await dialog.getByLabel("Motivo del reembolso").fill("Dinero ya devuelto y verificado");
+        await dialog.getByRole("checkbox").check();
+        await refundButton.dblclick();
+        await dialog.getByText("Reembolso registrado", { exact: true }).waitFor();
+        assert.equal(refundWrites, 1);
+        assert.equal(records[0].reversal.refund.cents, 1500);
+        assert.equal(records[0].reversal.cents, -1500);
+
         await dialog.getByText(/Rectificación REC-1/).waitFor();
         await dialog.getByText(/Neto contable:.*0,00/).waitFor();
-        await dialog.screenshot({ path: `docs/annulment-${label}-detail.png`, scale: "css" });
+        await dialog.screenshot({
+          path: `docs/annulment-${label}${mode === "admin" ? "" : "-owner"}-detail.png`,
+          scale: "css",
+        });
         assert.equal(
           await dialog
             .getByRole("button", { name: "Confirmar anulación contable", exact: true })
@@ -285,7 +349,7 @@ for (const [label, engine, device] of [
           "Cancelled badge renders red",
         );
         await page.screenshot({
-          path: `docs/annulment-${label}-member.png`,
+          path: `docs/annulment-${label}${mode === "admin" ? "" : "-owner"}-member.png`,
           fullPage: true,
           scale: "css",
         });
@@ -295,13 +359,16 @@ for (const [label, engine, device] of [
       await page.getByRole("heading", { name: "Historial", exact: true }).waitFor();
       if (mode === "admin") {
         await page.getByText("ANULADO", { exact: true }).waitFor();
-        assert.equal(await page.getByRole("button", { name: "Anular", exact: true }).count(), 1);
+        assert.equal(
+          await page.getByRole("button", { name: "Anular operación", exact: true }).count(),
+          1,
+        );
         await page.getByRole("button", { name: "Ver detalle", exact: true }).first().click();
         let dialog = page.getByRole("dialog");
         await dialog.getByText(/Rectificación REC-1/).waitFor();
         await dialog.getByText("Administrador sintético", { exact: false }).first().waitFor();
         await dialog.getByRole("button", { name: "Close", exact: true }).click();
-        await page.getByRole("button", { name: "Anular", exact: true }).click();
+        await page.getByRole("button", { name: "Anular operación", exact: true }).click();
         dialog = page.getByRole("dialog");
         await dialog.getByLabel("Motivo de anulación").fill("Segunda operación comprobada");
         await dialog
@@ -313,7 +380,10 @@ for (const [label, engine, device] of [
         await page.waitForFunction(
           () => document.querySelectorAll(".premium-activity-copy strong").length === 2,
         );
-        assert.equal(await page.getByRole("button", { name: "Anular", exact: true }).count(), 0);
+        assert.equal(
+          await page.getByRole("button", { name: "Anular operación", exact: true }).count(),
+          0,
+        );
         await page.screenshot({
           path: `docs/annulment-${label}-activity.png`,
           fullPage: true,
@@ -327,12 +397,17 @@ for (const [label, engine, device] of [
             [...document.querySelectorAll("strong")].filter((el) => el.textContent === "ANULADO")
               .length === 2,
         );
-        assert.equal(await page.getByRole("button", { name: "Anular", exact: true }).count(), 0);
+        assert.equal(
+          await page.getByRole("button", { name: "Anular operación", exact: true }).count(),
+          0,
+        );
         await page.goto(base + "/caja");
         await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
         await page.getByLabel("Total del día").getByText(/0,00/).waitFor();
         await page.getByText(/Rectificación REC-1/).waitFor();
         await page.getByText(/Rectificación REC-2/).waitFor();
+        await page.getByText(/Reembolso registrado:.*15,00/).waitFor();
+        assert.equal(refundWrites, 1);
         assert.equal(writes, 2);
         await page.goto(base + "/ajustes/informes");
         await page.getByText("Ingresos", { exact: true }).waitFor();
@@ -342,9 +417,27 @@ for (const [label, engine, device] of [
           .locator("..")
           .getByText("€0.00", { exact: true })
           .waitFor();
+      } else if (mode === "staff") {
+        await page.getByText("ANULADO", { exact: true }).waitFor();
+        assert.equal(
+          await page.getByRole("button", { name: "Anular operación", exact: true }).count(),
+          0,
+        );
+        await page.getByRole("button", { name: "Ver detalle", exact: true }).first().click();
+        const dialog = page.getByRole("dialog");
+        await dialog.getByText("Reembolso registrado", { exact: true }).waitFor();
+        await dialog.getByText("Anulado por: Operador sintético", { exact: true }).waitFor();
+        assert.equal(
+          await dialog
+            .getByRole("button", { name: "Confirmar anulación contable", exact: true })
+            .count(),
+          0,
+        );
+        assert.equal(writes, 1);
+        assert.equal(refundWrites, 1);
       } else {
         assert.equal(
-          await page.getByRole("button", { name: "Anular", exact: true }).count(),
+          await page.getByRole("button", { name: "Anular operación", exact: true }).count(),
           mode === "missing-migration" ? 2 : 0,
         );
         if (["staff", "missing-migration"].includes(mode)) {
@@ -367,7 +460,7 @@ for (const [label, engine, device] of [
       }
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       assert.deepEqual(errors, []);
-      results.push({ browser: label, mode, status: "PASS", writes, attempts });
+      results.push({ browser: label, mode, status: "PASS", writes, attempts, refundWrites });
       await context.close();
     }
   } finally {

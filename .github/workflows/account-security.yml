@@ -22,6 +22,8 @@ jobs:
       - name: Install locked dependencies
         run: '"$RUNNER_TEMP/bun-tools/node_modules/.bin/bun" install --frozen-lockfile'
       - run: npm test
+      - name: PostgreSQL concurrent accounting checks (synthetic, isolated)
+        run: npm run test:annulment:concurrency
       - run: npm run typecheck
       - run: npm run build
       - name: Account HTTP smoke test

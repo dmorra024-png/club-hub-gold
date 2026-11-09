@@ -8,3 +8,14 @@ export function paymentReview(totalCents: number, method: string, received: stri
     ? null
     : { totalCents, receivedCents: cents, changeCents: cents - totalCents };
 }
+
+export function paymentMethodLabel(method: string) {
+  return (
+    (
+      { cash: "Efectivo", card: "Tarjeta", transfer: "Transferencia", other: "Otro" } as Record<
+        string,
+        string
+      >
+    )[method] ?? "No identificado"
+  );
+}

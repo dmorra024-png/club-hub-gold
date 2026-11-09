@@ -1,9 +1,11 @@
+import { paymentMethodLabel } from "@/lib/administrative-payment";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   getMemberOrderHistory,
   getActivityFinancialDetail,
   annulMemberFinancialRecord,
+  recordMemberFinancialRefund,
 } from "@/lib/member-order-history.functions";
 import {
   Dialog,
@@ -50,7 +52,11 @@ export function FinancialRecordDialog({
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
     [committed, setCommitted] = useState(false),
-    [retry, setRetry] = useState(0);
+    [retry, setRetry] = useState(0),
+    [refundRecorded, setRefundRecorded] = useState(false),
+    [refundMethod, setRefundMethod] = useState(""),
+    [refundReason, setRefundReason] = useState(""),
+    [refundConfirmed, setRefundConfirmed] = useState(false);
   const sending = useRef(false),
     sequence = useRef(0);
   const data = stored?.scope === scope ? stored.data : null,
@@ -67,6 +73,10 @@ export function FinancialRecordDialog({
     setError("");
     setReason("");
     setCommitted(false);
+    setRefundRecorded(false);
+    setRefundMethod("");
+    setRefundReason("");
+    setRefundConfirmed(false);
     read()
       .then((result) => {
         if (version === sequence.current) setStored({ scope, data: result });
@@ -83,7 +93,7 @@ export function FinancialRecordDialog({
       sending.current ||
       committed ||
       !order?.canCancel ||
-      access.role !== "admin" ||
+      !can("use_cash") ||
       reason.trim().length < 5
     )
       return;
@@ -115,6 +125,49 @@ export function FinancialRecordDialog({
             ? e.message
             : "No se pudo anular el registro. Consulta su estado antes de reintentar.",
         );
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  }
+  async function refund() {
+    if (
+      sending.current ||
+      refundRecorded ||
+      !order?.canRefund ||
+      !refundConfirmed ||
+      !refundMethod ||
+      refundReason.trim().length < 5
+    )
+      return;
+    sending.current = true;
+    setBusy(true);
+    setError("");
+    const version = sequence.current;
+    try {
+      await recordMemberFinancialRefund({
+        data: {
+          memberId: memberId || data.memberId,
+          orderId,
+          method: refundMethod as "cash" | "card" | "transfer",
+          reason: refundReason.trim(),
+          confirmed: true,
+        },
+      });
+      if (version !== sequence.current) return;
+      window.dispatchEvent(new Event(RECORDS_CHANGED));
+      // Suppress another submission even if the follow-up read fails.
+      setRefundConfirmed(false);
+      setRefundRecorded(true);
+      const result = await read();
+      if (!result.orders[0]?.reversal?.refund)
+        throw new Error(
+          "El reembolso fue aceptado pero no se pudo releer. Consulta el estado antes de reintentar.",
+        );
+      if (version === sequence.current) setStored({ scope, data: result });
+    } catch (e) {
+      if (version === sequence.current)
+        setError(e instanceof Error ? e.message : "No se pudo registrar el reembolso");
     } finally {
       sending.current = false;
       setBusy(false);
@@ -155,13 +208,14 @@ export function FinancialRecordDialog({
               </p>
               <p className="text-sm text-muted-foreground">{recordTime(order.at)}</p>
             </div>
-            {data.items.map((i: any) => (
+            {(order.reversal?.items ?? data.items).map((i: any) => (
               <p key={i.id} className="text-sm border-b border-border py-2">
                 {i.product_name} · {i.quantity} {i.unit_type} · {formatPrice(i.line_total_cents)}
               </p>
             ))}
             {order.status === "cancelled" && (
-              <div className="rounded-xl border border-red-400/30 p-4 space-y-2 text-sm">
+              <div className="rounded-xl border border-red-400/30 p-4 space-y-2 text-sm break-words">
+                <h3 className="font-display">Detalles de anulación</h3>
                 <p>Motivo: {order.reason || "No registrado"}</p>
                 <p>Anulado por: {order.cancelledBy || "No registrado"}</p>
                 <p>{order.cancelledAt ? recordTime(order.cancelledAt) : "Fecha no registrada"}</p>
@@ -180,15 +234,98 @@ export function FinancialRecordDialog({
                 )}
               </div>
             )}
+            {order.status === "cancelled" && order.reversal && (
+              <div className="text-sm space-y-3 border-t border-border pt-3">
+                {order.reversal.refund ? (
+                  <>
+                    <p className="font-display">Reembolso registrado</p>
+                    <p>
+                      {formatPrice(order.reversal.refund.cents)} ·{" "}
+                      {paymentMethodLabel(order.reversal.refund.method)}
+                    </p>
+                    <p>
+                      {order.reversal.refund.by} · {recordTime(order.reversal.refund.at)}
+                    </p>
+                    <p>
+                      {order.reversal.refund.reference} · {order.reversal.refund.reason}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">
+                    {refundRecorded
+                      ? "Registro de reembolso aceptado; consulta de confirmación pendiente."
+                      : "Sin constancia de reembolso realizado. La anulación contable no devuelve dinero."}
+                  </p>
+                )}
+                {order.canRefund && !refundRecorded && (
+                  <details>
+                    <summary className="cursor-pointer text-neon py-2">
+                      Registrar reembolso ya realizado
+                    </summary>
+                    <div className="space-y-3 pt-2">
+                      <p>
+                        Importe completo: {formatPrice(order.cents)}. Esta acción solo registra
+                        dinero ya devuelto; no realiza un pago.
+                      </p>
+                      <label className="block">
+                        Método real del reembolso
+                        <select
+                          aria-label="Método real del reembolso"
+                          value={refundMethod}
+                          disabled={busy}
+                          onChange={(e) => setRefundMethod(e.target.value)}
+                          className="w-full rounded-lg border border-border bg-input p-2 text-foreground [color-scheme:dark]"
+                        >
+                          <option value="">Selecciona el método real</option>
+                          <option value="cash">Efectivo</option>
+                          <option value="card">Tarjeta</option>
+                          <option value="transfer">Transferencia</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        Motivo del reembolso
+                        <textarea
+                          aria-label="Motivo del reembolso"
+                          disabled={busy}
+                          maxLength={2000}
+                          value={refundReason}
+                          onChange={(e) => setRefundReason(e.target.value)}
+                          className="w-full rounded-lg border border-border bg-input p-2"
+                        />
+                      </label>
+                      <label className="flex gap-2">
+                        <input
+                          type="checkbox"
+                          disabled={busy}
+                          checked={refundConfirmed}
+                          onChange={(e) => setRefundConfirmed(e.target.checked)}
+                        />
+                        Confirmo que el dinero ya se ha devuelto y no está registrado previamente.
+                      </label>
+                      <Button
+                        disabled={
+                          busy ||
+                          !refundConfirmed ||
+                          !refundMethod ||
+                          refundReason.trim().length < 5
+                        }
+                        onClick={refund}
+                      >
+                        Confirmar registro de reembolso
+                      </Button>
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
             {order.status === "completed" &&
-              access.role === "admin" &&
               can("use_cash") &&
-              !order.canCancel && (
+              order.annulmentAvailable === false && (
                 <p role="status" className="text-sm text-muted-foreground">
                   Anulación con rectificación pendiente de activación en la base de datos.
                 </p>
               )}
-            {order.canCancel && access.role === "admin" && !committed && (
+            {order.canCancel && can("use_cash") && !committed && (
               <div className="space-y-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground">
                   Anular conserva el original y registra una rectificación. No devuelve dinero ni

@@ -157,7 +157,11 @@ for (const [label, engine, device] of [
             clubId: club,
             clubName: "Club de prueba",
             permissions:
-              mode === "no-finance" ? ["manage_members"] : ["manage_members", "use_cash"],
+              mode === "no-finance"
+                ? ["manage_members"]
+                : mode === "staff"
+                  ? ["manage_members", "view_reports"]
+                  : ["manage_members", "use_cash"],
           };
         else if (u.pathname.endsWith("/rpc/current_club_id")) data = club;
         else if (u.pathname.endsWith("/rpc/is_super_admin")) data = false;

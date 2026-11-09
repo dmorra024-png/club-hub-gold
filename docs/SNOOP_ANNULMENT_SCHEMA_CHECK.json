@@ -1,0 +1,214 @@
+{
+  "project_ref": "bnwanxbmprbymbutoths",
+  "project_name": "Snoop-pilot",
+  "read_only_catalog_select": true,
+  "schema": [
+    {
+      "schema_check": {
+        "columns": [
+          {
+            "type": "uuid",
+            "table": "cash_sessions",
+            "column": "id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "cash_sessions",
+            "column": "club_id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "cash_sessions",
+            "column": "user_id",
+            "nullable": "NO"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "cash_sessions",
+            "column": "opened_at",
+            "nullable": "NO"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "cash_sessions",
+            "column": "closed_at",
+            "nullable": "YES"
+          },
+          {
+            "type": "integer",
+            "table": "cash_sessions",
+            "column": "opening_cash_cents",
+            "nullable": "NO"
+          },
+          {
+            "type": "integer",
+            "table": "cash_sessions",
+            "column": "closing_cash_cents",
+            "nullable": "YES"
+          },
+          {
+            "type": "text",
+            "table": "cash_sessions",
+            "column": "notes",
+            "nullable": "YES"
+          },
+          {
+            "type": "text",
+            "table": "cash_sessions",
+            "column": "status",
+            "nullable": "NO"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "cash_sessions",
+            "column": "created_at",
+            "nullable": "NO"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "cash_sessions",
+            "column": "updated_at",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "cash_sessions",
+            "column": "closed_by",
+            "nullable": "YES"
+          },
+          {
+            "type": "uuid",
+            "table": "order_items",
+            "column": "id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "order_items",
+            "column": "order_id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "order_items",
+            "column": "product_id",
+            "nullable": "YES"
+          },
+          {
+            "type": "text",
+            "table": "order_items",
+            "column": "product_name",
+            "nullable": "NO"
+          },
+          {
+            "type": "text",
+            "table": "order_items",
+            "column": "unit_type",
+            "nullable": "NO"
+          },
+          {
+            "type": "numeric",
+            "table": "order_items",
+            "column": "quantity",
+            "nullable": "NO"
+          },
+          {
+            "type": "integer",
+            "table": "order_items",
+            "column": "unit_price_cents",
+            "nullable": "NO"
+          },
+          {
+            "type": "integer",
+            "table": "order_items",
+            "column": "line_total_cents",
+            "nullable": "NO"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "order_items",
+            "column": "created_at",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "order_items",
+            "column": "club_id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "orders",
+            "column": "id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "orders",
+            "column": "member_id",
+            "nullable": "NO"
+          },
+          {
+            "type": "integer",
+            "table": "orders",
+            "column": "total_cents",
+            "nullable": "NO"
+          },
+          {
+            "type": "text",
+            "table": "orders",
+            "column": "status",
+            "nullable": "NO"
+          },
+          {
+            "type": "text",
+            "table": "orders",
+            "column": "notes",
+            "nullable": "YES"
+          },
+          {
+            "type": "uuid",
+            "table": "orders",
+            "column": "created_by",
+            "nullable": "YES"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "orders",
+            "column": "created_at",
+            "nullable": "NO"
+          },
+          {
+            "type": "timestamp with time zone",
+            "table": "orders",
+            "column": "updated_at",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "orders",
+            "column": "club_id",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "orders",
+            "column": "cash_session_id",
+            "nullable": "YES"
+          }
+        ],
+        "refunds_exists": false,
+        "reversals_exists": false,
+        "platform_functions": true,
+        "order_update_triggers": [
+          {
+            "name": "orders_updated",
+            "function": "tg_set_updated_at()"
+          }
+        ]
+      }
+    }
+  ]
+}

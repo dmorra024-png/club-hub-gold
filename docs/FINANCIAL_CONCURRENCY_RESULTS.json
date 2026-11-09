@@ -1,0 +1,26 @@
+{
+  "engine": "PostgreSQL 17.11",
+  "image": "postgres:17-alpine",
+  "synthetic": true,
+  "remoteDatabase": false,
+  "network": "none",
+  "publicPorts": false,
+  "cases": [
+    {
+      "operation": "annul",
+      "sessions": 7,
+      "lockWaitersObserved": 6,
+      "uniqueEntries": 1,
+      "status": "PASS"
+    },
+    {
+      "operation": "refund",
+      "sessions": 7,
+      "lockWaitersObserved": 2,
+      "uniqueEntries": 1,
+      "status": "PASS"
+    }
+  ],
+  "stockUnchanged": true,
+  "paymentExecuted": false
+}

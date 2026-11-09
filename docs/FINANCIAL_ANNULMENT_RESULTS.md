@@ -1,67 +1,65 @@
-# Annullamento contabile condiviso — SNOOP
+# SNOOP — revisione annullamenti contabili e rimborsi dichiarati
 
-## Implementazione
+**Stato: implementazione amministrativa verificata; richiesta complessiva NON completata.** Il ripristino automatico delle scorte di cannabis e l'annullamento automatico generico delle altre attività non sono implementati. I PASS sotto riguardano esclusivamente le funzionalità indicate, non l'intero flusso vendita–stock richiesto.
 
-I due punti esistenti, **Ficha del socio → Historial de pedidos** e **Historial → Últimas actividades** (`/actividades`), aprono lo stesso `FinancialRecordDialog`. Il dettaglio dalla pagina attività risolve il socio sul server con il JWT dell'utente e riutilizza `memberOrderHistory`. Entrambe le viste invocano esclusivamente `annulMemberFinancialRecord` → `annulFinancialRecord` → `annul_financial_order`.
+## Funzioni effettivamente implementate
 
-Solo un amministratore del club attivo, con gestione soci e cassa, può confermare. Il motivo è obbligatorio (5–2000 caratteri). L'originale rimane visibile con **ANULADO in rosso**; il dettaglio mostra autore/data/importo originali, amministratore/data/motivo dell'annullamento, riferimento e importo della rettifica. Le liste aggiornano il proprio contenuto dopo la conferma. Nessun nuovo menu o archivio.
+- Il collaboratore con permessi `manage_members` e `use_cash` può stornare contabilmente soltanto le proprie registrazioni. Un collaboratore autorizzato alla lettura dei report non acquisisce il diritto di stornare operazioni altrui. L'amministratore del club può intervenire anche sulle registrazioni degli altri operatori. Club inattivi, altri club e account di piattaforma rimangono esclusi.
+- Un solo componente e una sola RPC per i due storici esistenti: ficha del socio e Historial → Últimas actividades → Ver todas. Pulsante `Anular operación`, conferma e motivo obbligatorio. Nessuna nuova pagina o menu; grafica premium conservata.
+- Stato **ANULADO** rosso, originale conservato e una rettifica negativa immutabile. `Detalles de anulación` espone operatore e data originali, importo, autore/data/motivo dello storno, riferimento e fotografia documentale dei prodotti/quantità originali. La fotografia non modifica l'inventario.
+- Lock della riga, vincolo UNIQUE e replay idempotente impediscono duplicazioni. Identità, club, importi, quantità documentali e date derivano dal database; non sono parametri modificabili dal frontend.
+- Registro separato e immutabile del **rimborso integrale già eseguito**, con conferma esplicita dell'utente, metodo reale e motivo. Non esegue trasferimenti, pagamenti o restituzioni di contanti: registra una dichiarazione dell'operatore, non una conferma di un provider. Importo ricavato dalla rettifica originale, unico rimborso per rettifica, protezione da doppi clic e richieste concorrenti.
+- La rettifica originale non viene aggiornata per aggiungere il rimborso. La nuova tabella `financial_order_refunds` rappresenta il movimento distinto richiesto, non una duplicazione del registro esistente. Il suo inserimento è riservato alla funzione verificata lato server; non sono concessi INSERT/UPDATE/DELETE agli utenti autenticati.
 
-Il campo `canCancel` resta falso quando la nuova tabella non è disponibile: la vecchia RPC non viene chiamata come alternativa senza rettifica. Un errore conserva il motivo. Dopo una conferma riuscita, un errore nella rilettura non riabilita il pulsante per una seconda operazione.
+## Caja e tracciabilità
 
-## Unica migrazione proposta — NON APPLICATA
+I totali contabili netti escludono gli originali annullati. Non viene sottratto nuovamente il delta della rettifica né il rimborso, evitando doppi conteggi. Originale, rettifica e rimborso dichiarato rimangono consultabili separatamente nei report esistenti.
 
-`docs/sql/SNOOP_FINANCIAL_REVERSALS_PROPOSED.sql`:
+Un rimborso dichiarato in contanti è associato alla sessione aperta dell'utente verificato, se presente; altrimenti rimane fuori sessione. È una distinta uscita del cassetto, non un nuovo importo negativo nei ricavi netti. Il saldo atteso considera questo movimento solo quando i dati del cassetto sono determinabili. Se un ordine annullato della sessione non ha un metodo di pagamento originale verificabile, non viene inventato un saldo: la riconciliazione resta non determinabile e richiede revisione. Il fondo iniziale non diventa un incasso.
 
-- Una transazione atomica, applicabile una volta, dipendente dallo schema SNOOP e dalla separazione piattaforma/club. Provata localmente sia con sia senza la precedente proposta `SNOOP_ADMINISTRATIVE_RECORDS_PROPOSED.sql`. Non richiede di rieseguire le migrazioni precedenti e non attiva né sostituisce la conferma delle quote associative.
-- Aggiunge le colonne di audit se mancanti e una tabella `financial_order_reversals`, con una sola rettifica per ordine, collegamento al club, importo originale e delta negativo. Nessun backfill, cancellazione, modifica di importi storici o delle RLS esistenti.
-- Il trigger affidabile registra la rettifica nella stessa transazione dell'annullamento. Solo esso può inserire; i normali utenti non possono creare, modificare o cancellare rettifiche. Ulteriore trigger protegge l'immutabilità anche da aggiornamenti diretti privilegiati.
-- Identità e date sono derivate dal server. Le future registrazioni conservano il calcolo iniziale del totale nella transazione di creazione; modifiche successive dell'importo, dell'autore, della data o dell'associazione al club/sessione sono bloccate. Questo evita di rompere l'RPC già esistente che inizializza il totale e lo calcola prima del commit.
-- I nomi degli operatori vengono fotografati al momento dell'annullamento e rimangono stabili anche se cambia il profilo. Non si ricostruiscono nomi storici precedenti non registrati.
-- Lock sulla riga, vincolo UNIQUE e replay idempotente: la stessa richiesta ritornata per un problema di rete non genera un secondo storno; un nuovo annullamento con motivo o amministratore diverso viene respinto.
-- Un errore nell'inserimento della rettifica provoca rollback anche dello stato dell'operazione. Trigger UPDATE sconosciuti e ripetizione della migrazione causano interruzione, senza applicazione parziale.
+Lo schema attuale degli ordini non registra il metodo di pagamento. Non vengono reinterpretati retroattivamente i dati né presunti pagamenti in contanti. Il rimborso supportato è integrale: rimborsi parziali e trasferimenti effettivi tramite provider non sono implementati.
 
-## Report e inventario
+## Migrazione esistente aggiornata — NON APPLICATA
 
-I totali netti della Caja continuano a conteggiare soltanto operazioni completate. La rettifica NON viene sommata di nuovo a questi totali: lo storno non è sottratto due volte. Dentro lo stesso Informe de caja vengono mostrati originale e rettifica, anche quando registrati in date diverse, consultabili sul giorno originale e sul giorno della rettifica.
+È stato modificato lo stesso file `docs/sql/SNOOP_FINANCIAL_REVERSALS_PROPOSED.sql`, senza creare una seconda migrazione concorrente. Contiene una sola transazione: audit contabile, nuovi permessi dell'autore e registro distinto dei rimborsi. Nessun backfill o cancellazione di movimenti storici; nessuna modifica alle policy delle tabelle esistenti. Nuove tabelle con RLS, chiavi per club e immutabilità. Se la proposta risulta già installata o sono presenti trigger UPDATE sconosciuti, si interrompe senza applicazione parziale.
 
-I riepiloghi di Informes escludono anche le righe appartenenti a ordini annullati e leggono tutte le pagine degli ordini e dei dettagli nel periodo. Nessuna modifica ai dettagli o all'inventario storico. Una rettifica contabile non costituisce rimborso fisico: non viene simulato un pagamento di ritorno. I conteggi del cassetto restano separati dai totali contabili netti.
+Verifica reale del 09/11/2026: GET dell'esatto progetto `bnwanxbmprbymbutoths` e unicamente SELECT dei cataloghi di sistema. Risultato: progetto Snoop-pilot verificato, tabelle `financial_order_reversals` e `financial_order_refunds` assenti, dipendenze di piattaforma presenti, unico trigger UPDATE degli ordini `orders_updated` → `tg_set_updated_at()`. Evidenza: `SNOOP_ANNULMENT_SCHEMA_CHECK.json`. Non sono state lette anagrafiche, documenti o righe finanziarie reali. Le prove sui dati impiegano soltanto fixture sintetiche.
 
-Lo stock e i movimenti d'inventario non vengono reintegrati, riscritti o cancellati. Una eventuale rettifica fisica deve seguire il flusso di inventario già esistente, con quantità effettivamente verificate.
+La compatibilità è stata provata localmente con lo schema iniziale completo e con la variante contenente la precedente proposta amministrativa. Rimane preservato il calcolo del totale nella transazione iniziale di creazione; riscritture successive di importo, autore o data sono bloccate.
 
-## Verifiche eseguite
+## Prove effettivamente eseguite
 
-| Verifica | Esito | Evidenza |
-|---|---|---|
-| Suite automatica completa | PASS, 258/258 | `npm test` |
-| PostgreSQL/PGlite, due varianti dello schema | PASS | `tests/financial-reversals.test.mjs` |
-| Amministratori, collaboratori, altro club e Super Admin | PASS | JWT/RLS reali nel PostgreSQL locale |
-| Motivo obbligatorio, doppio annullamento/replay, immutabilità | PASS | RPC e trigger reali locali |
-| Rollback della rettifica fallita, nessun restock | PASS | Stato originale e inventario confrontati prima/dopo |
-| Logica server condivisa + report su date diverse | PASS | Client di test che esegue SELECT e RPC su PostgreSQL locale mantenendo il ruolo/JWT |
-| Creazione iniziale compatibile, modifica storica respinta | PASS | Transazione iniziale e aggiornamento successivo separati |
-| Browser Chromium viewport Samsung e WebKit iPhone | PASS, 10 casi | `FINANCIAL_ANNULMENT_BROWSER_RESULTS.json` |
-| Annullo da entrambe le viste e rilettura dell'altra | PASS | Due registrazioni sintetiche, due sole rettifiche |
-| Errori, motivo conservato, doppio clic, schema non attivato | PASS | API intercettate, nessuna produzione |
-| Report Caja e Informes escludono gli annullati | PASS | Controllo UI e integrazione server/PostgreSQL |
-| Regressione storico/iscrizione/rinnovo/tastiera | PASS, 6 casi | `test:records:browser` |
-| Regressione Caja | PASS, Samsung e WebKit | `test:cash:browser` |
-| Regressione sconti | PASS, 6 casi | `test:discounts:browser` |
-| Home, navigazione, profilo, logout | PASS, 6 viewport | `test:premium:home`, compreso WebKit |
-| TypeScript e build | PASS | `typecheck`, `build` |
-| Bundle pubblico | PASS, 73 artefatti | `test:security:bundle` |
+| Prova | Esito e ambito |
+|---|---|
+| Suite automatica completa | PASS 263/263, fixture sintetiche |
+| TypeScript, build Node e build Workers locale, bundle pubblico | PASS; nessuna chiave privata nei 73 artefatti controllati |
+| Autore, amministratore, collega abilitato alla cassa/report, altro club, Super Admin | PASS su PostgreSQL/PGlite locale; il collega abilitato non può stornare né registrare rimborsi altrui |
+| Originale e rettifica immutabili, motivo obbligatorio, replay, rollback | PASS, SQL reale locale |
+| Fotografia documentale dei prodotti/quantità | PASS; nessun reintegro stock |
+| Rimborsi integrali dichiarati, importo server, metodo obbligatorio, secondo rimborso respinto | PASS su database locale e UI con API simulate |
+| Fallimento della registrazione del rimborso | PASS: nessun rimborso salvato, rettifica precedente invariata |
+| Accesso ai propri movimenti di cassa senza accesso all'audit del socio | PASS, policy PostgreSQL locali |
+| Due storici, doppio clic, errore con motivo conservato, schema non attivato | PASS, 10 casi Chromium viewport Samsung/WebKit iPhone |
+| Caja, rinnovi, storico e tastiera | PASS nelle rispettive regressioni browser |
+| Sconti, home, navigazione, profilo e logout | PASS nelle rispettive regressioni browser |
 
-Screenshot di interfacce realmente renderizzate con dati sintetici: `annulment-{samsung,iphone-webkit}-{member,activity,detail}.png`.
+### Contesa reale tra connessioni
 
-## Limiti e attivazione
+`test:annulment:concurrency` avvia un PostgreSQL **17.11** isolato in Docker, senza rete né porte pubblicate e con dati sintetici. Una connessione mantiene il lock della riga mentre altre sei invocano la stessa funzione. Sono state osservate vere attese sui lock tramite `pg_stat_activity`:
 
-- Nessuna verifica su dispositivi fisici; Samsung/iPhone sono viewport Chromium/WebKit. Le prove browser intercettano le API. Le prove database impiegano PostgreSQL locale, non Supabase remoto.
-- La migrazione NON è stata applicata al progetto reale; senza la sua approvazione e successivo deployment la nuova rettifica non è attiva online.
-- Gli annullamenti anteriori privi di rettifica restano distinguibili con dati non registrati; non vengono inventati storni retroattivi.
-- Ambito: registrazioni già confermate di `orders` nei due storici. Non viene annullata automaticamente l'iscrizione di un socio né emesso un rimborso.
-- Nessun merge, deployment, cambio di segreti, account o accesso a Security PSG.
+- Annullamento contabile: 7 connessioni, 6 attese osservate, una sola rettifica.
+- Registro del rimborso: 7 connessioni, 2 attese osservate, una sola dichiarazione di rimborso.
 
-## Stabilizzazione della prova WebKit generale
+Il controllo finale verifica importo originale invariato, delta contabile esatto, rimborso unico e stock invariato. Non è una prova di restituzione dello stock né di pagamento reale. Il container e il relativo volume sono rimossi al termine. Evidenza: `FINANCIAL_CONCURRENCY_RESULTS.json`. Il controllo è aggiunto alla CI mantenendo gli altri test.
 
-La prima CI del commit `4044cc9` ha superato tutti i dieci casi nuovi di annullamento e le regressioni degli storici, ma ha segnalato un errore CORS su una richiesta attività `members` nel test generale `test-snoop-completion.mjs`, durante le transizioni tra ruolo amministratore e collaboratore e accessi diretti a pagine protette. Le API erano intercettate: non era una risposta RLS di Supabase reale.
+Screenshot realmente renderizzati con dati sintetici: `annulment-{samsung,iphone-webkit}-{member,detail,activity}.png` e `annulment-{samsung,iphone-webkit}-owner-{member,detail}.png`.
 
-La fixture ora attende contenuto della home e letture indipendenti prima di chiudere il documento e cambiare ruolo. Ogni verifica di accesso diretto parte da una nuova pagina dello stesso contesto autenticato. È stata introdotta latenza di 250 ms nelle risposte attività per esercitare il caso asincrono. Le asserzioni su errori, permessi, assenza di scritture, OTP monouso e password non sono state rimosse o attenuate; nessun aumento dei timeout. Prova locale finale PASS su Android Chromium, emulazione iPhone e WebKit. Nessuna modifica alle RLS o all'autenticazione dell'app per aggirare il problema del test.
+## Requisiti non completati — nessun PASS implicito
+
+- **Ripristino automatico dello stock:** non implementato. Le quantità di cannabis disponibili per la distribuzione non vengono ricostituite automaticamente. I test accertano la conservazione dello stock corrente, anche dopo un successivo cambiamento di valore, non il reintegro richiesto.
+- **Compensazione automatica dei movimenti d'inventario:** non implementata. Nessun movimento fisico viene generato dall'annullamento contabile.
+- **Ripristino di aggiornamenti prodotto:** non implementato. Il codice attuale non conserva una fotografia verificabile dei valori precedenti; non viene sovrascritto lo stato corrente inventando valori passati.
+- **Annullamento generico di qualsiasi attività o quota:** non implementato. Non si riutilizza la RPC degli ordini per modificare iscrizioni, inventario o aggiornamenti prodotto.
+- **Audit delle compensazioni di stock:** non presente, perché tali compensazioni non vengono create. Rimangono originali, rettifica contabile e dichiarazione separata del rimborso.
+- **Pagamenti/rimborsi fisici, hardware Samsung/iPhone:** non verificati. I browser sono simulazioni di viewport; la restituzione di denaro è una dichiarazione esplicita dell'utente.
+- **Migrazione/deployment:** non eseguiti. Prima dell'attivazione online servono autorizzazioni specifiche sulla revisione aggiornata del file SQL e sulla pubblicazione. Nessun merge o intervento su Security PSG.

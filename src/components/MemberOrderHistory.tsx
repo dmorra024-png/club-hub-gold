@@ -94,7 +94,7 @@ export function MemberOrderHistory({ memberId }: { memberId: string }) {
                         className="ml-4 text-red-400 py-2"
                         onClick={() => setSelectedId(o.id)}
                       >
-                        Anular
+                        Anular operación
                       </button>
                     )}
                   </div>

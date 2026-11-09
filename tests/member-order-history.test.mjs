@@ -45,6 +45,7 @@ function fixture(
       },
     ],
     financial_order_reversals: [],
+    financial_order_refunds: [],
     profiles: [{ id: "staff", full_name: "Personal de prueba" }],
     order_items: [],
   };
@@ -113,7 +114,7 @@ test("staff sees only own financial records; DTO never returns raw member/club/n
   assert.equal(result.orders.length, 1);
   assert.equal(result.ownOnly, true);
   assert.equal(result.orders[0].operator, "Personal de prueba");
-  assert.equal(result.orders[0].canCancel, false);
+  assert.equal(result.orders[0].canCancel, true);
   assert.ok(
     f.calls.some((c) => c.table === "orders" && c.key === "created_by" && c.value === "staff"),
   );
@@ -123,16 +124,26 @@ test("staff sees only own financial records; DTO never returns raw member/club/n
     /Registro no disponible/,
   );
 });
-test("only verified club admin can annul; caller supplies no actor or club fields", async () => {
+test("own employee or club admin can annul; caller supplies no actor or club fields", async () => {
   await assert.rejects(
-    annulFinancialRecord(fixture().client, scope, "m", "order", "Valid reason"),
+    annulFinancialRecord(fixture().client, scope, "m", "other-actor", "Valid reason"),
     /administrador/,
   );
   const f = fixture("admin");
-  await annulFinancialRecord(f.client, scope, "m", "order", "Valid reason");
+  await annulFinancialRecord(
+    f.client,
+    scope,
+    "m",
+    "00000000-0000-4000-8000-000000000001",
+    "Valid reason",
+  );
   assert.deepEqual(f.calls.at(-1), {
     rpc: "annul_financial_order",
-    args: { p_member_id: "m", p_order_id: "order", p_reason: "Valid reason" },
+    args: {
+      p_member_id: "m",
+      p_order_id: "00000000-0000-4000-8000-000000000001",
+      p_reason: "Valid reason",
+    },
   });
   const history = await memberOrderHistory(f.client, scope, "m");
   assert.equal(history.orders.length, 2);
@@ -185,7 +196,13 @@ test("missing reversal migration disables cancellation and never invokes the leg
   const history = await memberOrderHistory(f.client, scope, "m");
   assert.equal(history.orders[0].canCancel, false);
   await assert.rejects(
-    annulFinancialRecord(f.client, scope, "m", "order", "Valid reason"),
+    annulFinancialRecord(
+      f.client,
+      scope,
+      "m",
+      "00000000-0000-4000-8000-000000000001",
+      "Valid reason",
+    ),
     /no está activada/,
   );
   assert.ok(!f.calls.some((c) => c.rpc === "annul_financial_order"));

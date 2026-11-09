@@ -16,6 +16,7 @@ async function historyAccess(client: any, scope: HistoryScope) {
   )
     throw new Error("No tienes permiso para consultar este historial");
   return {
+    canCash: access.permissions.includes("use_cash"),
     admin: access.role === "admin" && access.permissions.includes("use_cash"),
     all: access.role === "admin" || access.permissions.includes("view_reports"),
   };
@@ -79,8 +80,16 @@ export async function memberOrderHistory(
       cancelledBy: reversal?.cancelled_by_name ?? (r.cancelled_by ? name(r.cancelled_by) : null),
       reason: reversal?.reason ?? r.cancellation_reason ?? null,
       reversal: reversalDetail(reversal),
+      annulmentAvailable: reversals.available,
+      canRefund:
+        (access.admin || (access.canCash && r.created_by === scope.userId)) &&
+        reversals.available &&
+        r.status === "cancelled" &&
+        !!reversal &&
+        reversal.original_cents > 0 &&
+        !reversal.refund,
       canCancel:
-        access.admin &&
+        (access.admin || (access.canCash && r.created_by === scope.userId)) &&
         reversals.available &&
         r.status === "completed" &&
         Object.hasOwn(r, "cancelled_at"),
@@ -112,7 +121,7 @@ export async function annulFinancialRecord(
   reason: string,
 ) {
   const access = await historyAccess(client, scope);
-  if (!access.admin) throw new Error("Solo el administrador del club puede anular registros");
+  await financialWriteAccess(client, scope, access, memberId, orderId);
   if (!reason || reason.trim().length < 5 || reason.length > 2000)
     throw new Error("Indica un motivo de 5 a 2000 caracteres");
   const capability = await financialReversals(client, scope.clubId, [orderId]);
@@ -147,4 +156,56 @@ export async function activityFinancialDetail(client: any, scope: HistoryScope, 
     ...(await memberOrderHistory(client, scope, order.member_id, 0, orderId)),
     memberId: order.member_id,
   };
+}
+
+async function financialWriteAccess(
+  client: any,
+  scope: HistoryScope,
+  access: { admin: boolean; canCash: boolean },
+  memberId: string,
+  orderId: string,
+) {
+  if (!access.canCash) throw new Error("No tienes permiso de caja");
+  const operation = await checked(
+    client
+      .from("orders")
+      .select("id,created_by")
+      .eq("club_id", scope.clubId)
+      .eq("member_id", memberId)
+      .eq("id", orderId)
+      .maybeSingle(),
+  );
+  if (!operation || (!access.admin && operation.created_by !== scope.userId))
+    throw new Error("Solo puedes anular tus propias operaciones o ser administrador del club");
+}
+export async function recordFinancialRefund(
+  client: any,
+  scope: HistoryScope,
+  memberId: string,
+  orderId: string,
+  method: string,
+  reason: string,
+) {
+  const access = await historyAccess(client, scope);
+  await financialWriteAccess(client, scope, access, memberId, orderId);
+  if (
+    !["cash", "card", "transfer"].includes(method) ||
+    reason.trim().length < 5 ||
+    reason.length > 2000
+  )
+    throw new Error("Comprueba el método real y el motivo");
+  const capability = await financialReversals(client, scope.clubId, [orderId]);
+  if (!capability.available) throw new Error("Registro de reembolsos pendiente de activación");
+  const { data, error } = await client.rpc("record_financial_refund", {
+    p_order_id: orderId,
+    p_method: method,
+    p_reason: reason.trim(),
+  });
+  if (
+    error ||
+    typeof data !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data)
+  )
+    throw new Error("No se pudo verificar el reembolso. Consulta el estado antes de reintentar.");
+  return data;
 }

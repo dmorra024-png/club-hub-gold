@@ -8,6 +8,7 @@ export type ClubActivity = {
   detail: string;
   href: string;
   orderId?: string;
+  createdBy?: string;
   status?: string;
 };
 export function activitySources(access: AccountAccess) {
@@ -62,6 +63,7 @@ export function activityRows(
       return {
         ...base,
         orderId: table === "orders" ? r.id : undefined,
+        createdBy: table === "orders" ? r.created_by : undefined,
         status: table === "orders" ? r.status : undefined,
         kind: "cash",
         title: table === "orders" ? "Operación de caja" : "Cuota asociativa registrada",

@@ -16,7 +16,7 @@ import {
 } from "@/lib/club-activity";
 const fields: Record<string, [string, string]> = {
   members: ["id,created_at,member_number", "created_at"],
-  orders: ["id,created_at,total_cents,status", "created_at"],
+  orders: ["id,created_at,total_cents,status,created_by", "created_at"],
   membership_receipts: ["id,recorded_at,amount_cents", "recorded_at"],
   products: ["id,created_at,updated_at,name", "updated_at"],
   stock_movements: ["id,created_at,delta", "created_at"],
@@ -148,14 +148,16 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
                   >
                     Ver detalle
                   </button>
-                  {access.role === "admin" && can("use_cash") && item.status === "completed" && (
-                    <button
-                      className="text-red-400 py-2"
-                      onClick={() => setSelectedOrder(item.orderId!)}
-                    >
-                      Anular
-                    </button>
-                  )}
+                  {(access.role === "admin" || item.createdBy === user?.id) &&
+                    can("use_cash") &&
+                    item.status === "completed" && (
+                      <button
+                        className="text-red-400 py-2"
+                        onClick={() => setSelectedOrder(item.orderId!)}
+                      >
+                        Anular operación
+                      </button>
+                    )}
                 </div>
               )}
             </li>

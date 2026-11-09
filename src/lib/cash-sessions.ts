@@ -9,6 +9,8 @@ export type CashSession = {
   closing_cash_cents: number | null;
   status: string;
   notes?: string | null;
+  refund_cash_cents?: number;
+  unverified_cancelled_cash?: boolean;
 };
 export type CashMovement = {
   id: string;
@@ -72,10 +74,12 @@ export function inCashDay(m: CashMovement, start: string, end: string) {
 export function reconcileCash(session: CashSession, movements: CashMovement[]) {
   const entries = movements.filter((m) => m.session_id === session.id && m.by === session.user_id);
   const cash = entries.filter((m) => m.payment_method === "cash").reduce((n, m) => n + m.cents, 0);
-  const unknown = entries.some(
-    (m) => !["cash", "card", "transfer"].includes(m.payment_method ?? ""),
-  );
-  const expected = unknown ? null : session.opening_cash_cents + cash;
+  const unknown =
+    !!session.unverified_cancelled_cash ||
+    entries.some((m) => !["cash", "card", "transfer"].includes(m.payment_method ?? ""));
+  const expected = unknown
+    ? null
+    : session.opening_cash_cents + cash - (session.refund_cash_cents ?? 0);
   return {
     cash,
     expected,

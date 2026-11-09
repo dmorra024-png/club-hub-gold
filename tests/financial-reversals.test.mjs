@@ -84,7 +84,8 @@ test("authorized annulment atomically preserves original, appends exactly one im
     ).rows[0];
     const stock = (await db.query("SELECT stock FROM products WHERE id=$1", [uid(301)])).rows;
     await assert.rejects(annul(2), /Registro no disponible/);
-    for (const n of [3, 4, 5]) await assert.rejects(annul(n), /Forbidden/);
+    for (const n of [4, 5]) await assert.rejects(annul(n), /Forbidden/);
+    await assert.rejects(annul(3, 702), /propias/);
     await assert.rejects(annul(1, 703), /Registro no disponible/);
     await assert.rejects(annul(1, 701, "  "), /motivo/);
     await assert.rejects(
@@ -212,6 +213,7 @@ function postgresClient(actor, n) {
         snoop_access_context: [],
         is_current_user_club_admin: [args._club_id],
         annul_financial_order: [args.p_member_id, args.p_order_id, args.p_reason],
+        record_financial_refund: [args.p_order_id, args.p_method, args.p_reason],
       };
       assert.ok(Object.hasOwn(allowed, name));
       const values = allowed[name];
@@ -381,6 +383,205 @@ test("financial immutability preserves existing same-transaction total computati
       actor(1, `UPDATE orders SET total_cents=501 WHERE id='${uid(705)}'`),
       /inmutable/,
     );
+  } finally {
+    await db.close();
+  }
+});
+
+test("employee may annul only own accounting record; verified originals snapshot is immutable and queued replay adds no second reversal", async () => {
+  const { db, actor, annul } = await setup();
+  try {
+    await db.exec(sql);
+    await assert.rejects(annul(3, 702), /propias/);
+    await assert.rejects(
+      actor(
+        3,
+        `UPDATE orders SET status='cancelled',cancellation_reason='Intento sobre otra persona' WHERE id='${uid(702)}'`,
+      ),
+      /propias/,
+    );
+    await db.query("UPDATE products SET stock=17 WHERE id=$1", [uid(301)]);
+    await Promise.all([annul(3), annul(3)]);
+    const reversal = (await actor(3, "SELECT * FROM financial_order_reversals")).rows;
+    assert.equal(reversal.length, 1);
+    assert.equal(reversal[0].original_actor, uid(3));
+    assert.equal(reversal[0].cancelled_by, uid(3));
+    assert.equal(reversal[0].original_items[0].product_name, "Cuaderno");
+    assert.equal(reversal[0].original_items[0].quantity, 1);
+    await assert.rejects(annul(3, 701, "Otro motivo distinto"), /ya está anulado/);
+    await assert.rejects(actor(3, "DELETE FROM financial_order_reversals"), /permission denied/);
+    await assert.rejects(annul(3, 301), /Registro no disponible/);
+    assert.equal((await db.query("SELECT stock FROM products")).rows[0].stock, "17.000");
+  } finally {
+    await db.close();
+  }
+});
+
+test("explicit full-refund declaration is separate, server-priced, owned/admin scoped and immutable; no payment is executed or net amount counted twice", async () => {
+  const { db, actor, annul } = await setup();
+  try {
+    await db.exec(sql);
+    const refund = (n = 3, method = "cash", reason = "Devolución ya realizada") =>
+      actor(n, "SELECT record_financial_refund($1,$2,$3) id", [uid(701), method, reason]);
+    await assert.rejects(refund(), /anulación contable/);
+    await annul(3);
+    await assert.rejects(refund(2), /autorizado/);
+    await assert.rejects(refund(4), /Forbidden/);
+    await assert.rejects(refund(3, "crypto"), /método real/);
+    await assert.rejects(refund(3, "cash", ""), /motivo/);
+    await actor(
+      3,
+      `INSERT INTO cash_sessions(id,club_id,user_id,opening_cash_cents)VALUES('${uid(901)}','${uid(101)}','${uid(3)}',5000)`,
+    );
+    const results = await Promise.all([refund(), refund()]);
+    assert.equal(results[0].rows[0].id, results[1].rows[0].id);
+    const row = (await db.query("SELECT * FROM financial_order_refunds")).rows[0];
+    assert.equal(row.cents, 1500);
+    assert.equal(row.method, "cash");
+    assert.equal(row.recorded_by, uid(3));
+    assert.equal(row.cash_session_id, uid(901));
+    assert.equal(
+      (await db.query("SELECT count(*)::int n FROM financial_order_refunds")).rows[0].n,
+      1,
+    );
+    await assert.rejects(refund(3, "card"), /ya está registrado/);
+    await assert.rejects(refund(1), /ya está registrado/);
+    await assert.rejects(
+      actor(3, "UPDATE financial_order_refunds SET cents=1"),
+      /permission denied/,
+    );
+    await assert.rejects(actor(3, "DELETE FROM financial_order_refunds"), /permission denied/);
+    await assert.rejects(
+      db.exec("UPDATE financial_order_refunds SET reason='Cambiar auditoría'"),
+      /inmutable/,
+    );
+    assert.equal((await actor(2, "SELECT * FROM financial_order_refunds")).rows.length, 0);
+    const { loadCash } = await import("../src/lib/cash-sessions.server.ts");
+    const client = postgresClient(actor, 3);
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const report = await loadCash(client, { userId: uid(3), clubId: uid(101) }, today);
+    assert.equal(report.refunds.length, 1);
+    assert.equal(report.refunds[0].cents, 1500);
+    assert.equal(dayRevenue(report.movements, report.start, report.end), 0);
+    const { reconcileCash } = await import("../src/lib/cash-sessions.ts");
+    assert.equal(reconcileCash(report.sessions[0], report.movements).expected, 3500);
+    const { activityFinancialDetail } = await import("../src/lib/member-order-history.server.ts");
+    const detail = await activityFinancialDetail(
+      client,
+      { userId: uid(3), clubId: uid(101) },
+      uid(701),
+    );
+    assert.equal(detail.orders[0].canRefund, false);
+    assert.equal(detail.orders[0].reversal.refund.cents, 1500);
+    assert.equal(detail.orders[0].reversal.items[0].product_name, "Cuaderno");
+    const fn = (
+      await db.query(
+        "SELECT proargnames FROM pg_proc WHERE oid='public.record_financial_refund(uuid,text,text)'::regprocedure",
+      )
+    ).rows[0];
+    assert.deepEqual(fn.proargnames, ["p_order_id", "p_method", "p_reason"]);
+    await db.query("UPDATE user_roles SET permissions='{use_cash}' WHERE user_id=$1", [uid(3)]);
+    assert.equal(
+      (await actor(3, "SELECT * FROM financial_order_refunds")).rows.length,
+      1,
+      "cash-only refunder retains own drawer evidence",
+    );
+    assert.equal(
+      (await actor(3, "SELECT * FROM financial_order_reversals")).rows.length,
+      0,
+      "cash access does not expose member audit details",
+    );
+    await assert.rejects(refund(), /Forbidden/);
+  } finally {
+    await db.close();
+  }
+});
+test("refund insert failure leaves the existing annulment unchanged and permits a later explicit retry", async () => {
+  const { db, actor, annul } = await setup();
+  try {
+    await db.exec(sql);
+    await annul(3);
+    const before = (await db.query("SELECT * FROM financial_order_reversals")).rows;
+    await db.exec(
+      "CREATE FUNCTION fail_refund() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic refund storage failure';END$$;CREATE TRIGGER fail_refund BEFORE INSERT ON financial_order_refunds FOR EACH ROW EXECUTE FUNCTION fail_refund()",
+    );
+    await assert.rejects(
+      actor(3, "SELECT record_financial_refund($1,$2,$3)", [
+        uid(701),
+        "cash",
+        "Devolución ya realizada",
+      ]),
+      /synthetic refund storage failure/,
+    );
+    assert.equal(
+      (await db.query("SELECT count(*)::int n FROM financial_order_refunds")).rows[0].n,
+      0,
+    );
+    assert.deepEqual((await db.query("SELECT * FROM financial_order_reversals")).rows, before);
+  } finally {
+    await db.close();
+  }
+});
+
+test("cash refund is a separate drawer outflow and unknown original payment never becomes an invented cash balance", async () => {
+  const { reconcileCash, sessionRevenue } = await import("../src/lib/cash-sessions.ts");
+  const s = {
+    id: "drawer",
+    user_id: "employee",
+    opening_cash_cents: 5000,
+    closing_cash_cents: null,
+    status: "open",
+    refund_cash_cents: 1500,
+  };
+  const m = [
+    {
+      id: "fee",
+      source: "fee",
+      at: "2026-11-09T12:00:00Z",
+      by: "employee",
+      cents: 1000,
+      session_id: "drawer",
+      payment_method: "cash",
+    },
+  ];
+  assert.equal(reconcileCash(s, m).expected, 4500);
+  assert.equal(sessionRevenue(s, m), 1000);
+  assert.equal(reconcileCash({ ...s, unverified_cancelled_cash: true }, m).expected, null);
+});
+
+test("cash-enabled colleague with report access cannot annul/refund another author; same-club administrator can record the explicit refund", async () => {
+  const { db, actor, annul } = await setup();
+  try {
+    await db.exec(sql);
+    await db.query(
+      "UPDATE user_roles SET permissions='{manage_members,use_cash,view_reports}' WHERE user_id=$1",
+      [uid(4)],
+    );
+    await assert.rejects(annul(4), /propias/);
+    await annul(6);
+    await assert.rejects(
+      actor(4, "SELECT record_financial_refund($1,$2,$3)", [
+        uid(701),
+        "card",
+        "Devolución ya realizada",
+      ]),
+      /autorizado/,
+    );
+    await actor(1, "SELECT record_financial_refund($1,$2,$3)", [
+      uid(701),
+      "card",
+      "Devolución ya realizada",
+    ]);
+    const rows = (await db.query("SELECT * FROM financial_order_refunds")).rows;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].recorded_by, uid(1));
+    assert.equal(rows[0].method, "card");
+    assert.equal(rows[0].cents, 1500);
   } finally {
     await db.close();
   }
