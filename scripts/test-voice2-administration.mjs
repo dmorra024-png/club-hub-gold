@@ -473,6 +473,7 @@ for (const [name, engine, device] of [
         () =>
           document.querySelector(".snoop-listening")?.getAttribute("data-phase") === "processing",
       );
+      await page.locator(".snoop-listening").filter({ hasText: "Transcribiendo" }).waitFor();
       for (let i = 0; !resume && i < 100; i++) await page.waitForTimeout(20);
       assert.ok(resume);
       await page.waitForTimeout(1200);

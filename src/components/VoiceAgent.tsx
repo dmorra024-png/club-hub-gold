@@ -695,6 +695,7 @@ export function VoiceAgent({
   }, [dictation.phase, sessionActive, dictation.error, dictation.start, continuous]);
   useEffect(() => {
     sessionEpoch.current++;
+    setClarification("");
     if (voiceDestination.current === location.pathname) {
       voiceDestination.current = null;
       return;
@@ -831,7 +832,9 @@ export function VoiceAgent({
             {consentPrompt
               ? "Permite transcribir con Cloudflare Whisper. El audio no se guarda."
               : sessionActive
-                ? clarification || status
+                ? dictation.phase === "processing" || dictation.phase === "starting"
+                  ? status
+                  : clarification || status
                 : fault
                   ? shortError
                   : feedback || dictation.error}
