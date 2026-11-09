@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SpeechEndpoint } from "../lib/speech-endpoint";
 export type DictationPhase = "idle" | "starting" | "recording" | "processing";
 type Options = {
   scope: string;
@@ -10,70 +11,90 @@ type Options = {
     mimeType: string;
     language: "it" | "es";
   }) => Promise<{ text: string }>;
+  onStart?: () => void;
   onTranscript: (text: string) => Promise<void> | void;
 };
-/** User-initiated, bounded recording. Cancellation never transcribes a partial clip. */
+type Capture = {
+  recorder?: MediaRecorder;
+  stream?: MediaStream;
+  context?: AudioContext;
+  source?: MediaStreamAudioSourceNode;
+  interval?: ReturnType<typeof setInterval>;
+  timer?: ReturnType<typeof setTimeout>;
+  stopping?: boolean;
+  released?: boolean;
+  stopped?: boolean;
+};
+/** Each recording owns its resources. Old callbacks cannot release a newer microphone. */
 export function useWhisperDictation(options: Options) {
   const latest = useRef(options);
   latest.current = options;
   const [phase, setPhase] = useState<DictationPhase>("idle"),
-    [error, setError] = useState("");
-  const recorder = useRef<MediaRecorder | null>(null),
-    stream = useRef<MediaStream | null>(null),
-    timer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    silenceTimer = useRef<ReturnType<typeof setInterval> | null>(null),
-    audioContext = useRef<AudioContext | null>(null),
+    [error, setError] = useState(""),
+    [hint, setHint] = useState("");
+  const capture = useRef<Capture | null>(null),
     generation = useRef(0),
     pending = useRef(false),
     mounted = useRef(true),
     owner = useRef(Symbol("snoop-microphone"));
-  const release = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (silenceTimer.current) clearInterval(silenceTimer.current);
-    timer.current = null;
-    silenceTimer.current = null;
-    if (audioContext.current) void audioContext.current.close().catch(() => {});
-    audioContext.current = null;
-    stream.current?.getTracks().forEach((t) => t.stop());
-    stream.current = null;
-    recorder.current = null;
+  const release = useCallback((s: Capture) => {
+    if (s.released) return;
+    s.released = true;
+    clearTimeout(s.timer);
+    clearInterval(s.interval);
+    s.source?.disconnect();
+    if (s.context && s.context.state !== "closed") void s.context.close().catch(() => {});
+    s.stream?.getTracks().forEach((t) => {
+      t.onended = null;
+      t.stop();
+    });
+    if (capture.current === s) capture.current = null;
   }, []);
   const cancel = useCallback(
     (message = "") => {
       generation.current++;
       pending.current = false;
-      const rec = recorder.current;
-      if (rec) {
-        rec.onstop = null;
-        rec.ondataavailable = null;
-        rec.onerror = null;
-        if (rec.state === "recording")
-          try {
-            rec.stop();
-          } catch {}
+      const s = capture.current;
+      if (s) {
+        const r = s.recorder;
+        if (r) {
+          r.onstop = null;
+          r.ondataavailable = null;
+          r.onerror = null;
+          if (r.state !== "inactive")
+            try {
+              r.stop();
+            } catch {}
+        }
+        release(s);
       }
-      release();
       if (mounted.current) {
         setPhase("idle");
         setError(message);
+        setHint("");
       }
     },
     [release],
   );
   const finish = useCallback(() => {
-    const rec = recorder.current;
-    if (rec?.state === "recording") {
-      setPhase("processing");
-      try {
-        rec.stop();
-      } catch {
-        cancel("No se pudo finalizar el audio. Usa la entrada manual.");
-      }
+    const s = capture.current,
+      rec = s?.recorder;
+    if (!s || s.stopping || rec?.state !== "recording") return;
+    s.stopping = true;
+    clearTimeout(s.timer);
+    clearInterval(s.interval);
+    setPhase("processing");
+    try {
+      rec.stop();
+    } catch {
+      cancel("No se pudo finalizar el audio. Usa la entrada manual.");
     }
   }, [cancel]);
   const start = useCallback(async () => {
-    if (pending.current || recorder.current?.state === "recording") return;
+    // Explicit start is idempotent throughout startup, recording AND interpretation.
+    if (pending.current) return;
     setError("");
+    setHint("");
     if (!navigator.onLine) {
       setError("Sin conexión. Puedes completar el formulario manualmente.");
       return;
@@ -84,24 +105,44 @@ export function useWhisperDictation(options: Options) {
     }
     const id = ++generation.current,
       scope = latest.current.scope;
+    const valid = () =>
+      id === generation.current && mounted.current && scope === latest.current.scope;
     let language = latest.current.language;
     try {
       language = latest.current.getLanguage?.() ?? language;
     } catch {}
+    const s: Capture = {};
+    capture.current = s;
     pending.current = true;
     setPhase("starting");
+    latest.current.onStart?.();
+    // The latest user gesture owns the microphone, not the fastest status request.
+    window.dispatchEvent(new CustomEvent("snoop:microphone-owner", { detail: owner.current }));
+    // Resume inside the original user gesture, before any permission/network await (Safari).
+    try {
+      const Audio =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (Audio) {
+        s.context = new Audio();
+        void s.context.resume().catch(() => {});
+      }
+    } catch {}
     try {
       const config = await latest.current.available();
-      if (id !== generation.current || !mounted.current) return;
-      if (!config.available)
-        throw new Error("IA no disponible. Puedes introducir los datos manualmente.");
-      window.dispatchEvent(new CustomEvent("snoop:microphone-owner", { detail: owner.current }));
-      const tracks = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (id !== generation.current || !mounted.current || scope !== latest.current.scope) {
-        tracks.getTracks().forEach((t) => t.stop());
+      if (!valid()) {
+        release(s);
         return;
       }
-      stream.current = tracks;
+      if (!config.available)
+        throw new Error("IA no disponible. Puedes introducir los datos manualmente.");
+      const tracks = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!valid()) {
+        tracks.getTracks().forEach((t) => t.stop());
+        release(s);
+        return;
+      }
+      s.stream = tracks;
       const mime = [
         "audio/webm;codecs=opus",
         "audio/mp4",
@@ -110,11 +151,11 @@ export function useWhisperDictation(options: Options) {
       ].find((v) => MediaRecorder.isTypeSupported(v));
       if (!mime) throw new Error("Formato de audio no compatible. Usa la entrada manual.");
       const rec = new MediaRecorder(tracks, { mimeType: mime });
-      recorder.current = rec;
+      s.recorder = rec;
       const chunks: Blob[] = [];
       let size = 0;
       rec.ondataavailable = (e) => {
-        if (id !== generation.current) return;
+        if (!valid()) return;
         if (e.data.size) {
           size += e.data.size;
           if (size > 8_000_000) {
@@ -124,20 +165,25 @@ export function useWhisperDictation(options: Options) {
           chunks.push(e.data);
         }
       };
-      rec.onerror = () =>
-        cancel(
-          "No se pudo grabar el audio. Revisa el micrófono o introduce los datos manualmente.",
-        );
+      rec.onerror = () => {
+        if (valid())
+          cancel(
+            "No se pudo grabar el audio. Revisa el micrófono o introduce los datos manualmente.",
+          );
+      };
       tracks.getTracks().forEach(
         (t) =>
           (t.onended = () => {
-            if (id === generation.current)
+            if (valid() && !s.released)
               cancel("La grabación se interrumpió. Puedes volver a intentarlo.");
           }),
       );
       rec.onstop = async () => {
-        release();
-        if (id !== generation.current || !mounted.current) return;
+        if (s.stopped) return;
+        s.stopped = true;
+        // Check before release; never release whatever capture happens to be current.
+        release(s);
+        if (!valid()) return;
         setPhase("processing");
         try {
           const audio = new Blob(chunks, { type: rec.mimeType });
@@ -149,22 +195,20 @@ export function useWhisperDictation(options: Options) {
             r.onerror = () => reject(new Error("No se pudo leer el audio."));
             r.readAsDataURL(audio);
           });
-          if (id !== generation.current || scope !== latest.current.scope || !mounted.current)
-            return;
+          if (!valid()) return;
           const result = await latest.current.transcribe({
             audioBase64: data,
             mimeType: rec.mimeType,
             language,
           });
-          if (id !== generation.current || scope !== latest.current.scope || !mounted.current)
-            return;
+          if (!valid()) return;
           if (!result.text?.trim())
             throw new Error(
               "No se entendió el dictado. Reintenta o introduce los datos manualmente.",
             );
           await latest.current.onTranscript(result.text.trim());
         } catch (e) {
-          if (id === generation.current && mounted.current)
+          if (valid())
             setError(
               e instanceof Error ? e.message : "No se pudo transcribir. Usa la entrada manual.",
             );
@@ -177,36 +221,39 @@ export function useWhisperDictation(options: Options) {
       };
       rec.start(250);
       setPhase("recording");
-      // Auto-finish after a spoken phrase followed by silence. Audio processing
-      // stays on-device; only the final clip is sent to Whisper with consent.
       try {
-        const ctx = new AudioContext();
-        audioContext.current = ctx;
-        const source = ctx.createMediaStreamSource(tracks);
-        const analyser = ctx.createAnalyser();
+        if (!s.context) throw new Error("No audio analyser");
+        const ctx = s.context,
+          source = ctx.createMediaStreamSource(tracks),
+          analyser = ctx.createAnalyser();
+        s.source = source;
         analyser.fftSize = 1024;
         source.connect(analyser);
-        const samples = new Uint8Array(analyser.fftSize);
-        const started = Date.now();
-        let speechAt = 0;
-        silenceTimer.current = setInterval(() => {
-          if (rec.state !== "recording") return;
+        const samples = new Uint8Array(analyser.fftSize),
+          endpoint = new SpeechEndpoint(performance.now());
+        s.interval = setInterval(() => {
+          if (!valid() || s.stopping || rec.state !== "recording") return;
+          if (ctx.state !== "running") {
+            setHint(
+              "Finalización automática no disponible. Pulsa para terminar o escribe el comando.",
+            );
+            return;
+          }
           analyser.getByteTimeDomainData(samples);
           let power = 0;
           for (const sample of samples) power += (sample - 128) ** 2;
-          const rms = Math.sqrt(power / samples.length) / 128;
-          if (rms > 0.025) speechAt = Date.now();
-          if (speechAt && Date.now() - speechAt > 1600 && Date.now() - started > 1800)
-            finish();
-          else if (Date.now() - started > 12000) finish();
+          const end = endpoint.sample(Math.sqrt(power / samples.length) / 128, performance.now());
+          if (end === "no-speech")
+            cancel("No se detectó voz. Vuelve a intentarlo o escribe el comando.");
+          else if (end) finish();
         }, 120);
       } catch {
-        // Audio analyser unavailable: the stop button and safety timeout remain.
+        setHint("Finalización automática no disponible. Pulsa para terminar o escribe el comando.");
       }
-      timer.current = setTimeout(finish, 15000);
+      s.timer = setTimeout(finish, 60000);
     } catch (e) {
+      release(s);
       if (id === generation.current) {
-        release();
         pending.current = false;
         if (mounted.current) {
           setPhase("idle");
@@ -242,9 +289,9 @@ export function useWhisperDictation(options: Options) {
     const other = (e: Event) => {
       if ((e as CustomEvent).detail !== owner.current && pending.current) cancel();
     };
+    const languageChanged = () => cancel();
     document.addEventListener("visibilitychange", hidden);
     window.addEventListener("offline", offline);
-    const languageChanged = () => cancel();
     window.addEventListener("snoop:voice-language", languageChanged);
     window.addEventListener("snoop:microphone-owner", other);
     return () => {
@@ -254,5 +301,5 @@ export function useWhisperDictation(options: Options) {
       window.removeEventListener("snoop:microphone-owner", other);
     };
   }, [cancel]);
-  return { phase, error, start, finish, cancel };
+  return { phase, error, hint, start, finish, cancel };
 }

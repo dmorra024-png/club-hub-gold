@@ -96,17 +96,29 @@ export function VoiceAgent({
   clubName,
   access,
   userId,
+  onPhaseChange,
 }: {
   clubName?: string | null;
   access: AccountAccess;
   userId: string;
+  onPhaseChange?: (phase: import("@/hooks/useWhisperDictation").DictationPhase) => void;
 }) {
   const [language, setLanguage] = useState("es-ES");
   const [feedback, setFeedback] = useState("");
   const [panelOpen, setPanelOpen] = useState(false),
-    [consent, setConsent] = useState(false),
     [manual, setManual] = useState(""),
     [transcript, setTranscript] = useState("");
+  const consentKey = `snoop:voice-consent:v2:${userId}:${access.clubId ?? ""}`;
+  const [consentFor, setConsentFor] = useState({ key: "", allowed: false });
+  const consent = consentFor.key === consentKey && consentFor.allowed;
+  const closeWhenIdle = useRef(false);
+  useEffect(() => {
+    let allowed = false;
+    try {
+      allowed = localStorage.getItem(consentKey) === "cloudflare-whisper";
+    } catch {}
+    setConsentFor({ key: consentKey, allowed });
+  }, [consentKey]);
   const aiStatus = useServerFn(getAdministrativeAiStatus),
     transcribe = useServerFn(transcribeAudio);
   const processingRef = useRef(false);
@@ -121,14 +133,13 @@ export function VoiceAgent({
     access.clubId,
     access.status,
     access.role,
-    ...access.permissions,
+    ...[...access.permissions].sort(),
     location.pathname,
   ].join(":");
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
       setLanguage(saved.startsWith("it") ? "it-IT" : "es-ES");
-      setConsent(window.localStorage.getItem("snoop:voice-consent-v1") === "yes");
     } catch {
       setLanguage(navigator.language.startsWith("it") ? "it-IT" : "es-ES");
     }
@@ -166,12 +177,13 @@ export function VoiceAgent({
               window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: command }));
             else window.sessionStorage.setItem("snoop:productos-cmd", JSON.stringify(command));
           }
-          if (premium.productCreate) {
-            const command = { text, tab: "nuevo", at: Date.now() };
+          if (premium.productCreate || premium.productTab) {
+            const tab = premium.productTab ?? "nuevo";
+            const command = { text, tab, at: Date.now() };
             if (path === "/productos")
               window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: command }));
             else {
-              localStorage.setItem("snoop:productos-tab", "nuevo");
+              localStorage.setItem("snoop:productos-tab", tab);
               sessionStorage.setItem("snoop:productos-cmd", JSON.stringify(command));
             }
           }
@@ -432,7 +444,8 @@ export function VoiceAgent({
   const fieldEdits = useRef(0),
     recordingEdits = useRef(0);
   useEffect(() => {
-    const changed = () => {
+    const changed = (event: Event) => {
+      if (event.target instanceof Element && event.target.closest(".premium-voice-panel")) return;
       fieldEdits.current++;
     };
     document.addEventListener("input", changed);
@@ -443,35 +456,45 @@ export function VoiceAgent({
     language: language.startsWith("it") ? "it" : "es",
     available: aiStatus,
     transcribe: (data) => transcribe({ data }),
+    onStart: () => {
+      closeWhenIdle.current = false;
+      recordingEdits.current = fieldEdits.current;
+    },
     onTranscript: (text) => {
       if (fieldEdits.current !== recordingEdits.current) {
         toast.info("Se conserva tu edición manual. Repite el dictado si lo necesitas.");
-        setPanelOpen(false);
+        closeWhenIdle.current = true;
         return;
       }
       toast.info(`Transcripción: ${text.slice(0, 180)}`);
       setTranscript(text);
       setManual(text);
       return handleTranscript(text).then((result) => {
-        if (result !== false) setPanelOpen(false);
+        closeWhenIdle.current = result !== false;
       });
     },
   });
+  useEffect(() => {
+    onPhaseChange?.(dictation.phase);
+  }, [dictation.phase, onPhaseChange]);
+  useEffect(() => () => onPhaseChange?.("idle"), [onPhaseChange]);
   const enabled = dictation.phase === "recording",
     busy = dictation.phase === "starting" || dictation.phase === "processing";
-  const toggle = useCallback(() => {
+  // Start events never toggle/stop an active recording. The hook serializes starts.
+  const startRecording = useCallback(() => {
     setPanelOpen(true);
-    if (!consent) return;
-    if (enabled) dictation.finish();
-    else if (!busy) {
-      recordingEdits.current = fieldEdits.current;
-      void dictation.start();
-    }
-  }, [enabled, busy, consent, dictation.start, dictation.finish]);
+    if (consent) void dictation.start();
+  }, [consent, dictation.start]);
   useEffect(() => {
-    window.addEventListener("snoop:voice-start", toggle);
-    return () => window.removeEventListener("snoop:voice-start", toggle);
-  }, [toggle]);
+    if (dictation.phase === "idle" && closeWhenIdle.current) {
+      closeWhenIdle.current = false;
+      setPanelOpen(false);
+    }
+  }, [dictation.phase]);
+  useEffect(() => {
+    window.addEventListener("snoop:voice-start", startRecording);
+    return () => window.removeEventListener("snoop:voice-start", startRecording);
+  }, [startRecording]);
   useEffect(() => {
     const open = () => setPanelOpen(true);
     window.addEventListener("snoop:voice-open", open);
@@ -479,6 +502,7 @@ export function VoiceAgent({
   }, []);
   useEffect(() => {
     setPanelOpen(false);
+    closeWhenIdle.current = false;
     dictation.cancel();
     setManual("");
     setTranscript("");
@@ -531,6 +555,7 @@ export function VoiceAgent({
       aria-modal="false"
       aria-label="Voice 2.0"
       className="premium-voice-panel"
+      data-phase={dictation.phase}
     >
       <header>
         <strong>Voice 2.0</strong>
@@ -538,6 +563,7 @@ export function VoiceAgent({
           type="button"
           aria-label="Cerrar Voice 2.0"
           onClick={() => {
+            closeWhenIdle.current = false;
             dictation.cancel();
             setPanelOpen(false);
             setFeedback("");
@@ -572,22 +598,35 @@ export function VoiceAgent({
           checked={consent}
           disabled={busy || enabled}
           onChange={(e) => {
-            setConsent(e.target.checked);
-            window.localStorage.setItem("snoop:voice-consent-v1", e.target.checked ? "yes" : "no");
+            const allowed = e.target.checked;
+            setConsentFor({ key: consentKey, allowed });
+            try {
+              if (allowed) localStorage.setItem(consentKey, "cloudflare-whisper");
+              else localStorage.removeItem(consentKey);
+            } catch {}
+            if (allowed) void dictation.start();
+            else {
+              closeWhenIdle.current = false;
+              dictation.cancel();
+            }
           }}
         />
-        Autorizo la transcripción con Cloudflare Whisper (recordar en este dispositivo). SNOOP no conserva la
-        grabación.
+        Autorizo la transcripción con Cloudflare Whisper (recordar en este dispositivo). SNOOP no
+        conserva la grabación.
       </label>
       <button
         type="button"
         className={`premium-record ${enabled ? "is-listening" : ""}`}
         aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
         disabled={busy || !consent}
-        onClick={toggle}
+        onClick={enabled ? dictation.finish : startRecording}
       >
         {busy ? <Loader2 className="animate-spin" /> : enabled ? <Square /> : <Mic />}
-        {busy ? "Procesando…" : enabled ? "Escuchando · Pulsa para transcribir" : "Iniciar dictado"}
+        {busy
+          ? "Procesando…"
+          : enabled
+            ? "Escuchando · Terminaré cuando dejes de hablar"
+            : "Iniciar dictado"}
       </button>
       {(feedback || dictation.error || enabled) && (
         <p role={dictation.error ? "alert" : "status"}>
@@ -595,6 +634,7 @@ export function VoiceAgent({
             (enabled ? "Escuchando. El audio se envía al finalizar, con tu permiso." : feedback)}
         </p>
       )}
+      {dictation.hint && <p role="status">{dictation.hint}</p>}
       {(enabled || busy) && (
         <button type="button" onClick={() => dictation.cancel()}>
           Cancelar dictado

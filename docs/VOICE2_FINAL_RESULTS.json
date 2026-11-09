@@ -1,0 +1,146 @@
+{
+  "scope": "local isolated tests only",
+  "unit": {
+    "passed": 275,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typecheck": "PASS",
+  "nodeBuild": "PASS",
+  "workerSandboxBuild": "PASS",
+  "clientSecretScan": "PASS",
+  "browserSuites": [
+    {
+      "suite": "test:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:discounts:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:annulment:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:records:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:catalog:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:completion:mobile",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:account-links",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:pwa:resume",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:premium:home",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:cash:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:critical:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:voice2:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:voice:browser",
+      "result": "PASS"
+    },
+    {
+      "suite": "test:genetics:browser",
+      "result": "PASS"
+    }
+  ],
+  "recorderLifecycle": [
+    {
+      "browser": "samsung",
+      "result": "PASS",
+      "physical": false,
+      "audio": "simulated speech envelope / recorder",
+      "consecutiveCommands": 6,
+      "checks": [
+        "idempotent start",
+        "interpretation busy lock",
+        "stale onstop ownership",
+        "normal track cleanup",
+        "latest user gesture owns microphone before asynchronous status checks",
+        "automatic speech endpoint",
+        "scope/language cancellation",
+        "permission recovery",
+        "all tracks and audio contexts released"
+      ]
+    },
+    {
+      "browser": "samsung",
+      "result": "PASS",
+      "physical": false,
+      "audio": "native MediaRecorder/WebAudio, synthetic tone then silence; simulated transcription",
+      "consecutiveCommands": 3
+    },
+    {
+      "browser": "iphone-webkit",
+      "result": "PASS",
+      "physical": false,
+      "audio": "simulated speech envelope / recorder",
+      "consecutiveCommands": 6,
+      "checks": [
+        "idempotent start",
+        "interpretation busy lock",
+        "stale onstop ownership",
+        "normal track cleanup",
+        "latest user gesture owns microphone before asynchronous status checks",
+        "automatic speech endpoint",
+        "scope/language cancellation",
+        "permission recovery",
+        "all tracks and audio contexts released"
+      ]
+    }
+  ],
+  "postgres": {
+    "engine": "PostgreSQL 17.11",
+    "image": "postgres:17-alpine",
+    "synthetic": true,
+    "remoteDatabase": false,
+    "network": "none",
+    "publicPorts": false,
+    "cases": [
+      {
+        "operation": "annul",
+        "sessions": 7,
+        "lockWaitersObserved": 4,
+        "uniqueEntries": 1,
+        "status": "PASS"
+      },
+      {
+        "operation": "refund",
+        "sessions": 7,
+        "lockWaitersObserved": 5,
+        "uniqueEntries": 1,
+        "status": "PASS"
+      }
+    ],
+    "stockUnchanged": true,
+    "paymentExecuted": false
+  },
+  "remoteDatabaseModified": false,
+  "physicalDeviceTested": false,
+  "liveWhisperTested": false,
+  "deploymentExecuted": false,
+  "branchPush": "BLOCKED: automatic Cloudflare publishing must be disabled first"
+}

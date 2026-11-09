@@ -47,6 +47,8 @@ export function SnoopLayout({
   subtitle?: string;
   home?: boolean;
 }) {
+  const [voicePhase, setVoicePhase] =
+    useState<import("@/hooks/useWhisperDictation").DictationPhase>("idle");
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -174,7 +176,12 @@ export function SnoopLayout({
         </>
       )}
       {user && access.role && !loading && !accessError && (
-        <VoiceAgent clubName={access.clubName} access={access} userId={user.id} />
+        <VoiceAgent
+          clubName={access.clubName}
+          access={access}
+          userId={user.id}
+          onPhaseChange={setVoicePhase}
+        />
       )}
       <main id="main-content" className="premium-main" tabIndex={-1}>
         {title && (
@@ -221,7 +228,15 @@ export function SnoopLayout({
           type="button"
           className="premium-dock-voice"
           aria-label="Voice 2.0"
-          disabled={loading || !!accessError || access.status !== "active"}
+          aria-pressed={voicePhase === "recording"}
+          aria-busy={voicePhase === "starting" || voicePhase === "processing"}
+          disabled={
+            loading ||
+            !!accessError ||
+            access.status !== "active" ||
+            voicePhase === "starting" ||
+            voicePhase === "processing"
+          }
           onClick={() => window.dispatchEvent(new Event("snoop:voice-start"))}
         >
           <Mic aria-hidden="true" />

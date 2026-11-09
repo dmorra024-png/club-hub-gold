@@ -5,6 +5,7 @@ export type PremiumVoiceIntent = {
   productQuery?: string;
   cashReport?: boolean;
   productCreate?: boolean;
+  productTab?: "stock" | "categoria";
   requiresMember?: boolean;
 };
 /** Read/navigation only. No mutation, quantities, payment or order submission. */
@@ -31,6 +32,8 @@ export function premiumVoiceIntent(raw: string, path = "/"): PremiumVoiceIntent 
     return { to: "/soci/gestisci", search: { scanner: true } };
   if (/^(?:quiero\s+)?(?:crear?|nuevo|a[nñ]adir|agregar|registrar)\s+(?:un\s+)?producto\b/i.test(n))
     return { to: "/productos", productCreate: true };
+  if (/^(?:quiero\s+)?(?:crear?|nueva|a[nñ]adir|agregar)\s+(?:una\s+)?categor[ií]a\b/i.test(text))
+    return { to: "/productos", productTab: "categoria" };
   if (
     /^(?:hacer|nuevo|crear|abrir)\s+(?:un\s+)?(?:pedido|orden)\s*[.!]?$/i.test(n) &&
     !/^\/soci\/[a-f0-9-]{36}(?:\/pedido)?$/.test(path)
@@ -52,6 +55,6 @@ export function premiumVoiceIntent(raw: string, path = "/"): PremiumVoiceIntent 
       n,
     )
   )
-    return { to: "/productos" };
+    return { to: "/productos", productTab: "stock" };
   return null;
 }

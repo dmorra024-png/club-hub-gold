@@ -62,9 +62,10 @@ for (const [name, engine, device] of [
         localStorage.setItem(key, JSON.stringify(auth));
         localStorage.setItem("snoop:voice-language", "it-IT");
         window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0 };
+        const NativeAudio = window.AudioContext || window.webkitAudioContext;
         const NativeRecorder = window.MediaRecorder;
         window.__nativeRecordingCheck = async () => {
-          const Audio = window.AudioContext || window.webkitAudioContext;
+          const Audio = NativeAudio;
           if (!NativeRecorder || !Audio) return { available: false };
           const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find((t) =>
             NativeRecorder.isTypeSupported(t),
@@ -144,6 +145,31 @@ for (const [name, engine, device] of [
           }
         }
         Object.defineProperty(window, "MediaRecorder", { configurable: true, value: Recorder });
+        class LocalAnalyserContext {
+          state = "running";
+          resume() {
+            return Promise.resolve();
+          }
+          close() {
+            this.state = "closed";
+            return Promise.resolve();
+          }
+          createMediaStreamSource() {
+            return { connect() {}, disconnect() {} };
+          }
+          createAnalyser() {
+            return {
+              fftSize: 1024,
+              getByteTimeDomainData(a) {
+                a.fill(window.__voice.silent ? 128 : 144);
+              },
+            };
+          }
+        }
+        Object.defineProperty(window, "AudioContext", {
+          configurable: true,
+          value: LocalAnalyserContext,
+        });
       },
       { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
     );
@@ -276,20 +302,15 @@ for (const [name, engine, device] of [
       else errors.push(e.message);
     });
     page.setDefaultTimeout(15000);
-    async function begin() {
-      // Browser tests exercise the recording lifecycle through the explicit
-      // settings panel. The production dock remains single-tap auto-start.
-      await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+    async function requestStart() {
+      // The actual production dock starts once. Consent also starts once.
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
       const checkbox = page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ });
-      await checkbox.waitFor({ state: "visible" });
-      if (!(await checkbox.isChecked())) await checkbox.check();
-      const active = page.getByRole("button", { name: "Apagar Snoop", exact: true });
-      if (!(await active.isVisible().catch(() => false))) {
-        const idle = page.getByRole("button", { name: "Encender Snoop", exact: true });
-        await idle.waitFor({ state: "visible" });
-        await idle.click();
-      }
-      await active.waitFor({ state: "visible" });
+      if ((await checkbox.isVisible()) && !(await checkbox.isChecked())) await checkbox.check();
+    }
+    async function begin() {
+      await requestStart();
+      await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
     }
     async function start() {
       await page.waitForLoadState("networkidle");
@@ -318,6 +339,11 @@ for (const [name, engine, device] of [
       transcript = text;
       await start();
       await page.getByRole("button", { name: "Apagar Snoop", exact: true }).click();
+      if (!holdTranscription)
+        await page.waitForFunction(() => {
+          const panel = document.querySelector(".premium-voice-panel");
+          return !panel || panel.getAttribute("data-phase") === "idle";
+        });
     }
     await page.goto(base + "/", { waitUntil: "networkidle" });
     const nativeRecording = await page.evaluate(() => window.__nativeRecordingCheck());
@@ -328,6 +354,29 @@ for (const [name, engine, device] of [
       );
     const dock = page.getByRole("navigation", { name: "Navegación principal" });
     assert.equal(await dock.locator(":scope > *").count(), 4);
+    const dockGeometry = await dock.evaluate((el) =>
+      Array.from(el.children).map((e) => {
+        const r = e.getBoundingClientRect(),
+          i = e.querySelector("svg").getBoundingClientRect(),
+          l = e.querySelector("span").getBoundingClientRect();
+        return {
+          width: r.width,
+          top: r.top,
+          height: r.height,
+          iconWidth: i.width,
+          iconHeight: i.height,
+          labelTop: l.top,
+        };
+      }),
+    );
+    for (const field of ["width", "top", "height", "iconWidth", "iconHeight", "labelTop"])
+      assert.ok(
+        Math.max(...dockGeometry.map((r) => r[field])) -
+          Math.min(...dockGeometry.map((r) => r[field])) <
+          1,
+        `equal dock ${field}`,
+      );
+
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
     assert.equal(
       await page.evaluate(() => window.__voice.created),
@@ -367,6 +416,53 @@ for (const [name, engine, device] of [
     await page.waitForFunction(() => document.querySelector("input")?.value === "Juan");
     assert.equal(audioCalls, 0);
     await page.goto(base + "/", { waitUntil: "networkidle" });
+    const automaticCommands = [
+      ["Crear socio", "/soci/nuovo"],
+      ["Buscar socio Carlos García", "/soci/gestisci"],
+      ["Crear producto", "/productos"],
+      ["Ver stock", "/productos"],
+      ["Crear categoría Archivo", "/productos"],
+      ["Abrir caja", "/caja"],
+      ["Ver caja de hoy", "/caja"],
+      ["Últimas actividades", "/actividades"],
+      ["Hacer pedido", "/soci/gestisci"],
+    ];
+    for (const [command, path] of automaticCommands) {
+      transcript = command;
+      await page.evaluate(() => (window.__voice.silent = false));
+      const before = audioCalls;
+      await requestStart();
+      await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
+      await page.waitForTimeout(400);
+      await page.evaluate(() => (window.__voice.silent = true));
+      await page.waitForURL(base + path);
+      await page
+        .getByRole("dialog", { name: "Voice 2.0", exact: true })
+        .waitFor({ state: "hidden" });
+      assert.equal(
+        audioCalls,
+        before + 1,
+        "one tap and speech/silence produce exactly one transcription",
+      );
+      if (command === "Ver stock")
+        await page.getByPlaceholder("Buscar en todos los productos…").waitFor();
+      if (command.startsWith("Crear categoría"))
+        assert.equal(await page.getByPlaceholder("ej. Flores").inputValue(), "Archivo");
+      if (command === "Ver caja de hoy")
+        assert.equal(
+          await page
+            .getByRole("tab", { name: "Informe de caja", exact: true })
+            .getAttribute("aria-selected"),
+          "true",
+        );
+      assert.equal(writes, 0);
+    }
+    await page.evaluate(() => (window.__voice.silent = false));
+    await page
+      .getByRole("navigation", { name: "Navegación principal" })
+      .getByRole("link", { name: "Home", exact: true })
+      .click();
+    await page.waitForURL(base + "/");
     await say("Crea un socio Mario Rossi, nato il 15 marzo 1990, residente a Palma");
     await page.waitForURL(base + "/soci/nuovo");
     await page.waitForFunction(() =>
@@ -570,7 +666,7 @@ for (const [name, engine, device] of [
     await context.setOffline(false);
     await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
     await page.evaluate(() => (window.__voice.denied = true));
-    await begin();
+    await requestStart();
     await page.getByRole("alert").filter({ hasText: "Permiso de micrófono denegado" }).waitFor();
     await page.evaluate(() => (window.__voice.denied = false));
     await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
@@ -636,6 +732,8 @@ for (const [name, engine, device] of [
       transcription: "simulated, synthetic recorder",
       checks: [
         "four-item premium dock and compact Voice panel",
+        "nine consecutive single-tap commands with automatic local speech endpoint",
+        "equal-width dock actions, equal icons and aligned labels",
         "keyboard simulation hides dock and preserves focused command field",
         "opening panel never captures audio; explicit consent required",
         "written fallback routes a local member search without audio/provider",

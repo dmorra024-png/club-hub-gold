@@ -1,0 +1,45 @@
+[
+  {
+    "browser": "samsung",
+    "result": "PASS",
+    "physical": false,
+    "audio": "simulated speech envelope / recorder",
+    "consecutiveCommands": 6,
+    "checks": [
+      "idempotent start",
+      "interpretation busy lock",
+      "stale onstop ownership",
+      "normal track cleanup",
+      "latest user gesture owns microphone before asynchronous status checks",
+      "automatic speech endpoint",
+      "scope/language cancellation",
+      "permission recovery",
+      "all tracks and audio contexts released"
+    ]
+  },
+  {
+    "browser": "samsung",
+    "result": "PASS",
+    "physical": false,
+    "audio": "native MediaRecorder/WebAudio, synthetic tone then silence; simulated transcription",
+    "consecutiveCommands": 3
+  },
+  {
+    "browser": "iphone-webkit",
+    "result": "PASS",
+    "physical": false,
+    "audio": "simulated speech envelope / recorder",
+    "consecutiveCommands": 6,
+    "checks": [
+      "idempotent start",
+      "interpretation busy lock",
+      "stale onstop ownership",
+      "normal track cleanup",
+      "latest user gesture owns microphone before asynchronous status checks",
+      "automatic speech endpoint",
+      "scope/language cancellation",
+      "permission recovery",
+      "all tracks and audio contexts released"
+    ]
+  }
+]

@@ -76,6 +76,7 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:premium:home
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:cash:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:critical:browser
+          npm run test:voice:lifecycle
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice2:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:genetics:browser
