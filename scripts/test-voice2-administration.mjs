@@ -31,6 +31,7 @@ const auth = {
   expires_in: 3600,
   token_type: "bearer",
 };
+const conversational = process.argv.includes("--conversation");
 const results = [];
 await mkdir("docs/screenshots", { recursive: true });
 for (const [name, engine, device] of [
@@ -59,9 +60,9 @@ for (const [name, engine, device] of [
       holdTranscription = false,
       resume = null;
     await context.addInitScript(
-      ({ auth, key }) => {
+      ({ auth, key, conversational }) => {
         localStorage.setItem(key, JSON.stringify(auth));
-        localStorage.setItem("snoop:voice-language", "it-IT");
+        localStorage.setItem("snoop:voice-language", conversational ? "es-ES" : "it-IT");
         window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0 };
         const NativeAudio = window.AudioContext || window.webkitAudioContext;
         const NativeRecorder = window.MediaRecorder;
@@ -181,7 +182,7 @@ for (const [name, engine, device] of [
           value: LocalAnalyserContext,
         });
       },
-      { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
+      { auth, conversational, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
     );
     await context.route("**/*", async (route) => {
       const req = route.request(),
@@ -358,7 +359,7 @@ for (const [name, engine, device] of [
           return !panel || panel.getAttribute("data-phase") === "idle";
         });
     }
-    if (process.argv.includes("--continuous")) {
+    if (process.argv.includes("--continuous") || conversational) {
       await page.addInitScript(() => {
         window.voiceTimings = [];
         window.addEventListener("snoop:voice-timing", (e) => window.voiceTimings.push(e.detail));
@@ -374,27 +375,91 @@ for (const [name, engine, device] of [
         assert.equal(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).count(), 0);
         await page.evaluate(() => (window.__voice.silent = false));
         await page.waitForTimeout(400);
-        const before = audioCalls;
+        const before = await page.evaluate(() => window.voiceTimings.length);
         await page.evaluate(() => (window.__voice.silent = true));
-        await page.waitForFunction((before) => window.voiceTimings.length > before, before);
+        try {
+          await page.waitForFunction((before) => window.voiceTimings.length > before, before);
+        } catch (error) {
+          console.error("Synthetic voice sequence failure", {
+            device: name,
+            text,
+            audioCalls,
+            errors,
+            snapshot: await page.evaluate(() => ({
+              path: location.pathname,
+              badge: document.querySelector(".snoop-listening")?.textContent,
+              phase: document.querySelector(".snoop-listening")?.getAttribute("data-phase"),
+              voice: window.__voice,
+              timingCount: window.voiceTimings.length,
+            })),
+          });
+          throw error;
+        }
         await listening();
       }
       await phrase("Crear socio");
       await page.waitForURL(base + "/soci/nuovo");
-      await phrase("Nombre Carlos, apellido García");
-      assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Carlos");
-      assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "García");
-      await phrase("Fecha de nacimiento 15 de marzo de 1995");
+      if (conversational) {
+        await page
+          .locator(".snoop-listening")
+          .filter({ hasText: "Dime nombre y apellidos" })
+          .waitFor();
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "");
+      }
+      await phrase(conversational ? "Marco Rossi" : "Nombre Carlos, apellido García");
+      assert.equal(
+        await page.getByLabel("Nombre *", { exact: true }).inputValue(),
+        conversational ? "Marco" : "Carlos",
+      );
+      assert.equal(
+        await page.getByLabel("Apellidos *", { exact: true }).inputValue(),
+        conversational ? "Rossi" : "García",
+      );
+      await phrase(
+        conversational ? "Nació el 12 de marzo de 1995" : "Fecha de nacimiento 15 de marzo de 1995",
+      );
       assert.equal(
         await page.getByLabel("Fecha de nacimiento *", { exact: true }).inputValue(),
-        "1995-03-15",
+        conversational ? "1995-03-12" : "1995-03-15",
       );
+      if (conversational) {
+        await phrase("Cambia el apellido a García");
+        assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "García");
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Marco");
+        const original = await page
+          .locator("input")
+          .evaluateAll((inputs) => inputs.map((i) => i.value));
+        await phrase("las nubes cantan sobre el mar");
+        assert.deepEqual(
+          await page.locator("input").evaluateAll((inputs) => inputs.map((i) => i.value)),
+          original,
+        );
+        await phrase("resumen");
+        await page
+          .locator(".snoop-listening")
+          .filter({ hasText: "Para guardar usa su botón" })
+          .waitFor();
+        await page
+          .getByLabel("Nombre *", { exact: true })
+          .evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+        await page.screenshot({
+          path: `docs/screenshots/voice-conversation-${name}.png`,
+          scale: "css",
+        });
+        transcript = "Stop Snoop";
+        await page.evaluate(() => (window.__voice.silent = false));
+        await page.waitForTimeout(400);
+        await page.evaluate(() => (window.__voice.silent = true));
+        await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+        await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+        await listening();
+      }
       await phrase("Ciudad Palma, teléfono 666123456");
       assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Palma");
       assert.equal(await page.getByLabel(/Teléfono/).inputValue(), "666123456");
       assert.equal(
         await page.evaluate(() => window.__voice.created),
-        1,
+        conversational ? 2 : 1,
         "same microphone across route and successive phrases",
       );
       // Manual edits during delayed transcription must win.
@@ -413,7 +478,7 @@ for (const [name, engine, device] of [
       await page.waitForTimeout(1200);
       assert.equal(
         await page.evaluate(() => window.__voice.created),
-        1,
+        conversational ? 2 : 1,
         "no overlapping recording while response is slow",
       );
       await page.getByLabel("Apellidos *", { exact: true }).fill("Manual");
@@ -439,11 +504,14 @@ for (const [name, engine, device] of [
       assert.equal(await page.getByLabel("P. venta €", { exact: true }).inputValue(), "10.5");
       assert.equal(
         await page.evaluate(() => window.__voice.created),
-        1,
+        conversational ? 2 : 1,
         "same stream also survives product navigation",
       );
       const metrics = await page.evaluate(() => window.voiceTimings);
-      await page.screenshot({ path: `docs/screenshots/voice-session-${name}.png`, scale: "css" });
+      await page.screenshot({
+        path: `docs/screenshots/${conversational ? "voice-conversation-product" : "voice-session"}-${name}.png`,
+        scale: "css",
+      });
       transcript = "Terminar";
       await page.evaluate(() => (window.__voice.silent = false));
       await page.waitForTimeout(400);
@@ -504,7 +572,10 @@ for (const [name, engine, device] of [
           "minimal indicator",
         ],
       });
-      console.log("PASS continuous voice session", name);
+      console.log(
+        conversational ? "PASS conversational member session" : "PASS continuous voice session",
+        name,
+      );
       await context.close();
       continue;
     }
@@ -931,8 +1002,10 @@ for (const [name, engine, device] of [
   }
 }
 await writeFile(
-  process.argv.includes("--continuous")
-    ? "docs/VOICE_SESSION_RESULTS.json"
-    : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
+  conversational
+    ? "docs/VOICE_CONVERSATION_RESULTS.json"
+    : process.argv.includes("--continuous")
+      ? "docs/VOICE_SESSION_RESULTS.json"
+      : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
   JSON.stringify({ results }, null, 2),
 );

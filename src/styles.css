@@ -1233,3 +1233,6 @@ body:has(.snoop-listening) {
 .premium-topbar {
   top: calc(env(safe-area-inset-top, 0px) + var(--snoop-voice-inset, 0px));
 }
+
+/* A foreground conversation replaces the legacy member dictation launcher. */
+body:has(.snoop-listening[data-active="true"]) [data-snoop-contextual-voice] { display: none; }

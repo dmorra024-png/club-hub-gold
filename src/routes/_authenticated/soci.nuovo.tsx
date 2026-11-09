@@ -1,3 +1,8 @@
+import {
+  memberConversation,
+  memberQuestion,
+  type ConversationState,
+} from "@/lib/voice-conversation";
 import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -103,6 +108,7 @@ function NewSocio() {
   const formRef = useRef(form);
   formRef.current = form;
   const voiceInitial = useRef(form);
+  const conversation = useRef<ConversationState | null>(null);
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
 
@@ -145,6 +151,55 @@ function NewSocio() {
     }
     const onDraft = () => applyPendingDraft(plansRef.current);
     window.addEventListener("snoop:member-draft", onDraft);
+    const resetConversation = () => {
+      conversation.current = null;
+    };
+    const onConversation = (event: Event) => {
+      const { text, language, respond } = (event as CustomEvent).detail;
+      const current = formRef.current;
+      const it = language === "it-IT";
+      const state = conversation.current ?? {
+        awaiting:
+          !current.first_name || !current.last_name
+            ? "name"
+            : !current.birth_date
+              ? "birth"
+              : "optional",
+      };
+      if (text === null) {
+        conversation.current = state;
+        respond({ handled: true, message: memberQuestion(current, it) });
+        return;
+      }
+      const reply = memberConversation(
+        state,
+        text,
+        current,
+        plansRef.current.map((p) => p.name),
+        it,
+      );
+      if (!reply.handled) {
+        respond(reply);
+        return;
+      }
+      const { plan_name, ...patch } = reply.patch;
+      const matchedPlan = plansRef.current.find((p) => p.name === plan_name);
+      const changes = { ...patch, ...(matchedPlan ? { plan_id: matchedPlan.id } : {}) };
+      setForm((previous) => {
+        const next = { ...previous };
+        for (const [key, value] of Object.entries(changes)) {
+          const k = key as keyof typeof changes;
+          if (previous[k] === current[k]) (next as Record<string, unknown>)[key] = value;
+        }
+        return next;
+      });
+      conversation.current = reply.state;
+      setVoiceSummary(reply.summary ? reply.summary + " · " + reply.message : "");
+      respond(reply);
+    };
+    window.addEventListener("snoop:member-conversation", onConversation);
+    window.addEventListener("snoop:conversation-reset", resetConversation);
+
     const rememberInitial = () => {
       voiceInitial.current = { ...formRef.current };
     };
@@ -174,6 +229,9 @@ function NewSocio() {
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
+      window.removeEventListener("snoop:member-conversation", onConversation);
+      window.removeEventListener("snoop:conversation-reset", resetConversation);
+      conversation.current = null;
       voiceMounted.current = false;
       window.removeEventListener("snoop:microphone-owner", rememberInitial);
     };
@@ -507,7 +565,10 @@ function NewSocio() {
         onConfirm={() => submit(selectedPlan?.price_cents ?? 0)}
       />
       {/* Voice dictation bar */}
-      <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4 flex items-center gap-4">
+      <div
+        data-snoop-contextual-voice
+        className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4 flex items-center gap-4"
+      >
         <button
           type="button"
           onClick={toggleMic}

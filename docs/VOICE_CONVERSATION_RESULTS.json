@@ -1,0 +1,270 @@
+{
+  "results": [
+    {
+      "device": "samsung",
+      "physical": false,
+      "result": "PASS",
+      "transcription": "simulated",
+      "metrics": [
+        {
+          "startupMs": 18.899999998509884,
+          "captureMs": 2041.5,
+          "encodingMs": 2,
+          "transcriptionMs": 12.100000001490116,
+          "interpretationMs": 3.2000000029802322,
+          "executionMs": 130.10000000149012,
+          "totalMs": 2208.2000000029802
+        },
+        {
+          "startupMs": 0.09999999403953552,
+          "captureMs": 2040.6000000014901,
+          "encodingMs": 0.8000000044703484,
+          "transcriptionMs": 5.399999998509884,
+          "interpretationMs": 1,
+          "executionMs": 17.5,
+          "totalMs": 2065.39999999851
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 3.899999998509884,
+          "interpretationMs": 1.4000000059604645,
+          "executionMs": 19,
+          "totalMs": 2066.10000000149
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.6999999955297,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4,
+          "interpretationMs": 0.7000000029802322,
+          "executionMs": 20.100000001490116,
+          "totalMs": 2066.5
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2041,
+          "encodingMs": 1,
+          "transcriptionMs": 3.600000001490116,
+          "interpretationMs": 0.29999999701976776,
+          "executionMs": 19.400000005960464,
+          "totalMs": 2065.4000000059605
+        },
+        {
+          "startupMs": 0.19999999552965164,
+          "captureMs": 2040.6000000014901,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4.700000002980232,
+          "interpretationMs": 0.19999999552965164,
+          "executionMs": 19.5,
+          "totalMs": 2066.0999999940395
+        },
+        {
+          "startupMs": 15.600000001490116,
+          "captureMs": 2040.8999999985099,
+          "encodingMs": 0.8000000044703484,
+          "transcriptionMs": 3.5999999940395355,
+          "interpretationMs": 0.6000000014901161,
+          "executionMs": 18.200000002980232,
+          "totalMs": 2079.7000000029802
+        },
+        {
+          "startupMs": 0.09999999403953552,
+          "captureMs": 2042.8000000044703,
+          "encodingMs": 2.7999999970197678,
+          "transcriptionMs": 1223.5,
+          "interpretationMs": 0,
+          "executionMs": 0,
+          "totalMs": 3269.1999999955297
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040.8000000044703,
+          "encodingMs": 1.6999999955296516,
+          "transcriptionMs": 4.700000002980232,
+          "interpretationMs": 0.19999999552965164,
+          "executionMs": 31.5,
+          "totalMs": 2078.89999999851
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 1,
+          "transcriptionMs": 4.700000002980232,
+          "interpretationMs": 0.29999999701976776,
+          "executionMs": 0,
+          "totalMs": 2046.8999999985099
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040.6999999955297,
+          "encodingMs": 0.9000000059604645,
+          "transcriptionMs": 3.899999998509884,
+          "interpretationMs": 0.10000000149011612,
+          "executionMs": 2522.39999999851,
+          "totalMs": 4568
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 1.1000000014901161,
+          "transcriptionMs": 4.5,
+          "interpretationMs": 0.7999999970197678,
+          "executionMs": 19.200000002980232,
+          "totalMs": 2066.5
+        }
+      ],
+      "capabilities": {
+        "nativeRecorder": true,
+        "audioContext": true,
+        "localSpeechApi": true,
+        "localReady": "not verified; no language pack installed by this test",
+        "whisperStreaming": false
+      },
+      "checks": [
+        "persistent root",
+        "one mic across navigation",
+        "ES successive member fields",
+        "product patches",
+        "manual edit wins",
+        "spoken stop/restart",
+        "zero writes",
+        "minimal indicator"
+      ]
+    },
+    {
+      "device": "iphone-webkit",
+      "physical": false,
+      "result": "PASS",
+      "transcription": "simulated",
+      "metrics": [
+        {
+          "startupMs": 5.000000000000227,
+          "captureMs": 2084,
+          "encodingMs": 3,
+          "transcriptionMs": 7,
+          "interpretationMs": 3,
+          "executionMs": 231,
+          "totalMs": 2333
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1971,
+          "encodingMs": 2,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "executionMs": 70,
+          "totalMs": 2047
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1977.000000000001,
+          "encodingMs": 4,
+          "transcriptionMs": 3,
+          "interpretationMs": 0.9999999999990905,
+          "executionMs": 16.99999999999909,
+          "totalMs": 2001.999999999999
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2091,
+          "encodingMs": 3,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "executionMs": 78,
+          "totalMs": 2176
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1967,
+          "encodingMs": 1.000000000001819,
+          "transcriptionMs": 3.999999999998181,
+          "interpretationMs": 0,
+          "executionMs": 90,
+          "totalMs": 2062
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1966.9999999999982,
+          "encodingMs": 2,
+          "transcriptionMs": 3,
+          "interpretationMs": 0,
+          "executionMs": 75,
+          "totalMs": 2046.9999999999982
+        },
+        {
+          "startupMs": 3.999999999996362,
+          "captureMs": 1966,
+          "encodingMs": 2,
+          "transcriptionMs": 5,
+          "interpretationMs": 1,
+          "executionMs": 250,
+          "totalMs": 2227.9999999999964
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1966.0000000000036,
+          "encodingMs": 1.999999999996362,
+          "transcriptionMs": 1217,
+          "interpretationMs": 0,
+          "executionMs": 0,
+          "totalMs": 3185
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1965,
+          "encodingMs": 2,
+          "transcriptionMs": 5.000000000003638,
+          "interpretationMs": 0.999999999996362,
+          "executionMs": 224,
+          "totalMs": 2197
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040,
+          "encodingMs": 1,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "executionMs": 0,
+          "totalMs": 2045
+        },
+        {
+          "startupMs": 1,
+          "captureMs": 1972,
+          "encodingMs": 5,
+          "transcriptionMs": 3,
+          "interpretationMs": 0,
+          "executionMs": 2556,
+          "totalMs": 4537
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1966,
+          "encodingMs": 4,
+          "transcriptionMs": 5,
+          "interpretationMs": 0,
+          "executionMs": 31,
+          "totalMs": 2006
+        }
+      ],
+      "capabilities": {
+        "nativeRecorder": false,
+        "audioContext": true,
+        "localSpeechApi": false,
+        "localReady": "not verified; no language pack installed by this test",
+        "whisperStreaming": false
+      },
+      "checks": [
+        "persistent root",
+        "one mic across navigation",
+        "ES successive member fields",
+        "product patches",
+        "manual edit wins",
+        "spoken stop/restart",
+        "zero writes",
+        "minimal indicator"
+      ]
+    }
+  ]
+}
