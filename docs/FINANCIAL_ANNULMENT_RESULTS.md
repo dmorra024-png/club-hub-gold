@@ -59,3 +59,9 @@ Screenshot di interfacce realmente renderizzate con dati sintetici: `annulment-{
 - Gli annullamenti anteriori privi di rettifica restano distinguibili con dati non registrati; non vengono inventati storni retroattivi.
 - Ambito: registrazioni già confermate di `orders` nei due storici. Non viene annullata automaticamente l'iscrizione di un socio né emesso un rimborso.
 - Nessun merge, deployment, cambio di segreti, account o accesso a Security PSG.
+
+## Stabilizzazione della prova WebKit generale
+
+La prima CI del commit `4044cc9` ha superato tutti i dieci casi nuovi di annullamento e le regressioni degli storici, ma ha segnalato un errore CORS su una richiesta attività `members` nel test generale `test-snoop-completion.mjs`, durante le transizioni tra ruolo amministratore e collaboratore e accessi diretti a pagine protette. Le API erano intercettate: non era una risposta RLS di Supabase reale.
+
+La fixture ora attende contenuto della home e letture indipendenti prima di chiudere il documento e cambiare ruolo. Ogni verifica di accesso diretto parte da una nuova pagina dello stesso contesto autenticato. È stata introdotta latenza di 250 ms nelle risposte attività per esercitare il caso asincrono. Le asserzioni su errori, permessi, assenza di scritture, OTP monouso e password non sono state rimosse o attenuate; nessun aumento dei timeout. Prova locale finale PASS su Android Chromium, emulazione iPhone e WebKit. Nessuna modifica alle RLS o all'autenticazione dell'app per aggirare il problema del test.

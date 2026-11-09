@@ -184,6 +184,9 @@ for (const [label, engine, device, options] of engines) {
       "access-control-expose-headers": "content-range",
     };
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    // Deliberate response latency exercises document replacement with activity reads in flight.
+    if (url.pathname.endsWith("/members") && req.method() === "GET")
+      await new Promise((resolve) => setTimeout(resolve, 250));
     let result = [],
       status = 200;
     if (url.pathname.endsWith("/auth/v1/user")) {
@@ -308,7 +311,7 @@ for (const [label, engine, device, options] of engines) {
     ({ auth, authKey }) => localStorage.setItem(authKey, JSON.stringify(auth)),
     { auth, authKey },
   );
-  const page = await context.newPage();
+  let page = await context.newPage();
   page.setDefaultTimeout(15000);
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(e.message));
@@ -480,8 +483,18 @@ for (const [label, engine, device, options] of engines) {
       ({ auth, authKey }) => localStorage.setItem(authKey, JSON.stringify(auth)),
       { auth, authKey },
     );
+    // Network-idle alone may resolve before React mounts its independent activity effect.
+    // Finish the authenticated home and close that document before changing identity fixtures.
+    await page.getByRole("heading", { name: "Synthetic Club", exact: true }).waitFor();
+    await page.locator(".premium-cash-amount").getByText(/10,00/).waitFor();
+    await page.locator(".premium-activity").first().waitFor();
+    await page.waitForLoadState("networkidle");
+    await page.close();
     role = "collaborator";
     permissions = ["manage_members"];
+    page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    page.on("pageerror", (e) => pageErrors.push(e.message));
     await page.goto(base + "/productos", { waitUntil: "commit" }).catch((error) => {
       if (
         !label.includes("WebKit") ||
@@ -491,7 +504,17 @@ for (const [label, engine, device, options] of engines) {
     });
     await page.waitForURL(base + "/");
     await page.waitForLoadState("networkidle");
+    await page.getByRole("heading", { name: "Synthetic Club", exact: true }).waitFor();
+    await page
+      .getByText("Aún no hay actividades disponibles para tu acceso.", { exact: true })
+      .waitFor();
+    await page.waitForLoadState("networkidle");
     assert.equal(await page.getByLabel("Producto para ajustar stock").count(), 0);
+    // A second protected deep link starts with no pending activity request from the first.
+    await page.close();
+    page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    page.on("pageerror", (e) => pageErrors.push(e.message));
     await page
       .goto(base + "/ajustes/colaboradores", {
         waitUntil: "commit",
@@ -504,6 +527,11 @@ for (const [label, engine, device, options] of engines) {
           throw error;
       });
     await page.waitForURL(base + "/");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("heading", { name: "Synthetic Club", exact: true }).waitFor();
+    await page
+      .getByText("Aún no hay actividades disponibles para tu acceso.", { exact: true })
+      .waitFor();
     await page.waitForLoadState("networkidle");
     assert.equal(await page.getByLabel("Email", { exact: true }).count(), 0);
     assert.deepEqual(pageErrors, []);
