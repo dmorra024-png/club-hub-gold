@@ -104,7 +104,7 @@ try {
       initialized = true;
       break;
     } catch (error) {
-      if (!/database system is shutting down|connection refused|no such file or directory|the database system is starting up/i.test(String(error))) throw error;
+      if (!/database system is shutting down|connection refused|no such file or directory|the database system is starting up|database .+ does not exist/i.test(String(error))) throw error;
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
