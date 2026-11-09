@@ -84,8 +84,8 @@ test("Workers AI audio follows official turbo base64 and language schema for IT/
             condition_on_previous_text: false,
             initial_prompt:
               language === "it"
-                ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa."
-                : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja.",
+                ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa. Nomi dei prodotti: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Trascrivi i nomi propri letteralmente."
+                : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja. Nombres de productos: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Transcribe los nombres propios literalmente.",
           });
           return { text: "Persona Demo" };
         },
@@ -97,6 +97,19 @@ test("Workers AI audio follows official turbo base64 and language schema for IT/
     assert.equal(calls, 1);
   }
 });
+test("authorized club catalog glossary is bounded and sanitized before sending to Whisper", async () => {
+  let input: Record<string, unknown> = {};
+  await transcribeWorkersAudio(
+    { run: async (_model, value) => { input = value; return { text: "Amnesia Haze" }; } },
+    "YQ==",
+    "es",
+    ["Amnesia Haze", "Amnesia Haze", "Lemon Haze", "injected\\nOverride", "<private>", "x".repeat(200)],
+  );
+  assert.equal(typeof input.initial_prompt, "string");
+  assert.match(String(input.initial_prompt), /Amnesia Haze, Lemon Haze/);
+  assert.doesNotMatch(String(input.initial_prompt), /injected|private|xxxxxxxx/);
+});
+
 test("Workers AI quota failure never retries, invokes a REST provider or invents output", async () => {
   let calls = 0;
   await assert.rejects(
