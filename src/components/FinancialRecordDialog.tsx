@@ -193,7 +193,7 @@ export function FinancialRecordDialog({
         <DialogHeader>
           <DialogTitle>Detalle del registro</DialogTitle>
           <DialogDescription>
-            Original y rectificación contable, sin modificación del inventario.
+            Historial original y rectificación contable. Al anular, se repone la cantidad vendida en el inventario; la merma no se repone.
           </DialogDescription>
         </DialogHeader>
         {!data && !error && <p role="status">Consultando registro…</p>}
@@ -328,8 +328,7 @@ export function FinancialRecordDialog({
             {order.canCancel && can("use_cash") && !committed && (
               <div className="space-y-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground">
-                  Anular conserva el original y registra una rectificación. No devuelve dinero ni
-                  modifica inventario.
+                  Anular conserva el original, descuenta el importe del resultado contable y repone la cantidad vendida en el inventario (no la merma). No realiza un reembolso automático.
                 </p>
                 <label className="block text-sm">
                   Motivo de anulación
@@ -344,6 +343,9 @@ export function FinancialRecordDialog({
                     className="mt-2 w-full rounded-xl border border-border bg-input p-3"
                   />
                 </label>
+                {reason.trim().length > 0 && reason.trim().length < 5 && (
+                  <p className="text-xs text-amber-300" role="status">Escribe al menos 5 caracteres para habilitar la anulación.</p>
+                )}
                 <Button
                   className="w-full"
                   variant="destructive"
