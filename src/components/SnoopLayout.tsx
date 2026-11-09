@@ -204,6 +204,7 @@ export function SnoopLayout({
             aria-label="Escanear socio para dispensación"
           >
             <QrAccessIcon />
+            <span>QR</span>
           </Link>
         ) : (
           <button
@@ -213,6 +214,7 @@ export function SnoopLayout({
             title="Sin permiso de gestión de socios"
           >
             <QrAccessIcon />
+            <span>QR</span>
           </button>
         )}
         <button
@@ -220,10 +222,10 @@ export function SnoopLayout({
           className="premium-dock-voice"
           aria-label="Voice 2.0"
           disabled={loading || !!accessError || access.status !== "active"}
-          onClick={() => window.dispatchEvent(new Event("snoop:voice-open"))}
+          onClick={() => window.dispatchEvent(new Event("snoop:voice-start"))}
         >
           <Mic aria-hidden="true" />
-          <span>Voice 2.0</span>
+          <span>Voice</span>
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
           <UserRound aria-hidden="true" />
