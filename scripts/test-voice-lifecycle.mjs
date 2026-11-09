@@ -253,6 +253,28 @@ try {
       await phase("recording");
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await phase("idle");
+      // Continuous clips reuse one microphone; cancellation releases retained resources.
+      await page.evaluate(() => window.setContinuous(true));
+      const heldCreated = await page.evaluate(() => window.events.created);
+      await page.getByRole("button", { name: "Start", exact: true }).click();
+      await phase("recording");
+      await page.getByRole("button", { name: "Finish", exact: true }).click();
+      await phase("idle");
+      await page.getByRole("button", { name: "Start", exact: true }).click();
+      await phase("recording");
+      assert.equal(await page.evaluate(() => window.events.created), heldCreated + 1);
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await phase("idle");
+      // No silent upload when the maximum timer wins the endpoint polling race.
+      await page.clock.install();
+      await page.evaluate(() => (window.events.rms = 0));
+      const silentUploads = await page.evaluate(() => window.fixture.uploads);
+      await page.getByRole("button", { name: "Start", exact: true }).click();
+      await phase("recording");
+      await page.clock.runFor(60100);
+      await phase("idle");
+      assert.equal(await page.evaluate(() => window.fixture.uploads), silentUploads);
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
       assert.equal(
         await page.evaluate(() => window.events.created),
         await page.evaluate(() => window.events.stopped),

@@ -1,3 +1,4 @@
+import { VoiceSessionProvider } from "@/components/VoiceSession";
 import { rememberRoute, forgetRoute } from "@/lib/resume-route";
 import { useAuth } from "@/hooks/useAuth";
 import "@fontsource/space-grotesk/400.css";
@@ -189,7 +190,9 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet key={identity} />
+      <VoiceSessionProvider auth={auth}>
+        <Outlet key={identity} />
+      </VoiceSessionProvider>
       <PwaInstall />
       <Toaster
         theme="dark"

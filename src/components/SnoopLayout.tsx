@@ -1,5 +1,5 @@
 import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
-import { VoiceAgent } from "@/components/VoiceAgent";
+import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
@@ -47,8 +47,7 @@ export function SnoopLayout({
   subtitle?: string;
   home?: boolean;
 }) {
-  const [voicePhase, setVoicePhase] =
-    useState<import("@/hooks/useWhisperDictation").DictationPhase>("idle");
+  const voicePhase = useVoicePhase();
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -175,14 +174,6 @@ export function SnoopLayout({
           </aside>
         </>
       )}
-      {user && access.role && !loading && !accessError && (
-        <VoiceAgent
-          clubName={access.clubName}
-          access={access}
-          userId={user.id}
-          onPhaseChange={setVoicePhase}
-        />
-      )}
       <main id="main-content" className="premium-main" tabIndex={-1}>
         {title && (
           <div className="premium-page-heading">
@@ -237,7 +228,7 @@ export function SnoopLayout({
             voicePhase === "starting" ||
             voicePhase === "processing"
           }
-          onClick={() => window.dispatchEvent(new Event("snoop:voice-start"))}
+          onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
           <Mic aria-hidden="true" />
           <span>Voice</span>

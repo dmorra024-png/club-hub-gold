@@ -1160,9 +1160,76 @@ body[data-snoop-keyboard="true"] .premium-voice-panel {
   filter: none;
 }
 .premium-shell .premium-bottom-nav .premium-qr::after,
-.premium-shell .premium-bottom-nav .premium-qr::before { content: none; }
-.premium-shell .premium-bottom-nav > :is(a,button):focus-visible { outline: 2px solid #efc979; outline-offset: -3px; }
-.premium-shell .premium-bottom-nav > :is(a,button)[aria-current="page"] { color: #efc979; }
+.premium-shell .premium-bottom-nav .premium-qr::before {
+  content: none;
+}
+.premium-shell .premium-bottom-nav > :is(a, button):focus-visible {
+  outline: 2px solid #efc979;
+  outline-offset: -3px;
+}
+.premium-shell .premium-bottom-nav > :is(a, button)[aria-current="page"] {
+  color: #efc979;
+}
 @media (min-width: 768px) {
- .premium-shell .premium-bottom-nav { padding-inline: max(12px, calc((100vw - 500px) / 2)); }
+  .premium-shell .premium-bottom-nav {
+    padding-inline: max(12px, calc((100vw - 500px) / 2));
+  }
+}
+/* Foreground-only voice status: no overlay over editable forms. */
+.snoop-listening {
+  position: fixed;
+  z-index: 40;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 20px);
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: #081725f5;
+  border: 1px solid #c6a76b70;
+  border-radius: 0 0 14px 14px;
+  color: #efce8b;
+  font-size: 11px;
+  box-shadow: 0 4px 16px #0005;
+}
+.snoop-listening [role="status"] {
+  max-width: 210px;
+  line-height: 1.25;
+}
+.snoop-listening button {
+  min-width: 28px;
+  min-height: 28px;
+}
+.snoop-listening-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #6cbeed;
+  box-shadow: 0 0 6px #6cbeed88;
+}
+.snoop-listening.is-speaking .snoop-listening-dot {
+  background: #efc979;
+  box-shadow: 0 0 10px #efc979;
+}
+.snoop-listening:has(button:nth-of-type(3)) {
+  top: 64px;
+  flex-wrap: wrap;
+  max-width: 330px;
+}
+.premium-voice-panel input:not([type="checkbox"]),
+.premium-voice-panel select {
+  font-size: 16px;
+}
+body:has(.snoop-listening) {
+  --snoop-voice-inset: 44px;
+}
+.premium-shell {
+  padding-top: var(--snoop-voice-inset, 0px);
+}
+.premium-topbar {
+  top: calc(env(safe-area-inset-top, 0px) + var(--snoop-voice-inset, 0px));
 }

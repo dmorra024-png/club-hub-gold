@@ -130,9 +130,17 @@ export async function transcribeWorkersAudio(
   binding: SnoopAiBinding,
   audio: string,
   language: "it" | "es",
+  catalogNames: readonly string[] = [],
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let result: { text?: unknown };
+  // Never include members, transactions, notes or other club information.
+  // A small, unique, validated catalog glossary is used only when separately authorized.
+  const permittedNames = [...new Set(catalogNames
+    .filter((n): n is string => typeof n === "string")
+    .map((n) => n.trim())
+    .filter((n) => n.length >= 2 && n.length <= 60 && !/[\r\n<>]|\\[rn]/i.test(n)))].slice(0, 35);
+  const catalogGlossary = permittedNames.length ? ` Nombres de productos del catálogo: ${permittedNames.join(", ").slice(0, 1200)}.` : "";
   try {
     result = (await Promise.race([
       binding.run(FREE_AUDIO_MODEL, {
@@ -140,6 +148,11 @@ export async function transcribeWorkersAudio(
         language,
         task: "transcribe",
         vad_filter: true,
+        condition_on_previous_text: false,
+        initial_prompt:
+          language === "it"
+            ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa. Nomi dei prodotti: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Trascrivi i nomi propri letteralmente." + catalogGlossary
+            : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja. Nombres de productos: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Transcribe los nombres propios literalmente." + catalogGlossary,
       }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Workers AI transcription timeout")), 25000);

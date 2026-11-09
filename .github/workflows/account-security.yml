@@ -11,7 +11,7 @@ permissions:
 jobs:
   security:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -77,6 +77,7 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:cash:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:critical:browser
           npm run test:voice:lifecycle
+          TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:session
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice2:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:genetics:browser
@@ -92,6 +93,8 @@ jobs:
             docs/GENETICS_BROWSER_RESULTS.json
             docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json
             docs/screenshots/voice2-*.png
+            docs/screenshots/voice-session-*.png
+            docs/VOICE_SESSION_RESULTS.json
             docs/screenshots/critical-*.png
             docs/CRITICAL_BROWSER_RESULTS.json
             docs/CAJA_BROWSER_RESULTS.json
