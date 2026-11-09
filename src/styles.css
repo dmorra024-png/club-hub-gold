@@ -1116,3 +1116,53 @@ body[data-snoop-keyboard="true"] .premium-voice-panel {
   bottom: calc(var(--snoop-keyboard-inset, 0px) + 12px);
   max-height: calc(var(--snoop-visible-height) - 24px);
 }
+
+/* Equal four-action bottom dock: Instagram-like proportions, SNOOP styling. */
+.premium-shell .premium-bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  padding-inline: 8px;
+  gap: 0;
+}
+.premium-shell .premium-bottom-nav > a,
+.premium-shell .premium-bottom-nav > button,
+.premium-shell .premium-bottom-nav > .premium-qr,
+.premium-shell .premium-bottom-nav > .premium-dock-voice {
+  position: relative;
+  inset: auto;
+  grid-column: auto;
+  transform: none;
+  width: 100%;
+  height: 72px;
+  min-height: 72px;
+  margin: 0;
+  padding: 8px 1px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 12px;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-align: center;
+}
+.premium-shell .premium-bottom-nav > a svg,
+.premium-shell .premium-bottom-nav > button svg {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  filter: none;
+}
+.premium-shell .premium-bottom-nav .premium-qr::after,
+.premium-shell .premium-bottom-nav .premium-qr::before { content: none; }
+.premium-shell .premium-bottom-nav > :is(a,button):focus-visible { outline: 2px solid #efc979; outline-offset: -3px; }
+.premium-shell .premium-bottom-nav > :is(a,button)[aria-current="page"] { color: #efc979; }
+@media (min-width: 768px) {
+ .premium-shell .premium-bottom-nav { padding-inline: max(12px, calc((100vw - 500px) / 2)); }
+}
