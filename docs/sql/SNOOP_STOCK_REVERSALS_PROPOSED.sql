@@ -47,7 +47,7 @@ REVOKE ALL ON FUNCTION public.snoop_bind_sale_stock_movement() FROM PUBLIC,anon,
 CREATE TRIGGER snoop_bind_sale_stock_movement BEFORE INSERT ON public.stock_movements
  FOR EACH ROW EXECUTE FUNCTION public.snoop_bind_sale_stock_movement();
 
--- Reversal rows are immutable and may only originate inside the trusted cancellation trigger.
+-- Reversal rows are immutable. Reject direct client INSERT; nested trusted cancellation trigger only.
 CREATE FUNCTION public.snoop_protect_stock_reversal() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
 BEGIN
@@ -55,7 +55,7 @@ BEGIN
   RAISE EXCEPTION 'Stock reversal immutable' USING ERRCODE='42501';
  END IF;
  IF TG_OP='INSERT' AND NEW.original_movement_id IS NOT NULL
-    AND current_setting('snoop.stock_reversal_authorized',true) IS DISTINCT FROM 'yes' THEN
+    AND pg_trigger_depth() < 2 THEN
   RAISE EXCEPTION 'Direct stock reversal forbidden' USING ERRCODE='42501';
  END IF;
  IF TG_OP='DELETE' THEN RETURN OLD;END IF;
@@ -99,13 +99,11 @@ BEGIN
   THEN RAISE EXCEPTION 'Sale includes waste or unverified stock; manual review required' USING ERRCODE='22023';END IF;
   FOR original IN SELECT m.id,m.delta FROM public.stock_movements m
       WHERE m.sale_order_id=OLD.id AND m.club_id=OLD.club_id AND m.product_id=line.product_id AND m.reason='sale' ORDER BY m.id FOR UPDATE LOOP
-   -- The order is being cancelled once, enforced by finance unique order_id.
+   -- Order cancellation happens once; finance order_id and stock original_movement_id are unique.
    -- Record physical reversal and stock credit in one database transaction.
-   PERFORM set_config('snoop.stock_reversal_authorized','yes',true);
    INSERT INTO public.stock_movements(club_id,product_id,delta,reason,notes,created_by,reversal_order_id,original_movement_id)
    VALUES (OLD.club_id,line.product_id,-original.delta,'sale_cancellation',
     'Anulación de pedido '||OLD.id::text,auth.uid(),OLD.id,original.id);
-   PERFORM set_config('snoop.stock_reversal_authorized','no',true);
    UPDATE public.products SET stock=stock-original.delta WHERE id=line.product_id AND club_id=OLD.club_id;
   END LOOP;
  END LOOP;
