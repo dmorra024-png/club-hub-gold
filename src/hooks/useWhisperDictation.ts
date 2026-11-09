@@ -21,13 +21,19 @@ export function useWhisperDictation(options: Options) {
   const recorder = useRef<MediaRecorder | null>(null),
     stream = useRef<MediaStream | null>(null),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    silenceTimer = useRef<ReturnType<typeof setInterval> | null>(null),
+    audioContext = useRef<AudioContext | null>(null),
     generation = useRef(0),
     pending = useRef(false),
     mounted = useRef(true),
     owner = useRef(Symbol("snoop-microphone"));
   const release = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
+    if (silenceTimer.current) clearInterval(silenceTimer.current);
     timer.current = null;
+    silenceTimer.current = null;
+    if (audioContext.current) void audioContext.current.close().catch(() => {});
+    audioContext.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
     recorder.current = null;
@@ -169,9 +175,35 @@ export function useWhisperDictation(options: Options) {
           }
         }
       };
-      rec.start(1000);
+      rec.start(250);
       setPhase("recording");
-      timer.current = setTimeout(finish, 60000);
+      // Auto-finish after a spoken phrase followed by silence. Audio processing
+      // stays on-device; only the final clip is sent to Whisper with consent.
+      try {
+        const ctx = new AudioContext();
+        audioContext.current = ctx;
+        const source = ctx.createMediaStreamSource(tracks);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        const samples = new Uint8Array(analyser.fftSize);
+        const started = Date.now();
+        let speechAt = 0;
+        silenceTimer.current = setInterval(() => {
+          if (rec.state !== "recording") return;
+          analyser.getByteTimeDomainData(samples);
+          let power = 0;
+          for (const sample of samples) power += (sample - 128) ** 2;
+          const rms = Math.sqrt(power / samples.length) / 128;
+          if (rms > 0.025) speechAt = Date.now();
+          if (speechAt && Date.now() - speechAt > 1600 && Date.now() - started > 1800)
+            finish();
+          else if (Date.now() - started > 12000) finish();
+        }, 120);
+      } catch {
+        // Audio analyser unavailable: the stop button and safety timeout remain.
+      }
+      timer.current = setTimeout(finish, 15000);
     } catch (e) {
       if (id === generation.current) {
         release();
