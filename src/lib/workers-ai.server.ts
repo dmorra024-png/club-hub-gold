@@ -140,6 +140,11 @@ export async function transcribeWorkersAudio(
         language,
         task: "transcribe",
         vad_filter: true,
+        condition_on_previous_text: false,
+        initial_prompt:
+          language === "it"
+            ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa."
+            : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja.",
       }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Workers AI transcription timeout")), 25000);

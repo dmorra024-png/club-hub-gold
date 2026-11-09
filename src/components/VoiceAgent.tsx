@@ -1,8 +1,9 @@
+import { resolveVoiceUtterance } from "@/lib/voice-intents";
 import { premiumVoiceIntent } from "@/lib/premium-voice";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Mic, X, Loader2, Square } from "lucide-react";
+import { Mic, X, Loader2, Square, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { informationalVoiceCommand } from "@/lib/informational-voice";
 import { parseAdministrativeDictation } from "@/lib/member-administration";
@@ -112,18 +113,47 @@ export function VoiceAgent({
   const [consentFor, setConsentFor] = useState({ key: "", allowed: false });
   const consent = consentFor.key === consentKey && consentFor.allowed;
   const closeWhenIdle = useRef(false);
+  const [sessionActive, setSessionActive] = useState(false),
+    [continuous, setContinuous] = useState(true),
+    [consentPrompt, setConsentPrompt] = useState(false),
+    [stage, setStage] = useState("Escuchando"),
+    [speaking, setSpeaking] = useState(false),
+    [clarification, setClarification] = useState(""),
+    [fault, setFault] = useState("");
+  const activeRef = useRef(false),
+    cancelRef = useRef<() => void>(() => {}),
+    recordingPath = useRef(""),
+    executing = useRef(false);
+  const stopSession = useCallback(() => {
+    activeRef.current = false;
+    setSessionActive(false);
+    setSpeaking(false);
+    setFeedback("");
+    setFault("");
+    cancelRef.current();
+  }, []);
+  const [timings, setTimings] = useState<import("@/hooks/useWhisperDictation").VoiceTiming[]>([]);
   useEffect(() => {
     let allowed = false;
     try {
       allowed = localStorage.getItem(consentKey) === "cloudflare-whisper";
+      setContinuous(localStorage.getItem(consentKey + ":mode") !== "single");
     } catch {}
     setConsentFor({ key: consentKey, allowed });
   }, [consentKey]);
   const aiStatus = useServerFn(getAdministrativeAiStatus),
     transcribe = useServerFn(transcribeAudio);
   const processingRef = useRef(false);
-  const navigate = useNavigate(),
-    location = useLocation(),
+  const voiceDestination = useRef<string | null>(null);
+  const routerNavigate = useNavigate();
+  const navigate = useCallback(
+    (options: any) => {
+      voiceDestination.current = options.to;
+      return routerNavigate(options);
+    },
+    [routerNavigate],
+  );
+  const location = useLocation(),
     locRef = useRef(location);
   locRef.current = location;
   const accessRef = useRef({ access, userId });
@@ -134,7 +164,6 @@ export function VoiceAgent({
     access.status,
     access.role,
     ...[...access.permissions].sort(),
-    location.pathname,
   ].join(":");
   useEffect(() => {
     try {
@@ -220,6 +249,17 @@ export function VoiceAgent({
           path === "/productos" &&
           document.querySelector("[data-snoop-product-form]") &&
           /^(?:no\b|cambia\b|corrige\b|correggi\b|modifica\b)/i.test(text)
+        ) {
+          allow("/productos");
+          window.dispatchEvent(
+            new CustomEvent("snoop:productos-command", { detail: { text, tab: "nuevo" } }),
+          );
+          return;
+        }
+        if (
+          path === "/productos" &&
+          document.querySelector("[data-snoop-product-form]") &&
+          /^(?:nombre|nome|categor[ií]a|stock|cantidad|precio|prezzo)\b/i.test(text)
         ) {
           allow("/productos");
           window.dispatchEvent(
@@ -456,24 +496,122 @@ export function VoiceAgent({
     language: language.startsWith("it") ? "it" : "es",
     available: aiStatus,
     transcribe: (data) => transcribe({ data }),
+    continuous,
+    onInterrupt: stopSession,
+    onTiming: (timing) => {
+      setTimings((old) => [...old.slice(-19), timing]);
+      window.dispatchEvent(new CustomEvent("snoop:voice-timing", { detail: timing }));
+    },
+    onSpeechActivity: setSpeaking,
     onStart: () => {
+      setFault("");
       closeWhenIdle.current = false;
       recordingEdits.current = fieldEdits.current;
+      recordingPath.current = locRef.current.pathname;
+      setStage("Escuchando");
     },
-    onTranscript: (text) => {
-      if (fieldEdits.current !== recordingEdits.current) {
-        toast.info("Se conserva tu edición manual. Repite el dictado si lo necesitas.");
+    onTranscript: async (text) => {
+      setSpeaking(false);
+      setClarification("");
+      if (!continuous) {
+        activeRef.current = false;
+        setSessionActive(false);
         closeWhenIdle.current = true;
+      }
+      setStage("Interpretando");
+      if (recordingPath.current !== locRef.current.pathname) {
+        setFeedback("Pantalla cambiada. Repite el comando.");
         return;
       }
-      toast.info(`Transcripción: ${text.slice(0, 180)}`);
+      if (fieldEdits.current !== recordingEdits.current) {
+        setFeedback("Conservo tu edición manual. Repite el dictado.");
+        return;
+      }
+      const interpretationStart = performance.now();
+      const intent = resolveVoiceUtterance(text, locRef.current.pathname);
+      const interpretationMs = performance.now() - interpretationStart;
       setTranscript(text);
-      setManual(text);
-      return handleTranscript(text).then((result) => {
-        closeWhenIdle.current = result !== false;
-      });
+      if (intent.kind === "stop") {
+        stopSession();
+        setFeedback("Escucha terminada.");
+        return;
+      }
+      if (intent.kind === "uncertain") {
+        setClarification(intent.message);
+        return;
+      }
+      setManual(intent.text);
+      executing.current = true;
+      setStage("Ejecutando");
+      try {
+        const applied = await handleTranscript(intent.text);
+        if (applied === false) {
+          setClarification("No tienes permiso para esta función.");
+          return;
+        }
+        const selector = /^Crear socio\b/i.test(intent.text)
+          ? "[data-snoop-member-form]"
+          : /^Crear producto\b/i.test(intent.text)
+            ? "[data-snoop-product-form]"
+            : null;
+        if (selector) {
+          const until = performance.now() + 5000;
+          while (!document.querySelector(selector)?.getClientRects().length) {
+            if (continuous && !activeRef.current) return;
+            if (performance.now() > until) {
+              stopSession();
+              setFeedback("No se pudo abrir el formulario. Reintenta.");
+              return;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        }
+      } finally {
+        executing.current = false;
+      }
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      return {
+        interpretationMs,
+        executionMs: performance.now() - interpretationStart - interpretationMs,
+      };
     },
   });
+  cancelRef.current = dictation.cancel;
+  useEffect(() => {
+    if (dictation.error) {
+      stopSession();
+      setFault(dictation.error.slice(0, 160));
+      setFeedback(dictation.error.slice(0, 160));
+    }
+  }, [dictation.error, stopSession]);
+  useEffect(() => {
+    if (
+      dictation.phase !== "idle" ||
+      !continuous ||
+      !sessionActive ||
+      !activeRef.current ||
+      dictation.error
+    )
+      return;
+    const timer = setTimeout(() => {
+      if (activeRef.current && document.visibilityState === "visible" && navigator.onLine)
+        void dictation.start();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [dictation.phase, sessionActive, dictation.error, dictation.start, continuous]);
+  useEffect(() => {
+    if (voiceDestination.current === location.pathname) {
+      voiceDestination.current = null;
+      return;
+    }
+    voiceDestination.current = null;
+    if (activeRef.current) {
+      if (continuous) dictation.cancel();
+      else stopSession();
+    }
+  }, [location.pathname]);
   useEffect(() => {
     onPhaseChange?.(dictation.phase);
   }, [dictation.phase, onPhaseChange]);
@@ -482,9 +620,19 @@ export function VoiceAgent({
     busy = dictation.phase === "starting" || dictation.phase === "processing";
   // Start events never toggle/stop an active recording. The hook serializes starts.
   const startRecording = useCallback(() => {
-    setPanelOpen(true);
-    if (consent) void dictation.start();
-  }, [consent, dictation.start]);
+    if (activeRef.current) return;
+    if (!consent) {
+      setConsentPrompt(true);
+      return;
+    }
+    setConsentPrompt(false);
+    setFault("");
+    setPanelOpen(!continuous);
+    setFeedback("");
+    activeRef.current = true;
+    setSessionActive(true);
+    void dictation.start();
+  }, [consent, dictation.start, stopSession, continuous]);
   useEffect(() => {
     if (dictation.phase === "idle" && closeWhenIdle.current) {
       closeWhenIdle.current = false;
@@ -496,14 +644,26 @@ export function VoiceAgent({
     return () => window.removeEventListener("snoop:voice-start", startRecording);
   }, [startRecording]);
   useEffect(() => {
-    const open = () => setPanelOpen(true);
+    const toggle = () => {
+      if (activeRef.current) stopSession();
+      else startRecording();
+    };
+    window.addEventListener("snoop:voice-toggle", toggle);
+    return () => window.removeEventListener("snoop:voice-toggle", toggle);
+  }, [startRecording, stopSession]);
+  useEffect(() => {
+    const open = () => {
+      stopSession();
+      setPanelOpen(true);
+    };
     window.addEventListener("snoop:voice-open", open);
     return () => window.removeEventListener("snoop:voice-open", open);
   }, []);
   useEffect(() => {
     setPanelOpen(false);
     closeWhenIdle.current = false;
-    dictation.cancel();
+    stopSession();
+    setConsentPrompt(false);
     setManual("");
     setTranscript("");
   }, [scope]);
@@ -548,127 +708,239 @@ export function VoiceAgent({
       clearTimeout(timer);
       window.removeEventListener("snoop:cash-report-open", event);
     };
-  }, [scope]);
-  return panelOpen ? (
-    <section
-      role="dialog"
-      aria-modal="false"
-      aria-label="Voice 2.0"
-      className="premium-voice-panel"
-      data-phase={dictation.phase}
-    >
-      <header>
-        <strong>Voice 2.0</strong>
-        <button
-          type="button"
-          aria-label="Cerrar Voice 2.0"
-          onClick={() => {
-            closeWhenIdle.current = false;
-            dictation.cancel();
-            setPanelOpen(false);
-            setFeedback("");
-          }}
+  }, [scope, location.pathname]);
+  const shortError = /Permiso|denegado/i.test(fault)
+    ? "Permite el micrófono para continuar."
+    : /conex|fetch|network/i.test(fault)
+      ? "Sin conexión. Puedes usar el teclado."
+      : /tarda|timeout/i.test(fault)
+        ? "La voz tarda demasiado. Reintenta."
+        : "Voz no disponible. Puedes usar el teclado.";
+  const status =
+    dictation.phase === "processing"
+      ? stage === "Escuchando"
+        ? "Transcribiendo"
+        : stage
+      : dictation.phase === "starting"
+        ? "Activando micrófono"
+        : "SNOOP ESCUCHANDO";
+  return (
+    <>
+      {(sessionActive || consentPrompt || feedback || dictation.error) && !panelOpen && (
+        <aside
+          className={`snoop-listening ${speaking ? "is-speaking" : ""}`}
+          aria-label="Sesión de voz"
+          data-phase={dictation.phase}
         >
-          <X size={20} />
-        </button>
-      </header>
-      <p className="text-xs text-muted-foreground">
-        Comandos administrativos · Revisa y confirma siempre en el formulario.
-      </p>
-      <label className="text-xs">
-        Idioma de voz / Lingua voce
-        <select
-          aria-label="Idioma de voz / Lingua voce"
-          value={language}
-          disabled={busy || enabled}
-          onChange={(e) => {
-            dictation.cancel();
-            setLanguage(e.target.value);
-            localStorage.setItem("snoop:voice-language", e.target.value);
-            window.dispatchEvent(new Event("snoop:voice-language"));
-          }}
+          <span className="snoop-listening-dot" aria-hidden="true" />
+          <span role="status">
+            {consentPrompt
+              ? "Permite transcribir con Cloudflare Whisper. El audio no se guarda."
+              : sessionActive
+                ? clarification || status
+                : fault
+                  ? shortError
+                  : feedback || dictation.error}
+          </span>
+          {consentPrompt && (
+            <button
+              onClick={() => {
+                setConsentFor({ key: consentKey, allowed: true });
+                try {
+                  localStorage.setItem(consentKey, "cloudflare-whisper");
+                } catch {}
+                setConsentPrompt(false);
+                setPanelOpen(!continuous);
+                activeRef.current = true;
+                setSessionActive(true);
+                void dictation.start();
+              }}
+            >
+              Permitir y escuchar
+            </button>
+          )}
+          <button
+            aria-label="Terminar escucha"
+            onClick={() => {
+              stopSession();
+              setConsentPrompt(false);
+              setFeedback("");
+            }}
+          >
+            <X size={18} />
+          </button>
+          <button
+            aria-label="Ajustes de voz"
+            onClick={() => {
+              stopSession();
+              setPanelOpen(true);
+            }}
+          >
+            <Settings2 size={16} />
+          </button>
+        </aside>
+      )}
+      {panelOpen ? (
+        <section
+          role="dialog"
+          aria-modal="false"
+          aria-label="Voice 2.0"
+          className="premium-voice-panel"
+          data-phase={dictation.phase}
         >
-          <option value="es-ES">Español</option>
-          <option value="it-IT">Italiano</option>
-        </select>
-      </label>
-      <label className="premium-voice-consent">
-        <input
-          type="checkbox"
-          checked={consent}
-          disabled={busy || enabled}
-          onChange={(e) => {
-            const allowed = e.target.checked;
-            setConsentFor({ key: consentKey, allowed });
-            try {
-              if (allowed) localStorage.setItem(consentKey, "cloudflare-whisper");
-              else localStorage.removeItem(consentKey);
-            } catch {}
-            if (allowed) void dictation.start();
-            else {
-              closeWhenIdle.current = false;
-              dictation.cancel();
+          <header>
+            <strong>Voice 2.0</strong>
+            <button
+              type="button"
+              aria-label="Cerrar Voice 2.0"
+              onClick={() => {
+                closeWhenIdle.current = false;
+                stopSession();
+                setPanelOpen(false);
+                setFeedback("");
+              }}
+            >
+              <X size={20} />
+            </button>
+          </header>
+          <p className="text-xs text-muted-foreground">
+            Comandos administrativos · Revisa y confirma siempre en el formulario.
+          </p>
+          <label className="text-xs">
+            Idioma de voz / Lingua voce
+            <select
+              aria-label="Idioma de voz / Lingua voce"
+              value={language}
+              disabled={busy || enabled}
+              onChange={(e) => {
+                dictation.cancel();
+                setLanguage(e.target.value);
+                localStorage.setItem("snoop:voice-language", e.target.value);
+                window.dispatchEvent(new Event("snoop:voice-language"));
+              }}
+            >
+              <option value="es-ES">Español</option>
+              <option value="it-IT">Italiano</option>
+            </select>
+          </label>
+          <label className="premium-voice-consent">
+            <input
+              type="checkbox"
+              checked={continuous}
+              onChange={(e) => {
+                stopSession();
+                setContinuous(e.target.checked);
+                try {
+                  localStorage.setItem(
+                    consentKey + ":mode",
+                    e.target.checked ? "continuous" : "single",
+                  );
+                } catch {}
+              }}
+            />
+            Continuar escuchando
+          </label>
+          <label className="premium-voice-consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              disabled={busy || enabled}
+              onChange={(e) => {
+                const allowed = e.target.checked;
+                setConsentFor({ key: consentKey, allowed });
+                try {
+                  if (allowed) localStorage.setItem(consentKey, "cloudflare-whisper");
+                  else localStorage.removeItem(consentKey);
+                } catch {}
+                if (allowed) {
+                  activeRef.current = true;
+                  setSessionActive(true);
+                  void dictation.start();
+                } else {
+                  closeWhenIdle.current = false;
+                  dictation.cancel();
+                }
+              }}
+            />
+            Autorizo la transcripción con Cloudflare Whisper (recordar en este dispositivo). SNOOP
+            no conserva la grabación.
+          </label>
+          <button
+            type="button"
+            className={`premium-record ${enabled ? "is-listening" : ""}`}
+            aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
+            disabled={busy || !consent}
+            onClick={
+              enabled
+                ? dictation.finish
+                : () => {
+                    activeRef.current = true;
+                    setSessionActive(true);
+                    void dictation.start();
+                  }
             }
-          }}
-        />
-        Autorizo la transcripción con Cloudflare Whisper (recordar en este dispositivo). SNOOP no
-        conserva la grabación.
-      </label>
-      <button
-        type="button"
-        className={`premium-record ${enabled ? "is-listening" : ""}`}
-        aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
-        disabled={busy || !consent}
-        onClick={enabled ? dictation.finish : startRecording}
-      >
-        {busy ? <Loader2 className="animate-spin" /> : enabled ? <Square /> : <Mic />}
-        {busy
-          ? "Procesando…"
-          : enabled
-            ? "Escuchando · Terminaré cuando dejes de hablar"
-            : "Iniciar dictado"}
-      </button>
-      {(feedback || dictation.error || enabled) && (
-        <p role={dictation.error ? "alert" : "status"}>
-          {dictation.error ||
-            (enabled ? "Escuchando. El audio se envía al finalizar, con tu permiso." : feedback)}
-        </p>
-      )}
-      {dictation.hint && <p role="status">{dictation.hint}</p>}
-      {(enabled || busy) && (
-        <button type="button" onClick={() => dictation.cancel()}>
-          Cancelar dictado
-        </button>
-      )}
-      {transcript && (
-        <p className="text-xs text-muted-foreground" aria-label="Transcripción">
-          {transcript}
-        </p>
-      )}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!busy && !enabled && manual.trim()) {
-            void handleTranscript(manual);
-            setPanelOpen(false);
-          }
-        }}
-      >
-        <label>
-          También puedes escribir el comando
-          <input
-            aria-label="Comando escrito"
-            value={manual}
-            disabled={busy || enabled}
-            onChange={(e) => setManual(e.target.value)}
-            maxLength={12000}
-            placeholder="Buscar socio Carlos García"
-          />
-        </label>
-        <button type="submit" disabled={busy || enabled || !manual.trim()}>
-          Aplicar comando
-        </button>
-      </form>
-    </section>
-  ) : null;
+          >
+            {busy ? <Loader2 className="animate-spin" /> : enabled ? <Square /> : <Mic />}
+            {busy
+              ? "Procesando…"
+              : enabled
+                ? "Escuchando · Terminaré cuando dejes de hablar"
+                : "Iniciar dictado"}
+          </button>
+          {(feedback || dictation.error || fault || enabled) && (
+            <p role={dictation.error || fault ? "alert" : "status"}>
+              {dictation.error ||
+                fault ||
+                (enabled
+                  ? "Escuchando. El audio se envía al finalizar, con tu permiso."
+                  : feedback)}
+            </p>
+          )}
+          {dictation.hint && <p role="status">{dictation.hint}</p>}
+          {(enabled || busy) && (
+            <button type="button" onClick={stopSession}>
+              Cancelar dictado
+            </button>
+          )}
+          {transcript && (
+            <p className="text-xs text-muted-foreground" aria-label="Transcripción">
+              {transcript}
+            </p>
+          )}
+          {timings.length > 0 && (
+            <p aria-label="Medición de voz">
+              Última frase: captura {Math.round(timings.at(-1)!.captureMs)} ms · transcripción{" "}
+              {Math.round(timings.at(-1)!.transcriptionMs)} ms · interpretación{" "}
+              {Math.round(timings.at(-1)!.interpretationMs)} ms. HTTP y modelo no separables en
+              cliente.
+            </p>
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!busy && !enabled && manual.trim()) {
+                void handleTranscript(manual);
+                setPanelOpen(false);
+              }
+            }}
+          >
+            <label>
+              También puedes escribir el comando
+              <input
+                aria-label="Comando escrito"
+                value={manual}
+                disabled={busy || enabled}
+                onChange={(e) => setManual(e.target.value)}
+                maxLength={12000}
+                placeholder="Buscar socio Carlos García"
+              />
+            </label>
+            <button type="submit" disabled={busy || enabled || !manual.trim()}>
+              Aplicar comando
+            </button>
+          </form>
+        </section>
+      ) : null}
+    </>
+  );
 }

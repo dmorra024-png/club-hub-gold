@@ -68,3 +68,39 @@ export function productFormVoice(raw: string, categories: Category[]): ProductVo
   }
   return null;
 }
+
+/** Contextual patches only; never treats an entire instruction as a product name. */
+export function contextualProductDictation(
+  text: string,
+  categories: Category[],
+): ProductVoiceDraft | null {
+  const labels = [
+    ...text.matchAll(
+      /\b(nombre|nome|categor[ií]a|stock|cantidad|quantit[aà]|precio(?: de (?:compra|venta))?|prezzo)\s*:?\s*/gi,
+    ),
+  ];
+  if (!labels.length || labels[0].index! > 3) return null;
+  const fields: ProductVoiceDraft = {};
+  for (let i = 0; i < labels.length; i++) {
+    const m = labels[i],
+      key = m[1].toLowerCase(),
+      value = text
+        .slice(m.index! + m[0].length, labels[i + 1]?.index ?? text.length)
+        .replace(/^[,;\s]+|[,;.!\s]+$/g, "");
+    if (!value) continue;
+    if (key === "nombre" || key === "nome") fields.name = value.slice(0, 120);
+    else if (key.startsWith("categor")) {
+      const matches = categories.filter(
+        (c) => c.name.localeCompare(value, undefined, { sensitivity: "base" }) === 0,
+      );
+      if (matches.length === 1) fields.category_id = matches[0].id;
+    } else if (["stock", "cantidad", "quantità"].includes(key)) {
+      const n = voiceDecimal(value.replace(/\s*(?:gramos?|grammi|g|unidades?|unit[aà])$/i, ""));
+      if (n !== null && n >= 0) fields.stock = n;
+    } else {
+      const n = voiceMoney(value);
+      if (n !== null && n >= 0) fields[key.includes("compra") ? "buy_price" : "sell_price"] = n;
+    }
+  }
+  return Object.keys(fields).length ? fields : null;
+}

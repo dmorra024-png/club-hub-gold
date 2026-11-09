@@ -632,7 +632,10 @@ function NewSocio() {
         )}
       </div>
 
-      <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 md:p-8 max-w-3xl backdrop-blur space-y-8">
+      <div
+        data-snoop-member-form
+        className="bg-card/60 border border-neon/20 rounded-2xl p-6 md:p-8 max-w-3xl backdrop-blur space-y-8"
+      >
         {/* Datos personales */}
         <section>
           <h3 className="text-[11px] uppercase tracking-[0.3em] text-neon mb-4">Datos del socio</h3>

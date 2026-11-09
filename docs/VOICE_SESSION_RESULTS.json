@@ -1,0 +1,216 @@
+{
+  "results": [
+    {
+      "device": "samsung",
+      "physical": false,
+      "result": "PASS",
+      "transcription": "simulated",
+      "metrics": [
+        {
+          "startupMs": 15,
+          "captureMs": 2041.6000000014901,
+          "encodingMs": 1.1999999955296516,
+          "transcriptionMs": 6.600000001490116,
+          "interpretationMs": 0.5,
+          "executionMs": 114.19999999552965,
+          "totalMs": 2179.1999999955297
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2041,
+          "encodingMs": 1.3999999985098839,
+          "transcriptionMs": 5,
+          "interpretationMs": 0.9000000059604645,
+          "executionMs": 19.19999999552965,
+          "totalMs": 2067.60000000149
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 1,
+          "transcriptionMs": 3.7000000029802322,
+          "interpretationMs": 0.6000000014901161,
+          "executionMs": 17.69999999552965,
+          "totalMs": 2063.89999999851
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.6999999955297,
+          "encodingMs": 0.7000000029802322,
+          "transcriptionMs": 3.7999999970197678,
+          "interpretationMs": 0.30000000447034836,
+          "executionMs": 19.799999997019768,
+          "totalMs": 2065.39999999851
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.6000000014901,
+          "encodingMs": 0.7000000029802322,
+          "transcriptionMs": 1222.7999999970198,
+          "interpretationMs": 0,
+          "executionMs": 0,
+          "totalMs": 3264.2000000029802
+        },
+        {
+          "startupMs": 0.20000000298023224,
+          "captureMs": 2040.6999999955297,
+          "encodingMs": 0.8000000044703484,
+          "transcriptionMs": 4.799999997019768,
+          "interpretationMs": 0.10000000149011612,
+          "executionMs": 21.100000001490116,
+          "totalMs": 2067.7000000029802
+        },
+        {
+          "startupMs": 0.19999999552965164,
+          "captureMs": 2040.6000000014901,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4,
+          "interpretationMs": 0.10000000149011612,
+          "executionMs": 0,
+          "totalMs": 2045.7999999970198
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 1,
+          "transcriptionMs": 4.300000004470348,
+          "interpretationMs": 0.10000000149011612,
+          "executionMs": 2522.6999999955297,
+          "totalMs": 4568.89999999851
+        },
+        {
+          "startupMs": 0.20000000298023224,
+          "captureMs": 2040.6999999955297,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 3.9000000059604645,
+          "interpretationMs": 0.19999999552965164,
+          "executionMs": 19.600000001490116,
+          "totalMs": 2065.5
+        }
+      ],
+      "capabilities": {
+        "nativeRecorder": true,
+        "audioContext": true,
+        "localSpeechApi": true,
+        "localReady": "not verified; no language pack installed by this test",
+        "whisperStreaming": false
+      },
+      "checks": [
+        "persistent root",
+        "one mic across navigation",
+        "ES successive member fields",
+        "product patches",
+        "manual edit wins",
+        "spoken stop/restart",
+        "zero writes",
+        "minimal indicator"
+      ]
+    },
+    {
+      "device": "iphone-webkit",
+      "physical": false,
+      "result": "PASS",
+      "transcription": "simulated",
+      "metrics": [
+        {
+          "startupMs": 8,
+          "captureMs": 2087,
+          "encodingMs": 2,
+          "transcriptionMs": 6,
+          "interpretationMs": 0,
+          "executionMs": 314.99999999999955,
+          "totalMs": 2419
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1980,
+          "encodingMs": 7,
+          "transcriptionMs": 2,
+          "interpretationMs": 2,
+          "executionMs": 172,
+          "totalMs": 2163
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2101,
+          "encodingMs": 1,
+          "transcriptionMs": 4,
+          "interpretationMs": 1,
+          "executionMs": 69,
+          "totalMs": 2176
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1973,
+          "encodingMs": 3,
+          "transcriptionMs": 3,
+          "interpretationMs": 0,
+          "executionMs": 69,
+          "totalMs": 2048
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2102,
+          "encodingMs": 5,
+          "transcriptionMs": 1221,
+          "interpretationMs": 0,
+          "executionMs": 0,
+          "totalMs": 3328
+        },
+        {
+          "startupMs": 1,
+          "captureMs": 1963.9999999999982,
+          "encodingMs": 2.000000000003638,
+          "transcriptionMs": 3.999999999998181,
+          "interpretationMs": 0,
+          "executionMs": 123,
+          "totalMs": 2094
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2094,
+          "encodingMs": 3,
+          "transcriptionMs": 3,
+          "interpretationMs": 0,
+          "executionMs": 0,
+          "totalMs": 2100
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1968,
+          "encodingMs": 3,
+          "transcriptionMs": 2,
+          "interpretationMs": 0,
+          "executionMs": 2566,
+          "totalMs": 4539
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1964,
+          "encodingMs": 2,
+          "transcriptionMs": 2,
+          "interpretationMs": 0,
+          "executionMs": 22,
+          "totalMs": 1990
+        }
+      ],
+      "capabilities": {
+        "nativeRecorder": false,
+        "audioContext": true,
+        "localSpeechApi": false,
+        "localReady": "not verified; no language pack installed by this test",
+        "whisperStreaming": false
+      },
+      "checks": [
+        "persistent root",
+        "one mic across navigation",
+        "ES successive member fields",
+        "product patches",
+        "manual edit wins",
+        "spoken stop/restart",
+        "zero writes",
+        "minimal indicator"
+      ]
+    }
+  ]
+}

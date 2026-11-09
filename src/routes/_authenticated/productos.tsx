@@ -2,7 +2,7 @@ import { loadAdministrativeCatalog } from "@/lib/administrative-catalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { transcribeAudio } from "@/lib/voice-agent.functions";
-import { productFormVoice } from "@/lib/product-form-voice";
+import { productFormVoice, contextualProductDictation } from "@/lib/product-form-voice";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -199,6 +199,8 @@ function ProductosPage() {
   const [catalogError, setCatalogError] = useState("");
   const catalogRequest = useRef(0);
   const [tab, setTab] = useState<TabId>("stock");
+  const activeTab = useRef(tab);
+  activeTab.current = tab;
   const [cats, setCats] = useState<Category[]>([]);
   const [prods, setProds] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -338,7 +340,9 @@ function ProductosPage() {
   async function applyProductCommand(text: string, requestedTab?: TabId) {
     const heard = compactVoiceText(text);
     setLastHeard(heard);
-    const fields = productFormVoice(heard, cats);
+    const fields =
+      productFormVoice(heard, cats) ??
+      (activeTab.current === "nuevo" ? contextualProductDictation(heard, cats) : null);
     if (fields) {
       setPrefillProduct({ ...fields, _at: Date.now() });
       setTab("nuevo");

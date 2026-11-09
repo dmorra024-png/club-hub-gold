@@ -71,7 +71,14 @@ test("IT/ES audio uses only the authorized binding model and then fills fields l
     configure(async (model, input) => {
       calls++;
       assert.equal(model, FREE_AUDIO_MODEL);
-      assert.deepEqual(Object.keys(input).sort(), ["audio", "language", "task", "vad_filter"]);
+      assert.deepEqual(Object.keys(input).sort(), [
+        "audio",
+        "condition_on_previous_text",
+        "initial_prompt",
+        "language",
+        "task",
+        "vad_filter",
+      ]);
       assert.equal(input.language, language);
       return { text };
     });

@@ -15,9 +15,11 @@ w.fixture = {
   endedMode: false,
 };
 function Harness() {
+  const [continuous, setContinuous] = useState(false);
   const [scope, setScope] = useState("synthetic-user:club-a:/"),
     [language, setLanguage] = useState<"es" | "it">("es");
   const dict = useWhisperDictation({
+    continuous,
     scope,
     language,
     available: async () => ({ available: w.fixture.available }),
@@ -43,6 +45,7 @@ function Harness() {
   });
   useEffect(() => {
     w.hook = dict;
+    w.setContinuous = setContinuous;
     w.otherHook = other;
     w.setScope = setScope;
     w.setLanguage = setLanguage;

@@ -49,6 +49,8 @@ export function useMobileKeyboard() {
         if (!vv && focused && matchMedia("(pointer: coarse)").matches) geometry.open = true;
         if (!focused || !geometry.open)
           expandedHeight = Math.max(expandedHeight, height, innerHeight);
+        const voiceBar = document.querySelector(".snoop-listening")?.getBoundingClientRect();
+        if (voiceBar) geometry.top = Math.max(geometry.top, voiceBar.bottom + 12);
         setOpen(geometry.open);
         document.documentElement.style.setProperty("--snoop-visible-height", `${height}px`);
         document.documentElement.style.setProperty("--snoop-visible-top", `${offset}px`);

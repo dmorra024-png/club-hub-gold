@@ -55,6 +55,7 @@ for (const [name, engine, device] of [
       denied = false,
       failTranscription = false,
       available = true,
+      catalogDelay = 0,
       holdTranscription = false,
       resume = null;
     await context.addInitScript(
@@ -64,6 +65,15 @@ for (const [name, engine, device] of [
         window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0 };
         const NativeAudio = window.AudioContext || window.webkitAudioContext;
         const NativeRecorder = window.MediaRecorder;
+        const Speech = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+        window.voiceCapabilities = {
+          nativeRecorder: typeof NativeRecorder === "function",
+          audioContext: !!NativeAudio,
+          localSpeechApi: !!Speech && "processLocally" in Speech.prototype,
+          localReady: "not verified; no language pack installed by this test",
+          whisperStreaming: false,
+        };
+
         window.__nativeRecordingCheck = async () => {
           const Audio = NativeAudio;
           if (!NativeRecorder || !Audio) return { available: false };
@@ -251,11 +261,12 @@ for (const [name, engine, device] of [
           permissions: denied ? [] : ["manage_members", "manage_products", "use_cash"],
         };
       else if (u.pathname.endsWith("/rpc/current_club_id")) data = club;
-      else if (u.pathname.endsWith("/product_categories"))
+      else if (u.pathname.endsWith("/product_categories")) {
+        if (catalogDelay) await new Promise((r) => setTimeout(r, catalogDelay));
         data = [
           { id: plan, club_id: club, name: "Material", unit_type: "unit", is_smokeable: false },
         ];
-      else if (u.pathname.endsWith("/membership_plans")) {
+      } else if (u.pathname.endsWith("/membership_plans")) {
         assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
         data = [
           {
@@ -305,6 +316,8 @@ for (const [name, engine, device] of [
     async function requestStart() {
       // The actual production dock starts once. Consent also starts once.
       await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      const permit = page.getByRole("button", { name: "Permitir y escuchar", exact: true });
+      if (await permit.isVisible()) await permit.click();
       const checkbox = page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ });
       if ((await checkbox.isVisible()) && !(await checkbox.isChecked())) await checkbox.check();
     }
@@ -344,6 +357,156 @@ for (const [name, engine, device] of [
           const panel = document.querySelector(".premium-voice-panel");
           return !panel || panel.getAttribute("data-phase") === "idle";
         });
+    }
+    if (process.argv.includes("--continuous")) {
+      await page.addInitScript(() => {
+        window.voiceTimings = [];
+        window.addEventListener("snoop:voice-timing", (e) => window.voiceTimings.push(e.detail));
+      });
+      await page.goto(base + "/", { waitUntil: "networkidle" });
+      transcript = "Crear socio";
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "Permitir y escuchar", exact: true }).click();
+      const listening = () => page.locator('.snoop-listening[data-phase="recording"]').waitFor();
+      async function phrase(text) {
+        transcript = text;
+        await listening();
+        assert.equal(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).count(), 0);
+        await page.evaluate(() => (window.__voice.silent = false));
+        await page.waitForTimeout(400);
+        const before = audioCalls;
+        await page.evaluate(() => (window.__voice.silent = true));
+        await page.waitForFunction((before) => window.voiceTimings.length > before, before);
+        await listening();
+      }
+      await phrase("Crear socio");
+      await page.waitForURL(base + "/soci/nuovo");
+      await phrase("Nombre Carlos, apellido García");
+      assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Carlos");
+      assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "García");
+      await phrase("Fecha de nacimiento 15 de marzo de 1995");
+      assert.equal(
+        await page.getByLabel("Fecha de nacimiento *", { exact: true }).inputValue(),
+        "1995-03-15",
+      );
+      await phrase("Ciudad Palma, teléfono 666123456");
+      assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Palma");
+      assert.equal(await page.getByLabel(/Teléfono/).inputValue(), "666123456");
+      assert.equal(
+        await page.evaluate(() => window.__voice.created),
+        1,
+        "same microphone across route and successive phrases",
+      );
+      // Manual edits during delayed transcription must win.
+      holdTranscription = true;
+      resume = null;
+      transcript = "No, el apellido es Tardío";
+      await page.evaluate(() => (window.__voice.silent = false));
+      await page.waitForTimeout(400);
+      await page.evaluate(() => (window.__voice.silent = true));
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".snoop-listening")?.getAttribute("data-phase") === "processing",
+      );
+      for (let i = 0; !resume && i < 100; i++) await page.waitForTimeout(20);
+      assert.ok(resume);
+      await page.waitForTimeout(1200);
+      assert.equal(
+        await page.evaluate(() => window.__voice.created),
+        1,
+        "no overlapping recording while response is slow",
+      );
+      await page.getByLabel("Apellidos *", { exact: true }).fill("Manual");
+      holdTranscription = false;
+      resume();
+      await listening();
+      assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Manual");
+      await phrase("No, la città è Barcelona");
+      assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Barcelona");
+      await phrase("abrir caja o producto");
+      assert.equal(
+        new URL(page.url()).pathname,
+        "/soci/nuovo",
+        "ambiguous command does not navigate",
+      );
+      // Successful intent following a delayed request stays in the same session.
+      catalogDelay = 2400;
+      await phrase("Crear producto Libreta en categoría Material");
+      catalogDelay = 0;
+      await page.waitForURL(base + "/productos");
+      await phrase("Nombre Cuaderno, categoría Material, precio diez euros con cincuenta");
+      assert.equal(await page.getByPlaceholder("ej. Amnesia Haze").inputValue(), "Cuaderno");
+      assert.equal(await page.getByLabel("P. venta €", { exact: true }).inputValue(), "10.5");
+      assert.equal(
+        await page.evaluate(() => window.__voice.created),
+        1,
+        "same stream also survives product navigation",
+      );
+      const metrics = await page.evaluate(() => window.voiceTimings);
+      await page.screenshot({ path: `docs/screenshots/voice-session-${name}.png`, scale: "css" });
+      transcript = "Terminar";
+      await page.evaluate(() => (window.__voice.silent = false));
+      await page.waitForTimeout(400);
+      await page.evaluate(() => (window.__voice.silent = true));
+      await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      const stopped = audioCalls;
+      await page.waitForTimeout(300);
+      assert.equal(audioCalls, stopped);
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await listening();
+      await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
+      await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      // Background/freeze must terminate the session and must not resume on return.
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await listening();
+      await page.evaluate(() => document.dispatchEvent(new Event("freeze")));
+      await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      const backgroundCount = await page.evaluate(() => window.__voice.created);
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(() => window.__voice.created), backgroundCount);
+      // A provider failure pauses, releases the microphone, and never auto-retries.
+      failTranscription = true;
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await listening();
+      await page.evaluate(() => (window.__voice.silent = false));
+      await page.waitForTimeout(400);
+      await page.evaluate(() => (window.__voice.silent = true));
+      await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      failTranscription = false;
+      await page.evaluate(() => (window.__voice.denied = true));
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("status").filter({ hasText: "Permite el micrófono" }).waitFor();
+      await page.evaluate(() => (window.__voice.denied = false));
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await listening();
+      const beforeRevoked = audioCalls;
+      denied = true;
+      await page.evaluate(() => window.dispatchEvent(new Event("snoop:retry-access")));
+      await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      assert.equal(audioCalls, beforeRevoked, "permission revocation discards pending audio");
+      assert.equal(writes, 0);
+      assert.deepEqual(errors, []);
+      results.push({
+        device: name,
+        physical: false,
+        result: "PASS",
+        transcription: "simulated",
+        metrics,
+        capabilities: await page.evaluate(() => window.voiceCapabilities),
+        checks: [
+          "persistent root",
+          "one mic across navigation",
+          "ES successive member fields",
+          "product patches",
+          "manual edit wins",
+          "spoken stop/restart",
+          "zero writes",
+          "minimal indicator",
+        ],
+      });
+      console.log("PASS continuous voice session", name);
+      await context.close();
+      continue;
     }
     await page.goto(base + "/", { waitUntil: "networkidle" });
     const nativeRecording = await page.evaluate(() => window.__nativeRecordingCheck());
@@ -389,6 +552,7 @@ for (const [name, engine, device] of [
       "Consent is required before recording",
     );
     await page.screenshot({ path: `docs/screenshots/voice2-premium-${name}.png`, scale: "css" });
+    await page.getByRole("checkbox", { name: "Continuar escuchando", exact: true }).uncheck();
     // Written fallback is fully local and works without consent or a speech provider.
     await page
       .getByRole("textbox", { name: "Comando escrito", exact: true })
@@ -767,6 +931,8 @@ for (const [name, engine, device] of [
   }
 }
 await writeFile(
-  "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
+  process.argv.includes("--continuous")
+    ? "docs/VOICE_SESSION_RESULTS.json"
+    : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
   JSON.stringify({ results }, null, 2),
 );

@@ -48,7 +48,8 @@
     "test:records:browser": "node scripts/test-administrative-records.mjs",
     "test:catalog:browser": "node scripts/test-read-only-catalog.mjs",
     "test:cash:browser": "node --test tests/simple-cash.test.mjs && node scripts/test-cash-sessions.mjs",
-    "test:voice:lifecycle": "node scripts/test-voice-lifecycle.mjs"
+    "test:voice:lifecycle": "node scripts/test-voice-lifecycle.mjs",
+    "test:voice:session": "node scripts/test-voice2-administration.mjs --continuous"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
