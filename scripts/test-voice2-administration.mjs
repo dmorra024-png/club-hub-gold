@@ -279,8 +279,9 @@ for (const [name, engine, device] of [
     async function begin() {
       if (!(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).isVisible()))
         await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
-      await page.getByRole("checkbox", { name: /Permito enviar/ }).check();
-      await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
+      await page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ }).check();
+      if (!(await page.getByRole("button", { name: "Apagar Snoop", exact: true }).isVisible()))
+        await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
     }
     async function start() {
       await page.waitForLoadState("networkidle");
