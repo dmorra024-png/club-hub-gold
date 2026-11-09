@@ -277,16 +277,18 @@ for (const [name, engine, device] of [
     });
     page.setDefaultTimeout(15000);
     async function begin() {
-      if (!(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).isVisible()))
-        await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
-      await page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ }).check();
-      // The dock starts recording as soon as consent is already present.
-      // When consent was just granted, explicitly start once, and wait for
-      // the asynchronous permission/startup transition instead of toggling twice.
+      // Browser tests exercise the recording lifecycle through the explicit
+      // settings panel. The production dock remains single-tap auto-start.
+      await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+      const checkbox = page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ });
+      await checkbox.waitFor({ state: "visible" });
+      if (!(await checkbox.isChecked())) await checkbox.check();
       const active = page.getByRole("button", { name: "Apagar Snoop", exact: true });
-      const idle = page.getByRole("button", { name: "Encender Snoop", exact: true });
-      if (!(await active.isVisible().catch(() => false)) && (await idle.isEnabled().catch(() => false)))
+      if (!(await active.isVisible().catch(() => false))) {
+        const idle = page.getByRole("button", { name: "Encender Snoop", exact: true });
+        await idle.waitFor({ state: "visible" });
         await idle.click();
+      }
       await active.waitFor({ state: "visible" });
     }
     async function start() {
