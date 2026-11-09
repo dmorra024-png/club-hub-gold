@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   memberOrderHistory,
   annulFinancialRecord,
+  activityFinancialDetail,
 } from "../src/lib/member-order-history.server.ts";
 const scope = { userId: "staff", clubId: "a" };
 function fixture(
@@ -43,6 +44,7 @@ function fixture(
         status: "completed",
       },
     ],
+    financial_order_reversals: [],
     profiles: [{ id: "staff", full_name: "Personal de prueba" }],
     order_items: [],
   };
@@ -140,4 +142,51 @@ test("only verified club admin can annul; caller supplies no actor or club field
     false,
     "pre-migration records hide unavailable cancellation",
   );
+});
+
+test("activity and member profile use the same scoped detail and reject other employees' records", async () => {
+  const f = fixture();
+  const detail = await activityFinancialDetail(
+    f.client,
+    scope,
+    "00000000-0000-4000-8000-000000000001",
+  );
+  const profile = await memberOrderHistory(
+    f.client,
+    scope,
+    "m",
+    0,
+    "00000000-0000-4000-8000-000000000001",
+  );
+  assert.deepEqual(detail.orders, profile.orders);
+  assert.equal(detail.memberId, "m");
+  await assert.rejects(
+    activityFinancialDetail(f.client, scope, "other-actor"),
+    /Registro no disponible/,
+  );
+  await assert.rejects(
+    activityFinancialDetail(fixture("super_admin").client, scope, "foreign"),
+    /permiso/,
+  );
+});
+test("missing reversal migration disables cancellation and never invokes the legacy mutation", async () => {
+  const f = fixture("admin"),
+    from = f.client.from;
+  f.client.from = (table) => {
+    if (table !== "financial_order_reversals") return from(table);
+    const q = {
+      select: () => q,
+      eq: () => q,
+      in: () => q,
+      then: (resolve) => Promise.resolve(resolve({ data: null, error: { code: "PGRST205" } })),
+    };
+    return q;
+  };
+  const history = await memberOrderHistory(f.client, scope, "m");
+  assert.equal(history.orders[0].canCancel, false);
+  await assert.rejects(
+    annulFinancialRecord(f.client, scope, "m", "order", "Valid reason"),
+    /no está activada/,
+  );
+  assert.ok(!f.calls.some((c) => c.rpc === "annul_financial_order"));
 });

@@ -4,7 +4,7 @@ import { ClubActivities } from "@/components/ClubActivities";
 export const Route = createFileRoute("/_authenticated/actividades")({ component: ActivityPage });
 function ActivityPage() {
   return (
-    <SnoopLayout title="Actividad del club" subtitle="Historial reciente según tus permisos">
+    <SnoopLayout title="Historial" subtitle="Última actividad del club según tus permisos">
       <ClubActivities expanded />
     </SnoopLayout>
   );

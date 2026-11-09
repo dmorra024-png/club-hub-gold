@@ -7,6 +7,8 @@ export type ClubActivity = {
   title: string;
   detail: string;
   href: string;
+  orderId?: string;
+  status?: string;
 };
 export function activitySources(access: AccountAccess) {
   if (access.status !== "active" || !access.clubId || access.role === "super_admin") return [];
@@ -59,6 +61,8 @@ export function activityRows(
       const cents = table === "orders" ? r.total_cents : r.amount_cents;
       return {
         ...base,
+        orderId: table === "orders" ? r.id : undefined,
+        status: table === "orders" ? r.status : undefined,
         kind: "cash",
         title: table === "orders" ? "Operación de caja" : "Cuota asociativa registrada",
         detail: Number.isSafeInteger(cents) ? `Importe: ${money(cents)}` : "Importe no disponible",

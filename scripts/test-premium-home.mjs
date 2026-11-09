@@ -269,7 +269,7 @@ for (const [label, engine, device] of runs) {
     });
 
     await page.getByRole("link", { name: /Ver todas/ }).click();
-    await page.getByRole("heading", { name: "Actividad del club", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Historial", exact: true }).waitFor();
     await page.waitForFunction(() => document.querySelectorAll(".premium-activity").length === 7);
     await nav.getByRole("link", { name: "Home", exact: true }).click();
     await page.getByRole("heading", { name: "Club Principal", exact: true }).waitFor();

@@ -1,3 +1,4 @@
+import { FinancialRecordStatus, RECORDS_CHANGED } from "@/components/FinancialRecordDialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -60,10 +61,12 @@ function Caja() {
     const update = () => {
       if (document.visibilityState === "visible") setRefresh((n) => n + 1);
     };
+    window.addEventListener(RECORDS_CHANGED, update);
     window.addEventListener("focus", update);
     window.addEventListener("online", update);
     document.addEventListener("visibilitychange", update);
     return () => {
+      window.removeEventListener(RECORDS_CHANGED, update);
       window.removeEventListener("focus", update);
       window.removeEventListener("online", update);
       document.removeEventListener("visibilitychange", update);
@@ -315,6 +318,33 @@ function Caja() {
                             </p>
                           </div>
                         ))}
+                      {data.auditRecords?.map((r: any) => (
+                        <div
+                          key={`audit:${r.id}`}
+                          className="rounded-xl border border-red-400/25 p-4 text-sm space-y-2"
+                        >
+                          <p>
+                            <FinancialRecordStatus status={r.status} /> · {r.reference}
+                          </p>
+                          <p>
+                            Original: {money(r.cents)} · {r.operator || name(r.by)} · {time(r.at)}
+                          </p>
+                          {r.reversal ? (
+                            <>
+                              <p>
+                                Rectificación {r.reversal.reference}: {money(r.reversal.cents)}
+                              </p>
+                              <p>
+                                {r.reversal.by} · {time(r.reversal.at)}
+                              </p>
+                              <p>Motivo: {r.reversal.reason}</p>
+                              <p>Neto: {money(r.cents + r.reversal.cents)}</p>
+                            </>
+                          ) : (
+                            <p>Rectificación anterior no registrada. Excluido del total neto.</p>
+                          )}
+                        </div>
+                      ))}
                       {!data.movements.some((m: any) => inCashDay(m, data.start, data.end)) && (
                         <p>Sin movimientos.</p>
                       )}

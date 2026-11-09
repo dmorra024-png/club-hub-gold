@@ -1,3 +1,8 @@
+import {
+  FinancialRecordDialog,
+  FinancialRecordStatus,
+  RECORDS_CHANGED,
+} from "./FinancialRecordDialog";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { UserRound, Wallet, Package, Boxes, ChevronRight } from "lucide-react";
@@ -11,14 +16,14 @@ import {
 } from "@/lib/club-activity";
 const fields: Record<string, [string, string]> = {
   members: ["id,created_at,member_number", "created_at"],
-  orders: ["id,created_at,total_cents", "created_at"],
+  orders: ["id,created_at,total_cents,status", "created_at"],
   membership_receipts: ["id,recorded_at,amount_cents", "recorded_at"],
   products: ["id,created_at,updated_at,name", "updated_at"],
   stock_movements: ["id,created_at,delta", "created_at"],
 };
 const icons = { member: UserRound, cash: Wallet, product: Package, inventory: Boxes };
 export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
-  const { access, user, loading, accessError } = useAuth();
+  const { access, user, loading, accessError, can } = useAuth();
   const [entries, setEntries] = useState<ClubActivity[]>([]),
     [busy, setBusy] = useState(true),
     [error, setError] = useState(false);
@@ -28,6 +33,16 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
   const scope = [user?.id, access.clubId, access.role, access.status, ...access.permissions].join(
     ":",
   );
+  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const canAudit = can("manage_members") && (can("use_cash") || can("view_reports"));
+  useEffect(() => {
+    setSelectedOrder(null);
+  }, [scope]);
+  useEffect(() => {
+    const refresh = () => setTick((n) => n + 1);
+    window.addEventListener(RECORDS_CHANGED, refresh);
+    return () => window.removeEventListener(RECORDS_CHANGED, refresh);
+  }, []);
   const [entryScope, setEntryScope] = useState("");
   useEffect(() => {
     if (loading || accessError) return;
@@ -116,6 +131,7 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
                 <span className="premium-activity-copy">
                   <span>{item.title}</span>
                   <small>{item.detail}</small>
+                  {item.status === "cancelled" && <FinancialRecordStatus status={item.status} />}
                 </span>
                 <time
                   dateTime={item.at}
@@ -124,6 +140,24 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
                   {relativeActivityTime(item.at)}
                 </time>
               </Link>
+              {expanded && canAudit && item.orderId && (
+                <div className="flex justify-end gap-4 px-3 pb-3 text-sm">
+                  <button
+                    className="text-neon py-2"
+                    onClick={() => setSelectedOrder(item.orderId!)}
+                  >
+                    Ver detalle
+                  </button>
+                  {access.role === "admin" && can("use_cash") && item.status === "completed" && (
+                    <button
+                      className="text-red-400 py-2"
+                      onClick={() => setSelectedOrder(item.orderId!)}
+                    >
+                      Anular
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
@@ -137,6 +171,13 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
         <p className="premium-empty">
           Últimas 100 actividades. Consulta el historial completo en cada sección.
         </p>
+      )}
+      {selectedOrder && canAudit && (
+        <FinancialRecordDialog
+          key={`${scope}:${selectedOrder}`}
+          orderId={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
       )}
     </section>
   );

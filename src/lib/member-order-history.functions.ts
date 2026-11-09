@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
-import { memberOrderHistory, annulFinancialRecord } from "./member-order-history.server";
+import {
+  memberOrderHistory,
+  annulFinancialRecord,
+  activityFinancialDetail,
+} from "./member-order-history.server";
 export const getMemberOrderHistory = createServerFn({ method: "POST" })
   .middleware([requireClubMemberAuth])
   .inputValidator((v: unknown) =>
@@ -42,5 +46,16 @@ export const annulMemberFinancialRecord = createServerFn({ method: "POST" })
       data.memberId,
       data.orderId,
       data.reason,
+    ),
+  );
+
+export const getActivityFinancialDetail = createServerFn({ method: "POST" })
+  .middleware([requireClubMemberAuth])
+  .inputValidator((v: unknown) => z.object({ orderId: z.string().uuid() }).strict().parse(v))
+  .handler(({ context, data }) =>
+    activityFinancialDetail(
+      context.supabase,
+      { userId: context.userId, clubId: context.clubId },
+      data.orderId,
     ),
   );

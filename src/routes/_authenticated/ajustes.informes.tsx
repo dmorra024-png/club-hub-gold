@@ -46,7 +46,7 @@ const RANGES: { id: Range; label: string; days: number }[] = [
 ];
 
 function InformesPage() {
-  const { can, loading } = useAuth();
+  const { can, loading, access } = useAuth();
   const isAdmin = can("view_reports");
   const nav = useNavigate();
   useEffect(() => {
@@ -63,15 +63,29 @@ function InformesPage() {
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    const clubId = access.clubId;
+    if (!isAdmin || !clubId) return;
     const days = RANGES.find((r) => r.id === range)!.days;
     const since = new Date(Date.now() - days * 86400000).toISOString();
     setDataLoading(true);
     setDataError(null);
     let cancelled = false;
     (async () => {
-      const [oi, sm, pr, ct, ci] = await Promise.all([
-        supabase.from("order_items").select("*").gte("created_at", since),
+      async function pages(make: () => any) {
+        const data: any[] = [];
+        for (let offset = 0; ; offset += 1000) {
+          const result = await make()
+            .order("id")
+            .range(offset, offset + 999);
+          if (result.error) return result;
+          data.push(...(result.data ?? []));
+          if ((result.data ?? []).length < 1000) return { data, error: null };
+        }
+      }
+      const [oi, sm, pr, ct, ci, orders] = await Promise.all([
+        pages(() =>
+          supabase.from("order_items").select("*").eq("club_id", clubId).gte("created_at", since),
+        ),
         supabase.from("stock_movements").select("*").gte("created_at", since),
         supabase.from("products").select("id,name,stock,buy_price,sell_price,category_id"),
         supabase.from("product_categories").select("id,name,unit_type"),
@@ -79,16 +93,27 @@ function InformesPage() {
           .from("check_ins")
           .select("id,direction,created_at,member_id")
           .gte("created_at", since),
+        pages(() =>
+          supabase
+            .from("orders")
+            .select("id,status")
+            .eq("club_id", clubId)
+            .eq("status", "completed")
+            .gte("created_at", since),
+        ),
       ]);
       if (cancelled) return;
-      if ([oi, sm, pr, ct, ci].some((result) => result.error)) {
+      if ([oi, sm, pr, ct, ci, orders].some((result) => result.error)) {
         setDataError(
           "No se pudieron cargar los informes. Comprueba la conexión y vuelve a intentarlo.",
         );
         setDataLoading(false);
         return;
       }
-      setItems(oi.data ?? []);
+      const completedIds = new Set(
+        (orders.data ?? []).filter((o: any) => o.status === "completed").map((o: any) => o.id),
+      );
+      setItems((oi.data ?? []).filter((i: any) => completedIds.has(i.order_id)));
       setMovs(sm.data ?? []);
       setProducts(pr.data ?? []);
       setCats(ct.data ?? []);
@@ -98,7 +123,7 @@ function InformesPage() {
     return () => {
       cancelled = true;
     };
-  }, [range, isAdmin]);
+  }, [range, isAdmin, access.clubId]);
 
   const accessStats = useMemo(() => {
     const days = RANGES.find((r) => r.id === range)!.days;

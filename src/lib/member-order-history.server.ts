@@ -1,3 +1,4 @@
+import { financialReversals, reversalDetail } from "./financial-reversals.server.ts";
 import { parseAccountAccess } from "./access-context.ts";
 export type HistoryScope = { userId: string; clubId: string };
 async function checked(query: any) {
@@ -15,7 +16,7 @@ async function historyAccess(client: any, scope: HistoryScope) {
   )
     throw new Error("No tienes permiso para consultar este historial");
   return {
-    admin: access.role === "admin",
+    admin: access.role === "admin" && access.permissions.includes("use_cash"),
     all: access.role === "admin" || access.permissions.includes("view_reports"),
   };
 }
@@ -52,6 +53,11 @@ export async function memberOrderHistory(
   );
   if (orderId && rows.length !== 1) throw new Error("Registro no disponible");
   const selected = rows.slice(0, 20);
+  const reversals = await financialReversals(
+    client,
+    scope.clubId,
+    selected.map((r: any) => r.id),
+  );
   const ids = [
     ...new Set(selected.flatMap((r: any) => [r.created_by, r.cancelled_by]).filter(Boolean)),
   ];
@@ -60,18 +66,26 @@ export async function memberOrderHistory(
     : [];
   const name = (id: string | null) =>
     profiles.find((p: any) => p.id === id)?.full_name || (id ? "Colaborador" : "No registrado");
-  const orders = selected.map((r: any) => ({
-    id: r.id,
-    reference: `REG-${r.id.replaceAll("-", "").slice(-12).toUpperCase()}`,
-    at: r.created_at,
-    cents: r.total_cents,
-    status: r.status,
-    operator: name(r.created_by),
-    cancelledAt: r.cancelled_at ?? null,
-    cancelledBy: r.cancelled_by ? name(r.cancelled_by) : null,
-    reason: r.cancellation_reason ?? null,
-    canCancel: access.admin && r.status === "completed" && Object.hasOwn(r, "cancelled_at"),
-  }));
+  const orders = selected.map((r: any) => {
+    const reversal = reversals.rows.find((v: any) => v.order_id === r.id);
+    return {
+      id: r.id,
+      reference: `REG-${r.id.replaceAll("-", "").slice(-12).toUpperCase()}`,
+      at: reversal?.original_at ?? r.created_at,
+      cents: reversal?.original_cents ?? r.total_cents,
+      status: r.status,
+      operator: reversal?.original_actor_name ?? name(r.created_by),
+      cancelledAt: reversal?.recorded_at ?? r.cancelled_at ?? null,
+      cancelledBy: reversal?.cancelled_by_name ?? (r.cancelled_by ? name(r.cancelled_by) : null),
+      reason: reversal?.reason ?? r.cancellation_reason ?? null,
+      reversal: reversalDetail(reversal),
+      canCancel:
+        access.admin &&
+        reversals.available &&
+        r.status === "completed" &&
+        Object.hasOwn(r, "cancelled_at"),
+    };
+  });
   const items: any[] = [];
   if (orderId) {
     for (let offset = 0; ; offset += 1000) {
@@ -99,6 +113,11 @@ export async function annulFinancialRecord(
 ) {
   const access = await historyAccess(client, scope);
   if (!access.admin) throw new Error("Solo el administrador del club puede anular registros");
+  if (!reason || reason.trim().length < 5 || reason.length > 2000)
+    throw new Error("Indica un motivo de 5 a 2000 caracteres");
+  const capability = await financialReversals(client, scope.clubId, [orderId]);
+  if (!capability.available)
+    throw new Error("La anulación con rectificación todavía no está activada.");
   const { data, error } = await client.rpc("annul_financial_order", {
     p_member_id: memberId,
     p_order_id: orderId,
@@ -112,4 +131,20 @@ export async function annulFinancialRecord(
   if (data !== orderId)
     throw new Error("No se pudo verificar la anulación. Consulta el estado del registro.");
   return data;
+}
+
+export async function activityFinancialDetail(client: any, scope: HistoryScope, orderId: string) {
+  const access = await historyAccess(client, scope);
+  let query = client
+    .from("orders")
+    .select("member_id")
+    .eq("club_id", scope.clubId)
+    .eq("id", orderId);
+  if (!access.all) query = query.eq("created_by", scope.userId);
+  const order = await checked(query.maybeSingle());
+  if (!order?.member_id) throw new Error("Registro no disponible");
+  return {
+    ...(await memberOrderHistory(client, scope, order.member_id, 0, orderId)),
+    memberId: order.member_id,
+  };
 }

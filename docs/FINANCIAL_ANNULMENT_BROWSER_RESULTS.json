@@ -1,0 +1,76 @@
+{
+  "synthetic": true,
+  "physicalDevice": false,
+  "results": [
+    {
+      "browser": "samsung",
+      "mode": "admin",
+      "status": "PASS",
+      "writes": 2,
+      "attempts": 3
+    },
+    {
+      "browser": "samsung",
+      "mode": "staff",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "samsung",
+      "mode": "restricted",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "samsung",
+      "mode": "foreign",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "samsung",
+      "mode": "missing-migration",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "admin",
+      "status": "PASS",
+      "writes": 2,
+      "attempts": 3
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "staff",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "restricted",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "foreign",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "missing-migration",
+      "status": "PASS",
+      "writes": 0,
+      "attempts": 0
+    }
+  ]
+}

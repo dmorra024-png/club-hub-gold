@@ -1,3 +1,8 @@
+import {
+  financialReversals,
+  financialReversalsInPeriod,
+  reversalDetail,
+} from "./financial-reversals.server.ts";
 import { clubDayRange } from "./cash-summary.ts";
 import { cashMovements } from "./cash-sessions.ts";
 import { uniqueLedgerRows } from "./cash-summary.ts";
@@ -86,7 +91,6 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
         .from("orders")
         .select("id,total_cents,created_by,created_at,cash_session_id,status")
         .eq("club_id", scope.clubId)
-        .eq("status", "completed")
         .gte("created_at", earliest)
         .lt("created_at", latest)
         .order("created_at"),
@@ -106,12 +110,51 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
     ),
   );
   const movements = cashMovements(orders, fees, sessions);
+  const cancelled = orders.filter((o: any) => o.status === "cancelled");
+  const [linkedReversals, dayReversals] = await Promise.all([
+    financialReversals(
+      client,
+      scope.clubId,
+      cancelled.map((o: any) => o.id),
+    ),
+    financialReversalsInPeriod(client, scope.clubId, start, end, admin ? undefined : scope.userId),
+  ]);
+  const reversals = [
+    ...new Map(
+      [...linkedReversals.rows, ...dayReversals.rows].map((r: any) => [r.order_id, r]),
+    ).values(),
+  ];
+  const auditRecords = [
+    ...new Set([...cancelled.map((o: any) => o.id), ...reversals.map((r: any) => r.order_id)]),
+  ]
+    .map((id) => {
+      const original = cancelled.find((o: any) => o.id === id),
+        reversal = reversals.find((r: any) => r.order_id === id);
+      return {
+        id,
+        reference: `REG-${id.replaceAll("-", "").slice(-12).toUpperCase()}`,
+        status: "cancelled",
+        at: reversal?.original_at ?? original.created_at,
+        cents: reversal?.original_cents ?? original.total_cents,
+        by: reversal?.original_actor ?? original.created_by,
+        operator: reversal?.original_actor_name ?? null,
+        reversal: reversalDetail(reversal),
+      };
+    })
+    .filter(
+      (r) =>
+        (Date.parse(r.at) >= Date.parse(start) && Date.parse(r.at) < Date.parse(end)) ||
+        (r.reversal &&
+          Date.parse(r.reversal.at) >= Date.parse(start) &&
+          Date.parse(r.reversal.at) < Date.parse(end)),
+    );
   const ids = [
     ...new Set(
       [
         scope.userId,
         ...sessions.flatMap((s: any) => [s.user_id, s.closed_by]),
         ...movements.map((m) => m.by),
+        ...auditRecords.map((m) => m.by),
       ].filter(Boolean),
     ),
   ];
@@ -125,5 +168,15 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
           .in("id", ids.slice(n, n + 100)),
       )),
     );
-  return { day, start, end, sessions, movements, profiles, admin: !!admin, userId: scope.userId };
+  return {
+    day,
+    start,
+    end,
+    sessions,
+    movements,
+    auditRecords,
+    profiles,
+    admin: !!admin,
+    userId: scope.userId,
+  };
 }
