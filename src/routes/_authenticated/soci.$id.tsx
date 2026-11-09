@@ -1,3 +1,5 @@
+import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
+import { MemberOrderHistory } from "@/components/MemberOrderHistory";
 import { madridToday, addCalendarDays, isAdult } from "@/lib/member-administration";
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -63,6 +65,8 @@ function SocioDetail() {
   const renewalRequest = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [renewing, setRenewing] = useState(false);
+  const renewingRef = useRef(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [newPlanId, setNewPlanId] = useState("");
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Member>>({});
@@ -184,33 +188,47 @@ function SocioDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (location.pathname.endsWith("/pedido")) {
-    return <Outlet />;
-  }
-
-  async function renew() {
-    if (renewing || !navigator.onLine) return;
-    if (!confirm("¿Confirmar la renovación de la cuota del socio?")) return;
+  async function renew(confirmedCents?: number) {
+    if (renewingRef.current || !navigator.onLine) return;
     if (!newPlanId) return toast.error("Selecciona una cuota");
+    const chosen = plans.find((p) => p.id === newPlanId);
+    if (!chosen) return toast.error("Cuota no disponible");
+    if (confirmedCents === undefined) {
+      setPaymentOpen(true);
+      return;
+    }
+    if (confirmedCents !== chosen.price_cents)
+      return toast.error("La cuota ha cambiado. Revisa el importe.");
+    renewingRef.current = true;
     setRenewing(true);
     try {
-      const chosen = plans.find((p) => p.id === newPlanId)!;
       renewalRequest.current ??= crypto.randomUUID();
-      const { error } = await (supabase as any).rpc("save_membership_with_receipt", {
-        p_member: { id },
-        p_plan_id: chosen.id,
-        p_method: paymentMethod,
-        p_request: renewalRequest.current,
-        p_renew: true,
-        p_expected: member?.expires_at,
-      });
+      const { data: savedId, error } = await (supabase as any).rpc(
+        "confirm_membership_with_receipt",
+        {
+          p_confirmed_cents: chosen.price_cents,
+          p_member: { id },
+          p_plan_id: chosen.id,
+          p_method: paymentMethod,
+          p_request: renewalRequest.current,
+          p_renew: true,
+          p_expected: member?.expires_at,
+        },
+      );
       if (error) throw error;
+      if (savedId !== id)
+        throw new Error(
+          "No se pudo verificar la renovación. Consulta su estado antes de reintentar.",
+        );
       renewalRequest.current = null;
+      setPaymentOpen(false);
       toast.success("Cuota renovada y pago registrado");
       load();
+      return true;
     } catch (e: any) {
       toast.error(e.message);
     } finally {
+      renewingRef.current = false;
       setRenewing(false);
     }
   }
@@ -228,6 +246,7 @@ function SocioDetail() {
   }
 
   useEffect(() => {
+    if (location.pathname.endsWith("/pedido")) return;
     function onAction(e: Event) {
       const action = (e as CustomEvent).detail?.action;
       if (action === "order") nuevoPedido();
@@ -237,7 +256,9 @@ function SocioDetail() {
     window.addEventListener("snoop:member-action", onAction as EventListener);
     return () => window.removeEventListener("snoop:member-action", onAction as EventListener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [member, newPlanId, plans]);
+  }, [member, newPlanId, plans, paymentMethod, location.pathname]);
+
+  if (location.pathname.endsWith("/pedido")) return <Outlet />;
 
   if (!member) {
     return (
@@ -251,6 +272,16 @@ function SocioDetail() {
 
   return (
     <SnoopLayout>
+      <AdministrativePaymentDialog
+        key={`${paymentOpen}:${newPlanId}:${paymentMethod}`}
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        title="Confirmar renovación"
+        totalCents={plans.find((p) => p.id === newPlanId)?.price_cents ?? 0}
+        method={paymentMethod}
+        busy={renewing}
+        onConfirm={() => renew(plans.find((p) => p.id === newPlanId)?.price_cents ?? 0)}
+      />
       <Link
         to="/soci/gestisci"
         className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-neon mb-6"
@@ -458,6 +489,7 @@ function SocioDetail() {
             </div>
             <select
               value={newPlanId}
+              disabled={renewing || renewalRequest.current !== null}
               onChange={(e) => {
                 setNewPlanId(e.target.value);
                 renewalRequest.current = null;
@@ -475,6 +507,7 @@ function SocioDetail() {
               <select
                 aria-label="Método de pago de renovación"
                 value={paymentMethod}
+                disabled={renewing || renewalRequest.current !== null}
                 onChange={(e) => {
                   setPaymentMethod(e.target.value);
                   renewalRequest.current = null;
@@ -488,7 +521,7 @@ function SocioDetail() {
               </select>
             </label>
             <button
-              onClick={renew}
+              onClick={() => renew()}
               disabled={renewing}
               className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
             >
@@ -510,6 +543,7 @@ function SocioDetail() {
           )}
         </div>
       </div>
+      <MemberOrderHistory memberId={id} />
     </SnoopLayout>
   );
 }

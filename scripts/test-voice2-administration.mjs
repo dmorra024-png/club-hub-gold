@@ -154,7 +154,8 @@ for (const [name, engine, device] of [
       if (
         req.method() !== "GET" &&
         (!u.pathname.includes("/rpc/") ||
-          u.pathname.endsWith("/rpc/save_membership_with_receipt")) &&
+          u.pathname.endsWith("/rpc/save_membership_with_receipt") ||
+          u.pathname.endsWith("/rpc/confirm_membership_with_receipt")) &&
         !u.pathname.includes("/auth/")
       )
         writes++;

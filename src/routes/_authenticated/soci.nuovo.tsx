@@ -1,3 +1,4 @@
+import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useRef, useState } from "react";
@@ -68,6 +69,7 @@ function NewSocio() {
   const liveAuth = useAuth();
   const plansRef = useRef<Plan[]>([]);
   const [saving, setSaving] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const registrationId = useRef(crypto.randomUUID());
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const savingRef = useRef(false);
@@ -351,7 +353,7 @@ function NewSocio() {
     }
   }
 
-  async function submit() {
+  async function submit(confirmedCents?: number) {
     if (savingRef.current || !navigator.onLine)
       return toast.error("Espera a que termine el envío y comprueba la conexión.");
     if (!form.first_name.trim() || !form.last_name.trim())
@@ -377,6 +379,13 @@ function NewSocio() {
       if (sigRef.current?.isEmpty()) return toast.error("Falta la firma del socio");
     }
 
+    const due = selectedPlan?.price_cents ?? 0;
+    if (due > 0 && confirmedCents === undefined) {
+      setPaymentOpen(true);
+      return;
+    }
+    if (confirmedCents !== undefined && confirmedCents !== due)
+      return toast.error("La cuota ha cambiado. Revisa el importe.");
     savingRef.current = true;
     setSaving(true);
     try {
@@ -402,35 +411,44 @@ function NewSocio() {
       const joined = madridToday();
       const expires = selectedPlan ? addCalendarDays(joined, selectedPlan.duration_days) : joined;
 
-      const { error } = await (supabase as any).rpc("save_membership_with_receipt", {
-        p_plan_id: form.plan_id || null,
-        p_method: paymentMethod,
-        p_request: memberId,
-        p_renew: false,
-        p_member: {
-          club_id: clubId,
-          id: memberId,
-          first_name: form.first_name.trim(),
-          last_name: form.last_name.trim(),
-          birth_date: form.birth_date || "1900-01-01",
-          address: form.address.trim() || null,
-          city: form.city.trim(),
-          postal_code: form.postal_code.trim() || null,
-          phone: form.phone.trim(),
-          email: form.email.trim() || null,
-          dni_number: form.dni_number.trim().toUpperCase(),
-          dni_photo_path: form.dni_file ? dniPath : "",
-          plan_id: form.plan_id || null,
-          joined_at: joined,
-          expires_at: expires,
-          signature_path: sigUploaded ? sigPath : "",
-          contract_signed_at: sigUploaded ? new Date().toISOString() : null,
-          contract_version: sigUploaded ? CONTRACT_VERSION : "",
-          created_by: user.user?.id ?? null,
+      const { data: savedId, error } = await (supabase as any).rpc(
+        form.plan_id ? "confirm_membership_with_receipt" : "save_membership_with_receipt",
+        {
+          ...(form.plan_id ? { p_confirmed_cents: due, p_expected: null } : {}),
+          p_plan_id: form.plan_id || null,
+          p_method: paymentMethod,
+          p_request: memberId,
+          p_renew: false,
+          p_member: {
+            club_id: clubId,
+            id: memberId,
+            first_name: form.first_name.trim(),
+            last_name: form.last_name.trim(),
+            birth_date: form.birth_date || "1900-01-01",
+            address: form.address.trim() || null,
+            city: form.city.trim(),
+            postal_code: form.postal_code.trim() || null,
+            phone: form.phone.trim(),
+            email: form.email.trim() || null,
+            dni_number: form.dni_number.trim().toUpperCase(),
+            dni_photo_path: form.dni_file ? dniPath : "",
+            plan_id: form.plan_id || null,
+            joined_at: joined,
+            expires_at: expires,
+            signature_path: sigUploaded ? sigPath : "",
+            contract_signed_at: sigUploaded ? new Date().toISOString() : null,
+            contract_version: sigUploaded ? CONTRACT_VERSION : "",
+            created_by: user.user?.id ?? null,
+          },
         },
-      });
+      );
       if (error) throw error;
+      if (savedId !== memberId)
+        throw new Error(
+          "No se pudo verificar la inscripción. Consulta su estado antes de reintentar.",
+        );
 
+      setPaymentOpen(false);
       registrationId.current = crypto.randomUUID();
       // Send the QR carnet by email if the socio provided one
       try {
@@ -467,6 +485,7 @@ function NewSocio() {
         window.sessionStorage.removeItem("snoop:new-member-transcript");
       } catch {}
       nav({ to: "/soci/gestisci" });
+      return true;
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -477,6 +496,16 @@ function NewSocio() {
 
   return (
     <SnoopLayout title="Nuevo socio" subtitle="Dicta los datos o rellénalos a mano">
+      <AdministrativePaymentDialog
+        key={`${paymentOpen}:${form.plan_id}:${paymentMethod}`}
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        title="Confirmar inscripción"
+        totalCents={selectedPlan?.price_cents ?? 0}
+        method={paymentMethod}
+        busy={saving}
+        onConfirm={() => submit(selectedPlan?.price_cents ?? 0)}
+      />
       {/* Voice dictation bar */}
       <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4 flex items-center gap-4">
         <button
@@ -805,7 +834,7 @@ function NewSocio() {
           <button
             type="button"
             disabled={saving || recStatus === "processing" || scanStatus === "scanning"}
-            onClick={submit}
+            onClick={() => submit()}
             className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-neon text-primary-foreground font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}

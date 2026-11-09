@@ -346,9 +346,17 @@ for (const [label, engine, device] of runs) {
       0,
       "Empty club has no fabricated activity",
     );
+    // The empty activity list may finish before the independent cash effect.
+    // Finish and close this document before changing the server fixture's club.
+    await page.locator(".premium-cash-amount").getByText(/0,00/).waitFor();
+    await page.waitForLoadState("networkidle");
+    await page.close();
     empty = false;
     activeClub = "10000000-0000-4000-8000-000000000002";
     clubName = "Otro Club de Prueba";
+    page = await context.newPage();
+    page.setDefaultTimeout(20000);
+    page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(base + "/", { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: clubName, exact: true }).waitFor();
     assert.equal(
@@ -376,7 +384,12 @@ for (const [label, engine, device] of runs) {
     try {
       await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
     } catch (error) {
-      console.error("Platform profile failure", page.url(), await page.locator("body").innerText(), errors);
+      console.error(
+        "Platform profile failure",
+        page.url(),
+        await page.locator("body").innerText(),
+        errors,
+      );
       throw error;
     }
     await page.getByText("Super Admin", { exact: true }).waitFor();

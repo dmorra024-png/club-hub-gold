@@ -1,3 +1,10 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -58,6 +65,7 @@ async function blobToBase64(blob: Blob) {
 function PedidoPage() {
   const { id } = Route.useParams();
   const nav = useNavigate();
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [member, setMember] = useState<{
     first_name: string;
     last_name: string;
@@ -507,12 +515,44 @@ function PedidoPage() {
       title="Nuevo pedido"
       subtitle={member ? `${member.first_name} ${member.last_name} · #${member.member_number}` : ""}
     >
+      <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Descartar borrador</DialogTitle>
+            <DialogDescription>
+              Los cambios sin confirmar se perderán. No se registrará ninguna operación.
+            </DialogDescription>
+          </DialogHeader>
+          <button
+            className="border border-border rounded p-3"
+            onClick={() => setDiscardOpen(false)}
+          >
+            Seguir editando
+          </button>
+          <button
+            className="border border-destructive rounded p-3"
+            onClick={() => nav({ to: "/soci/$id", params: { id } })}
+          >
+            Descartar y volver
+          </button>
+        </DialogContent>
+      </Dialog>
       <Link
+        onClick={(e) => {
+          if (busy) {
+            e.preventDefault();
+            return;
+          }
+          if (cart.length || text.trim() || notes.trim()) {
+            e.preventDefault();
+            setDiscardOpen(true);
+          }
+        }}
         to="/soci/$id"
         params={{ id }}
         className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground hover:text-neon mb-6"
       >
-        <ArrowLeft className="w-4 h-4" /> Volver a la ficha
+        <ArrowLeft className="w-4 h-4" /> Cancelar borrador
       </Link>
 
       <div className="grid lg:grid-cols-3 gap-6">

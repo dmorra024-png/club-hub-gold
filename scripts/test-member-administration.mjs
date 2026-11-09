@@ -108,8 +108,23 @@ try {
       body = ["dni_photo", "signature", "address", "postal_code", "email", "dni_number"].map(
         (field_key) => ({ field_key, visible: false, required: false }),
       );
-    else if (url.pathname.endsWith("/rpc/save_membership_with_receipt")) {
+    else if (
+      url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
+      url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
+    ) {
       const payload = request.postDataJSON();
+      if (url.pathname.endsWith("/rpc/confirm_membership_with_receipt")) {
+        assert.deepEqual(Object.keys(payload).sort(), [
+          "p_confirmed_cents",
+          "p_expected",
+          "p_member",
+          "p_method",
+          "p_plan_id",
+          "p_renew",
+          "p_request",
+        ]);
+        assert.equal(payload.p_confirmed_cents, plan.price_cents);
+      }
       if (payload.p_renew) {
         const previous = created[0];
         const expiry = new Date(previous.expires_at + "T12:00:00Z");
@@ -165,6 +180,16 @@ try {
   await input("Teléfono *").fill("000000000");
   await page.getByRole("button", { name: /Cuota Demo/ }).click();
   await page.getByRole("button", { name: "Crear socio", exact: true }).dblclick();
+  await page.getByRole("dialog").waitFor();
+  assert.equal(created.length, 0, "Opening payment review must not save");
+  await page.getByLabel("Dinero recibido (€)").fill("9,99");
+  assert.equal(
+    await page.getByRole("button", { name: "Confirmar aportación", exact: true }).isDisabled(),
+    true,
+  );
+  await page.getByLabel("Dinero recibido (€)").fill("20");
+  await page.getByLabel("Cambio", { exact: true }).getByText(/10,00/).waitFor();
+  await page.getByRole("button", { name: "Confirmar aportación", exact: true }).dblclick();
   await page.waitForURL("**/soci/gestisci");
   assert.equal(created.length, 1, "Double-click must create only one record");
   assert.equal(created[0].club_id, clubId);
@@ -178,16 +203,19 @@ try {
   });
   await page.getByRole("button", { name: "Renovar", exact: true }).waitFor();
   await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
-  page.once("dialog", (dialog) => dialog.dismiss());
+
   await page.getByRole("button", { name: "Renovar", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
   assert.equal(updated.length, 0, "Cancelled renewal cannot update the member");
-  page.once("dialog", (dialog) => dialog.accept());
+
   const renewal = page.waitForResponse(
     (response) =>
       response.url().startsWith(apiOrigin) &&
-      response.url().endsWith("/rpc/save_membership_with_receipt"),
+      response.url().endsWith("/rpc/confirm_membership_with_receipt"),
   );
   await page.getByRole("button", { name: "Renovar", exact: true }).click();
+  await page.getByLabel("Dinero recibido (€)").fill("10");
+  await page.getByRole("button", { name: "Confirmar aportación", exact: true }).click();
   await renewal;
   assert.equal(updated.length, 1);
   assert.ok(updated[0].expires_at > initialExpiry);

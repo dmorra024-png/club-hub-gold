@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "device": "samsung",
+      "mode": "admin",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic APIs; SQL separately tested",
+      "orderWrites": 0
+    },
+    {
+      "device": "samsung",
+      "mode": "staff",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic APIs; SQL separately tested",
+      "orderWrites": 0
+    },
+    {
+      "device": "samsung",
+      "mode": "no-finance",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic APIs; SQL separately tested",
+      "orderWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "mode": "admin",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic APIs; SQL separately tested",
+      "orderWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "mode": "staff",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic APIs; SQL separately tested",
+      "orderWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "mode": "no-finance",
+      "result": "PASS",
+      "physical": false,
+      "transport": "synthetic APIs; SQL separately tested",
+      "orderWrites": 0
+    }
+  ]
+}

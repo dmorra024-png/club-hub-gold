@@ -34,7 +34,8 @@ export function useMobileKeyboard() {
     }
     expandedHeight = Math.max(expandedHeight, innerHeight, window.visualViewport?.height ?? 0);
     let frame = 0,
-      settle: ReturnType<typeof setTimeout> | undefined;
+      settle: ReturnType<typeof setTimeout> | undefined,
+      observed: ResizeObserver | undefined;
     const update = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
@@ -78,6 +79,16 @@ export function useMobileKeyboard() {
       });
     };
     const focus = () => {
+      observed?.disconnect();
+      const active = document.activeElement;
+      if (editableElement(active) && typeof ResizeObserver !== "undefined") {
+        // Portalled dialogs can shrink after the first keyboard measurement.
+        // Recheck the final layout, without replacing the field or its focus.
+        observed ??= new ResizeObserver(update);
+        observed.observe(active);
+        const dialog = active.closest('[role="dialog"], [role="alertdialog"]');
+        if (dialog) observed.observe(dialog);
+      }
       update();
       clearTimeout(settle);
       settle = setTimeout(update, 80);
@@ -97,6 +108,7 @@ export function useMobileKeyboard() {
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settle);
+      observed?.disconnect();
       window.visualViewport?.removeEventListener("resize", update);
       window.visualViewport?.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);

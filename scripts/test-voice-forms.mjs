@@ -128,7 +128,8 @@ try {
       else if (url.pathname.endsWith("/club_member_field_config")) data = [];
       else if (
         (url.pathname.endsWith("/members") && req.method() !== "GET") ||
-        url.pathname.endsWith("/rpc/save_membership_with_receipt")
+        url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
+        url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
       )
         writes++;
       if (req.headers().accept?.includes("vnd.pgrst.object+json") && Array.isArray(data))
