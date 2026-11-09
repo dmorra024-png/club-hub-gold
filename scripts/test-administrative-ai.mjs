@@ -259,6 +259,8 @@ try {
         const before = await counts();
         transcriptOverride = command;
         await page.goto(origin + "/", { waitUntil: "networkidle" });
+        await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+        await page.getByRole("checkbox", { name: /Permito enviar/ }).check();
         await page
           .getByLabel("Idioma de voz / Lingua voce", { exact: true })
           .selectOption(language);

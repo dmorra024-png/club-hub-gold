@@ -62,6 +62,44 @@ for (const [name, engine, device] of [
         localStorage.setItem(key, JSON.stringify(auth));
         localStorage.setItem("snoop:voice-language", "it-IT");
         window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0 };
+        const NativeRecorder = window.MediaRecorder;
+        window.__nativeRecordingCheck = async () => {
+          const Audio = window.AudioContext || window.webkitAudioContext;
+          if (!NativeRecorder || !Audio) return { available: false };
+          const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find((t) =>
+            NativeRecorder.isTypeSupported(t),
+          );
+          if (!mime) return { available: false };
+          const audio = new Audio(),
+            source = audio.createOscillator(),
+            destination = audio.createMediaStreamDestination();
+          source.connect(destination);
+          source.start();
+          const recorder = new NativeRecorder(destination.stream, { mimeType: mime });
+          try {
+            const result = await new Promise((resolve, reject) => {
+              const chunks = [];
+              recorder.ondataavailable = (e) => chunks.push(e.data);
+              recorder.onerror = reject;
+              recorder.onstop = () =>
+                resolve({
+                  available: true,
+                  mime,
+                  bytes: new Blob(chunks).size,
+                  physical: false,
+                  source: "synthetic oscillator",
+                });
+              recorder.start();
+              setTimeout(() => recorder.stop(), 200);
+            });
+            return result;
+          } finally {
+            source.stop();
+            destination.stream.getTracks().forEach((t) => t.stop());
+            await audio.close();
+          }
+        };
+
         Object.defineProperty(navigator, "mediaDevices", {
           configurable: true,
           value: {
@@ -118,9 +156,27 @@ for (const [name, engine, device] of [
             u.pathname.startsWith(api.pathname.replace(/\/$/, "") + "/"));
       if (u.origin !== new URL(base).origin && !isApi) return route.abort();
       if (u.pathname.includes("_serverFn")) {
-        let result = { available, documents: false, browserSpeech: false };
+        let result = {
+          available,
+          documents: false,
+          browserSpeech: false,
+          profiles: [{ id: uid, full_name: "Synthetic Voice Tester" }],
+          sessions: [],
+          movements: [],
+          refunds: [],
+          auditRecords: [],
+          admin: false,
+          day: "2026-11-09",
+          start: "2026-11-08T23:00:00Z",
+          end: "2026-11-09T23:00:00Z",
+        };
         if (req.method() === "POST") {
           const data = fromJSON(JSON.parse(req.postData())).data;
+          if (Object.keys(data).length === 1 && "day" in data)
+            return route.fulfill({
+              contentType: "application/json",
+              body: JSON.stringify({ result, context: {} }),
+            });
           if (data.transcript && Array.isArray(data.categories)) {
             return route.fulfill({
               contentType: "application/json",
@@ -166,7 +222,7 @@ for (const [name, engine, device] of [
           status: "active",
           clubId: club,
           clubName: "Club Sintético",
-          permissions: denied ? [] : ["manage_members", "manage_products"],
+          permissions: denied ? [] : ["manage_members", "manage_products", "use_cash"],
         };
       else if (u.pathname.endsWith("/rpc/current_club_id")) data = club;
       else if (u.pathname.endsWith("/product_categories"))
@@ -205,18 +261,32 @@ for (const [name, engine, device] of [
       return route.fulfill({ contentType: "application/json", body: JSON.stringify(data) });
     });
     const page = await context.newPage();
-    const errors = [];
-    page.on("pageerror", (e) => errors.push(e.message));
+    const errors = [],
+      expectedOfflineAborts = [];
+    let forcingOffline = false;
+    page.on("pageerror", (e) => {
+      // WebKit emits a native access-control diagnostic when the fixture deliberately
+      // aborts an in-flight access-context fetch. Keep all other JS errors fatal.
+      if (
+        name === "iphone-webkit" &&
+        forcingOffline &&
+        e.message.endsWith("/rest/v1/rpc/snoop_access_context due to access control checks.")
+      )
+        expectedOfflineAborts.push(e.message);
+      else errors.push(e.message);
+    });
     page.setDefaultTimeout(15000);
+    async function begin() {
+      if (!(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).isVisible()))
+        await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("checkbox", { name: /Permito enviar/ }).check();
+      await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
+    }
     async function start() {
       await page.waitForLoadState("networkidle");
       if (new URL(page.url()).pathname === "/")
         await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
-      const mic = page.getByRole("button", { name: "Encender Snoop", exact: true });
-      if (!(await mic.isVisible())) {
-        await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
-        await page.getByRole("button", { name: "Asistente de voz · ES / IT", exact: true }).click();
-      } else await mic.click();
+      await begin();
       try {
         await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
       } catch (e) {
@@ -241,6 +311,53 @@ for (const [name, engine, device] of [
       await page.getByRole("button", { name: "Apagar Snoop", exact: true }).click();
     }
     await page.goto(base + "/", { waitUntil: "networkidle" });
+    const nativeRecording = await page.evaluate(() => window.__nativeRecordingCheck());
+    if (nativeRecording.available)
+      assert.ok(
+        nativeRecording.bytes > 0,
+        "Native browser encodes synthetic audio without external services",
+      );
+    const dock = page.getByRole("navigation", { name: "Navegación principal" });
+    assert.equal(await dock.locator(":scope > *").count(), 4);
+    await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+    assert.equal(
+      await page.evaluate(() => window.__voice.created),
+      0,
+      "Opening Voice never captures audio",
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "Encender Snoop", exact: true }).isDisabled(),
+      true,
+      "Consent is required before recording",
+    );
+    await page.screenshot({ path: `docs/screenshots/voice2-premium-${name}.png`, scale: "css" });
+    // Written fallback is fully local and works without consent or a speech provider.
+    await page
+      .getByRole("textbox", { name: "Comando escrito", exact: true })
+      .fill("Buscar socio Juan");
+    const fullViewport = { ...device.viewport };
+    await page.setViewportSize({ width: fullViewport.width, height: fullViewport.height - 260 });
+    await page.waitForFunction(() => document.body.dataset.snoopKeyboard === "true");
+    assert.equal(await dock.isHidden(), true);
+    await page.waitForFunction(() => {
+      const input = document.querySelector('input[aria-label="Comando escrito"]'),
+        r = input?.getBoundingClientRect();
+      return (
+        document.activeElement === input &&
+        r.top >= 0 &&
+        r.bottom <= (window.visualViewport?.height ?? innerHeight)
+      );
+    });
+    assert.equal(
+      await page.getByRole("textbox", { name: "Comando escrito", exact: true }).inputValue(),
+      "Buscar socio Juan",
+    );
+    await page.setViewportSize(fullViewport);
+    await page.getByRole("button", { name: "Aplicar comando", exact: true }).click();
+    await page.waitForURL(base + "/soci/gestisci");
+    await page.waitForFunction(() => document.querySelector("input")?.value === "Juan");
+    assert.equal(audioCalls, 0);
+    await page.goto(base + "/", { waitUntil: "networkidle" });
     await say("Crea un socio Mario Rossi, nato il 15 marzo 1990, residente a Palma");
     await page.waitForURL(base + "/soci/nuovo");
     await page.waitForFunction(() =>
@@ -255,7 +372,9 @@ for (const [name, engine, device] of [
     assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Palma");
     assert.equal(writes, 0);
     await page.goto(base + "/", { waitUntil: "networkidle" });
-    await say("Crea un producto Libreta en categoría Material stock 25");
+    await say(
+      "Crea un producto Libreta en categoría Material, precio diez euros con cincuenta, stock veinticinco unidades",
+    );
     await page.waitForURL(base + "/productos");
     await page.waitForFunction(() =>
       Array.from(document.querySelectorAll("input")).some((i) => i.value === "Libreta"),
@@ -263,6 +382,12 @@ for (const [name, engine, device] of [
     assert.equal(
       await page.getByRole("combobox", { name: "Categoría", exact: true }).inputValue(),
       plan,
+    );
+    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("P. venta €", { exact: true }).inputValue(), "10.5");
+    await say("No, el precio es cinco euros con veinte");
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="P. venta €"]')?.value === "5.2",
     );
     assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
     const productName = page.getByPlaceholder("ej. Amnesia Haze");
@@ -289,7 +414,7 @@ for (const [name, engine, device] of [
     await productName.fill("Libreta manual definitiva");
     holdTranscription = false;
     resume();
-    await page.getByRole("button", { name: "Encender Snoop", exact: true }).waitFor();
+    await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).waitFor({ state: "hidden" });
     assert.equal(await productName.inputValue(), "Libreta manual definitiva");
     await productName.fill("Libreta manual");
 
@@ -327,6 +452,7 @@ for (const [name, engine, device] of [
     );
     assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Demo");
     assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Persona");
+    await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
     await page
       .getByRole("combobox", { name: "Idioma de voz / Lingua voce", exact: true })
       .selectOption("es-ES");
@@ -345,10 +471,11 @@ for (const [name, engine, device] of [
     await page.getByLabel("Apellidos *", { exact: true }).fill("Manual");
     holdTranscription = false;
     resume();
-    await page.getByRole("button", { name: "Encender Snoop", exact: true }).waitFor();
+    await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).waitFor({ state: "hidden" });
     assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Manual");
     // “Encender” is also rendered while transcription is busy, but disabled.
     // Observe completion before dispatching synthetic events that bypass native button gating.
+    await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
     await page.locator('button[aria-label="Encender Snoop"]:not(:disabled)').waitFor();
     const beforeDuplicate = await page.evaluate(() => window.__voice.created),
       beforeExplicitCancel = audioCalls;
@@ -370,7 +497,7 @@ for (const [name, engine, device] of [
     await page.getByRole("alert").filter({ hasText: "IA no disponible" }).waitFor();
     assert.equal(await page.evaluate(() => window.__voice.created), beforeUnavailable);
     available = true;
-    await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: `docs/screenshots/voice2-${name}.png`,
@@ -427,22 +554,60 @@ for (const [name, engine, device] of [
     );
     const beforeOffline = audioCalls;
     await start();
+    forcingOffline = true;
     await context.setOffline(true);
     await page.getByRole("alert").filter({ hasText: "Conexión interrumpida" }).waitFor();
     assert.equal(audioCalls, beforeOffline);
     await context.setOffline(false);
-    await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
     await page.evaluate(() => (window.__voice.denied = true));
-    await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
+    await begin();
     await page.getByRole("alert").filter({ hasText: "Permiso de micrófono denegado" }).waitFor();
     await page.evaluate(() => (window.__voice.denied = false));
-    await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+    await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
+    await page.waitForLoadState("networkidle");
+    forcingOffline = false;
     failTranscription = true;
     await say("nombre Sin guardar");
     await page.getByRole("alert").waitFor();
     failTranscription = false;
     assert.equal(writes, 0);
     await page.goto(base + "/", { waitUntil: "networkidle" });
+    async function written(command) {
+      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("textbox", { name: "Comando escrito", exact: true }).fill(command);
+      await page.getByRole("button", { name: "Aplicar comando", exact: true }).click();
+    }
+    await written("Buscar producto Café Especial");
+    await page.waitForURL(base + "/productos");
+    await page.waitForFunction(
+      () =>
+        document.querySelector('input[placeholder="Buscar en todos los productos…"]')?.value ===
+        "Café Especial",
+    );
+    await written("Ver caja de hoy");
+    await page.waitForURL(base + "/caja");
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll('[role="tab"]')).some(
+        (e) => e.textContent === "Informe de caja" && e.getAttribute("aria-selected") === "true",
+      ),
+    );
+    await written("Últimas actividades");
+    await page.waitForURL(base + "/actividades");
+    await page.waitForLoadState("networkidle");
+    assert.equal(
+      writes,
+      0,
+      "Voice navigation never opens a cash session or writes economic records",
+    );
+    // Use the real Home control: a hard document navigation intentionally restores
+    // the saved PWA location and is not equivalent to the user's Home action.
+    await page
+      .getByRole("navigation", { name: "Navegación principal" })
+      .getByRole("link", { name: "Home", exact: true })
+      .click();
+    await page.waitForURL(base + "/");
+    await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
     denied = true;
     await page.reload({ waitUntil: "networkidle" });
     const readBefore = memberReads;
@@ -457,13 +622,22 @@ for (const [name, engine, device] of [
       device: name,
       result: "PASS",
       physical: false,
+      nativeRecording,
+      expectedOfflineAborts,
       transcription: "simulated, synthetic recorder",
       checks: [
+        "four-item premium dock and compact Voice panel",
+        "keyboard simulation hides dock and preserves focused command field",
+        "opening panel never captures audio; explicit consent required",
+        "written fallback routes a local member search without audio/provider",
+        "product query preserves name and accents in actual search field",
+        "cash today selects existing report tab without cash mutation",
+        "latest activity opens existing history",
         "complete IT/ES administrative drafts",
         "exact Mario Rossi real-user phrase into actual member fields",
         "generic non-smokeable Libreta creation routed into actual category/name/quantity fields",
         "actual plan binding",
-        "single-field corrections",
+        "single-field corrections and spoken Spanish decimal prices on synthetic stationery",
         "scoped local member search",
         "no ambiguous auto-open",
         "permissions before field handoff",

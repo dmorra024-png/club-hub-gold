@@ -1,7 +1,8 @@
+import { premiumVoiceIntent } from "@/lib/premium-voice";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Mic, MicOff, Loader2, Ear } from "lucide-react";
+import { Mic, X, Loader2, Square } from "lucide-react";
 import { toast } from "sonner";
 import { informationalVoiceCommand } from "@/lib/informational-voice";
 import { parseAdministrativeDictation } from "@/lib/member-administration";
@@ -93,17 +94,19 @@ function looksLikeMemberLookup(value: string) {
 
 export function VoiceAgent({
   clubName,
-  hideIdleControls = false,
   access,
   userId,
 }: {
   clubName?: string | null;
-  hideIdleControls?: boolean;
   access: AccountAccess;
   userId: string;
 }) {
   const [language, setLanguage] = useState("es-ES");
   const [feedback, setFeedback] = useState("");
+  const [panelOpen, setPanelOpen] = useState(false),
+    [consent, setConsent] = useState(false),
+    [manual, setManual] = useState(""),
+    [transcript, setTranscript] = useState("");
   const aiStatus = useServerFn(getAdministrativeAiStatus),
     transcribe = useServerFn(transcribeAudio);
   const processingRef = useRef(false);
@@ -153,6 +156,41 @@ export function VoiceAgent({
         const lower = text.toLowerCase();
         const normalized = normalizeVoiceText(text);
 
+        const premium = premiumVoiceIntent(text, path);
+        if (premium) {
+          allow(premium.to);
+          if (premium.productQuery !== undefined) {
+            const command = { text: `buscar ${premium.productQuery}`, at: Date.now() };
+            if (path === "/productos")
+              window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: command }));
+            else window.sessionStorage.setItem("snoop:productos-cmd", JSON.stringify(command));
+          }
+          if (premium.productCreate) {
+            const command = { text, tab: "nuevo", at: Date.now() };
+            if (path === "/productos")
+              window.dispatchEvent(new CustomEvent("snoop:productos-command", { detail: command }));
+            else {
+              localStorage.setItem("snoop:productos-tab", "nuevo");
+              sessionStorage.setItem("snoop:productos-cmd", JSON.stringify(command));
+            }
+          }
+          if (premium.cashReport) {
+            // Open the existing report tab only; never open a cash session or record money.
+            window.sessionStorage.setItem(
+              "snoop:cash-report-open",
+              JSON.stringify({ ...scope, at: Date.now() }),
+            );
+          }
+          if (path !== premium.to || premium.search)
+            await navigate({ to: premium.to as any, search: premium.search as any });
+          if (premium.cashReport) window.dispatchEvent(new Event("snoop:cash-report-open"));
+          setFeedback(
+            premium.requiresMember
+              ? "Selecciona un socio para continuar. No se ha creado ningún pedido."
+              : "Pantalla preparada. No se ha guardado nada.",
+          );
+          return;
+        }
         const informational = informationalVoiceCommand(text);
         if (informational) {
           allow("/productos");
@@ -382,6 +420,7 @@ export function VoiceAgent({
         setFeedback(command.reply);
       } catch (e: any) {
         toast.error(e.message ?? "Error en el asistente");
+        return false;
       } finally {
         processingRef.current = false;
       }
@@ -406,85 +445,190 @@ export function VoiceAgent({
     onTranscript: (text) => {
       if (fieldEdits.current !== recordingEdits.current) {
         toast.info("Se conserva tu edición manual. Repite el dictado si lo necesitas.");
+        setPanelOpen(false);
         return;
       }
-      return handleTranscript(text);
+      toast.info(`Transcripción: ${text.slice(0, 180)}`);
+      setTranscript(text);
+      setManual(text);
+      return handleTranscript(text).then((result) => {
+        if (result !== false) setPanelOpen(false);
+      });
     },
   });
   const enabled = dictation.phase === "recording",
     busy = dictation.phase === "starting" || dictation.phase === "processing";
   const toggle = useCallback(() => {
+    setPanelOpen(true);
+    if (!consent) {
+      setPanelOpen(true);
+      return;
+    }
     if (enabled) dictation.finish();
     else if (!busy) {
       recordingEdits.current = fieldEdits.current;
       void dictation.start();
     }
-  }, [enabled, busy, dictation.start, dictation.finish]);
+  }, [enabled, busy, consent, dictation.start, dictation.finish]);
   useEffect(() => {
     window.addEventListener("snoop:voice-start", toggle);
     return () => window.removeEventListener("snoop:voice-start", toggle);
   }, [toggle]);
-  return (
-    <>
-      {(feedback || dictation.error || busy || enabled) && (
-        <aside
-          aria-label="Respuesta del asistente"
-          className="snoop-voice-feedback fixed right-4 bottom-44 z-40 max-h-[35svh] overflow-auto max-w-[min(90vw,380px)] rounded-lg border border-neon/30 bg-card p-3 text-sm shadow-lg"
+  useEffect(() => {
+    const open = () => setPanelOpen(true);
+    window.addEventListener("snoop:voice-open", open);
+    return () => window.removeEventListener("snoop:voice-open", open);
+  }, []);
+  useEffect(() => {
+    setPanelOpen(false);
+    setConsent(false);
+    dictation.cancel();
+    setManual("");
+    setTranscript("");
+  }, [scope]);
+  useEffect(() => {
+    if (location.pathname !== "/caja" || !voiceIntentAllowed(access, "/caja")) return;
+    let active = true,
+      timer: ReturnType<typeof setTimeout>;
+    const openReport = (attempt = 0) => {
+      if (!active) return;
+      let pending: any;
+      try {
+        pending = JSON.parse(sessionStorage.getItem("snoop:cash-report-open") || "null");
+      } catch {
+        return;
+      }
+      if (!pending) return;
+      if (
+        !Number.isFinite(pending.at) ||
+        pending.userId !== userId ||
+        pending.clubId !== access.clubId ||
+        Date.now() - pending.at > 15000 ||
+        Date.now() < pending.at
+      ) {
+        sessionStorage.removeItem("snoop:cash-report-open");
+        return;
+      }
+      const tab = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(
+        (t) => t.textContent === "Informe de caja",
+      );
+      if (tab && !tab.matches(":disabled")) {
+        // Radix Tabs selects on keyboard activation, not a synthetic click alone.
+        tab.focus();
+        tab.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+        sessionStorage.removeItem("snoop:cash-report-open");
+      } else if (attempt < 300) timer = setTimeout(() => openReport(attempt + 1), 50);
+    };
+    const event = () => openReport();
+    openReport();
+    window.addEventListener("snoop:cash-report-open", event);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      window.removeEventListener("snoop:cash-report-open", event);
+    };
+  }, [scope]);
+  return panelOpen ? (
+    <section
+      role="dialog"
+      aria-modal="false"
+      aria-label="Voice 2.0"
+      className="premium-voice-panel"
+    >
+      <header>
+        <strong>Voice 2.0</strong>
+        <button
+          type="button"
+          aria-label="Cerrar Voice 2.0"
+          onClick={() => {
+            dictation.cancel();
+            setPanelOpen(false);
+            setFeedback("");
+          }}
         >
-          <p role={dictation.error ? "alert" : "status"}>
-            {dictation.error ||
-              (busy
-                ? "Procesando el dictado…"
-                : enabled
-                  ? "Escuchando. Pulsa el micrófono para enviar el audio a Cloudflare Whisper."
-                  : feedback)}
-          </p>
-          <button
-            type="button"
-            className="mt-2 underline"
-            onClick={() => {
-              setFeedback("");
-              dictation.cancel();
-            }}
-          >
-            {busy || enabled ? "Cancelar dictado" : "Cerrar"}
-          </button>
-        </aside>
-      )}
-      <select
-        hidden={hideIdleControls && !enabled && !busy}
-        aria-label="Idioma de voz / Lingua voce"
-        value={language}
-        onChange={(e) => {
-          dictation.cancel();
-          setLanguage(e.target.value);
-          try {
-            window.localStorage.setItem("snoop:voice-language", e.target.value);
-          } catch {}
-          window.dispatchEvent(new Event("snoop:voice-language"));
-        }}
-        className="snoop-voice-language fixed bottom-24 right-5 z-40 rounded border border-neon/30 bg-card p-1 text-xs text-neon"
-      >
-        <option value="es-ES">ES</option>
-        <option value="it-IT">IT</option>
-      </select>
+          <X size={20} />
+        </button>
+      </header>
+      <p className="text-xs text-muted-foreground">
+        Comandos administrativos · Revisa y confirma siempre en el formulario.
+      </p>
+      <label className="text-xs">
+        Idioma de voz / Lingua voce
+        <select
+          aria-label="Idioma de voz / Lingua voce"
+          value={language}
+          disabled={busy || enabled}
+          onChange={(e) => {
+            dictation.cancel();
+            setLanguage(e.target.value);
+            localStorage.setItem("snoop:voice-language", e.target.value);
+            window.dispatchEvent(new Event("snoop:voice-language"));
+          }}
+        >
+          <option value="es-ES">Español</option>
+          <option value="it-IT">Italiano</option>
+        </select>
+      </label>
+      <label className="premium-voice-consent">
+        <input
+          type="checkbox"
+          checked={consent}
+          disabled={busy || enabled}
+          onChange={(e) => setConsent(e.target.checked)}
+        />
+        Permito enviar este audio a Cloudflare Whisper para transcribirlo. SNOOP no conserva la
+        grabación.
+      </label>
       <button
         type="button"
-        onClick={toggle}
-        disabled={busy || access.status !== "active"}
-        hidden={hideIdleControls && !enabled && !busy}
+        className={`premium-record ${enabled ? "is-listening" : ""}`}
         aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
-        title="Audio a Cloudflare Whisper; interpretación administrativa local. Pulsa otra vez para enviar."
-        className={`snoop-voice-toggle fixed z-40 bottom-5 right-5 md:bottom-8 md:right-8 h-16 w-16 rounded-full flex items-center justify-center transition-all ${enabled ? "bg-gradient-neon text-primary-foreground glow-neon animate-pulse" : "bg-card border border-neon/40 text-neon"}`}
+        disabled={busy || !consent}
+        onClick={toggle}
       >
-        {busy ? (
-          <Loader2 className="w-6 h-6 animate-spin" />
-        ) : enabled ? (
-          <Ear className="w-7 h-7" />
-        ) : (
-          <MicOff className="w-7 h-7" />
-        )}
+        {busy ? <Loader2 className="animate-spin" /> : enabled ? <Square /> : <Mic />}
+        {busy ? "Procesando…" : enabled ? "Escuchando · Pulsa para transcribir" : "Iniciar dictado"}
       </button>
-    </>
-  );
+      {(feedback || dictation.error || enabled) && (
+        <p role={dictation.error ? "alert" : "status"}>
+          {dictation.error ||
+            (enabled ? "Escuchando. El audio se envía al finalizar, con tu permiso." : feedback)}
+        </p>
+      )}
+      {(enabled || busy) && (
+        <button type="button" onClick={() => dictation.cancel()}>
+          Cancelar dictado
+        </button>
+      )}
+      {transcript && (
+        <p className="text-xs text-muted-foreground" aria-label="Transcripción">
+          {transcript}
+        </p>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!busy && !enabled && manual.trim()) {
+            void handleTranscript(manual);
+            setPanelOpen(false);
+          }
+        }}
+      >
+        <label>
+          También puedes escribir el comando
+          <input
+            aria-label="Comando escrito"
+            value={manual}
+            disabled={busy || enabled}
+            onChange={(e) => setManual(e.target.value)}
+            maxLength={12000}
+            placeholder="Buscar socio Carlos García"
+          />
+        </label>
+        <button type="submit" disabled={busy || enabled || !manual.trim()}>
+          Aplicar comando
+        </button>
+      </form>
+    </section>
+  ) : null;
 }

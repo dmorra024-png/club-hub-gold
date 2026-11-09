@@ -162,13 +162,6 @@ function GestisciSoci() {
         >
           <QrCode className="w-4 h-4" /> Escanear QR
         </button>
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("snoop:voice-start"))}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-neon text-primary-foreground rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon"
-        >
-          <Mic className="w-4 h-4" /> Buscar socio
-        </button>
       </div>
 
       {loading ? (

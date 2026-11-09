@@ -156,15 +156,6 @@ export function SnoopLayout({
                 </Link>
               ))}
             </nav>
-            <button
-              className="premium-voice-menu"
-              onClick={() => {
-                window.dispatchEvent(new Event("snoop:voice-start"));
-                setOpen(false);
-              }}
-            >
-              <Mic size={19} /> Asistente de voz · ES / IT
-            </button>
             <div className="premium-menu-account">
               <span>{user?.email}</span>
               <button
@@ -183,12 +174,7 @@ export function SnoopLayout({
         </>
       )}
       {user && access.role && !loading && !accessError && (
-        <VoiceAgent
-          clubName={access.clubName}
-          access={access}
-          userId={user.id}
-          hideIdleControls={home && !open}
-        />
+        <VoiceAgent clubName={access.clubName} access={access} userId={user.id} />
       )}
       <main id="main-content" className="premium-main" tabIndex={-1}>
         {title && (
@@ -229,6 +215,16 @@ export function SnoopLayout({
             <QrAccessIcon />
           </button>
         )}
+        <button
+          type="button"
+          className="premium-dock-voice"
+          aria-label="Voice 2.0"
+          disabled={loading || !!accessError || access.status !== "active"}
+          onClick={() => window.dispatchEvent(new Event("snoop:voice-open"))}
+        >
+          <Mic aria-hidden="true" />
+          <span>Voice 2.0</span>
+        </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
           <UserRound aria-hidden="true" />
           <span>Perfil</span>

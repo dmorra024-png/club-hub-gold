@@ -492,51 +492,8 @@ function ProductosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, cats]);
 
-  const pageDict = useDictation((t) => applyProductCommand(t));
-
   return (
     <SnoopLayout title="Productos" subtitle="Stock, categorías y altas">
-      {/* Voice dictation bar — mobile-first */}
-      <div className="mb-4 sm:mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
-        <button
-          type="button"
-          disabled={pageDict.busy}
-          onClick={pageDict.listening ? pageDict.stop : pageDict.start}
-          className={`h-16 w-16 sm:h-14 sm:w-14 shrink-0 rounded-full flex items-center justify-center transition active:scale-95
-            ${
-              pageDict.listening
-                ? "bg-destructive text-destructive-foreground animate-pulse shadow-lg shadow-destructive/40"
-                : "bg-gradient-neon text-primary-foreground glow-neon"
-            }`}
-          aria-label="Comando de voz"
-        >
-          {pageDict.listening ? (
-            <Square className="w-7 h-7 sm:w-6 sm:h-6 fill-current" />
-          ) : (
-            <Mic className="w-7 h-7 sm:w-6 sm:h-6" />
-          )}
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Comando de voz</div>
-          {pageDict.listening ? (
-            <p className="text-sm text-destructive animate-pulse line-clamp-2 break-words">
-              ● Escuchando… pulsa stop cuando termines{" "}
-              {pageDict.interim && (
-                <span className="text-foreground/80 italic">“{pageDict.interim}”</span>
-              )}
-            </p>
-          ) : lastHeard ? (
-            <p className="text-sm text-muted-foreground italic line-clamp-2 break-words">
-              "{lastHeard}"
-            </p>
-          ) : (
-            <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-              Pulsa y di: "crear producto Amnesia en flores stock 20 compra 5 venta 10 indica".
-            </p>
-          )}
-        </div>
-      </div>
-
       <div className="flex gap-2 overflow-x-auto -mx-1 px-1 mb-4 sm:mb-6 sm:flex-wrap scrollbar-thin">
         {TABS.map((t) => (
           <button

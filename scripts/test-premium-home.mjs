@@ -220,7 +220,7 @@ for (const [label, engine, device] of runs) {
     assert.equal(await page.getByRole("img", { name: "SNOOP", exact: true }).count(), 1);
     assert.equal(await page.locator(".premium-waves").count(), 2);
     const nav = page.getByRole("navigation", { name: "Navegación principal" });
-    assert.equal(await nav.locator(":scope > *").count(), 3);
+    assert.equal(await nav.locator(":scope > *").count(), 4);
     assert.equal(await nav.getByRole("link", { name: "Home", exact: true }).count(), 1);
     assert.equal(await nav.getByRole("link", { name: "Perfil", exact: true }).count(), 1);
     assert.equal(
