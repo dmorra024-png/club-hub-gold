@@ -7,7 +7,7 @@ const btn=document.getElementById('btn'),status=document.getElementById('status'
 function stopTracks(){clearTimeout(timer);stream?.getTracks().forEach(t=>t.stop());stream=null}
 btn.onclick=async()=>{if(rec?.state==='recording'){rec.stop();return}try{
 const key=document.getElementById('key').value;
-if(key.length<24)throw Error('Introduce la clave de prueba');
+if(key.length<8)throw Error('Introduce la clave de prueba de 8 caracteres');
 status.textContent='Solicitando permiso de micrófono';result.textContent='—';
 stream=await navigator.mediaDevices.getUserMedia({audio:true});
 const mime=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus'].find(x=>MediaRecorder.isTypeSupported(x));
@@ -28,7 +28,7 @@ export default {async fetch(request,env){
 const url=new URL(request.url);
 if(request.method==="GET"&&url.pathname==="/")return new Response(page,{headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","Content-Security-Policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; media-src 'none'; form-action 'none'; frame-ancestors 'none'","X-Content-Type-Options":"nosniff"}});
 if(request.method!=="POST"||url.pathname!=="/transcribe")return new Response("Not found",{status:404});
-if(!env.VOICE_PREVIEW_KEY||env.VOICE_PREVIEW_KEY.length<24||!same(request.headers.get("x-preview-key"),env.VOICE_PREVIEW_KEY))return Response.json({error:"No autorizado"},{status:401});
+if(!env.VOICE_PREVIEW_KEY||env.VOICE_PREVIEW_KEY.length<8||!same(request.headers.get("x-preview-key"),env.VOICE_PREVIEW_KEY))return Response.json({error:"No autorizado"},{status:401});
 if(Number(request.headers.get("content-length")||0)>5000000)return Response.json({error:"Audio demasiado grande"},{status:413});
 let input;try{input=await request.json()}catch{return Response.json({error:"Formato inválido"},{status:400})}
 if(!["es","it"].includes(input.language)||typeof input.audioBase64!=="string"||input.audioBase64.length>4800000||!/^[a-zA-Z0-9+/]+={0,2}$/.test(input.audioBase64))return Response.json({error:"Audio inválido"},{status:400});
