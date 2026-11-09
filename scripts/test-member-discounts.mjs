@@ -200,6 +200,13 @@ for (const [label, engine, device] of [
       await page.goto(base + `/soci/${mid}`);
       await page.getByRole("heading", { name: "Descuento del socio", exact: true }).waitFor();
       if (mode === "admin") {
+        assert.ok((await page.getByLabel("Descuento asignado").boundingBox()).width >= 250);
+        assert.equal(
+          await page
+            .getByLabel("Descuento asignado")
+            .evaluate((el) => getComputedStyle(el).appearance),
+          "none",
+        );
         await page.getByLabel("Descuento asignado").selectOption(did);
         await page.getByRole("button", { name: "Guardar asignación", exact: true }).click();
         await page.getByText("Participación · 12.5% · Activo", { exact: true }).first().waitFor();

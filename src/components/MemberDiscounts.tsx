@@ -9,6 +9,7 @@ import {
   type MemberDiscount,
 } from "@/lib/member-discounts";
 import { toast } from "sonner";
+import { ChevronDown } from "lucide-react";
 
 const inputClass = "w-full bg-input border border-border rounded-lg px-3 py-2 text-sm";
 export function MemberDiscounts({ memberId }: { memberId?: string }) {
@@ -160,12 +161,12 @@ export function MemberDiscounts({ memberId }: { memberId?: string }) {
               : "Sin descuento asignado"}
           </p>
           {isAdmin && (
-            <div className="flex flex-wrap gap-2">
-              <label className="flex-1 min-w-0">
+            <div className="grid gap-3">
+              <label className="relative block min-w-0">
                 Descuento
                 <select
                   aria-label="Descuento asignado"
-                  className={inputClass}
+                  className={`${inputClass} appearance-none pr-9 text-foreground [color-scheme:dark]`}
                   value={selected}
                   disabled={busy}
                   onChange={(e) => setSelected(e.target.value)}
@@ -183,11 +184,12 @@ export function MemberDiscounts({ memberId }: { memberId?: string }) {
                     </option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-3 bottom-3 h-4 w-4 text-neon" />
               </label>
               <button
                 disabled={busy || selected === assigned}
                 onClick={assign}
-                className="px-4 py-2 text-neon disabled:opacity-50"
+                className="justify-self-end px-4 py-2 text-neon disabled:opacity-50"
               >
                 Guardar asignación
               </button>
