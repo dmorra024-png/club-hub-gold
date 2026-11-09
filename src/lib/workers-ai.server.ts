@@ -139,7 +139,7 @@ export async function transcribeWorkersAudio(
   const permittedNames = [...new Set(catalogNames
     .filter((n): n is string => typeof n === "string")
     .map((n) => n.trim())
-    .filter((n) => n.length >= 2 && n.length <= 60 && !/[\\r\\n<>]/.test(n)))].slice(0, 35);
+    .filter((n) => n.length >= 2 && n.length <= 60 && !/[\r\n<>]/.test(n)))].slice(0, 35);
   const catalogGlossary = permittedNames.length ? ` Nombres de productos del catálogo: ${permittedNames.join(", ").slice(0, 1200)}.` : "";
   try {
     result = (await Promise.race([
