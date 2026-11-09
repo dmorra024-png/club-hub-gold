@@ -218,7 +218,7 @@ export function SnoopLayout({
         <button
           type="button"
           className="premium-dock-voice"
-          aria-label="Voice 2.0"
+          aria-label="SNOOP"
           aria-pressed={voicePhase === "recording"}
           aria-busy={voicePhase === "starting" || voicePhase === "processing"}
           disabled={
@@ -231,7 +231,7 @@ export function SnoopLayout({
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
           <Mic aria-hidden="true" />
-          <span>Voice</span>
+          <span>SNOOP</span>
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
           <UserRound aria-hidden="true" />

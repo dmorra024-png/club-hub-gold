@@ -5,114 +5,237 @@
       "physical": false,
       "result": "PASS",
       "transcription": "simulated",
+      "ai": "simulated proposals and quota, not live GLM",
       "metrics": [
         {
-          "startupMs": 18.899999998509884,
+          "startupMs": 16,
           "captureMs": 2041.5,
-          "encodingMs": 2,
-          "transcriptionMs": 12.100000001490116,
-          "interpretationMs": 3.2000000029802322,
-          "executionMs": 130.10000000149012,
-          "totalMs": 2208.2000000029802
+          "encodingMs": 1.3999999985098839,
+          "transcriptionMs": 7.399999998509884,
+          "interpretationMs": 2.100000001490116,
+          "aiMs": 0,
+          "executionMs": 128.70000000298023,
+          "totalMs": 2197.39999999851
         },
         {
-          "startupMs": 0.09999999403953552,
-          "captureMs": 2040.6000000014901,
-          "encodingMs": 0.8000000044703484,
-          "transcriptionMs": 5.399999998509884,
-          "interpretationMs": 1,
-          "executionMs": 17.5,
-          "totalMs": 2065.39999999851
+          "startupMs": 0.19999999552965164,
+          "captureMs": 2040.8000000044703,
+          "encodingMs": 1.1999999955296516,
+          "transcriptionMs": 6.899999998509884,
+          "interpretationMs": 1.1000000014901161,
+          "aiMs": 0,
+          "executionMs": 30.200000002980232,
+          "totalMs": 2080.39999999851
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040.6999999955297,
+          "encodingMs": 1.3999999985098839,
+          "transcriptionMs": 5.800000004470348,
+          "interpretationMs": 1.2999999970197678,
+          "aiMs": 0,
+          "executionMs": 18.399999998509884,
+          "totalMs": 2067.5999999940395
         },
         {
           "startupMs": 0.10000000149011612,
-          "captureMs": 2040.7999999970198,
+          "captureMs": 2040.7000000029802,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 7.399999998509884,
+          "interpretationMs": 1.3000000044703484,
+          "aiMs": 0,
+          "executionMs": 29.69999999552965,
+          "totalMs": 2080.10000000149
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2161,
+          "encodingMs": 1.1000000014901161,
+          "transcriptionMs": 6.100000001490116,
+          "interpretationMs": 0.29999999701976776,
+          "aiMs": 0,
+          "executionMs": 30.600000001490116,
+          "totalMs": 2199.2000000029802
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2161.6999999955297,
+          "encodingMs": 0.9000000059604645,
+          "transcriptionMs": 4.899999998509884,
+          "interpretationMs": 0.10000000149011612,
+          "aiMs": 0,
+          "executionMs": 30.899999998509884,
+          "totalMs": 2198.60000000149
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.7000000029802,
           "encodingMs": 0.8999999985098839,
           "transcriptionMs": 3.899999998509884,
-          "interpretationMs": 1.4000000059604645,
-          "executionMs": 19,
-          "totalMs": 2066.10000000149
+          "interpretationMs": 0.3999999985098839,
+          "aiMs": 0,
+          "executionMs": 20,
+          "totalMs": 2066
         },
         {
           "startupMs": 0.10000000149011612,
-          "captureMs": 2040.6999999955297,
-          "encodingMs": 0.8999999985098839,
-          "transcriptionMs": 4,
-          "interpretationMs": 0.7000000029802322,
-          "executionMs": 20.100000001490116,
-          "totalMs": 2066.5
+          "captureMs": 2040.8999999985099,
+          "encodingMs": 0.7999999970197678,
+          "transcriptionMs": 4.5,
+          "interpretationMs": 0.20000000298023224,
+          "aiMs": 0,
+          "executionMs": 19.299999997019768,
+          "totalMs": 2065.7999999970198
         },
         {
           "startupMs": 0.10000000149011612,
           "captureMs": 2041,
-          "encodingMs": 1,
-          "transcriptionMs": 3.600000001490116,
+          "encodingMs": 1.1000000014901161,
+          "transcriptionMs": 4,
           "interpretationMs": 0.29999999701976776,
-          "executionMs": 19.400000005960464,
-          "totalMs": 2065.4000000059605
+          "aiMs": 0,
+          "executionMs": 19.399999998509884,
+          "totalMs": 2065.89999999851
         },
         {
-          "startupMs": 0.19999999552965164,
-          "captureMs": 2040.6000000014901,
-          "encodingMs": 0.8999999985098839,
-          "transcriptionMs": 4.700000002980232,
-          "interpretationMs": 0.19999999552965164,
-          "executionMs": 19.5,
-          "totalMs": 2066.0999999940395
-        },
-        {
-          "startupMs": 15.600000001490116,
-          "captureMs": 2040.8999999985099,
+          "startupMs": 13.300000004470348,
+          "captureMs": 2040.6999999955297,
           "encodingMs": 0.8000000044703484,
-          "transcriptionMs": 3.5999999940395355,
-          "interpretationMs": 0.6000000014901161,
-          "executionMs": 18.200000002980232,
-          "totalMs": 2079.7000000029802
+          "transcriptionMs": 4.5,
+          "interpretationMs": 0.3999999985098839,
+          "aiMs": 0,
+          "executionMs": 18,
+          "totalMs": 2077.7000000029802
         },
         {
           "startupMs": 0.09999999403953552,
-          "captureMs": 2042.8000000044703,
-          "encodingMs": 2.7999999970197678,
-          "transcriptionMs": 1223.5,
+          "captureMs": 2040.6000000014901,
+          "encodingMs": 1,
+          "transcriptionMs": 1228.1000000014901,
           "interpretationMs": 0,
+          "aiMs": 0,
           "executionMs": 0,
-          "totalMs": 3269.1999999955297
+          "totalMs": 3269.7999999970198
         },
         {
           "startupMs": 0,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 2.2000000029802322,
+          "transcriptionMs": 5.5,
+          "interpretationMs": 0.8999999985098839,
+          "aiMs": 0,
+          "executionMs": 24.899999998509884,
+          "totalMs": 2074.2999999970198
+        },
+        {
+          "startupMs": 0.09999999403953552,
           "captureMs": 2040.8000000044703,
-          "encodingMs": 1.6999999955296516,
-          "transcriptionMs": 4.700000002980232,
-          "interpretationMs": 0.19999999552965164,
-          "executionMs": 31.5,
-          "totalMs": 2078.89999999851
+          "encodingMs": 1.2999999970197678,
+          "transcriptionMs": 4.899999998509884,
+          "interpretationMs": 0.30000000447034836,
+          "aiMs": 0,
+          "executionMs": 0,
+          "totalMs": 2047.5
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040.7000000029802,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4.399999998509884,
+          "interpretationMs": 0.20000000298023224,
+          "aiMs": 0,
+          "executionMs": 2504.89999999851,
+          "totalMs": 4551.10000000149
+        },
+        {
+          "startupMs": 0.09999999403953552,
+          "captureMs": 2040.7000000029802,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4.100000001490116,
+          "interpretationMs": 0.3999999985098839,
+          "aiMs": 0,
+          "executionMs": 19.600000001490116,
+          "totalMs": 2065.7999999970198
+        },
+        {
+          "startupMs": 16.5,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4.300000004470348,
+          "interpretationMs": 4.399999998509884,
+          "aiMs": 3.1999999955296516,
+          "executionMs": 97.10000000149012,
+          "totalMs": 2164
+        },
+        {
+          "startupMs": 5.800000004470348,
+          "captureMs": 2040.7999999970198,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4.800000004470348,
+          "interpretationMs": 4.799999997019768,
+          "aiMs": 4.700000002980232,
+          "executionMs": 0,
+          "totalMs": 2057.2000000029802
+        },
+        {
+          "startupMs": 0.09999999403953552,
+          "captureMs": 2040.8000000044703,
+          "encodingMs": 0.7999999970197678,
+          "transcriptionMs": 3.600000001490116,
+          "interpretationMs": 0.10000000149011612,
+          "aiMs": 0,
+          "executionMs": 0,
+          "totalMs": 2045.3999999985099
         },
         {
           "startupMs": 0.10000000149011612,
-          "captureMs": 2040.7999999970198,
-          "encodingMs": 1,
-          "transcriptionMs": 4.700000002980232,
-          "interpretationMs": 0.29999999701976776,
-          "executionMs": 0,
-          "totalMs": 2046.8999999985099
+          "captureMs": 2040.5999999940395,
+          "encodingMs": 0.9000000059604645,
+          "transcriptionMs": 4.399999998509884,
+          "interpretationMs": 0.09999999403953552,
+          "aiMs": 0,
+          "executionMs": 97.5,
+          "totalMs": 2143.7999999970198
         },
         {
           "startupMs": 0,
           "captureMs": 2040.6999999955297,
-          "encodingMs": 0.9000000059604645,
-          "transcriptionMs": 3.899999998509884,
-          "interpretationMs": 0.10000000149011612,
-          "executionMs": 2522.39999999851,
-          "totalMs": 4568
+          "encodingMs": 1,
+          "transcriptionMs": 4,
+          "interpretationMs": 0.5,
+          "aiMs": 0,
+          "executionMs": 19.5,
+          "totalMs": 2065.6999999955297
         },
         {
           "startupMs": 0.10000000149011612,
-          "captureMs": 2040.7999999970198,
-          "encodingMs": 1.1000000014901161,
-          "transcriptionMs": 4.5,
-          "interpretationMs": 0.7999999970197678,
-          "executionMs": 19.200000002980232,
-          "totalMs": 2066.5
+          "captureMs": 2040.6000000014901,
+          "encodingMs": 0.7000000029802322,
+          "transcriptionMs": 3.7999999970197678,
+          "interpretationMs": 0.29999999701976776,
+          "aiMs": 0,
+          "executionMs": 20.600000001490116,
+          "totalMs": 2066.10000000149
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2040.9000000059605,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4.299999997019768,
+          "interpretationMs": 0.30000000447034836,
+          "aiMs": 0,
+          "executionMs": 19.69999999552965,
+          "totalMs": 2066.10000000149
+        },
+        {
+          "startupMs": 0.10000000149011612,
+          "captureMs": 2040.7000000029802,
+          "encodingMs": 0.8999999985098839,
+          "transcriptionMs": 4,
+          "interpretationMs": 0.6000000014901161,
+          "aiMs": 0,
+          "executionMs": 19.799999997019768,
+          "totalMs": 2066.10000000149
         }
       ],
       "capabilities": {
@@ -138,114 +261,237 @@
       "physical": false,
       "result": "PASS",
       "transcription": "simulated",
+      "ai": "simulated proposals and quota, not live GLM",
       "metrics": [
         {
-          "startupMs": 5.000000000000227,
-          "captureMs": 2084,
-          "encodingMs": 3,
-          "transcriptionMs": 7,
-          "interpretationMs": 3,
-          "executionMs": 231,
-          "totalMs": 2333
-        },
-        {
-          "startupMs": 0,
-          "captureMs": 1971,
-          "encodingMs": 2,
-          "transcriptionMs": 3,
-          "interpretationMs": 1,
-          "executionMs": 70,
-          "totalMs": 2047
-        },
-        {
-          "startupMs": 0,
-          "captureMs": 1977.000000000001,
+          "startupMs": 7,
+          "captureMs": 1963,
           "encodingMs": 4,
-          "transcriptionMs": 3,
-          "interpretationMs": 0.9999999999990905,
-          "executionMs": 16.99999999999909,
-          "totalMs": 2001.999999999999
+          "transcriptionMs": 6.000000000000455,
+          "interpretationMs": 1.9999999999995453,
+          "aiMs": 0,
+          "executionMs": 318,
+          "totalMs": 2300
         },
         {
           "startupMs": 0,
-          "captureMs": 2091,
-          "encodingMs": 3,
+          "captureMs": 1970.000000000001,
+          "encodingMs": 1.9999999999990905,
           "transcriptionMs": 3,
           "interpretationMs": 1,
-          "executionMs": 78,
-          "totalMs": 2176
+          "aiMs": 0,
+          "executionMs": 66,
+          "totalMs": 2042
         },
         {
           "startupMs": 0,
-          "captureMs": 1967,
-          "encodingMs": 1.000000000001819,
-          "transcriptionMs": 3.999999999998181,
-          "interpretationMs": 0,
-          "executionMs": 90,
-          "totalMs": 2062
+          "captureMs": 1968.000000000001,
+          "encodingMs": 1.9999999999990905,
+          "transcriptionMs": 5.0000000000009095,
+          "interpretationMs": 3,
+          "aiMs": 0,
+          "executionMs": 124.99999999999909,
+          "totalMs": 2103
         },
         {
-          "startupMs": 0,
-          "captureMs": 1966.9999999999982,
+          "startupMs": 1,
+          "captureMs": 1968,
           "encodingMs": 2,
-          "transcriptionMs": 3,
-          "interpretationMs": 0,
-          "executionMs": 75,
-          "totalMs": 2046.9999999999982
-        },
-        {
-          "startupMs": 3.999999999996362,
-          "captureMs": 1966,
-          "encodingMs": 2,
-          "transcriptionMs": 5,
-          "interpretationMs": 1,
-          "executionMs": 250,
-          "totalMs": 2227.9999999999964
-        },
-        {
-          "startupMs": 0,
-          "captureMs": 1966.0000000000036,
-          "encodingMs": 1.999999999996362,
-          "transcriptionMs": 1217,
-          "interpretationMs": 0,
-          "executionMs": 0,
-          "totalMs": 3185
+          "transcriptionMs": 4,
+          "interpretationMs": 2,
+          "aiMs": 0,
+          "executionMs": 168,
+          "totalMs": 2145
         },
         {
           "startupMs": 0,
           "captureMs": 1965,
           "encodingMs": 2,
-          "transcriptionMs": 5.000000000003638,
-          "interpretationMs": 0.999999999996362,
-          "executionMs": 224,
-          "totalMs": 2197
-        },
-        {
-          "startupMs": 0,
-          "captureMs": 2040,
-          "encodingMs": 1,
-          "transcriptionMs": 3,
+          "transcriptionMs": 4,
           "interpretationMs": 1,
-          "executionMs": 0,
-          "totalMs": 2045
+          "aiMs": 0,
+          "executionMs": 62,
+          "totalMs": 2034
         },
         {
           "startupMs": 1,
-          "captureMs": 1972,
-          "encodingMs": 5,
+          "captureMs": 1967,
+          "encodingMs": 3,
           "transcriptionMs": 3,
           "interpretationMs": 0,
-          "executionMs": 2556,
-          "totalMs": 4537
+          "aiMs": 0,
+          "executionMs": 69,
+          "totalMs": 2043
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1963.0000000000018,
+          "encodingMs": 1.999999999996362,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "aiMs": 0,
+          "executionMs": 79,
+          "totalMs": 2047.9999999999982
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1967,
+          "encodingMs": 1,
+          "transcriptionMs": 4,
+          "interpretationMs": 1,
+          "aiMs": 0,
+          "executionMs": 126,
+          "totalMs": 2099
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1967,
+          "encodingMs": 1,
+          "transcriptionMs": 4,
+          "interpretationMs": 0,
+          "aiMs": 0,
+          "executionMs": 73.00000000000364,
+          "totalMs": 2045.0000000000036
+        },
+        {
+          "startupMs": 4,
+          "captureMs": 1962,
+          "encodingMs": 4,
+          "transcriptionMs": 5,
+          "interpretationMs": 1,
+          "aiMs": 0,
+          "executionMs": 266,
+          "totalMs": 2242
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1967.0000000000036,
+          "encodingMs": 1.999999999996362,
+          "transcriptionMs": 1219.0000000000036,
+          "interpretationMs": 0,
+          "aiMs": 0,
+          "executionMs": 0,
+          "totalMs": 3188.0000000000036
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1967.0000000000036,
+          "encodingMs": 1.999999999996362,
+          "transcriptionMs": 6,
+          "interpretationMs": 1.000000000003638,
+          "aiMs": 0,
+          "executionMs": 100.99999999999636,
+          "totalMs": 2077
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1970,
+          "encodingMs": 15,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "aiMs": 0,
+          "executionMs": 0,
+          "totalMs": 1989
+        },
+        {
+          "startupMs": 1,
+          "captureMs": 1968,
+          "encodingMs": 4,
+          "transcriptionMs": 2,
+          "interpretationMs": 1.000000000007276,
+          "aiMs": 0,
+          "executionMs": 2547.9999999999927,
+          "totalMs": 4524
         },
         {
           "startupMs": 0,
           "captureMs": 1966,
-          "encodingMs": 4,
+          "encodingMs": 2,
+          "transcriptionMs": 3,
+          "interpretationMs": 0,
+          "aiMs": 0,
+          "executionMs": 16.000000000007276,
+          "totalMs": 1987.0000000000073
+        },
+        {
+          "startupMs": 9.999999999992724,
+          "captureMs": 1964,
+          "encodingMs": 2,
+          "transcriptionMs": 2,
+          "interpretationMs": 4,
+          "aiMs": 2,
+          "executionMs": 257,
+          "totalMs": 2238.9999999999927
+        },
+        {
+          "startupMs": 3,
+          "captureMs": 1964.0000000000073,
+          "encodingMs": 0.999999999992724,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "aiMs": 1,
+          "executionMs": 0,
+          "totalMs": 1972
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1972.0000000000073,
+          "encodingMs": 0.999999999992724,
+          "transcriptionMs": 3,
+          "interpretationMs": 1,
+          "aiMs": 0,
+          "executionMs": 0,
+          "totalMs": 1977
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1967,
+          "encodingMs": 2.000000000007276,
+          "transcriptionMs": 3.999999999992724,
+          "interpretationMs": 0,
+          "aiMs": 0,
+          "executionMs": 155,
+          "totalMs": 2128
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1966,
+          "encodingMs": 5,
+          "transcriptionMs": 4.000000000007276,
+          "interpretationMs": 0.999999999992724,
+          "aiMs": 0,
+          "executionMs": 116,
+          "totalMs": 2092
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 2080,
+          "encodingMs": 3,
           "transcriptionMs": 5,
           "interpretationMs": 0,
-          "executionMs": 31,
-          "totalMs": 2006
+          "aiMs": 0,
+          "executionMs": 154.00000000000728,
+          "totalMs": 2242.0000000000073
+        },
+        {
+          "startupMs": 1,
+          "captureMs": 1965,
+          "encodingMs": 3,
+          "transcriptionMs": 3,
+          "interpretationMs": 0,
+          "aiMs": 0,
+          "executionMs": 138,
+          "totalMs": 2110
+        },
+        {
+          "startupMs": 0,
+          "captureMs": 1965,
+          "encodingMs": 3,
+          "transcriptionMs": 2.000000000007276,
+          "interpretationMs": 0.999999999992724,
+          "aiMs": 0,
+          "executionMs": 62,
+          "totalMs": 2033
         }
       ],
       "capabilities": {

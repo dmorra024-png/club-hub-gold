@@ -98,6 +98,9 @@ test("optional AI binding returns proposals only, preserves privacy gates and re
     "AI_VOICE_ONLY",
     "AI_PERSONAL_DATA_PROCESSING_ENABLED",
     "AI_CF_TEXT_MODEL",
+    "SNOOP_AI_FREE_TIER_CONFIRMED",
+    "SNOOP_AI_ASSISTANT_MODEL",
+    "AI_VOICE_PROCESSING_ENABLED",
   ];
   const saved = keys.map((k) => process.env[k]);
   const root = globalThis as typeof globalThis & { __env__?: any };
@@ -109,7 +112,10 @@ test("optional AI binding returns proposals only, preserves privacy gates and re
     SNOOP_AI: {
       run: async (model: string, payload: any) => {
         calls++;
-        assert.equal(model, "@cf/meta/llama-3.2-3b-instruct");
+        assert.equal(model, "@cf/zai-org/glm-4.7-flash");
+        assert.equal(payload.max_completion_tokens, 160);
+        assert.equal(payload.chat_template_kwargs.enable_thinking, false);
+        assert.equal(payload.store, false);
         assert.equal(
           payload.messages[1].content,
           "quisiera ir a la pantalla para dar de alta un miembro",
@@ -117,9 +123,16 @@ test("optional AI binding returns proposals only, preserves privacy gates and re
         assert.equal(payload.tools, undefined);
         assert.equal(JSON.stringify(payload).includes("Marco"), false);
         return {
-          response: malformed
-            ? '{"command":"Crear socio","save":true}'
-            : '{"command":"Crear socio"}',
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: malformed
+                  ? '{"command":"Crear socio","save":true}'
+                  : '{"command":"Crear socio"}',
+              },
+            },
+          ],
         };
       },
     },
@@ -130,14 +143,16 @@ test("optional AI binding returns proposals only, preserves privacy gates and re
       AI_PROVIDER: "cloudflare",
       AI_EXTERNAL_PROCESSING_ENABLED: "true",
       AI_VOICE_ONLY: "true",
+      SNOOP_AI_FREE_TIER_CONFIRMED: "true",
+      AI_VOICE_PROCESSING_ENABLED: "false",
     });
     await assert.rejects(
       proposeVoiceCommand("quisiera ir a la pantalla para dar de alta un miembro"),
-      /Perfil de voz/,
+      /no autorizada/,
     );
     assert.equal(calls, 0);
-    process.env.AI_VOICE_ONLY = "false";
-    process.env.AI_PERSONAL_DATA_PROCESSING_ENABLED = "true";
+    process.env.AI_VOICE_PROCESSING_ENABLED = "true";
+    process.env.AI_PERSONAL_DATA_PROCESSING_ENABLED = "false";
     delete process.env.AI_CF_TEXT_MODEL;
     assert.equal(
       await proposeVoiceCommand("quisiera ir a la pantalla para dar de alta un miembro"),

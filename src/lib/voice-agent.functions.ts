@@ -528,11 +528,18 @@ export const suggestVoiceNavigation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseClubAuth])
   .inputValidator((data: unknown) =>
     z
-      .object({ text: z.string().max(180) })
+      .object({ text: z.string().max(180), consent: z.literal(true) })
       .strict()
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const { proposeVoiceCommand } = await import("./voice-command-ai.server");
-    return { command: await proposeVoiceCommand(data.text) };
+  .handler(async ({ data, context }) => {
+    const { proposeVoiceCommand, snoopAiFailure } = await import("./voice-command-ai.server");
+    try {
+      return {
+        command: await proposeVoiceCommand(data.text, `${context.clubId}:${context.userId}`),
+        error: null,
+      };
+    } catch (error) {
+      return { command: null, error: snoopAiFailure(error) };
+    }
   });

@@ -12,7 +12,7 @@ export function resolveVoiceUtterance(
     .replace(/[.!?]+$/, "");
   const n = text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   if (
-    /^(?:terminar|detener escucha|stop(?: snoop)?|parar|dejar de escuchar|termina|smetti di ascoltare|ferma(?: snoop)?)$/.test(
+    /^(?:terminar|detener escucha|stop(?: snoop)?|parar|dejar de escuchar|termina|fermati|smetti di ascoltare|ferma(?: snoop)?)$/.test(
       n,
     )
   )
@@ -37,6 +37,7 @@ export function resolveVoiceUtterance(
       /^(?:quiero\s+)?(?:dar de alta|registrar|crear|nuevo)\s+(?:un\s+)?producto\b/i,
       "Crear producto",
     ],
+    [/^(?:vorrei\s+)?(?:crea|creare|nuovo)\s+(?:un\s+)?prodotto\b/i, "Crear producto"],
     [/^(?:quiero\s+)?(?:crear|nueva|agregar)\s+(?:una\s+)?categor[ií]a\b/i, "Crear categoría"],
     [/^(?:quiero\s+)?(?:consultar|mostrar|ver)\s+(?:el\s+)?inventario$/i, "Ver stock"],
     [

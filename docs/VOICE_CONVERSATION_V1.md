@@ -1,3 +1,5 @@
+> Historical v1 report (commit b611003). For the current GLM integration and activation/privacy boundaries, see [SNOOP_AI_PREMIUM.md](SNOOP_AI_PREMIUM.md).
+
 # Voice Premium — conversational member draft, v1
 
 Based on `379bae9` (latest reference branch, including the merged Voice Premium

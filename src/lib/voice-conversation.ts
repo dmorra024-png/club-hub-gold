@@ -4,7 +4,9 @@ import {
   isAdult,
   type MemberDictation,
 } from "./member-administration.ts";
-export type ConversationState = { awaiting: "name" | "birth" | "optional" | "review" };
+export type ConversationState = {
+  awaiting: "name" | "first" | "last" | "birth" | "phone" | "optional" | "review";
+};
 export type ConversationReply = {
   handled: boolean;
   patch: Partial<MemberDictation>;
@@ -12,10 +14,29 @@ export type ConversationReply = {
   message: string;
   summary?: string;
 };
+export function memberAwaiting(values: Partial<MemberDictation>): ConversationState {
+  return {
+    awaiting:
+      !values.first_name && !values.last_name
+        ? "name"
+        : !values.first_name
+          ? "first"
+          : !values.last_name
+            ? "last"
+            : !values.birth_date
+              ? "birth"
+              : !values.phone
+                ? "phone"
+                : "optional",
+  };
+}
 export function memberQuestion(values: Partial<MemberDictation>, it = false): string {
-  if (!values.first_name || !values.last_name)
+  if (!values.first_name && !values.last_name)
     return it ? "Dimmi nome e cognome." : "Dime nombre y apellidos.";
+  if (!values.first_name) return it ? "Qual è il nome?" : "¿Cuál es el nombre?";
+  if (!values.last_name) return it ? "Cognome?" : "¿Apellidos?";
   if (!values.birth_date) return it ? "Data di nascita?" : "¿Fecha de nacimiento?";
+  if (!values.phone) return it ? "Vuoi aggiungere un telefono?" : "¿Quieres añadir un teléfono?";
   return it
     ? "Vuoi aggiungere altri dati? Puoi dire riepilogo."
     : "¿Otros datos? Puedes decir resumen.";
@@ -39,7 +60,17 @@ export function memberConversation(
   });
   if (!text || text.length > 1200) return unchanged();
   if (
-    /^(?:resumen|riepilogo|revisar|rivedi|confirmar|confirma|guardar|salva|si|sí|no|listo|hecho|basta|finito)$/i.test(
+    /^(?:un momento|un segundo|espera|aspetta|un attimo|non so|no se|no lo se|gracias|grazie)$/.test(
+      n,
+    )
+  )
+    return unchanged(
+      it
+        ? "Quando vuoi, ripeti il dato. Non ho cambiato nulla."
+        : "Cuando quieras, repite el dato. No he cambiado nada.",
+    );
+  if (
+    /^(?:resumen|riepilogo|revisar|rivedi|confirmar|confirma|conferma|guardar|salva|si|sí|no|listo|hecho|basta|finito)$/i.test(
       text,
     )
   ) {
@@ -65,6 +96,11 @@ export function memberConversation(
   )
     return unchanged();
   let prepared = text
+    .replace(/\b(?:anzi|más bien)\s*,?\s*/gi, ", ")
+    .replace(
+      /\b(?:cambia|modifica|corrige|correggi)\s+(?:il|el|la)?\s*(cognome|apellido|nombre|nome)\s+(?:in|a)\s+/gi,
+      ", $1 ",
+    )
     .replace(/\bnaci[oó]\s+(?:el\s+)?/i, "fecha de nacimiento ")
     .replace(/\b(?:a[nñ]ade|agrega|a[nñ]adir|aggiungi)\s+(?:la\s+)?(?:cuota|quota)\s+/i, "cuota ")
     .replace(/\b(cuota|quota|plan)\s+semestrale\b/i, "$1 semestral");
@@ -78,23 +114,52 @@ export function memberConversation(
       "",
     );
   let patch: Partial<MemberDictation> = parseAdministrativeDictation(prepared, plans);
+  if (state.awaiting === "birth" && !patch.birth_date) {
+    const prefix = text
+      .split(/\s*,?\s*\b(?:vive|reside|ciudad|città|residente)\b/i)[0]
+      .replace(/[,;]\s*$/g, "");
+    const date = spokenAdministrativeDate(prefix);
+    if (date) patch.birth_date = date;
+  }
+  if (state.awaiting === "phone" && !patch.phone) {
+    const prefix = prepared
+      .replace(/^(?:s[iíì]|vale|ok)[\s,]+/i, "")
+      .split(/[.,;]/)[0]
+      .trim();
+    if (/^\+?[\d\s]{6,20}$/.test(prefix)) {
+      const phone = parseAdministrativeDictation(`teléfono ${prefix}`).phone;
+      if (phone) patch.phone = phone;
+    }
+  }
   if (clearPhone) patch.phone = "";
   const missingPlan = /\b(?:cuota|quota|plan)\s+/i.test(prepared) && !patch.plan_name;
   const planWarning = it
     ? "Quota non identificata: selezionala nel modulo."
     : "Cuota no identificada: selecciónala en el formulario.";
   // Bare replies are interpreted ONLY as the field the assistant just requested.
-  if (!Object.keys(patch).length && state.awaiting === "name") {
+  if (!Object.keys(patch).length && ["name", "first", "last"].includes(state.awaiting)) {
     const parts = text.split(/\s+/);
     const reserved =
-      /\b(?:quiero|vorrei|hola|bueno|vale|puedes|gracias|no|si|sì|tal|vez|por|favor|como|que|hace|esto|algo|cualquier|test|prueba|socios|nombre|apellido)\b/i;
-    if (
-      parts.length === 2 &&
+      /\b(?:quiero|vorrei|hola|bueno|vale|puedes|gracias|no|si|sì|tal|vez|por|favor|como|que|hace|esto|algo|cualquier|test|prueba|socios|nombre|apellido|guardar|confirmar|salva|annulla|elimina|buenas|buenos|dias|tardes|ciao|ayuda|aiuto)\b/i;
+    const valid =
+      parts.length >= 1 &&
+      parts.length <= 8 &&
+      text.length <= 120 &&
       !reserved.test(n) &&
-      parts.every((p) => /^[\p{L}][\p{L}'’-]*$/u.test(p))
-    ) {
-      patch = { first_name: parts[0], last_name: parts.slice(1).join(" ") };
-    }
+      parts.every((p) => /^[\p{L}][\p{L}'’-]*$/u.test(p));
+    if (valid && state.awaiting === "name" && parts.length === 2)
+      patch = { first_name: parts[0], last_name: parts[1] };
+    else if (valid && state.awaiting === "name" && parts.length > 2)
+      return {
+        handled: true,
+        patch: {},
+        state: { awaiting: "first" },
+        message: it
+          ? "Qual è solo il nome, anche composto?"
+          : "Dime solo el nombre, puede ser compuesto.",
+      };
+    else if (valid && state.awaiting === "first") patch = { first_name: text };
+    else if (valid && state.awaiting === "last") patch = { last_name: text };
   }
   if (!Object.keys(patch).length && state.awaiting === "birth") {
     const date = spokenAdministrativeDate(text);
@@ -122,10 +187,7 @@ export function memberConversation(
   return {
     handled: true,
     patch,
-    state: {
-      awaiting:
-        !next.first_name || !next.last_name ? "name" : !next.birth_date ? "birth" : "optional",
-    },
+    state: memberAwaiting(next),
     message: missingPlan ? planWarning : memberQuestion(next, it),
   };
 }

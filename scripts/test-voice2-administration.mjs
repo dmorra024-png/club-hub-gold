@@ -58,7 +58,9 @@ for (const [name, engine, device] of [
       available = true,
       catalogDelay = 0,
       holdTranscription = false,
-      resume = null;
+      resume = null,
+      aiProposalCalls = 0,
+      aiQuota = false;
     await context.addInitScript(
       ({ auth, key, conversational }) => {
         localStorage.setItem(key, JSON.stringify(auth));
@@ -209,6 +211,21 @@ for (const [name, engine, device] of [
         };
         if (req.method() === "POST") {
           const data = fromJSON(JSON.parse(req.postData())).data;
+          if (data.consent === true && typeof data.text === "string") {
+            assert.deepEqual(Object.keys(data).sort(), ["consent", "text"]);
+            assert.equal(data.text, "quisiera ir a la pantalla para dar de alta un miembro");
+            aiProposalCalls++;
+            return route.fulfill({
+              contentType: "application/json",
+              body: JSON.stringify({
+                result: {
+                  command: aiQuota ? null : "Crear socio",
+                  error: aiQuota ? "quota" : null,
+                },
+                context: {},
+              }),
+            });
+          }
           if (Object.keys(data).length === 1 && "day" in data)
             return route.fulfill({
               contentType: "application/json",
@@ -262,7 +279,24 @@ for (const [name, engine, device] of [
           permissions: denied ? [] : ["manage_members", "manage_products", "use_cash"],
         };
       else if (u.pathname.endsWith("/rpc/current_club_id")) data = club;
-      else if (u.pathname.endsWith("/product_categories")) {
+      else if (u.pathname.endsWith("/products")) {
+        assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
+        data = [
+          {
+            id: "60000000-0000-4000-8000-000000000001",
+            club_id: club,
+            category_id: plan,
+            name: "Amnesia Haze",
+            stock: 20,
+            buy_price: 0,
+            sell_price: 0,
+            active: true,
+            archived_at: null,
+            strain: "hybrid",
+            is_smokeable: false,
+          },
+        ];
+      } else if (u.pathname.endsWith("/product_categories")) {
         if (catalogDelay) await new Promise((r) => setTimeout(r, catalogDelay));
         data = [
           { id: plan, club_id: club, name: "Material", unit_type: "unit", is_smokeable: false },
@@ -316,7 +350,7 @@ for (const [name, engine, device] of [
     page.setDefaultTimeout(15000);
     async function requestStart() {
       // The actual production dock starts once. Consent also starts once.
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       const permit = page.getByRole("button", { name: "Permitir y escuchar", exact: true });
       if (await permit.isVisible()) await permit.click();
       const checkbox = page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ });
@@ -324,7 +358,7 @@ for (const [name, engine, device] of [
     }
     async function begin() {
       await requestStart();
-      await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
     }
     async function start() {
       await page.waitForLoadState("networkidle");
@@ -332,7 +366,7 @@ for (const [name, engine, device] of [
         await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
       await begin();
       try {
-        await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
+        await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
       } catch (e) {
         console.error(
           "Voice start evidence",
@@ -352,7 +386,7 @@ for (const [name, engine, device] of [
     async function say(text) {
       transcript = text;
       await start();
-      await page.getByRole("button", { name: "Apagar Snoop", exact: true }).click();
+      await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).click();
       if (!holdTranscription)
         await page.waitForFunction(() => {
           const panel = document.querySelector(".premium-voice-panel");
@@ -366,13 +400,13 @@ for (const [name, engine, device] of [
       });
       await page.goto(base + "/", { waitUntil: "networkidle" });
       transcript = "Crear socio";
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await page.getByRole("button", { name: "Permitir y escuchar", exact: true }).click();
       const listening = () => page.locator('.snoop-listening[data-phase="recording"]').waitFor();
       async function phrase(text) {
         transcript = text;
         await listening();
-        assert.equal(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).count(), 0);
+        assert.equal(await page.getByRole("dialog", { name: "SNOOP", exact: true }).count(), 0);
         await page.evaluate(() => (window.__voice.silent = false));
         await page.waitForTimeout(400);
         const before = await page.evaluate(() => window.voiceTimings.length);
@@ -405,6 +439,8 @@ for (const [name, engine, device] of [
           .filter({ hasText: "Dime nombre y apellidos" })
           .waitFor();
         assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "");
+        await phrase("Un momento");
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "");
       }
       await phrase(conversational ? "Marco Rossi" : "Nombre Carlos, apellido García");
       assert.equal(
@@ -416,13 +452,31 @@ for (const [name, engine, device] of [
         conversational ? "Rossi" : "García",
       );
       await phrase(
-        conversational ? "Nació el 12 de marzo de 1995" : "Fecha de nacimiento 15 de marzo de 1995",
+        conversational ? "12 marzo 1995, vive a Palma" : "Fecha de nacimiento 15 de marzo de 1995",
       );
       assert.equal(
         await page.getByLabel("Fecha de nacimiento *", { exact: true }).inputValue(),
         conversational ? "1995-03-12" : "1995-03-15",
       );
       if (conversational) {
+        assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Palma");
+        await phrase("Sì, 666123456. Anzi, cambia il cognome in Bianchi");
+        assert.equal(await page.getByLabel(/Teléfono/).inputValue(), "666123456");
+        assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Bianchi");
+        await phrase("Nombre Juan Carlos, apellidos García López");
+        assert.equal(
+          await page.getByLabel("Nombre *", { exact: true }).inputValue(),
+          "Juan Carlos",
+        );
+        assert.equal(
+          await page.getByLabel("Apellidos *", { exact: true }).inputValue(),
+          "García López",
+        );
+        await phrase("Nombre Marco, apellido Rossi");
+        assert.equal(
+          await page.getByRole("button", { name: "Dictar datos", exact: true }).count(),
+          0,
+        );
         await phrase("Cambia el apellido a García");
         assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "García");
         assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Marco");
@@ -451,7 +505,7 @@ for (const [name, engine, device] of [
         await page.waitForTimeout(400);
         await page.evaluate(() => (window.__voice.silent = true));
         await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
-        await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+        await page.getByRole("button", { name: "SNOOP", exact: true }).click();
         await listening();
       }
       await phrase("Ciudad Palma, teléfono 666123456");
@@ -500,6 +554,10 @@ for (const [name, engine, device] of [
       await phrase("Crear producto Libreta en categoría Material");
       catalogDelay = 0;
       await page.waitForURL(base + "/productos");
+      assert.equal(
+        await page.getByRole("button", { name: "Dictar nombre", exact: true }).count(),
+        0,
+      );
       await phrase("Nombre Cuaderno, categoría Material, precio diez euros con cincuenta");
       assert.equal(await page.getByPlaceholder("ej. Amnesia Haze").inputValue(), "Cuaderno");
       assert.equal(await page.getByLabel("P. venta €", { exact: true }).inputValue(), "10.5");
@@ -508,7 +566,7 @@ for (const [name, engine, device] of [
         conversational ? 2 : 1,
         "same stream also survives product navigation",
       );
-      const metrics = await page.evaluate(() => window.voiceTimings);
+      let metrics = await page.evaluate(() => window.voiceTimings);
       await page.screenshot({
         path: `docs/screenshots/${conversational ? "voice-conversation-product" : "voice-session"}-${name}.png`,
         scale: "css",
@@ -521,12 +579,68 @@ for (const [name, engine, device] of [
       const stopped = audioCalls;
       await page.waitForTimeout(300);
       assert.equal(audioCalls, stopped);
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await listening();
       await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
       await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      if (conversational) {
+        await page
+          .getByRole("navigation", { name: "Navegación principal" })
+          .getByRole("link", { name: "Home", exact: true })
+          .click();
+        await page.waitForURL(base + "/");
+        await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+        await page.getByRole("checkbox", { name: /Permitir sugerencias IA/ }).check();
+        await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
+        assert.equal(aiProposalCalls, 0);
+        await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+        await listening();
+        const fuzzy = "Quisiera ir a la pantalla para dar de alta un miembro";
+        await phrase(fuzzy);
+        await page.waitForURL(base + "/soci/nuovo");
+        assert.equal(
+          await page.getByLabel("Nombre *", { exact: true }).inputValue(),
+          "",
+          "validated AI navigation never invents member data",
+        );
+        assert.equal(aiProposalCalls, 1);
+        await page
+          .getByRole("navigation", { name: "Navegación principal" })
+          .getByRole("link", { name: "Home", exact: true })
+          .click();
+        await page.waitForURL(base + "/");
+        await listening();
+        aiQuota = true;
+        await phrase(fuzzy);
+        await page.locator(".snoop-listening").filter({ hasText: "Cuota IA agotada" }).waitFor();
+        assert.equal(aiProposalCalls, 2);
+        await phrase(fuzzy);
+        assert.equal(aiProposalCalls, 2, "quota failure disables further remote attempts");
+        await phrase("Crear socio");
+        await page.waitForURL(base + "/soci/nuovo");
+        await phrase("Juan Carlos García López");
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "");
+        await phrase("Juan Carlos");
+        assert.equal(
+          await page.getByLabel("Nombre *", { exact: true }).inputValue(),
+          "Juan Carlos",
+        );
+        await phrase("García López");
+        assert.equal(
+          await page.getByLabel("Apellidos *", { exact: true }).inputValue(),
+          "García López",
+        );
+        await phrase("Nombre Marco, apellido Rossi");
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Marco");
+        assert.equal(aiProposalCalls, 2, "member fields stay local despite AI opt-in");
+        transcript = "Snoop, fermati";
+        await page.evaluate(() => (window.__voice.silent = false));
+        await page.waitForTimeout(400);
+        await page.evaluate(() => (window.__voice.silent = true));
+        await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      }
       // Background/freeze must terminate the session and must not resume on return.
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await listening();
       await page.evaluate(() => document.dispatchEvent(new Event("freeze")));
       await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
@@ -535,7 +649,7 @@ for (const [name, engine, device] of [
       assert.equal(await page.evaluate(() => window.__voice.created), backgroundCount);
       // A provider failure pauses, releases the microphone, and never auto-retries.
       failTranscription = true;
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await listening();
       await page.evaluate(() => (window.__voice.silent = false));
       await page.waitForTimeout(400);
@@ -543,23 +657,31 @@ for (const [name, engine, device] of [
       await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
       failTranscription = false;
       await page.evaluate(() => (window.__voice.denied = true));
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Permite el micrófono" }).waitFor();
       await page.evaluate(() => (window.__voice.denied = false));
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await listening();
       const beforeRevoked = audioCalls;
       denied = true;
       await page.evaluate(() => window.dispatchEvent(new Event("snoop:retry-access")));
       await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+      await page.waitForTimeout(400);
+      assert.equal(
+        await page.evaluate(() => window.__voice.created === window.__voice.stopped),
+        true,
+        "revoked session cannot silently rearm",
+      );
       assert.equal(audioCalls, beforeRevoked, "permission revocation discards pending audio");
       assert.equal(writes, 0);
       assert.deepEqual(errors, []);
+      metrics = await page.evaluate(() => window.voiceTimings);
       results.push({
         device: name,
         physical: false,
         result: "PASS",
         transcription: "simulated",
+        ai: conversational ? "simulated proposals and quota, not live GLM" : "not requested",
         metrics,
         capabilities: await page.evaluate(() => window.voiceCapabilities),
         checks: [
@@ -619,7 +741,7 @@ for (const [name, engine, device] of [
       "Opening Voice never captures audio",
     );
     assert.equal(
-      await page.getByRole("button", { name: "Encender Snoop", exact: true }).isDisabled(),
+      await page.getByRole("button", { name: "Encender SNOOP", exact: true }).isDisabled(),
       true,
       "Consent is required before recording",
     );
@@ -656,6 +778,7 @@ for (const [name, engine, device] of [
       ["Crear socio", "/soci/nuovo"],
       ["Buscar socio Carlos García", "/soci/gestisci"],
       ["Crear producto", "/productos"],
+      ["Buscar producto Amnesia Haze", "/productos"],
       ["Ver stock", "/productos"],
       ["Crear categoría Archivo", "/productos"],
       ["Abrir caja", "/caja"],
@@ -668,18 +791,23 @@ for (const [name, engine, device] of [
       await page.evaluate(() => (window.__voice.silent = false));
       const before = audioCalls;
       await requestStart();
-      await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
       await page.waitForTimeout(400);
       await page.evaluate(() => (window.__voice.silent = true));
       await page.waitForURL(base + path);
-      await page
-        .getByRole("dialog", { name: "Voice 2.0", exact: true })
-        .waitFor({ state: "hidden" });
+      await page.getByRole("dialog", { name: "SNOOP", exact: true }).waitFor({ state: "hidden" });
       assert.equal(
         audioCalls,
         before + 1,
         "one tap and speech/silence produce exactly one transcription",
       );
+      if (command === "Buscar producto Amnesia Haze") {
+        assert.equal(
+          await page.getByPlaceholder("Buscar en todos los productos…").inputValue(),
+          "Amnesia Haze",
+        );
+        await page.getByRole("button", { name: "Editar Amnesia Haze", exact: true }).waitFor();
+      }
       if (command === "Ver stock")
         await page.getByPlaceholder("Buscar en todos los productos…").waitFor();
       if (command.startsWith("Crear categoría"))
@@ -732,10 +860,7 @@ for (const [name, engine, device] of [
     );
     assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
     const productName = page.getByPlaceholder("ej. Amnesia Haze");
-    transcript = "Crea un prodotto Quaderno, categoria Material, quantità venticinque";
-    await page.getByRole("button", { name: "Dictar nombre", exact: true }).click();
-    await page.locator('button[title="Dictar nombre"] .lucide-square').waitFor();
-    await page.getByRole("button", { name: "Dictar nombre", exact: true }).click();
+    await say("Crea un prodotto Quaderno, categoria Material, quantità venticinque");
     await page.waitForFunction(
       () => document.querySelector('input[placeholder="ej. Amnesia Haze"]')?.value === "Quaderno",
     );
@@ -755,7 +880,7 @@ for (const [name, engine, device] of [
     await productName.fill("Libreta manual definitiva");
     holdTranscription = false;
     resume();
-    await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).waitFor({ state: "hidden" });
+    await page.getByRole("dialog", { name: "SNOOP", exact: true }).waitFor({ state: "hidden" });
     assert.equal(await productName.inputValue(), "Libreta manual definitiva");
     await productName.fill("Libreta manual");
 
@@ -812,19 +937,19 @@ for (const [name, engine, device] of [
     await page.getByLabel("Apellidos *", { exact: true }).fill("Manual");
     holdTranscription = false;
     resume();
-    await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).waitFor({ state: "hidden" });
+    await page.getByRole("dialog", { name: "SNOOP", exact: true }).waitFor({ state: "hidden" });
     assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Manual");
     // “Encender” is also rendered while transcription is busy, but disabled.
     // Observe completion before dispatching synthetic events that bypass native button gating.
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
-    await page.locator('button[aria-label="Encender Snoop"]:not(:disabled)').waitFor();
+    await page.locator('button[aria-label="Encender SNOOP"]:not(:disabled)').waitFor();
     const beforeDuplicate = await page.evaluate(() => window.__voice.created),
       beforeExplicitCancel = audioCalls;
     await page.evaluate(() => {
       window.dispatchEvent(new Event("snoop:voice-start"));
       window.dispatchEvent(new Event("snoop:voice-start"));
     });
-    await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
     assert.equal(
       await page.evaluate(() => window.__voice.created),
       beforeDuplicate + 1,
@@ -834,11 +959,11 @@ for (const [name, engine, device] of [
     assert.equal(audioCalls, beforeExplicitCancel, "Explicit cancellation never uploads a clip");
     available = false;
     const beforeUnavailable = await page.evaluate(() => window.__voice.created);
-    await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
+    await page.getByRole("button", { name: "Encender SNOOP", exact: true }).click();
     await page.getByRole("alert").filter({ hasText: "IA no disponible" }).waitFor();
     assert.equal(await page.evaluate(() => window.__voice.created), beforeUnavailable);
     available = true;
-    await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
+    await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: `docs/screenshots/voice2-${name}.png`,
@@ -846,13 +971,12 @@ for (const [name, engine, device] of [
       scale: "css",
     });
     const beforeRevocation = audioCalls;
-    await page.getByRole("button", { name: "Dictar datos", exact: true }).click();
-    await page.getByText("● Escuchando… pulsa para parar", { exact: true }).waitFor();
+    await start();
     denied = true;
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:retry-access")));
-    await page.waitForFunction(
-      () => document.querySelector('button[aria-label="Dictar datos"]')?.disabled === true,
-    );
+    await page
+      .getByRole("button", { name: "Apagar SNOOP", exact: true })
+      .waitFor({ state: "hidden" });
     assert.equal(
       audioCalls,
       beforeRevocation,
@@ -862,14 +986,14 @@ for (const [name, engine, device] of [
     // recorder cancellation before restoring the fixture's permission, otherwise
     // verifiedAccess legitimately coalesces both refreshes into the same request.
     await page
-      .getByText("● Escuchando… pulsa para parar", { exact: true })
+      .getByRole("button", { name: "Apagar SNOOP", exact: true })
       .waitFor({ state: "hidden" });
     await page.waitForLoadState("networkidle");
     await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
     denied = false;
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:retry-access")));
     await page.waitForFunction(
-      () => document.querySelector('button[aria-label="Dictar datos"]')?.disabled === false,
+      () => document.querySelector('button[aria-label="SNOOP"]')?.disabled === false,
     );
     const beforeCancel = audioCalls;
     await start();
@@ -900,12 +1024,12 @@ for (const [name, engine, device] of [
     await page.getByRole("alert").filter({ hasText: "Conexión interrumpida" }).waitFor();
     assert.equal(audioCalls, beforeOffline);
     await context.setOffline(false);
-    await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
+    await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
     await page.evaluate(() => (window.__voice.denied = true));
     await requestStart();
     await page.getByRole("alert").filter({ hasText: "Permiso de micrófono denegado" }).waitFor();
     await page.evaluate(() => (window.__voice.denied = false));
-    await page.getByRole("button", { name: "Cerrar Voice 2.0", exact: true }).click();
+    await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
     await page.waitForLoadState("networkidle");
     forcingOffline = false;
     failTranscription = true;
@@ -996,7 +1120,7 @@ for (const [name, engine, device] of [
         "zero writes",
       ],
     });
-    console.log("PASS Voice 2.0", name);
+    console.log("PASS SNOOP", name);
     await context.close();
   } finally {
     await browser.close();

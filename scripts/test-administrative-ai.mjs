@@ -259,16 +259,16 @@ try {
         const before = await counts();
         transcriptOverride = command;
         await page.goto(origin + "/", { waitUntil: "networkidle" });
-        await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+        await page.getByRole("button", { name: "SNOOP", exact: true }).click();
         await page.getByRole("checkbox", { name: /Permito enviar/ }).check();
         await page
           .getByLabel("Idioma de voz / Lingua voce", { exact: true })
           .selectOption(language);
         page.once("dialog", (d) => d.accept());
-        await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
-        await page.getByRole("button", { name: "Apagar Snoop", exact: true }).waitFor();
+        await page.getByRole("button", { name: "Encender SNOOP", exact: true }).click();
+        await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
         await page.waitForTimeout(700);
-        await page.getByRole("button", { name: "Apagar Snoop", exact: true }).click();
+        await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).click();
         await page.waitForURL(origin + "/cuotas");
         await page.getByRole("heading", { name: "Cuotas e ingresos", exact: true }).waitFor();
         assert.equal(await counts(), before);

@@ -1,5 +1,6 @@
 import {
   memberConversation,
+  memberAwaiting,
   memberQuestion,
   type ConversationState,
 } from "@/lib/voice-conversation";
@@ -158,14 +159,7 @@ function NewSocio() {
       const { text, language, respond } = (event as CustomEvent).detail;
       const current = formRef.current;
       const it = language === "it-IT";
-      const state = conversation.current ?? {
-        awaiting:
-          !current.first_name || !current.last_name
-            ? "name"
-            : !current.birth_date
-              ? "birth"
-              : "optional",
-      };
+      const state = conversation.current ?? memberAwaiting(current);
       if (text === null) {
         conversation.current = state;
         respond({ handled: true, message: memberQuestion(current, it) });
@@ -564,50 +558,6 @@ function NewSocio() {
         busy={saving}
         onConfirm={() => submit(selectedPlan?.price_cents ?? 0)}
       />
-      {/* Voice dictation bar */}
-      <div
-        data-snoop-contextual-voice
-        className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4 flex items-center gap-4"
-      >
-        <button
-          type="button"
-          onClick={toggleMic}
-          disabled={recStatus === "processing" || !liveAuth.can("manage_members")}
-          className={`h-14 w-14 shrink-0 rounded-full flex items-center justify-center transition
-            ${
-              recStatus === "recording"
-                ? "bg-destructive text-destructive-foreground animate-pulse"
-                : "bg-gradient-neon text-primary-foreground glow-neon"
-            } disabled:opacity-60`}
-          aria-label="Dictar datos"
-        >
-          {recStatus === "processing" ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : recStatus === "recording" ? (
-            <Square className="w-5 h-5" />
-          ) : (
-            <Mic className="w-6 h-6" />
-          )}
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
-            Dictado por voz
-          </div>
-          {recStatus === "recording" && (
-            <p className="text-sm text-destructive animate-pulse">● Escuchando… pulsa para parar</p>
-          )}
-          {recStatus === "processing" && <p className="text-sm text-neon-dim">Procesando…</p>}
-          {recStatus === "idle" && !lastHeard && (
-            <p className="text-sm text-muted-foreground">
-              Pulsa y di: "Nombre, apellido, fecha de nacimiento, DNI, ciudad, teléfono y plan".
-            </p>
-          )}
-          {recStatus === "idle" && lastHeard && (
-            <p className="text-sm text-muted-foreground italic truncate">"{lastHeard}"</p>
-          )}
-        </div>
-      </div>
-
       {(voiceSummary || voice.error) && (
         <section
           className="max-w-3xl mb-6 rounded-lg border border-neon/30 p-3"
