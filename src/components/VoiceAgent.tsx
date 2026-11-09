@@ -128,6 +128,7 @@ export function VoiceAgent({
     try {
       const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
       setLanguage(saved.startsWith("it") ? "it-IT" : "es-ES");
+      setConsent(window.localStorage.getItem("snoop:voice-consent-v1") === "yes");
     } catch {
       setLanguage(navigator.language.startsWith("it") ? "it-IT" : "es-ES");
     }
@@ -460,10 +461,7 @@ export function VoiceAgent({
     busy = dictation.phase === "starting" || dictation.phase === "processing";
   const toggle = useCallback(() => {
     setPanelOpen(true);
-    if (!consent) {
-      setPanelOpen(true);
-      return;
-    }
+    if (!consent) return;
     if (enabled) dictation.finish();
     else if (!busy) {
       recordingEdits.current = fieldEdits.current;
@@ -481,7 +479,6 @@ export function VoiceAgent({
   }, []);
   useEffect(() => {
     setPanelOpen(false);
-    setConsent(false);
     dictation.cancel();
     setManual("");
     setTranscript("");
@@ -574,9 +571,12 @@ export function VoiceAgent({
           type="checkbox"
           checked={consent}
           disabled={busy || enabled}
-          onChange={(e) => setConsent(e.target.checked)}
+          onChange={(e) => {
+            setConsent(e.target.checked);
+            window.localStorage.setItem("snoop:voice-consent-v1", e.target.checked ? "yes" : "no");
+          }}
         />
-        Permito enviar este audio a Cloudflare Whisper para transcribirlo. SNOOP no conserva la
+        Autorizo la transcripción con Cloudflare Whisper (recordar en este dispositivo). SNOOP no conserva la
         grabación.
       </label>
       <button
