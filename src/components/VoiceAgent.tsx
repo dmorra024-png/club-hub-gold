@@ -113,6 +113,7 @@ export function VoiceAgent({
   const [consentFor, setConsentFor] = useState({ key: "", allowed: false });
   const consent = consentFor.key === consentKey && consentFor.allowed;
   const closeWhenIdle = useRef(false);
+  const [pendingFormCommand, setPendingFormCommand] = useState<{text: string; path: string; scope: string} | null>(null);
   const [sessionActive, setSessionActive] = useState(false),
     [continuous, setContinuous] = useState(true),
     [consentPrompt, setConsentPrompt] = useState(false),
@@ -540,6 +541,24 @@ export function VoiceAgent({
         setClarification(intent.message);
         return;
       }
+      // A transcript is not authorization to populate a member, product or order form.
+      // Pause listening and display the literal command before any field-writing event.
+      const currentPath = locRef.current.pathname;
+      const formWrite =
+        (currentPath === "/soci/nuovo" &&
+          !/^(?:crear socio|abrir caja|buscar socio|ver stock)$/i.test(intent.text)) ||
+        (/^Crear socio\s+\S/i.test(intent.text) && intent.text.trim() !== "Crear socio") ||
+        (currentPath === "/productos" &&
+          !!document.querySelector("[data-snoop-product-form]") &&
+          !premiumVoiceIntent(intent.text, currentPath)) ||
+        /^\/soci\/[^/]+\/pedido/.test(currentPath);
+      if (formWrite) {
+        stopSession();
+        setPendingFormCommand({ text: intent.text, path: currentPath, scope });
+        setPanelOpen(true);
+        setFeedback("Revisa la frase reconocida. Ningún campo se ha modificado.");
+        return;
+      }
       setManual(intent.text);
       executing.current = true;
       setStage("Ejecutando");
@@ -666,6 +685,7 @@ export function VoiceAgent({
     setConsentPrompt(false);
     setManual("");
     setTranscript("");
+    setPendingFormCommand(null);
   }, [scope]);
   useEffect(() => {
     if (location.pathname !== "/caja" || !voiceIntentAllowed(access, "/caja")) return;
@@ -806,6 +826,23 @@ export function VoiceAgent({
           <p className="text-xs text-muted-foreground">
             Comandos administrativos · Revisa y confirma siempre en el formulario.
           </p>
+          {pendingFormCommand && (
+            <div role="group" aria-label="Confirmar dictado antes de modificar campos">
+              <p role="status">He entendido: <strong>{pendingFormCommand.text}</strong></p>
+              <p className="text-xs">No se ha modificado ningún campo. Confirma solo si coincide exactamente con lo que has dicho.</p>
+              <button type="button" onClick={() => {
+                const candidate = pendingFormCommand;
+                setPendingFormCommand(null);
+                if (candidate.path !== locRef.current.pathname || candidate.scope !== scope) {
+                  setFeedback("La pantalla ha cambiado. Repite el dictado.");
+                  return;
+                }
+                void handleTranscript(candidate.text);
+                setPanelOpen(false);
+              }}>Confirmar y aplicar</button>
+              <button type="button" onClick={() => { setPendingFormCommand(null); setFeedback("Dictado descartado. Nada cambiado."); }}>Descartar</button>
+            </div>
+          )}
           <label className="text-xs">
             Idioma de voz / Lingua voce
             <select
