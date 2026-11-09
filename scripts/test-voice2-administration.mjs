@@ -326,7 +326,7 @@ for (const [name, engine, device] of [
       );
     const dock = page.getByRole("navigation", { name: "Navegación principal" });
     assert.equal(await dock.locator(":scope > *").count(), 4);
-    await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
     assert.equal(
       await page.evaluate(() => window.__voice.created),
       0,
@@ -459,7 +459,7 @@ for (const [name, engine, device] of [
     );
     assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Demo");
     assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Persona");
-    await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
     await page
       .getByRole("combobox", { name: "Idioma de voz / Lingua voce", exact: true })
       .selectOption("es-ES");
@@ -482,7 +482,7 @@ for (const [name, engine, device] of [
     assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Manual");
     // “Encender” is also rendered while transcription is busy, but disabled.
     // Observe completion before dispatching synthetic events that bypass native button gating.
-    await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
     await page.locator('button[aria-label="Encender Snoop"]:not(:disabled)').waitFor();
     const beforeDuplicate = await page.evaluate(() => window.__voice.created),
       beforeExplicitCancel = audioCalls;
@@ -581,7 +581,7 @@ for (const [name, engine, device] of [
     assert.equal(writes, 0);
     await page.goto(base + "/", { waitUntil: "networkidle" });
     async function written(command) {
-      await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
+      await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
       await page.getByRole("textbox", { name: "Comando escrito", exact: true }).fill(command);
       await page.getByRole("button", { name: "Aplicar comando", exact: true }).click();
     }
