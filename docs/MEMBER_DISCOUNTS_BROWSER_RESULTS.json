@@ -1,0 +1,42 @@
+{
+  "synthetic": true,
+  "physicalDevice": false,
+  "results": [
+    {
+      "browser": "samsung",
+      "mode": "admin",
+      "status": "PASS",
+      "writes": 7
+    },
+    {
+      "browser": "samsung",
+      "mode": "staff",
+      "status": "PASS",
+      "writes": 0
+    },
+    {
+      "browser": "samsung",
+      "mode": "missing-schema",
+      "status": "PASS",
+      "writes": 0
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "admin",
+      "status": "PASS",
+      "writes": 7
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "staff",
+      "status": "PASS",
+      "writes": 0
+    },
+    {
+      "browser": "iphone-webkit",
+      "mode": "missing-schema",
+      "status": "PASS",
+      "writes": 0
+    }
+  ]
+}

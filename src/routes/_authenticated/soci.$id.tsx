@@ -1,3 +1,4 @@
+import { MemberDiscounts } from "@/components/MemberDiscounts";
 import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
 import { MemberOrderHistory } from "@/components/MemberOrderHistory";
 import { madridToday, addCalendarDays, isAdult } from "@/lib/member-administration";
@@ -543,6 +544,7 @@ function SocioDetail() {
           )}
         </div>
       </div>
+      <MemberDiscounts memberId={id} />
       <MemberOrderHistory memberId={id} />
     </SnoopLayout>
   );
