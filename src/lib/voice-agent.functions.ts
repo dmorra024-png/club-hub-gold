@@ -25,9 +25,30 @@ const TranscribeInput = z.object({
 export const transcribeAudio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseClubAuth])
   .inputValidator((d: unknown) => TranscribeInput.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { transcribeAdministrativeAudio } = await import("./administrative-ai.server");
-    return transcribeAdministrativeAudio(data);
+    // The product-name list never leaves the server except as a bounded Whisper
+    // glossary, and only when separate catalog processing consent is configured.
+    // The user-scoped Supabase client and explicit club filter prevent cross-club leaks.
+    let catalogNames: string[] = [];
+    if (
+      process.env.AI_PROVIDER === "cloudflare" &&
+      process.env.AI_CATALOG_PROCESSING_ENABLED === "true"
+    ) {
+      try {
+        const { data: rows, error } = await context.supabase
+          .from("products")
+          .select("name")
+          .eq("club_id", context.clubId)
+          .eq("active", true)
+          .order("name")
+          .limit(35);
+        if (!error && rows) catalogNames = rows.map((row) => row.name);
+      } catch {
+        // Transcription still works with the verified static glossary.
+      }
+    }
+    return transcribeAdministrativeAudio({ ...data, catalogNames });
   });
 
 // ---------- Text-to-Speech (Snoop voice) ----------
