@@ -1,0 +1,119 @@
+-- SNOOP STOCK REVERSALS — PROPOSAL ONLY, NEVER DEPLOY WITHOUT APPROVAL.
+-- Run only AFTER SNOOP_FINANCIAL_REVERSALS_PROPOSED.sql.
+-- This migration deliberately fails closed for legacy orders without verifiable stock provenance.
+BEGIN;
+DO $$ BEGIN
+ IF to_regclass('public.financial_order_reversals') IS NULL
+ OR to_regclass('public.stock_movements') IS NULL
+ OR to_regclass('public.order_items') IS NULL
+ THEN RAISE EXCEPTION 'Required SNOOP cancellation schema is not installed'; END IF;
+END $$;
+
+-- Persistent evidence: future sales get an immutable order reference on each stock debit.
+ALTER TABLE public.stock_movements ADD COLUMN IF NOT EXISTS sale_order_id uuid;
+ALTER TABLE public.stock_movements ADD COLUMN IF NOT EXISTS reversal_order_id uuid;
+ALTER TABLE public.stock_movements ADD COLUMN IF NOT EXISTS original_movement_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS snoop_stock_movements_id_club ON public.stock_movements(id,club_id);
+CREATE UNIQUE INDEX IF NOT EXISTS snoop_orders_id_club_stock ON public.orders(id,club_id);
+ALTER TABLE public.stock_movements ADD CONSTRAINT snoop_sale_order_scope
+ FOREIGN KEY (sale_order_id,club_id) REFERENCES public.orders(id,club_id);
+ALTER TABLE public.stock_movements ADD CONSTRAINT snoop_reversal_order_scope
+ FOREIGN KEY (reversal_order_id,club_id) REFERENCES public.orders(id,club_id);
+ALTER TABLE public.stock_movements ADD CONSTRAINT snoop_original_stock_scope
+ FOREIGN KEY (original_movement_id,club_id) REFERENCES public.stock_movements(id,club_id);
+CREATE UNIQUE INDEX snoop_one_stock_reversal_per_movement
+ ON public.stock_movements(original_movement_id) WHERE original_movement_id IS NOT NULL;
+
+-- The currently deployed create_order_with_items emits: reason='sale',
+-- notes='Venta pedido <uuid> · <name>'. Capture the exact original order
+-- reference at INSERT time (not by guessing when reversing a historical sale).
+CREATE FUNCTION public.snoop_bind_sale_stock_movement() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+DECLARE parsed text;
+BEGIN
+ IF NEW.reason='sale' AND NEW.delta < 0 THEN
+  IF NEW.sale_order_id IS NULL THEN
+   parsed := substring(coalesce(NEW.notes,'') from '^Venta pedido ([0-9a-fA-F-]{36}) · ');
+   IF parsed IS NULL THEN RAISE EXCEPTION 'Sale movement must identify its order' USING ERRCODE='22023'; END IF;
+   NEW.sale_order_id:=parsed::uuid;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.orders o WHERE o.id=NEW.sale_order_id AND o.club_id=NEW.club_id) THEN
+   RAISE EXCEPTION 'Sale movement order/club mismatch' USING ERRCODE='42501';
+  END IF;
+ END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.snoop_bind_sale_stock_movement() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER snoop_bind_sale_stock_movement BEFORE INSERT ON public.stock_movements
+ FOR EACH ROW EXECUTE FUNCTION public.snoop_bind_sale_stock_movement();
+
+-- Reversal rows are immutable and may only originate inside the trusted cancellation trigger.
+CREATE FUNCTION public.snoop_protect_stock_reversal() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
+BEGIN
+ IF TG_OP <> 'INSERT' AND OLD.original_movement_id IS NOT NULL THEN
+  RAISE EXCEPTION 'Stock reversal immutable' USING ERRCODE='42501';
+ END IF;
+ IF TG_OP='INSERT' AND NEW.original_movement_id IS NOT NULL
+    AND current_setting('snoop.stock_reversal_authorized',true) IS DISTINCT FROM 'yes' THEN
+  RAISE EXCEPTION 'Direct stock reversal forbidden' USING ERRCODE='42501';
+ END IF;
+ IF TG_OP='DELETE' THEN RETURN OLD;END IF;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.snoop_protect_stock_reversal() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER snoop_protect_stock_reversal BEFORE INSERT OR UPDATE OR DELETE ON public.stock_movements
+ FOR EACH ROW EXECUTE FUNCTION public.snoop_protect_stock_reversal();
+
+-- Stock is credited ONLY for orders where each line has one exactly identifiable
+-- original debit. For historical orders with no structured reference the whole
+-- annulment rolls back, avoiding accounting/stock mismatches.
+CREATE FUNCTION public.snoop_restore_cancelled_order_stock() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE line record; original record; line_count int; other_count int;
+BEGIN
+ -- Transactional trigger invoked on status change, with same order lock as financial reversal.
+ IF NEW.club_id IS DISTINCT FROM OLD.club_id OR auth.uid() IS DISTINCT FROM NEW.cancelled_by
+ THEN RAISE EXCEPTION 'Unauthorized stock reversal' USING ERRCODE='42501';END IF;
+ FOR line IN SELECT i.product_id,sum(i.quantity) AS qty
+             FROM public.order_items i WHERE i.order_id=OLD.id AND i.club_id=OLD.club_id
+             GROUP BY i.product_id ORDER BY i.product_id LOOP
+  IF line.product_id IS NULL THEN
+   RAISE EXCEPTION 'Product provenance missing: manual review required' USING ERRCODE='22023';
+  END IF;
+  SELECT count(*) INTO line_count FROM public.stock_movements m
+   WHERE m.sale_order_id=OLD.id AND m.club_id=OLD.club_id AND m.product_id=line.product_id
+    AND m.reason='sale' AND m.delta < 0;
+  IF line_count=0 THEN RAISE EXCEPTION 'No linked sale movement: manual review required' USING ERRCODE='22023';END IF;
+  -- All source debits must be identifiable. An original debit can include merma.
+  -- Never return more than the actually delivered quantity.
+  PERFORM 1 FROM public.products p WHERE p.id=line.product_id AND p.club_id=OLD.club_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Original product missing: manual review required' USING ERRCODE='22023';END IF;
+  SELECT count(*) INTO other_count FROM public.stock_movements m
+   WHERE m.sale_order_id=OLD.id AND m.club_id=OLD.club_id AND m.product_id=line.product_id
+     AND (m.reason<>'sale' OR m.delta>=0);
+  IF other_count>0 THEN RAISE EXCEPTION 'Ambiguous stock movement' USING ERRCODE='22023';END IF;
+  -- Allocation across source movements is deterministic; quantities must match
+  -- exactly when no waste is recorded, otherwise a physical reconciliation is required.
+  IF (SELECT -sum(m.delta) FROM public.stock_movements m WHERE m.sale_order_id=OLD.id AND m.club_id=OLD.club_id AND m.product_id=line.product_id AND m.reason='sale') <> line.qty
+  THEN RAISE EXCEPTION 'Sale includes waste or unverified stock; manual review required' USING ERRCODE='22023';END IF;
+  FOR original IN SELECT m.id,m.delta FROM public.stock_movements m
+      WHERE m.sale_order_id=OLD.id AND m.club_id=OLD.club_id AND m.product_id=line.product_id AND m.reason='sale' ORDER BY m.id FOR UPDATE LOOP
+   -- The order is being cancelled once, enforced by finance unique order_id.
+   -- Record physical reversal and stock credit in one database transaction.
+   PERFORM set_config('snoop.stock_reversal_authorized','yes',true);
+   INSERT INTO public.stock_movements(club_id,product_id,delta,reason,notes,created_by,reversal_order_id,original_movement_id)
+   VALUES (OLD.club_id,line.product_id,-original.delta,'sale_cancellation',
+    'Anulación de pedido '||OLD.id::text,auth.uid(),OLD.id,original.id);
+   PERFORM set_config('snoop.stock_reversal_authorized','no',true);
+   UPDATE public.products SET stock=stock-original.delta WHERE id=line.product_id AND club_id=OLD.club_id;
+  END LOOP;
+ END LOOP;
+ RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.snoop_restore_cancelled_order_stock() FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER snoop_restore_cancelled_order_stock AFTER UPDATE ON public.orders
+ FOR EACH ROW WHEN(OLD.status='completed' AND NEW.status='cancelled')
+ EXECUTE FUNCTION public.snoop_restore_cancelled_order_stock();
+NOTIFY pgrst,'reload schema';
+COMMIT;
