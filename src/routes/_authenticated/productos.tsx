@@ -841,7 +841,7 @@ function Stock({
     const { prod, delta, newStock, raw } = pendingAdj;
     const { error } = await (supabase as any).rpc("adjust_administrative_stock", {
       p_id: prod.id,
-      p_delta: delta,
+      p_delta: Math.round(delta * 100) / 100,
       p_expected: Number(prod.stock),
       p_notes: raw,
     });
@@ -853,7 +853,7 @@ function Stock({
 
   function choosePendingProduct(prod: Product) {
     if (!pendingChoice) return;
-    const newStock = Number(prod.stock) + pendingChoice.delta;
+    const newStock = Math.round((Number(prod.stock) + pendingChoice.delta) * 100) / 100;
     if (newStock < 0) {
       toast.error(`Stock insuficiente (${prod.stock})`);
       return;
@@ -992,12 +992,13 @@ function Stock({
               !product ||
               manualQuantity.trim() === "" ||
               !Number.isFinite(quantity) ||
-              quantity < 0
+              quantity < 0 ||
+              Math.round(quantity * 100) / 100 !== quantity
             )
               return toast.error("Selecciona un producto y una cantidad válida");
             if (!manualReason.trim())
               return toast.error("Indica un motivo para conservar el historial");
-            const delta = quantity - Number(product.stock);
+            const delta = Math.round((quantity - Number(product.stock)) * 100) / 100;
             if (delta === 0) return toast.info("El stock ya tiene esa cantidad");
             setPendingAdj({
               prod: product,
