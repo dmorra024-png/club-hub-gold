@@ -94,7 +94,21 @@ try {
     }
   }
   assert.ok(ready, "isolated PostgreSQL must become ready");
-  await psql(separationBootstrapSql + "\n" + (await separationInitializationSql()));
+  // Docker's PostgreSQL entrypoint briefly starts a temporary server and then
+  // shuts it down before the final server starts. pg_isready can observe that
+  // temporary server, so retry only this specific startup race.
+  let initialized = false;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      await psql(separationBootstrapSql + "\n" + (await separationInitializationSql()));
+      initialized = true;
+      break;
+    } catch (error) {
+      if (!/database system is shutting down|connection refused|no such file or directory|the database system is starting up/i.test(String(error))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  assert.ok(initialized, "isolated PostgreSQL initialization must complete");
   await psql(
     await readFile("supabase/migrations/20261106150000_platform_club_separation.sql", "utf8"),
   );
