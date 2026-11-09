@@ -280,8 +280,14 @@ for (const [name, engine, device] of [
       if (!(await page.getByRole("dialog", { name: "Voice 2.0", exact: true }).isVisible()))
         await page.getByRole("button", { name: "Voice 2.0", exact: true }).click();
       await page.getByRole("checkbox", { name: /transcripción con Cloudflare Whisper/ }).check();
-      if (!(await page.getByRole("button", { name: "Apagar Snoop", exact: true }).isVisible()))
-        await page.getByRole("button", { name: "Encender Snoop", exact: true }).click();
+      // The dock starts recording as soon as consent is already present.
+      // When consent was just granted, explicitly start once, and wait for
+      // the asynchronous permission/startup transition instead of toggling twice.
+      const active = page.getByRole("button", { name: "Apagar Snoop", exact: true });
+      const idle = page.getByRole("button", { name: "Encender Snoop", exact: true });
+      if (!(await active.isVisible().catch(() => false)) && (await idle.isEnabled().catch(() => false)))
+        await idle.click();
+      await active.waitFor({ state: "visible" });
     }
     async function start() {
       await page.waitForLoadState("networkidle");
