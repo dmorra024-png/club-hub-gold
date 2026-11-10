@@ -485,7 +485,12 @@ for (const [name, engine, device] of [
           ["Nombre Marco", "Nombre *", "Marco"],
         ]) {
           await phrase(utterance);
-          assert.equal(await page.getByLabel(field, { exact: true }).inputValue(), expected);
+          assert.equal(
+            await page
+              .getByLabel(field === "Ciudad" ? /^Ciudad/ : field, { exact: true })
+              .inputValue(),
+            expected,
+          );
         }
       }
       await phrase(
