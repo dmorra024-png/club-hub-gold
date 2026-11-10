@@ -1,0 +1,101 @@
+const reply = (
+  intent,
+  target,
+  member = {},
+  product = {},
+  query = null,
+  question = "",
+  declined = [],
+) => ({ intent, target, member, product, query, question, declined, asking: null });
+const m = (text, member = {}, question = "¿Quieres revisar la ficha?", declined = []) => ({
+  text,
+  proposal: reply("member", "member_create", member, {}, null, question, declined),
+});
+const p = (text, product) => ({ text, proposal: reply("product", "product_create", {}, product) });
+const nav = (text, target) => ({ text, proposal: reply("navigate", target) });
+const search = (text, target, query) => ({
+  text,
+  proposal: reply("search", target, {}, {}, query),
+});
+export const dialogueCases = [
+  m("Snoop fammi uno socio nuovo", {}, "¿Cómo se llama?"),
+  m(
+    "Si chiama Marco, no scusa Mario Rossi",
+    { first_name: "Mario", last_name: "Rossi" },
+    "¿Fecha de nacimiento?",
+  ),
+  m(
+    "Nació el doce de marzo de mil novecientos noventa y cinco",
+    { birth_date: "1995-03-12" },
+    "¿Ciudad?",
+  ),
+  m("Vive a Palma", { city: "Palma" }, "¿Quieres añadir teléfono?"),
+  m("No, lascia il telefono vuoto", {}, "Puedes revisar los datos.", ["phone"]),
+  {
+    text: "Aspetta, cambia il cognome",
+    proposal: reply("clarify", null, {}, {}, null, "¿Qué apellidos quieres poner?"),
+  },
+  m("Bianchi", { last_name: "Bianchi" }),
+  m("Cambia solo il nome in Carlos", { first_name: "Carlos" }),
+  m("El apellido es García López", { last_name: "García López" }),
+  m("La città corretta è Madrid", { city: "Madrid" }),
+  m("La data è 15 marzo 1990", { birth_date: "1990-03-15" }),
+  m("Mejor Juan Carlos como nombre", { first_name: "Juan Carlos" }),
+  m("Cognome De la Cruz", { last_name: "De la Cruz" }),
+  m("Reside en Barcelona", { city: "Barcelona" }),
+  {
+    text: "Riepilogo, senza salvare",
+    proposal: reply("review", null, {}, {}, null, "Revisa el formulario; nada guardado."),
+  },
+  search("Buscar producto Amnesia Haze", "products", "Amnesia Haze"),
+  p("Crea una scheda Cuaderno Azul categoria Material", {
+    name: "Cuaderno Azul",
+    category: "Material",
+  }),
+  p("No, il nome è Cuaderno Verde", { name: "Cuaderno Verde" }),
+  p("La categoría sigue siendo Material", { category: "Material" }),
+  {
+    text: "Crea una categoría Papelería",
+    proposal: reply("category", "categories", {}, { name: "Papelería" }),
+  },
+  nav("Portami alla home", "home"),
+  search("Busca la ficha de Carlos García", "members", "Carlos García"),
+  nav("Voglio consultare la cassa", "cash"),
+  nav("Mostra i rapporti", "reports"),
+  nav("Últimas actividades por favor", "activity"),
+  m("Retomamos la ficha del socio"),
+  m("Il nome è Ana María", { first_name: "Ana María" }),
+  m("Apellido Pérez, no, López", { last_name: "López" }),
+  m("Nata il 20 aprile 1988", { birth_date: "1988-04-20" }),
+  m("La ciudad es Valencia", { city: "Valencia" }),
+  m("Non aggiungere un telefono", {}, "Revisa los datos.", ["phone"]),
+  {
+    text: "Aspetta non cambiare nulla",
+    proposal: reply("clarify", null, {}, {}, null, "¿Qué campo quieres revisar?"),
+  },
+  m("Nombre José Luis", { first_name: "José Luis" }),
+  m("Apellido D’Amico", { last_name: "D’Amico" }),
+  m("Ciudad Sóller", { city: "Sóller" }),
+  m("Quiero corregir la fecha al 2 de enero de 1992", { birth_date: "1992-01-02" }),
+  search("Cerca la genetica Mango Haze", "products", "Mango Haze"),
+  nav("Consulta inventario, sin cambiar cantidades", "stock"),
+  p("Nueva ficha Libreta Roja en Material", { name: "Libreta Roja", category: "Material" }),
+  p("Corrige Libreta, mejor Agenda Roja", { name: "Agenda Roja" }),
+  p("Categoria Material, non altre", { category: "Material" }),
+  nav("Torna all’inizio", "home"),
+  m("Volvemos al formulario del socio"),
+  m("Ahora sí añade el teléfono 666123456", { phone: "666123456" }),
+  m("No el teléfono, cambia la ciudad a Inca", { city: "Inca" }),
+  m("Primero Ana, perdón, nombre María Elena", { first_name: "María Elena" }),
+  m("Cognome García de la Torre", { last_name: "García de la Torre" }),
+  m("Cumpleaños 9 septiembre 1985", { birth_date: "1985-09-09" }),
+  {
+    text: "Le nuvole vogliono una città",
+    proposal: reply("clarify", null, {}, {}, null, "¿Qué ciudad quieres indicar?"),
+  },
+  {
+    text: "Controlliamo la scheda, non salvarla",
+    proposal: reply("review", null, {}, {}, null, "Revisa los datos antes de confirmar."),
+  },
+  { text: "Snoop fermati", proposal: reply("stop", null) },
+];

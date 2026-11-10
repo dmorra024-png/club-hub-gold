@@ -1,4 +1,17 @@
 import {
+  ConversationProposal,
+  emptyConversation,
+  reduceConversation,
+  screenTarget,
+  targetPath,
+  conversationAllowed,
+  type ConversationMemoryValue,
+} from "@/lib/snoop-conversation";
+import {
+  conversationModeStatus,
+  interpretSnoopConversation,
+} from "@/lib/snoop-conversation.functions";
+import {
   planSnoopTurn,
   projectSnoopTurn,
   sketchSupports,
@@ -113,6 +126,12 @@ export function VoiceAgent({
   userId: string;
   onPhaseChange?: (phase: import("@/hooks/useWhisperDictation").DictationPhase) => void;
 }) {
+  const [conversationMode, setConversationMode] = useState<"off" | "pilot" | "real">("off");
+  const [conversationModes, setConversationModes] = useState({ pilot: false, real: false });
+  const [syntheticConfirmed, setSyntheticConfirmed] = useState(false);
+  const conversationMemory = useRef<ConversationMemoryValue>(emptyConversation());
+  const conversationStatus = useServerFn(conversationModeStatus),
+    interpretConversation = useServerFn(interpretSnoopConversation);
   const [language, setLanguage] = useState("es-ES");
   const [feedback, setFeedback] = useState("");
   const [panelOpen, setPanelOpen] = useState(false),
@@ -130,12 +149,15 @@ export function VoiceAgent({
     [clarification, setClarification] = useState(""),
     [fault, setFault] = useState("");
   const sessionEpoch = useRef(0);
+  const conversationGeneration = useRef(0);
   const activeRef = useRef(false),
     cancelRef = useRef<() => void>(() => {}),
     recordingPath = useRef(""),
     executing = useRef(false);
   const stopSession = useCallback(() => {
     activeRef.current = false;
+    conversationMemory.current = emptyConversation();
+    conversationGeneration.current++;
     sessionEpoch.current++;
     window.dispatchEvent(new Event("snoop:conversation-reset"));
     setSessionActive(false);
@@ -159,6 +181,21 @@ export function VoiceAgent({
     } catch {}
     setConsentFor({ key: consentKey, allowed });
   }, [consentKey]);
+  useEffect(() => {
+    if (!panelOpen) return;
+    let mounted = true;
+    conversationStatus()
+      .then((value) => {
+        if (mounted)
+          setConversationModes({ pilot: value.pilot === true, real: value.real === true });
+      })
+      .catch(() => {
+        if (mounted) setConversationModes({ pilot: false, real: false });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [panelOpen, userId, access.clubId]);
   const aiStatus = useServerFn(getAdministrativeAiStatus),
     transcribe = useServerFn(transcribeAudio);
   const proposeNavigation = useServerFn(suggestVoiceNavigation);
@@ -196,6 +233,9 @@ export function VoiceAgent({
     stopSession();
     setFeedback("");
     setCommandAiConsent(false);
+    setConversationMode("off");
+    setSyntheticConfirmed(false);
+    setConversationModes({ pilot: false, real: false });
     aiBudget.current = { count: 0, blocked: false };
     setTranscript("");
     setManual("");
@@ -555,6 +595,181 @@ export function VoiceAgent({
         return;
       }
       const interpretationStart = performance.now();
+      if (conversationMode !== "off") {
+        if (
+          /^(?:snoop[, ]*)?(?:terminar|detener escucha|stop(?: snoop)?|fermati|ferm[aá]ti|termina)[.!?]*$/i.test(
+            text.trim(),
+          )
+        ) {
+          stopSession();
+          return;
+        }
+        if (
+          !commandAiConsent ||
+          !conversationModes[conversationMode] ||
+          (conversationMode === "pilot" && !syntheticConfirmed)
+        ) {
+          stopSession();
+          setFeedback("Modo conversacional no autorizado. Revisa los ajustes.");
+          return;
+        }
+        const epoch = sessionEpoch.current,
+          revision = fieldEdits.current,
+          path = locRef.current.pathname,
+          identity = JSON.stringify(accessRef.current),
+          generation = conversationGeneration.current;
+        const snapshot = (kind: string) => {
+          let value: any = null;
+          window.dispatchEvent(
+            new CustomEvent("snoop:ai-form", {
+              detail: { kind, respond: (v: any) => (value = v) },
+            }),
+          );
+          return value;
+        };
+        const member = path === "/soci/nuovo" ? snapshot("member") : null;
+        const product = path === "/productos" ? snapshot("product") : null;
+        const context = {
+          ...conversationMemory.current,
+          ...(member ? { member } : {}),
+          ...(product ? { product } : {}),
+        };
+        const aiStart = performance.now();
+        const response = await interpretConversation({
+          data: {
+            mode: conversationMode,
+            consent: true,
+            synthetic: conversationMode === "pilot",
+            text,
+            screen: screenTarget(path),
+            context,
+          },
+        });
+        const aiMs = performance.now() - aiStart;
+        if (
+          epoch !== sessionEpoch.current ||
+          revision !== fieldEdits.current ||
+          path !== locRef.current.pathname ||
+          identity !== JSON.stringify(accessRef.current) ||
+          generation !== conversationGeneration.current ||
+          (continuous && !activeRef.current)
+        )
+          return { aiMs, interpretationMs: aiMs, executionMs: 0 };
+        const parsed = ConversationProposal.safeParse(response.proposal);
+        if (response.error || !parsed.success) {
+          stopSession();
+          setFeedback(
+            response.error === "quota"
+              ? "Cuota IA agotada. Usa el formulario."
+              : "SNOOP no disponible. No se cambió ningún campo.",
+          );
+          return { aiMs, interpretationMs: aiMs, executionMs: 0 };
+        }
+        const proposal = parsed.data;
+        if (!conversationAllowed(accessRef.current.access, proposal)) {
+          setClarification("No tienes permiso para esta función.");
+          return;
+        }
+        if (proposal.intent === "stop") {
+          stopSession();
+          return;
+        }
+        const executionStart = performance.now();
+        executing.current = true;
+        try {
+          const to = proposal.target ? targetPath[proposal.target] : null;
+          if (to && to !== path) await navigate({ to: to as any });
+          if (
+            proposal.target &&
+            ["product_create", "categories", "products", "stock"].includes(proposal.target)
+          ) {
+            const until = performance.now() + 5000;
+            while (!document.querySelector("[data-snoop-products-page]")) {
+              if (epoch !== sessionEpoch.current && locRef.current.pathname !== to) return;
+              if (performance.now() > until) throw new Error("SNOOP_FORM_UNAVAILABLE");
+              await new Promise((r) => setTimeout(r, 30));
+            }
+            window.dispatchEvent(
+              new CustomEvent("snoop:ai-products", {
+                detail: { target: proposal.target, patch: proposal.product, query: proposal.query },
+              }),
+            );
+          }
+          if (
+            generation !== conversationGeneration.current ||
+            revision !== fieldEdits.current ||
+            (to && locRef.current.pathname !== to)
+          )
+            return;
+          if (proposal.target === "cash_report") {
+            const until = performance.now() + 5000;
+            let opened = false;
+            while (!opened && performance.now() < until) {
+              if (generation !== conversationGeneration.current || revision !== fieldEdits.current)
+                return;
+              const tab = Array.from(
+                document.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+              ).find((t) => t.textContent === "Informe de caja");
+              if (tab && !tab.disabled) {
+                tab.focus();
+                tab.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+                opened = true;
+              } else await new Promise((r) => setTimeout(r, 30));
+            }
+            if (!opened) throw new Error("SNOOP_REPORT_UNAVAILABLE");
+          }
+          const kind =
+            proposal.intent === "member"
+              ? "member"
+              : proposal.intent === "product"
+                ? "product"
+                : null;
+          if (kind) {
+            const until = performance.now() + 5000;
+            while (!snapshot(kind)) {
+              if (
+                (!activeRef.current && continuous) ||
+                generation !== conversationGeneration.current ||
+                revision !== fieldEdits.current
+              )
+                return;
+              if (performance.now() > until) throw new Error("SNOOP_FORM_UNAVAILABLE");
+              await new Promise((r) => setTimeout(r, 30));
+            }
+            let applied: any = null;
+            window.dispatchEvent(
+              new CustomEvent("snoop:ai-form", {
+                detail: {
+                  kind,
+                  patch:
+                    kind === "member"
+                      ? { ...(to !== path ? context.member : {}), ...proposal.member }
+                      : { ...(to !== path ? context.product : {}), ...proposal.product },
+                  respond: (v: any) => (applied = v),
+                },
+              }),
+            );
+            if (!applied) {
+              setClarification("Categoría no identificada. Selecciónala en el formulario.");
+              return;
+            }
+          }
+          if (proposal.intent === "search" && proposal.target === "members")
+            window.dispatchEvent(
+              new CustomEvent("snoop:search-members", { detail: { query: proposal.query ?? "" } }),
+            );
+          conversationMemory.current = reduceConversation(context, proposal);
+          setClarification(proposal.question || "Revisa los datos. Nada guardado.");
+        } catch {
+          setClarification("No se pudo preparar el formulario. No se guardó nada.");
+        } finally {
+          executing.current = false;
+        }
+        await new Promise<void>((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => r())),
+        );
+        return { aiMs, interpretationMs: aiMs, executionMs: performance.now() - executionStart };
+      }
       let intent = planSnoopTurn(text, locRef.current.pathname);
       let aiMs = 0;
       if (intent.kind === "stop") {
@@ -755,6 +970,7 @@ export function VoiceAgent({
       return;
     }
     voiceDestination.current = null;
+    conversationGeneration.current++;
     if (activeRef.current) {
       if (continuous) dictation.cancel();
       else stopSession();
@@ -957,14 +1173,48 @@ export function VoiceAgent({
           <p className="text-xs text-muted-foreground">
             Comandos administrativos · Revisa y confirma siempre en el formulario.
           </p>
+          <label className="text-xs">
+            Interpretación SNOOP
+            <select
+              aria-label="Modo conversacional"
+              value={conversationMode}
+              onChange={(e) => {
+                stopSession();
+                setConversationMode(e.target.value as any);
+                setCommandAiConsent(false);
+                setSyntheticConfirmed(false);
+              }}
+            >
+              <option value="off">Local / navegación privada</option>
+              <option value="pilot" disabled={!conversationModes.pilot}>
+                PILOT · solo datos sintéticos
+              </option>
+              <option value="real" disabled={!conversationModes.real}>
+                REAL · requiere revisión de privacidad
+              </option>
+            </select>
+          </label>
+          {conversationMode === "pilot" && (
+            <label className="text-xs flex gap-2">
+              <input
+                type="checkbox"
+                checked={syntheticConfirmed}
+                onChange={(e) => setSyntheticConfirmed(e.target.checked)}
+              />
+              Confirmo que usaré exclusivamente datos sintéticos.
+            </label>
+          )}
           <label className="text-xs flex gap-2">
             <input
               type="checkbox"
               checked={commandAiConsent}
               onChange={(e) => setCommandAiConsent(e.target.checked)}
             />
-            Permitir sugerencias IA de navegación sin datos personales (requiere configuración
-            autorizada).
+            {conversationMode === "off"
+              ? "Permitir sugerencias IA de navegación sin datos personales (requiere configuración autorizada)."
+              : conversationMode === "pilot"
+                ? "Permitir conversación Cloudflare con datos sintéticos."
+                : "Permitir contexto mínimo Cloudflare según la revisión de privacidad."}
           </label>
           <label className="text-xs">
             Idioma de voz / Lingua voce

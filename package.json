@@ -50,7 +50,8 @@
     "test:cash:browser": "node --test tests/simple-cash.test.mjs && node scripts/test-cash-sessions.mjs",
     "test:voice:lifecycle": "node scripts/test-voice-lifecycle.mjs",
     "test:voice:conversation": "node scripts/test-voice2-administration.mjs --conversation",
-    "test:voice:session": "node scripts/test-voice2-administration.mjs --continuous"
+    "test:voice:session": "node scripts/test-voice2-administration.mjs --continuous",
+    "test:ai:dialogue": "node scripts/test-voice2-administration.mjs --ai-dialogue"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

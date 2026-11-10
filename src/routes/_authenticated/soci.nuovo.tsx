@@ -191,6 +191,23 @@ function NewSocio() {
       setVoiceSummary(reply.summary ? reply.summary + " · " + reply.message : "");
       respond(reply);
     };
+    const onAiForm = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail.kind !== "member") return;
+      const keys = ["first_name", "last_name", "birth_date", "city", "phone"] as const;
+      const current = Object.fromEntries(keys.map((k) => [k, formRef.current[k]]));
+      if (detail.patch)
+        setForm((previous) => ({
+          ...previous,
+          ...Object.fromEntries(
+            keys
+              .filter((k) => typeof detail.patch[k] === "string")
+              .map((k) => [k, detail.patch[k]]),
+          ),
+        }));
+      detail.respond?.(current);
+    };
+    window.addEventListener("snoop:ai-form", onAiForm);
     window.addEventListener("snoop:member-conversation", onConversation);
     window.addEventListener("snoop:conversation-reset", resetConversation);
 
@@ -223,6 +240,7 @@ function NewSocio() {
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
+      window.removeEventListener("snoop:ai-form", onAiForm);
       window.removeEventListener("snoop:member-conversation", onConversation);
       window.removeEventListener("snoop:conversation-reset", resetConversation);
       conversation.current = null;
