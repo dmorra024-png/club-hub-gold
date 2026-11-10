@@ -100,9 +100,20 @@ jobs:
             assert.equal(bindings.size, result.bindings.length);
             stage = 'runtime-variables';
             const required = {SUPABASE_SERVICE_ROLE_KEY:['secret_text'], SUPABASE_URL:['plain_text','secret_text'], SUPABASE_PUBLISHABLE_KEY:['plain_text','secret_text'], APP_URL:['plain_text','secret_text'], SNOOP_AI:['ai'], ASSETS:['assets']};
-            for (const name of Object.keys(config.vars ?? {})) required[name] ??= ['plain_text'];
+            const glmActivation = {
+              AI_VOICE_INTENTS_ENABLED: 'true',
+              SNOOP_AI_FREE_TIER_CONFIRMED: 'true',
+              SNOOP_AI_ASSISTANT_MODEL: '@cf/zai-org/glm-4.7-flash'
+            };
+            for (const [name, value] of Object.entries(glmActivation)) {
+              assert.equal(config.vars?.[name], value, 'Unexpected GLM activation configuration');
+            }
+            for (const name of Object.keys(config.vars ?? {})) {
+              if (!(name in glmActivation)) required[name] ??= ['plain_text'];
+            }
             for (const [name,expected] of Object.entries(config.vars ?? {})) {
               const live = result.bindings.find(b=>b.name===name);
+              if (name in glmActivation && !live) continue; // first activation only
               assert.ok(live?.type==='plain_text' && live.text===String(expected));
             }
             for (const [name,expected] of Object.entries({SUPABASE_URL:'https://bnwanxbmprbymbutoths.supabase.co',APP_URL:'https://snoop-pilot.dmorra024.workers.dev'})) {
@@ -136,7 +147,9 @@ jobs:
               assert.deepEqual([...metadata.keep_bindings].sort(), [...inheritedTypes].sort());
               assert.deepEqual(metadata.bindings.map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
               // No variable/secret value is sent: all existing values are inherited.
-              delete config.vars;
+              // Preserve all existing vars/secrets via Wrangler --keep-vars,
+              // uploading only three non-secret activation values. No secret writes.
+              config.vars = glmActivation;
               stage = 'config-allowlist';
               const allowedConfigKeys = ['compatibility_date','$schema','name','main','compatibility_flags','workers_dev','preview_urls','assets','ai','no_bundle','rules','triggers'];
               assert.ok(Object.keys(config).every(key=>allowedConfigKeys.includes(key)));
