@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { calendarDate, isAdult } from "./member-administration.ts";
 import { accessRedirect, type AccountAccess } from "./access-context.ts";
-export const ConversationMode = z.enum(["pilot", "real"]);
+export const ConversationMode = z.enum(["pilot", "real", "demo"]);
 export const ConversationTarget = z.enum([
   "home",
   "member_create",

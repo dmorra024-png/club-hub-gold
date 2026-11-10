@@ -51,7 +51,7 @@ function env(values: Record<string, string>) {
 test("PILOT requires local matching database origins and the explicitly isolated club; REAL defaults closed", () => {
   const restore = env(flags);
   try {
-    assert.deepEqual(conversationAvailability(access), { pilot: true, real: false });
+    assert.deepEqual(conversationAvailability(access), { pilot: true, real: false, demo: false });
     process.env.SUPABASE_URL = "https://bnwanxbmprbymbutoths.supabase.co";
     assert.equal(conversationAvailability(access).pilot, false);
     process.env.SUPABASE_URL = flags.SUPABASE_URL;
@@ -330,6 +330,55 @@ test("a stale account or club request is rejected before model execution", async
         ),
         /NOT_AUTHORIZED/,
       );
+  } finally {
+    restore();
+  }
+});
+
+test("DEMO is available only for active pilot Worker club accounts with voice authorization", () => {
+  const restore = env({
+    ...flags,
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SUPABASE_URL: "https://example.supabase.co",
+    VITE_SUPABASE_URL: "https://example.supabase.co",
+  });
+  try {
+    const a = conversationAvailability(access);
+    assert.deepEqual(a, { pilot: false, real: false, demo: true });
+    assert.equal(conversationAvailability({ ...access, status: "suspended" }).demo, false);
+    process.env.SNOOP_RESOURCE_NAMESPACE = "other";
+    assert.equal(conversationAvailability(access).demo, false);
+    process.env.SNOOP_RESOURCE_NAMESPACE = "snoop-pilot";
+    process.env.AI_VOICE_PROCESSING_ENABLED = "false";
+    assert.equal(conversationAvailability(access).demo, false);
+  } finally {
+    restore();
+  }
+});
+test("DEMO interpreter requires explicit synthetic confirmation and leaves REAL privacy closed", async () => {
+  const restore = env({
+    ...flags,
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SUPABASE_URL: "https://example.supabase.co",
+    VITE_SUPABASE_URL: "https://example.supabase.co",
+  });
+  const request = {
+    mode: "demo",
+    consent: true,
+    text: "Crea un socio de prueba",
+    screen: "member_create",
+    context: emptyConversation(),
+  };
+  try {
+    await assert.rejects(
+      interpretConversation({ ...request, synthetic: false }, {userId:"demo-reject",access}),
+      /NOT_AUTHORIZED/,
+    );
+    await assert.rejects(
+      interpretConversation({ ...request, synthetic: true }, {userId:"demo-reject",access:{...access,status:"suspended"}}),
+      /NOT_AUTHORIZED/,
+    );
+    assert.equal(conversationAvailability(access).real, false);
   } finally {
     restore();
   }

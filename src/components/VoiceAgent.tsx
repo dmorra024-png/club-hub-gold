@@ -1186,6 +1186,9 @@ export function VoiceAgent({
           <p className="text-xs text-muted-foreground">
             Comandos administrativos · Revisa y confirma siempre en el formulario.
           </p>
+          <a href="/snoop-demo" className="block rounded-xl border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-center text-amber-200 font-medium" onClick={() => { stopSession(); setPanelOpen(false); }}>
+            Probar SNOOP AI · DEMO sin guardar datos
+          </a>
           <label className="text-xs">
             Interpretación SNOOP
             <select

@@ -36,7 +36,12 @@ export function conversationAvailability(access: AccountAccess) {
     ["SNOOP_AI_DPA_REVIEW_ID", "SNOOP_AI_NOTICE_REVIEW_ID", "SNOOP_AI_PROCESSING_REVIEW_ID"].every(
       (k) => !!process.env[k]?.trim(),
     );
-  return { pilot, real };
+  // DEMO is restricted to the existing pilot Worker, active authenticated club users,
+  // Cloudflare voice permissions and explicit synthetic-only confirmation. It never
+  // enables the REAL mode, and its UI is an isolated, non-persistent preview.
+  const demo = common && process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
+    process.env.AI_PERSONAL_DATA_PROCESSING_ENABLED !== "true";
+  return { pilot, real, demo };
 }
 const schema = {
   type: "object",
@@ -124,7 +129,7 @@ export async function interpretConversation(
 
   if (
     !conversationAvailability(scope.access)[input.mode] ||
-    (input.mode === "pilot" && !input.synthetic)
+    (["pilot", "demo"].includes(input.mode) && !input.synthetic)
   )
     throw new Error("SNOOP_CONVERSATION_NOT_AUTHORIZED");
   if (!reserveSnoopRequest(`conversation:${scope.access.clubId}:${scope.userId}`))
