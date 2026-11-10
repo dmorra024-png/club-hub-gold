@@ -87,7 +87,7 @@ test("actual workflow proves pinned Wrangler inheritance, preserves AI/assets an
   assert.match(result.output, /SNOOP_BINDINGS_PRESERVATION_OK/);
   assert.match(result.output, /"secret_values_sent":false/);
   assert.deepEqual(result.config.triggers, { crons: ["*/5 * * * *"] });
-  assert.equal(result.config.vars, undefined);
+  assert.deepEqual(result.config.vars, { AI_VOICE_INTENTS_ENABLED: "true", SNOOP_AI_FREE_TIER_CONFIRMED: "true", SNOOP_AI_ASSISTANT_MODEL: "@cf/zai-org/glm-4.7-flash" });
   assert.equal(result.config.ai.binding, "SNOOP_AI");
   assert.equal(result.config.assets.binding, "ASSETS");
   assert.match(

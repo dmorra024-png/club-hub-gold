@@ -79,6 +79,11 @@ function Caja() {
     (s: CashSession) => s.user_id === user?.id && s.status === "open",
   );
   const daily = data ? cashDaySummary(data.movements, data.sessions, data.start, data.end) : null;
+  // A calendar-day report is not a cash-session balance. Keep sessions open across
+  // midnight until the collaborator explicitly closes them.
+  const openSessions: CashSession[] = data?.sessions.filter(
+    (s: CashSession) => s.status === "open" && s.closed_at === null,
+  ) ?? [];
   const reconciliation = session && data ? reconcileCash(session, data.movements) : null;
   async function submit(kind: "open" | "close") {
     if (busy || !can("use_cash") || !navigator.onLine) return;
@@ -141,7 +146,7 @@ function Caja() {
                     </p>
                     {session ? (
                       <>
-                        <p>Caja abierta · {time(session.opened_at)}</p>
+                        <p>Caja abierta · {time(session.opened_at)} · Pendiente de cierre manual</p>
                         <p>Fondo inicial: {money(session.opening_cash_cents)}</p>
                         <p>
                           Ingresos registrados:{" "}
@@ -215,9 +220,38 @@ function Caja() {
                 </label>
                 {data && (
                   <>
+                    {openSessions.length > 0 && (
+                      <section
+                        aria-label="Cajas pendientes de cierre"
+                        className="rounded-xl border border-amber-500/40 bg-card/60 p-4 space-y-2"
+                      >
+                        <h3 className="font-semibold">Cajas abiertas · Pendientes de cierre</h3>
+                        <p className="text-sm text-muted-foreground">
+                          El cambio de fecha no cierra ni pone a cero una caja.
+                          Estos importes son acumulados desde la apertura, aunque sea de ayer.
+                        </p>
+                        {openSessions.map((open) => (
+                          <div key={open.id} className="text-sm space-y-1">
+                            <p>
+                              <strong>{name(open.user_id)}</strong> · Abierta el {time(open.opened_at)}
+                            </p>
+                            <p>
+                              Ingresos acumulados de la sesión:{" "}
+                              <strong>{money(sessionRevenue(open, data.movements))}</strong>
+                            </p>
+                            <p>Fondo inicial: {money(open.opening_cash_cents)}</p>
+                            <p className="font-medium">Estado: Abierta, sin cierre registrado</p>
+                          </div>
+                        ))}
+                      </section>
+                    )}
                     <h2>
                       {data.admin ? "Caja del día" : "Mi caja del día"} · {data.day}
                     </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Solo movimientos del día seleccionado (00:00–24:00).
+                      No es el saldo de las cajas abiertas.
+                    </p>
                     <p className="text-2xl" aria-label="Total del día">
                       {money(dayRevenue(data.movements, data.start, data.end))}
                     </p>
@@ -288,7 +322,7 @@ function Caja() {
                               ? `Cerrada por: ${name(s.closed_by)} · ${time(s.closed_at)}`
                               : "Abierta"}
                           </p>
-                          <p>Ingresos: {money(sessionRevenue(s, data.movements))}</p>
+                          <p>Ingresos acumulados de la sesión: {money(sessionRevenue(s, data.movements))}</p>
                           <p>
                             Fondo inicial: {money(s.opening_cash_cents)}
                             {s.closing_cash_cents !== null
