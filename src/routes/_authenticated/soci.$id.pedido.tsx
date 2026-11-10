@@ -513,6 +513,7 @@ function PedidoPage() {
   return (
     <SnoopLayout
       title="Nuevo pedido"
+      contentClassName="snoop-order-page"
       subtitle={member ? `${member.first_name} ${member.last_name} · #${member.member_number}` : ""}
     >
       <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
@@ -734,7 +735,7 @@ function PedidoPage() {
                         return (
                           <div
                             key={p.id}
-                            className={`p-3 rounded-lg border ${p.stock <= 0 ? "opacity-40 border-border" : "border-border hover:border-neon/60"} transition`}
+                            className={`snoop-order-product p-3 rounded-lg border ${p.stock <= 0 ? "opacity-40 border-border" : "border-border hover:border-neon/60"} transition`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
@@ -745,7 +746,7 @@ function PedidoPage() {
                               </div>
                             </div>
                             {isGr ? (
-                              <div className="flex items-center gap-1.5 mt-2">
+                              <div className="snoop-order-amounts mt-2">
                                 <input
                                   inputMode="decimal"
                                   value={st.qty}

@@ -70,6 +70,7 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:annulment:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:records:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:catalog:browser
+          TEST_BASE_URL=http://127.0.0.1:3001 npm run test:orders:keyboard
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:completion:mobile
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:account-links
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:pwa:resume
@@ -97,6 +98,8 @@ jobs:
             docs/screenshots/voice-session-*.png
             docs/VOICE_SESSION_RESULTS.json
             docs/VOICE_CONVERSATION_RESULTS.json
+            docs/ORDER_KEYBOARD_RESULTS.json
+            docs/screenshots/order-keyboard-*.png
             docs/screenshots/voice-conversation-*.png
             docs/screenshots/critical-*.png
             docs/CRITICAL_BROWSER_RESULTS.json
