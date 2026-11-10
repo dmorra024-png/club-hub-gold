@@ -40,6 +40,7 @@ async function proof({
   live = bindings(),
   code = source,
   account = "0cc8106f8820d22996af3aed9e081e93",
+  checkOnly = false,
 } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "snoop-binding-proof-")),
     file = join(dir, "wrangler.json");
@@ -52,7 +53,11 @@ async function proof({
  };
  `;
     const result = spawnSync(process.execPath, ["--input-type=module", "-"], {
-      input: setup + code.replace("'.output/server/wrangler.json'", JSON.stringify(file)),
+      input:
+        setup +
+        code
+          .replaceAll("'.output/server/wrangler.json'", JSON.stringify(file))
+          .replaceAll("'wrangler.json'", JSON.stringify(file)),
       encoding: "utf8",
       timeout: 20000,
       env: {
@@ -61,6 +66,7 @@ async function proof({
         CLOUDFLARE_ACCOUNT_ID: account,
         GITHUB_REPOSITORY: "dmorra024-png/club-hub-gold",
         GITHUB_REF_NAME: "codex/stabilize-independent-club",
+        SNOOP_BINDINGS_CHECK_ONLY: String(checkOnly),
       },
     });
     assert.ifError(result.error);
@@ -69,7 +75,14 @@ async function proof({
       !output.includes(canary),
       "Diagnostic output must never include secret or assertion values",
     );
-    return { status: result.status, output, config: JSON.parse(await readFile(file, "utf8")) };
+    const rewritten = JSON.parse(await readFile(file, "utf8"));
+    if (result.status !== 0 || checkOnly)
+      assert.deepEqual(
+        rewritten,
+        JSON.parse(JSON.stringify(candidate)),
+        "Rejected/diagnostic runs must not rewrite configuration",
+      );
+    return { status: result.status, output, config: rewritten };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -81,13 +94,17 @@ test("regression: old allowlist rejects Nitro cron after every binding and Wrang
   assert.match(result.output, /unaccounted_resource_bindings":\[\]/);
   assert.match(result.output, /"stage":"config-allowlist"/);
 });
-test("actual workflow proves pinned Wrangler inheritance, preserves AI/assets and only removes local variable values", async () => {
+test("actual workflow inherits existing bindings and sends exactly the three public GLM activation values", async () => {
   const result = await proof();
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /SNOOP_BINDINGS_PRESERVATION_OK/);
   assert.match(result.output, /"secret_values_sent":false/);
   assert.deepEqual(result.config.triggers, { crons: ["*/5 * * * *"] });
-  assert.deepEqual(result.config.vars, { AI_VOICE_INTENTS_ENABLED: "true", SNOOP_AI_FREE_TIER_CONFIRMED: "true", SNOOP_AI_ASSISTANT_MODEL: "@cf/zai-org/glm-4.7-flash" });
+  assert.deepEqual(result.config.vars, {
+    AI_VOICE_INTENTS_ENABLED: "true",
+    SNOOP_AI_FREE_TIER_CONFIRMED: "true",
+    SNOOP_AI_ASSISTANT_MODEL: "@cf/zai-org/glm-4.7-flash",
+  });
   assert.equal(result.config.ai.binding, "SNOOP_AI");
   assert.equal(result.config.assets.binding, "ASSETS");
   assert.match(
@@ -124,4 +141,81 @@ test("unknown config/resources remain blocked, and diagnostics are safe even for
   result = await proof({ account: "different-account" });
   assert.equal(result.status, 1);
   assert.match(result.output, /"stage":"target-environment"/);
+});
+
+test("regression: activation vars must be admitted by the config allowlist", async () => {
+  const legacy = source.replace("'triggers','vars'", "'triggers'");
+  assert.notEqual(legacy, source);
+  const result = await proof({ code: legacy });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /"stage":"config-allowlist"/);
+});
+test("first GLM activation can add missing public flags without rewriting inherited secrets, vars or JSON", async () => {
+  const live = bindings().filter(
+    (b) =>
+      ![
+        "AI_VOICE_INTENTS_ENABLED",
+        "SNOOP_AI_FREE_TIER_CONFIRMED",
+        "SNOOP_AI_ASSISTANT_MODEL",
+      ].includes(b.name),
+  );
+  live.push(
+    { name: "EXISTING_CUSTOM_SETTING", type: "plain_text", text: canary },
+    { name: "EXISTING_JSON", type: "json", json: { nested: canary } },
+    { name: "ANOTHER_PRIVATE_SECRET", type: "secret_text" },
+  );
+  const result = await proof({ live });
+  assert.equal(result.status, 0, result.output);
+  assert.deepEqual(result.config.vars, {
+    AI_VOICE_INTENTS_ENABLED: "true",
+    SNOOP_AI_FREE_TIER_CONFIRMED: "true",
+    SNOOP_AI_ASSISTANT_MODEL: "@cf/zai-org/glm-4.7-flash",
+  });
+  assert.ok(!JSON.stringify(result.config).includes(canary));
+});
+for (const name of [
+  "AI_VOICE_INTENTS_ENABLED",
+  "SNOOP_AI_FREE_TIER_CONFIRMED",
+  "SNOOP_AI_ASSISTANT_MODEL",
+]) {
+  test(`reject unapproved local GLM value for ${name}`, async () => {
+    const result = await proof({
+      candidate: { ...config, vars: { ...config.vars, [name]: canary } },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.output, /"stage":"runtime-variables"/);
+  });
+  for (const type of ["secret_text", "secret_key"])
+    test(`never replace existing ${type} GLM binding ${name}`, async () => {
+      const live = bindings();
+      const entry = live.find((b) => b.name === name);
+      entry.type = type;
+      entry.text = canary;
+      const result = await proof({ live });
+      assert.equal(result.status, 1);
+      assert.match(result.output, /"stage":"runtime-variables"/);
+    });
+  test(`existing conflicting GLM value remains blocked for ${name}`, async () => {
+    const live = bindings();
+    live.find((b) => b.name === name).text = canary;
+    const result = await proof({ live });
+    assert.equal(result.status, 1);
+    assert.match(result.output, /"stage":"runtime-variables"/);
+  });
+}
+test("read-only diagnostic does not rewrite any local configuration", async () => {
+  const result = await proof({ checkOnly: true });
+  assert.equal(result.status, 0, result.output);
+  assert.deepEqual(result.config, config);
+  assert.doesNotMatch(result.output, /"payload_keep_bindings"/);
+});
+test("missing mandatory private secret and duplicate binding names fail closed", async () => {
+  let result = await proof({
+    live: bindings().filter((b) => b.name !== "SUPABASE_SERVICE_ROLE_KEY"),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /"stage":"runtime-variables"/);
+  result = await proof({ live: [...bindings(), { name: "SNOOP_AI", type: "ai" }] });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /"stage":"binding-names"/);
 });

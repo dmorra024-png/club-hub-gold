@@ -143,10 +143,13 @@ jobs:
               assert.ok(deployStart > 0 && /keepSecrets:\s*true/.test(cli.slice(deployStart,cli.indexOf('let workerBundle;',deployStart))));
               const factory = vm.runInNewContext('('+cli.slice(start,end)+')', {import_undici9:{FormData}, File, extractBindingsOfType:(type,bs)=>Object.entries(bs??{}).filter(([,b])=>b.type===type).map(([binding,b])=>({...b,binding})),isUnsafeBindingType:type=>type.startsWith('unsafe_'),toMimeType:()=> 'application/javascript+module'});
               stage = 'upload-metadata';
-              const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:true,keepSecrets:true}, {SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
+              const publicActivationBindings = Object.fromEntries(Object.entries(glmActivation).map(([name,value])=>[name,{type:'plain_text',value}]));
+              const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:true,keepSecrets:true}, {...publicActivationBindings,SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
               assert.deepEqual([...metadata.keep_bindings].sort(), [...inheritedTypes].sort());
-              assert.deepEqual(metadata.bindings.map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
-              // No variable/secret value is sent: all existing values are inherited.
+              assert.deepEqual(metadata.bindings.filter(b=>b.type==='plain_text'), Object.entries(glmActivation).map(([name,text])=>({name,type:'plain_text',text})));
+              assert.deepEqual(metadata.bindings.filter(b=>b.type!=='plain_text').map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
+              assert.equal(metadata.bindings.length, Object.keys(glmActivation).length+2);
+              // Only the three public activation values are sent; existing vars and secrets are inherited.
               // Preserve all existing vars/secrets via Wrangler --keep-vars,
               // uploading only three non-secret activation values. No secret writes.
               config.vars = glmActivation;
