@@ -1,4 +1,7 @@
-import { clubDayRange, cashAmounts } from "@/lib/cash-summary";
+import { readCashLedger } from "@/lib/cash-ledger";
+import { cashMovements, cashDaySummary } from "@/lib/cash-sessions";
+import { useCashRefresh } from "@/hooks/useCashRefresh";
+import { clubDayRange } from "@/lib/cash-summary";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +28,14 @@ function Home() {
   const clubName = access.clubName ?? "—";
   const canSeeCash = can("use_cash") || can("view_reports");
 
-  const scope = [access.clubId, user?.id, isAdmin].join(":");
+  const [refresh, retryCash] = useCashRefresh();
+  const scope = JSON.stringify([
+    access.clubId,
+    user?.id,
+    access.role,
+    access.status,
+    [...access.permissions].sort(),
+  ]);
   useEffect(() => {
     if (!access.clubId || !user?.id || !canSeeCash || isSuperAdmin) {
       setCashCents(null);
@@ -41,35 +51,17 @@ function Home() {
       const version = ++request;
       try {
         const { start, end } = clubDayRange();
-        let orders = supabase
-          .from("orders")
-          .select("id,total_cents")
-          .eq("status", "completed")
-          .eq("club_id", access.clubId!)
-          .gte("created_at", start)
-          .lt("created_at", end);
-        let receipts = supabase
-          .from("membership_receipts")
-          .select("id,amount_cents,recorded_at", { count: "exact" })
-          .eq("club_id", access.clubId!)
-          .gte("recorded_at", start)
-          .lt("recorded_at", end);
-        if (!isAdmin) {
-          orders = orders.eq("created_by", user!.id);
-          receipts = receipts.eq("recorded_by", user!.id);
-        }
-        const [sales, fees] = await Promise.all([orders, receipts]);
+        const { orders, fees } = await readCashLedger(
+          supabase,
+          { clubId: access.clubId!, userId: user!.id, admin: isAdmin },
+          start,
+          end,
+        );
+        const summary = cashDaySummary(cashMovements(orders, fees, []), [], start, end);
         if (canceled || version !== request) return;
-        if (sales.error || fees.error) {
-          setCashError(true);
-          setCashCents(null);
-        } else {
-          setCashError(false);
-          setCashCents(cashAmounts(sales.data ?? [], fees.data ?? []).totalCents);
-          setReceiptPoints(
-            fees.count === fees.data?.length ? membershipTimeline(fees.data ?? [], start, end) : [],
-          );
-        }
+        setCashError(false);
+        setCashCents(summary.totalCents);
+        setReceiptPoints(membershipTimeline(fees, start, end));
       } catch {
         if (!canceled && version === request) {
           setCashError(true);
@@ -78,19 +70,10 @@ function Home() {
       }
     }
     void loadCash();
-    const refresh = () => {
-      if (document.visibilityState === "visible") void loadCash();
-    };
-    window.addEventListener("focus", refresh);
-    window.addEventListener("online", refresh);
-    document.addEventListener("visibilitychange", refresh);
     return () => {
       canceled = true;
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("online", refresh);
-      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [access.clubId, user?.id, canSeeCash, isAdmin, isSuperAdmin]);
+  }, [scope, canSeeCash, isAdmin, isSuperAdmin, refresh]);
 
   if (isSuperAdmin) return <Navigate to="/snoop-admin" />;
   return (
@@ -104,7 +87,7 @@ function Home() {
         <PremiumWaves />
       </section>
       <section className="premium-cash" aria-label="Caja de hoy">
-        <h2>Caja de hoy</h2>
+        <h2>{isAdmin ? "Caja de hoy" : "Mi caja de hoy"}</h2>
         {canSeeCash ? (
           <p className="premium-cash-amount" aria-live="polite">
             {cashScope !== scope || cashCents === null
@@ -117,6 +100,11 @@ function Home() {
           </p>
         ) : (
           <p className="premium-cash-private">Importes reservados a usuarios autorizados</p>
+        )}
+        {canSeeCash && cashError && (
+          <button onClick={retryCash} className="text-sm text-neon underline">
+            Reintentar caja
+          </button>
         )}
         {canSeeCash && !cashError && cashScope === scope && cashCents !== null && (
           <MembershipSparkline points={receiptPoints} />

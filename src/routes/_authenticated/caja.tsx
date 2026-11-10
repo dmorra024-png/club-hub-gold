@@ -1,5 +1,6 @@
+import { useCashRefresh } from "@/hooks/useCashRefresh";
 import { paymentMethodLabel } from "@/lib/administrative-payment";
-import { FinancialRecordStatus, RECORDS_CHANGED } from "@/components/FinancialRecordDialog";
+import { FinancialRecordStatus } from "@/components/FinancialRecordDialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -7,7 +8,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { getCashReport, openCash, closeCash } from "@/lib/cash-sessions.functions";
 import {
   inCashDay,
-  dayRevenue,
   sessionRevenue,
   reconcileCash,
   cashDaySummary,
@@ -32,10 +32,11 @@ function Caja() {
     access.status,
     [...access.permissions].sort(),
   ]);
+  const [refresh, setRefresh] = useCashRefresh();
   const [stored, setStored] = useState<any>(null),
     [error, setError] = useState(""),
+    [updating, setUpdating] = useState(false),
     [day, setDay] = useState<string | null>(null),
-    [refresh, setRefresh] = useState(0),
     [opening, setOpening] = useState("0"),
     [closing, setClosing] = useState(""),
     [notes, setNotes] = useState(""),
@@ -44,41 +45,39 @@ function Caja() {
   useEffect(() => {
     if (loading || accessError || !can("use_cash")) return;
     let active = true;
+    setError("");
+    setUpdating(true);
     getCashReport({ data: { day } })
       .then((result) => {
         if (active) {
-          setStored({ ...result, scope, requestedDay: day });
+          if (
+            !result ||
+            !Array.isArray(result.movements) ||
+            !Array.isArray(result.sessions) ||
+            !Array.isArray(result.profiles)
+          )
+            throw new Error("Respuesta de caja no válida");
+          const daily = cashDaySummary(result.movements, result.sessions, result.start, result.end);
+          setStored({ ...result, daily, scope, requestedDay: day });
           setError("");
         }
       })
       .catch(() => {
         if (active) setError("No se pudo cargar la caja. Vuelve a intentarlo.");
+      })
+      .finally(() => {
+        if (active) setUpdating(false);
       });
     return () => {
       active = false;
     };
   }, [day, scope, loading, accessError, refresh]);
-  useEffect(() => {
-    const update = () => {
-      if (document.visibilityState === "visible") setRefresh((n) => n + 1);
-    };
-    window.addEventListener(RECORDS_CHANGED, update);
-    window.addEventListener("focus", update);
-    window.addEventListener("online", update);
-    document.addEventListener("visibilitychange", update);
-    return () => {
-      window.removeEventListener(RECORDS_CHANGED, update);
-      window.removeEventListener("focus", update);
-      window.removeEventListener("online", update);
-      document.removeEventListener("visibilitychange", update);
-    };
-  }, []);
   const name = (id: string | null | undefined) =>
     id ? data?.profiles.find((p: any) => p.id === id)?.full_name || "Colaborador" : "No registrado";
   const session: CashSession | undefined = data?.sessions.find(
     (s: CashSession) => s.user_id === user?.id && s.status === "open",
   );
-  const daily = data ? cashDaySummary(data.movements, data.sessions, data.start, data.end) : null;
+  const daily = data?.daily ?? null;
   const reconciliation = session && data ? reconcileCash(session, data.movements) : null;
   async function submit(kind: "open" | "close") {
     if (busy || !can("use_cash") || !navigator.onLine) return;
@@ -94,7 +93,7 @@ function Caja() {
       setClosing("");
       setNotes("");
       setDay(null);
-      setRefresh((n) => n + 1);
+      setRefresh();
       toast.success(kind === "open" ? "Caja abierta" : "Caja cerrada");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo guardar la caja");
@@ -113,9 +112,10 @@ function Caja() {
         <p role="alert">No tienes permiso para usar la caja.</p>
       ) : (
         <>
+          {updating && <p role="status">Actualizando caja…</p>}
           {error && (
             <p role="alert">
-              {error} <button onClick={() => setRefresh((n) => n + 1)}>Reintentar</button>
+              {error} <button onClick={() => setRefresh()}>Reintentar</button>
             </p>
           )}
           <fieldset
@@ -219,7 +219,7 @@ function Caja() {
                       {data.admin ? "Caja del día" : "Mi caja del día"} · {data.day}
                     </h2>
                     <p className="text-2xl" aria-label="Total del día">
-                      {money(dayRevenue(data.movements, data.start, data.end))}
+                      {money(daily!.totalCents)}
                     </p>
                     <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-sm">
                       <dt>Aportaciones asociativas (cuotas)</dt>
