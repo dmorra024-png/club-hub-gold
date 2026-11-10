@@ -464,8 +464,8 @@ for (const [name, engine, device] of [
         await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
         assert.equal(
           await page
-            .getByRole("option", { name: "REAL · requiere revisión de privacidad", exact: true })
-            .isDisabled(),
+            .locator('select[aria-label="Modo conversacional"] option[value="real"]')
+            .evaluate((option) => option instanceof HTMLOptionElement && option.disabled),
           true,
         );
         await page.getByLabel("Modo conversacional").selectOption("pilot");
