@@ -1,0 +1,61 @@
+name: SNOOP Voice Lab — deploy isolated preview manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY-VOICE-LAB to authorize isolated preview"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snoop-voice-lab-deploy
+  cancel-in-progress: false
+
+jobs:
+  voice-lab:
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/voice-physical-preview' && inputs.confirm == 'DEPLOY-VOICE-LAB' }}
+    environment: snoop-pilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+      VOICE_PREVIEW_KEY: ${{ secrets.VOICE_PREVIEW_KEY }}
+    steps:
+      - name: Checkout isolated preview branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate preview target, credentials and protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'codex/voice-physical-preview'
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo 'Cloudflare token missing'; exit 1; }
+          test "${#VOICE_PREVIEW_KEY}" -ge 24 || { echo 'VOICE_PREVIEW_KEY repository/environment secret missing (at least 24 characters)'; exit 1; }
+          echo "::add-mask::$VOICE_PREVIEW_KEY"
+          node -e 'const c=require("./voice-preview/wrangler.json");if(c.name!=="snoop-voice-lab"||c.ai?.binding!=="SNOOP_AI"||c.main!=="worker.mjs"||c.workers_dev!==true)process.exit(1)'
+          if grep -R -n 'bnwanxbmprbymbutoths\|SNOOP_SUPABASE' voice-preview/; then echo 'Unexpected production database reference'; exit 1; fi
+      - name: Install pinned Wrangler
+        run: npm install --no-save --no-audit --no-fund wrangler@4
+      - name: Deploy only isolated lab Worker
+        shell: bash
+        working-directory: voice-preview
+        run: |
+          set -euo pipefail
+          ../node_modules/.bin/wrangler deploy --config wrangler.json
+      - name: Set private preview access key (never printed)
+        shell: bash
+        working-directory: voice-preview
+        run: |
+          set -euo pipefail
+          printf '%s' "$VOICE_PREVIEW_KEY" | ../node_modules/.bin/wrangler secret put VOICE_PREVIEW_KEY --name snoop-voice-lab
+      - name: Announce isolated test URL
+        shell: bash
+        run: |
+          echo 'Voice Lab deployment completed. Use the snoop-voice-lab.workers.dev URL printed by Wrangler.'
+          echo 'SNOOP production Worker and Supabase were not targeted.'
