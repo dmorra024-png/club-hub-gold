@@ -276,3 +276,28 @@ test("offscreen personal values never reach GLM; resumption uses field identifie
     restore();
   }
 });
+test("omitted/blank AI values cannot erase manual draft fields", () => {
+  const proposal = dialogueCases[0].proposal;
+  assert.equal(
+    ConversationProposal.safeParse({ ...proposal, member: { first_name: "" } }).success,
+    false,
+  );
+  assert.equal(
+    ConversationProposal.safeParse({ ...proposal, member: { last_name: "  " } }).success,
+    false,
+  );
+  assert.equal(
+    ConversationProposal.safeParse({ ...proposal, member: { phone: "" } }).success,
+    false,
+  );
+  assert.equal(
+    ConversationProposal.safeParse({ ...proposal, member: { phone: "" }, declined: ["phone"] })
+      .success,
+    true,
+  );
+  assert.equal(
+    ConversationProposal.safeParse({ ...dialogueCases[16].proposal, product: { name: "" } })
+      .success,
+    false,
+  );
+});

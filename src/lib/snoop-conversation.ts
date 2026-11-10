@@ -80,6 +80,14 @@ export const ConversationProposal = z
   })
   .strict()
   .superRefine((v, ctx) => {
+    // Missing model values must never erase an existing draft. Clearing phone
+    // requires the explicit declined-field action; other clears stay manual.
+    for (const [key, value] of Object.entries(v.member))
+      if (!value.trim() && !(key === "phone" && v.declined.includes("phone")))
+        ctx.addIssue({ code: "custom", message: "Empty member patch" });
+    for (const value of Object.values(v.product))
+      if (!value.trim()) ctx.addIssue({ code: "custom", message: "Empty product patch" });
+
     if (v.intent === "navigate" && v.target === null)
       ctx.addIssue({ code: "custom", message: "Missing destination" });
     if (v.intent === "category" && Object.keys(v.product).some((k) => k !== "name"))
