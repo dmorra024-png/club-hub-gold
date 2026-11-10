@@ -102,6 +102,8 @@ export async function interpretConversation(
   scope: { userId: string; access: AccountAccess },
 ): Promise<ConversationProposalValue> {
   const input = ConversationRequest.parse(raw);
+  if (input.owner.userId !== scope.userId || input.owner.clubId !== scope.access.clubId)
+    throw new Error("SNOOP_CONVERSATION_NOT_AUTHORIZED");
   const memberContext = Object.values(input.context.member).some(Boolean),
     productContext = Object.values(input.context.product).some(Boolean);
   if (

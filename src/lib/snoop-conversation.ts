@@ -51,6 +51,9 @@ export const emptyConversation = (): ConversationMemoryValue => ({
 export const ConversationRequest = z
   .object({
     mode: ConversationMode,
+    owner: z
+      .object({ userId: z.string().min(1).max(80), clubId: z.string().min(1).max(80) })
+      .strict(),
     consent: z.literal(true),
     synthetic: z.boolean(),
     text: z.string().trim().min(1).max(1200),

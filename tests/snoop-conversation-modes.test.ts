@@ -10,7 +10,7 @@ import {
 } from "../src/lib/snoop-conversation.ts";
 import {
   conversationAvailability,
-  interpretConversation,
+  interpretConversation as executeConversation,
 } from "../src/lib/snoop-conversation.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 const access: AccountAccess = {
@@ -21,6 +21,12 @@ const access: AccountAccess = {
   clubLogo: null,
   permissions: ["manage_members", "manage_products", "use_cash", "view_reports"],
 };
+function interpretConversation(raw: any, scope: Parameters<typeof executeConversation>[1]) {
+  return executeConversation(
+    { ...raw, owner: { userId: scope.userId, clubId: scope.access.clubId } },
+    scope,
+  );
+}
 const flags = {
   AI_PROVIDER: "cloudflare",
   AI_VOICE_INTENTS_ENABLED: "true",
@@ -300,4 +306,31 @@ test("omitted/blank AI values cannot erase manual draft fields", () => {
       .success,
     false,
   );
+});
+
+test("a stale account or club request is rejected before model execution", async () => {
+  const restore = env(flags);
+  try {
+    for (const owner of [
+      { userId: "previous-user", clubId: access.clubId },
+      { userId: "current-user", clubId: "previous-club" },
+    ])
+      await assert.rejects(
+        executeConversation(
+          {
+            mode: "pilot",
+            consent: true,
+            synthetic: true,
+            text: "Continuar",
+            screen: "home",
+            context: emptyConversation(),
+            owner,
+          },
+          { userId: "current-user", access },
+        ),
+        /NOT_AUTHORIZED/,
+      );
+  } finally {
+    restore();
+  }
 });

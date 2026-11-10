@@ -219,6 +219,7 @@ for (const [name, engine, device] of [
           const data = fromJSON(JSON.parse(req.postData())).data;
           if (aiDialogue && data.mode) {
             assert.equal(data.mode, "pilot");
+            assert.deepEqual(data.owner, { userId: uid, clubId: club });
             assert.equal(data.synthetic, true);
             assert.equal(data.consent, true);
             const row = aiOverride
@@ -229,6 +230,7 @@ for (const [name, engine, device] of [
               "consent",
               "context",
               "mode",
+              "owner",
               "screen",
               "synthetic",
               "text",

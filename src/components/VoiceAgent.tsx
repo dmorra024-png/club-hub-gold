@@ -638,6 +638,7 @@ export function VoiceAgent({
         const response = await interpretConversation({
           data: {
             mode: conversationMode,
+            owner: { userId: accessRef.current.userId, clubId: accessRef.current.access.clubId! },
             consent: true,
             synthetic: conversationMode === "pilot",
             text,
