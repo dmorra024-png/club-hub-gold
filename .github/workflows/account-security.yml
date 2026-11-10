@@ -80,6 +80,7 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:critical:browser
           npm run test:voice:lifecycle
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:conversation
+          TEST_BASE_URL=http://127.0.0.1:3001 npm run test:ai:dialogue
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:session
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice2:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:browser
@@ -99,6 +100,8 @@ jobs:
             docs/screenshots/voice-session-*.png
             docs/VOICE_SESSION_RESULTS.json
             docs/VOICE_CONVERSATION_RESULTS.json
+            docs/SNOOP_AI_DIALOGUE_RESULTS.json
+            docs/screenshots/snoop-ai-dialogue-*.png
             docs/ORDER_KEYBOARD_RESULTS.json
             docs/screenshots/order-keyboard-*.png
             docs/screenshots/voice-conversation-*.png

@@ -1,3 +1,4 @@
+import { dialogueCases } from "../tests/fixtures/snoop-dialogue-cases.mjs";
 import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -31,7 +32,8 @@ const auth = {
   expires_in: 3600,
   token_type: "bearer",
 };
-const conversational = process.argv.includes("--conversation");
+const aiDialogue = process.argv.includes("--ai-dialogue");
+const conversational = process.argv.includes("--conversation") || aiDialogue;
 const results = [];
 await mkdir("docs/screenshots", { recursive: true });
 for (const [name, engine, device] of [
@@ -60,6 +62,9 @@ for (const [name, engine, device] of [
       holdTranscription = false,
       resume = null,
       aiProposalCalls = 0,
+      legacyInterpretations = 0,
+      aiOverride = null,
+      aiDelay = 0,
       aiQuota = false;
     await context.addInitScript(
       ({ auth, key, conversational }) => {
@@ -196,6 +201,7 @@ for (const [name, engine, device] of [
       if (u.origin !== new URL(base).origin && !isApi) return route.abort();
       if (u.pathname.includes("_serverFn")) {
         let result = {
+          ...(aiDialogue ? { pilot: true, real: false } : {}),
           available,
           documents: false,
           browserSpeech: false,
@@ -211,7 +217,38 @@ for (const [name, engine, device] of [
         };
         if (req.method() === "POST") {
           const data = fromJSON(JSON.parse(req.postData())).data;
+          if (aiDialogue && data.mode) {
+            assert.equal(data.mode, "pilot");
+            assert.deepEqual(data.owner, { userId: uid, clubId: club });
+            assert.equal(data.synthetic, true);
+            assert.equal(data.consent, true);
+            const row = aiOverride
+              ? { text: data.text, proposal: aiOverride }
+              : dialogueCases[aiProposalCalls];
+            assert.equal(data.text, row.text);
+            assert.deepEqual(Object.keys(data).sort(), [
+              "consent",
+              "context",
+              "mode",
+              "owner",
+              "screen",
+              "synthetic",
+              "text",
+            ]);
+            if (aiProposalCalls > 4 && aiProposalCalls < 43)
+              assert.deepEqual(data.context.declined, ["phone"]);
+            aiProposalCalls++;
+            if (aiDelay) await new Promise((r) => setTimeout(r, aiDelay));
+            return route.fulfill({
+              contentType: "application/json",
+              body: JSON.stringify({
+                result: { proposal: row.proposal, error: null },
+                context: {},
+              }),
+            });
+          }
           if (data.consent === true && data.sketch) {
+            legacyInterpretations++;
             assert.deepEqual(Object.keys(data).sort(), ["consent", "sketch"]);
             assert.deepEqual(data.sketch, {
               symbols: ["request", "member", "create"],
@@ -236,6 +273,7 @@ for (const [name, engine, device] of [
               body: JSON.stringify({ result, context: {} }),
             });
           if (data.transcript && Array.isArray(data.categories)) {
+            legacyInterpretations++;
             return route.fulfill({
               contentType: "application/json",
               body: JSON.stringify({
@@ -264,6 +302,13 @@ for (const [name, engine, device] of [
         });
       }
       if (!isApi) return route.continue();
+      if (aiDialogue && req.method() === "POST" && u.pathname.includes("/rpc/")) {
+        const rpc = u.pathname.split("/").at(-1);
+        assert.ok(
+          ["snoop_access_context", "current_club_id"].includes(rpc),
+          "unexpected mutation/unmodeled RPC in read-only dialogue",
+        );
+      }
       let data = [];
       if (
         req.method() !== "GET" &&
@@ -280,11 +325,25 @@ for (const [name, engine, device] of [
           status: "active",
           clubId: club,
           clubName: "Club Sintético",
-          permissions: denied ? [] : ["manage_members", "manage_products", "use_cash"],
+          permissions: denied
+            ? []
+            : [
+                "manage_members",
+                "manage_products",
+                "use_cash",
+                ...(aiDialogue ? ["view_reports"] : []),
+              ],
         };
       else if (u.pathname.endsWith("/rpc/current_club_id")) data = club;
       else if (u.pathname.endsWith("/products")) {
-        assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
+        // Existing reports use an authenticated RLS read rather than a client club filter.
+        // The fixture returns only this synthetic club; this is NOT a live RLS proof.
+        if (
+          aiDialogue &&
+          u.searchParams.get("select") === "id,name,stock,buy_price,sell_price,category_id"
+        )
+          assert.equal(req.headers()["authorization"], `Bearer ${auth.access_token}`);
+        else assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
         data = [
           {
             id: "60000000-0000-4000-8000-000000000001",
@@ -403,6 +462,23 @@ for (const [name, engine, device] of [
         window.addEventListener("snoop:voice-timing", (e) => window.voiceTimings.push(e.detail));
       });
       await page.goto(base + "/", { waitUntil: "networkidle" });
+      if (aiDialogue) {
+        await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+        assert.equal(
+          await page
+            .locator('select[aria-label="Modo conversacional"] option[value="real"]')
+            .evaluate((option) => option instanceof HTMLOptionElement && option.disabled),
+          true,
+        );
+        await page.getByLabel("Modo conversacional").selectOption("pilot");
+        await page
+          .getByRole("checkbox", { name: "Confirmo que usaré exclusivamente datos sintéticos." })
+          .check();
+        await page
+          .getByRole("checkbox", { name: "Permitir conversación Cloudflare con datos sintéticos." })
+          .check();
+        await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
+      }
       transcript = "Crear socio";
       await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await page.getByRole("button", { name: "Permitir y escuchar", exact: true }).click();
@@ -436,6 +512,125 @@ for (const [name, engine, device] of [
         }
         await listening();
         verifiedTurns.push(text);
+      }
+      if (aiDialogue) {
+        const assertions = [];
+        for (const row of dialogueCases) {
+          const p = row.proposal;
+          if (p.intent === "stop") {
+            transcript = row.text;
+            await listening();
+            await page.evaluate(() => (window.__voice.silent = false));
+            await page.waitForTimeout(400);
+            await page.evaluate(() => (window.__voice.silent = true));
+            await page.waitForFunction(() => window.__voice.created === window.__voice.stopped);
+            assertions.push(row.text);
+            break;
+          }
+          if (aiProposalCalls === 15) catalogDelay = 1400;
+          await phrase(row.text);
+          catalogDelay = 0;
+          if (p.target)
+            await page.waitForURL(
+              base +
+                {
+                  home: "/",
+                  member_create: "/soci/nuovo",
+                  members: "/soci/gestisci",
+                  products: "/productos",
+                  product_create: "/productos",
+                  categories: "/productos",
+                  stock: "/productos",
+                  cash: "/caja",
+                  reports: "/ajustes/informes",
+                  activity: "/actividades",
+                }[p.target],
+            );
+          const labels = {
+            first_name: "Nombre *",
+            last_name: "Apellidos *",
+            birth_date: "Fecha de nacimiento *",
+            city: /^Ciudad/,
+            phone: /^Teléfono/,
+          };
+          for (const [key, value] of Object.entries(p.member))
+            assert.equal(
+              await page
+                .getByLabel(labels[key], { exact: typeof labels[key] === "string" })
+                .inputValue(),
+              value,
+            );
+          if (p.intent === "product") {
+            if (p.product.name)
+              assert.equal(
+                await page.getByPlaceholder("ej. Amnesia Haze").inputValue(),
+                p.product.name,
+              );
+            if (p.product.category)
+              assert.equal(await page.getByLabel("Categoría", { exact: true }).inputValue(), plan);
+          }
+          if (p.intent === "search")
+            assert.equal(
+              await page
+                .getByPlaceholder(
+                  p.target === "members"
+                    ? "Buscar por nº socio, nombre, DNI o ciudad..."
+                    : "Buscar en todos los productos…",
+                )
+                .inputValue(),
+              p.query,
+            );
+          if (p.intent === "clarify" || p.intent === "review")
+            await page.locator(".snoop-listening").filter({ hasText: p.question }).waitFor();
+          assert.equal(writes, 0);
+          assert.equal(legacyInterpretations, 0, "no concurrent legacy interpreter");
+          assert.equal(
+            aiProposalCalls,
+            assertions.length + 1,
+            "exactly one interpreter for each turn",
+          );
+          assertions.push(row.text);
+        }
+        assert.equal(assertions.length, 51);
+        assert.equal(
+          aiProposalCalls,
+          50,
+          "spoken stop is handled locally for immediate interruption",
+        );
+        assert.deepEqual(errors, []);
+        aiOverride = { ...dialogueCases[1].proposal, member: { first_name: "Outdated" } };
+        aiDelay = 900;
+        transcript = "Nombre voz pendiente";
+        await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+        await listening();
+        const pending = page.waitForRequest(
+          (req) => req.method() === "POST" && req.postData()?.includes('"mode"'),
+        );
+        const turn = phrase(transcript);
+        await pending;
+        await page.getByLabel("Nombre *", { exact: true }).fill("Manual");
+        await turn;
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Manual");
+        assert.equal(writes, 0);
+        assert.equal(legacyInterpretations, 0);
+        await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
+        await page.screenshot({
+          path: `docs/screenshots/snoop-ai-dialogue-${name}.png`,
+          scale: "css",
+        });
+        results.push({
+          device: name,
+          result: "PASS",
+          physical: false,
+          transcription: "simulated",
+          model: "simulated",
+          turns: assertions,
+          automaticWrites: writes,
+          metrics: await page.evaluate(() => window.voiceTimings),
+        });
+        console.log("PASS SNOOP AI isolated dialogue", name, assertions.length, "turns");
+        await context.close();
+        continue;
       }
       await phrase("Crear socio");
       await page.waitForURL(base + "/soci/nuovo");
@@ -1175,10 +1370,12 @@ for (const [name, engine, device] of [
   }
 }
 await writeFile(
-  conversational
-    ? "docs/VOICE_CONVERSATION_RESULTS.json"
-    : process.argv.includes("--continuous")
-      ? "docs/VOICE_SESSION_RESULTS.json"
-      : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
+  aiDialogue
+    ? "docs/SNOOP_AI_DIALOGUE_RESULTS.json"
+    : conversational
+      ? "docs/VOICE_CONVERSATION_RESULTS.json"
+      : process.argv.includes("--continuous")
+        ? "docs/VOICE_SESSION_RESULTS.json"
+        : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
   JSON.stringify({ results }, null, 2),
 );

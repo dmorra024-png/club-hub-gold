@@ -462,6 +462,23 @@ function ProductosPage() {
     // Identity, club or permission changes still trigger a fresh scoped read.
   }, [catalogScope, authLoading]);
 
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail.target === "product_create") setTab("nuevo");
+      if (detail.target === "categories") {
+        setTab("categoria");
+        if (detail.patch?.name) setPrefillCategory({ name: detail.patch.name, _at: Date.now() });
+      }
+      if (detail.target === "products" || detail.target === "stock") {
+        setTab("stock");
+        if (typeof detail.query === "string") setStockSearch(detail.query);
+      }
+    };
+    window.addEventListener("snoop:ai-products", open);
+    return () => window.removeEventListener("snoop:ai-products", open);
+  }, []);
+
   // Reacciona a Snoop cuando navega aquí pidiendo un tab y/o un comando
   useEffect(() => {
     if (loading) return;
@@ -498,6 +515,7 @@ function ProductosPage() {
 
   return (
     <SnoopLayout title="Productos" subtitle="Stock, categorías y altas">
+      <span data-snoop-products-page={loading ? undefined : "ready"} hidden />
       <div className="flex gap-2 overflow-x-auto -mx-1 px-1 mb-4 sm:mb-6 sm:flex-wrap scrollbar-thin">
         {TABS.map((t) => (
           <button
@@ -1542,6 +1560,33 @@ function NuevoProducto({
     if (typeof prefill.strain === "string") setStrain(prefill.strain as Strain);
     clearPrefill();
   }, [prefill]);
+
+  const aiValues = useRef({ name, category: cat?.name ?? "" });
+  aiValues.current = { name, category: cat?.name ?? "" };
+  useEffect(() => {
+    const form = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail.kind !== "product") return;
+      if (detail.patch) {
+        let match: Category | undefined;
+        if (typeof detail.patch.category === "string") {
+          const matches = cats.filter(
+            (c) => c.name.toLocaleLowerCase() === detail.patch.category.toLocaleLowerCase(),
+          );
+          if (matches.length !== 1) {
+            detail.respond?.(null);
+            return;
+          }
+          match = matches[0];
+        }
+        if (typeof detail.patch.name === "string") setName(detail.patch.name);
+        if (match) setCategoryId(match.id);
+      }
+      detail.respond?.(aiValues.current);
+    };
+    window.addEventListener("snoop:ai-form", form);
+    return () => window.removeEventListener("snoop:ai-form", form);
+  }, [cats]);
 
   const nameDict = useDictation((t) => {
     if (productFormVoice(t, cats)) onVoice(t);
