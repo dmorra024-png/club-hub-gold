@@ -26,6 +26,8 @@ const productLabels = { name: "Producto", category: "Categoría" };
 function SnoopAiDemo() {
   const { user, access } = useAuth();
   const getStatus = useServerFn(demoStatus);
+  const getStatusRef = useRef(getStatus);
+  getStatusRef.current = getStatus;
   const interpret = useServerFn(interpretSnoopDemo);
   const transcribe = useServerFn(transcribeSnoopDemo);
   const [available, setAvailable] = useState(false);
@@ -48,13 +50,13 @@ function SnoopAiDemo() {
     let active = true;
     setLoading(true);
     setAvailable(false);
-    void getStatus().then((v) => {
+    void getStatusRef.current().then((v) => {
       if (active) setAvailable(v.available === true);
     }).catch(() => {
       if (active) setAvailable(false);
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [getStatus, identity]);
+  }, [identity]);
 
   const reset = useCallback(() => {
     epoch.current++;
