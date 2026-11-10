@@ -1,3 +1,4 @@
+import { SnoopSketch, sketchSupports } from "./snoop-orchestrator.ts";
 import { safeVoiceCommand, safeCommands, validatedCommandProposal } from "./voice-command-ai.ts";
 import { workersAiBinding, FREE_TEXT_MODEL } from "./workers-ai.server.ts";
 export const SNOOP_GLM_MODEL = "@cf/zai-org/glm-4.7-flash";
@@ -16,8 +17,21 @@ export async function proposeVoiceCommand(
   scope = "isolated-test",
 ): Promise<string | null> {
   const safe = safeVoiceCommand(input);
+  return safe ? runSnoopInterpretation(safe, scope) : null;
+}
+export async function proposeSnoopSketch(input: unknown, scope: string) {
+  const parsed = SnoopSketch.safeParse(input);
   if (
-    !safe ||
+    !parsed.success ||
+    !parsed.data.symbols.length ||
+    parsed.data.symbols.some((s) => ["commit", "negate", "stop"].includes(s))
+  )
+    return null;
+  const result = await runSnoopInterpretation(JSON.stringify(parsed.data), scope);
+  return result && sketchSupports(result, parsed.data) ? result : null;
+}
+async function runSnoopInterpretation(safe: string, scope: string): Promise<string | null> {
+  if (
     process.env.AI_VOICE_INTENTS_ENABLED !== "true" ||
     process.env.AI_PROVIDER !== "cloudflare" ||
     process.env.SNOOP_AI_FREE_TIER_CONFIRMED !== "true"
@@ -42,7 +56,7 @@ export async function proposeVoiceCommand(
         messages: [
           {
             role: "system",
-            content: `Classify navigation only. Return JSON {"command":one of ${JSON.stringify(safeCommands)}} or {"command":null} when uncertain. No tools, field values, names, explanations or actions.`,
+            content: `Classify reversible navigation only. Input may be a closed semantic sketch: symbols are concepts, screen is current view, references are anonymous local values you must never resolve. Reject commit, negate, stop or conflicting domains. Return JSON {"command":one of ${JSON.stringify(safeCommands)}} or {"command":null} when uncertain. No tools, field values, names, explanations or actions.`,
           },
           { role: "user", content: safe },
         ],

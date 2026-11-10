@@ -1,3 +1,4 @@
+import { SnoopSketch } from "./snoop-orchestrator";
 import { createServerFn } from "@tanstack/react-start";
 import {
   requireSupabaseClubAuth,
@@ -528,15 +529,23 @@ export const suggestVoiceNavigation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseClubAuth])
   .inputValidator((data: unknown) =>
     z
-      .object({ text: z.string().max(180), consent: z.literal(true) })
+      .object({
+        text: z.string().max(180).optional(),
+        sketch: SnoopSketch.optional(),
+        consent: z.literal(true),
+      })
       .strict()
+      .refine((value) => !!value.text !== !!value.sketch, "One interpretation input is required")
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { proposeVoiceCommand, snoopAiFailure } = await import("./voice-command-ai.server");
+    const { proposeVoiceCommand, proposeSnoopSketch, snoopAiFailure } =
+      await import("./voice-command-ai.server");
     try {
       return {
-        command: await proposeVoiceCommand(data.text, `${context.clubId}:${context.userId}`),
+        command: data.sketch
+          ? await proposeSnoopSketch(data.sketch, `${context.clubId}:${context.userId}`)
+          : await proposeVoiceCommand(data.text!, `${context.clubId}:${context.userId}`),
         error: null,
       };
     } catch (error) {
