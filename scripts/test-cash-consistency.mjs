@@ -183,14 +183,13 @@ for (const [device, engine, profile, standalone] of [
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       const money = async (locator, cents) => {
-        await locator
-          .filter({
-            hasText: (cents / 100).toLocaleString("es-ES", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }),
-          })
-          .waitFor();
+        const amount = (cents / 100).toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        const escaped = amount.replaceAll(".", "\\.");
+        await locator.filter({ hasText: new RegExp(`^\\s*${escaped}\\s*€\\s*$`) }).waitFor();
+        assert.equal((await locator.innerText()).replace(/\s/g, ""), `${amount}€`);
       };
       const home = () => page.locator(".premium-cash-amount");
       await page.goto(base + "/", { waitUntil: "networkidle" });
@@ -248,7 +247,7 @@ for (const [device, engine, profile, standalone] of [
       await page.getByRole("button", { name: "Reintentar", exact: true }).click();
       await money(page.getByLabel("Total del día", { exact: true }), admin ? 7300 : 3500);
       await page.getByRole("tab", { name: "Mi caja", exact: true }).click();
-      await page.getByText("Caja abierta", { exact: false }).waitFor();
+      await page.getByText(/^Caja abierta · /).waitFor();
       // Clock crosses Madrid midnight while the same open session remains active.
       now = Date.parse("2026-11-10T23:10:00Z");
       await page.evaluate((now) => {
