@@ -3,7 +3,7 @@ name: Account security
 on:
   pull_request:
   push:
-    branches: [codex/stabilize-independent-club]
+    branches: [codex/stabilize-independent-club, fix/snoop-ai-deploy-guard-test]
 
 permissions:
   contents: read
