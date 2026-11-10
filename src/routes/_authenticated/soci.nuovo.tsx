@@ -1,3 +1,9 @@
+import {
+  memberConversation,
+  memberAwaiting,
+  memberQuestion,
+  type ConversationState,
+} from "@/lib/voice-conversation";
 import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -103,6 +109,7 @@ function NewSocio() {
   const formRef = useRef(form);
   formRef.current = form;
   const voiceInitial = useRef(form);
+  const conversation = useRef<ConversationState | null>(null);
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
 
@@ -145,6 +152,48 @@ function NewSocio() {
     }
     const onDraft = () => applyPendingDraft(plansRef.current);
     window.addEventListener("snoop:member-draft", onDraft);
+    const resetConversation = () => {
+      conversation.current = null;
+    };
+    const onConversation = (event: Event) => {
+      const { text, language, respond } = (event as CustomEvent).detail;
+      const current = formRef.current;
+      const it = language === "it-IT";
+      const state = conversation.current ?? memberAwaiting(current);
+      if (text === null) {
+        conversation.current = state;
+        respond({ handled: true, message: memberQuestion(current, it) });
+        return;
+      }
+      const reply = memberConversation(
+        state,
+        text,
+        current,
+        plansRef.current.map((p) => p.name),
+        it,
+      );
+      if (!reply.handled) {
+        respond(reply);
+        return;
+      }
+      const { plan_name, ...patch } = reply.patch;
+      const matchedPlan = plansRef.current.find((p) => p.name === plan_name);
+      const changes = { ...patch, ...(matchedPlan ? { plan_id: matchedPlan.id } : {}) };
+      setForm((previous) => {
+        const next = { ...previous };
+        for (const [key, value] of Object.entries(changes)) {
+          const k = key as keyof typeof changes;
+          if (previous[k] === current[k]) (next as Record<string, unknown>)[key] = value;
+        }
+        return next;
+      });
+      conversation.current = reply.state;
+      setVoiceSummary(reply.summary ? reply.summary + " · " + reply.message : "");
+      respond(reply);
+    };
+    window.addEventListener("snoop:member-conversation", onConversation);
+    window.addEventListener("snoop:conversation-reset", resetConversation);
+
     const rememberInitial = () => {
       voiceInitial.current = { ...formRef.current };
     };
@@ -174,6 +223,9 @@ function NewSocio() {
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
+      window.removeEventListener("snoop:member-conversation", onConversation);
+      window.removeEventListener("snoop:conversation-reset", resetConversation);
+      conversation.current = null;
       voiceMounted.current = false;
       window.removeEventListener("snoop:microphone-owner", rememberInitial);
     };
@@ -506,47 +558,6 @@ function NewSocio() {
         busy={saving}
         onConfirm={() => submit(selectedPlan?.price_cents ?? 0)}
       />
-      {/* Voice dictation bar */}
-      <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4 flex items-center gap-4">
-        <button
-          type="button"
-          onClick={toggleMic}
-          disabled={recStatus === "processing" || !liveAuth.can("manage_members")}
-          className={`h-14 w-14 shrink-0 rounded-full flex items-center justify-center transition
-            ${
-              recStatus === "recording"
-                ? "bg-destructive text-destructive-foreground animate-pulse"
-                : "bg-gradient-neon text-primary-foreground glow-neon"
-            } disabled:opacity-60`}
-          aria-label="Dictar datos"
-        >
-          {recStatus === "processing" ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : recStatus === "recording" ? (
-            <Square className="w-5 h-5" />
-          ) : (
-            <Mic className="w-6 h-6" />
-          )}
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
-            Dictado por voz
-          </div>
-          {recStatus === "recording" && (
-            <p className="text-sm text-destructive animate-pulse">● Escuchando… pulsa para parar</p>
-          )}
-          {recStatus === "processing" && <p className="text-sm text-neon-dim">Procesando…</p>}
-          {recStatus === "idle" && !lastHeard && (
-            <p className="text-sm text-muted-foreground">
-              Pulsa y di: "Nombre, apellido, fecha de nacimiento, DNI, ciudad, teléfono y plan".
-            </p>
-          )}
-          {recStatus === "idle" && lastHeard && (
-            <p className="text-sm text-muted-foreground italic truncate">"{lastHeard}"</p>
-          )}
-        </div>
-      </div>
-
       {(voiceSummary || voice.error) && (
         <section
           className="max-w-3xl mb-6 rounded-lg border border-neon/30 p-3"

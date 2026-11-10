@@ -7,6 +7,7 @@ export type VoiceTiming = {
   encodingMs: number;
   transcriptionMs: number;
   interpretationMs: number;
+  aiMs?: number;
   totalMs: number;
   executionMs: number;
 };
@@ -28,9 +29,9 @@ type Options = {
   onTranscript: (
     text: string,
   ) =>
-    | Promise<void | { interpretationMs: number; executionMs: number }>
+    | Promise<void | { interpretationMs: number; executionMs: number; aiMs?: number }>
     | void
-    | { interpretationMs: number; executionMs: number };
+    | { interpretationMs: number; executionMs: number; aiMs?: number };
 };
 type Capture = {
   recorder?: MediaRecorder;
@@ -285,6 +286,7 @@ export function useWhisperDictation(options: Options) {
               encodingMs: encodedAt - stoppedAt,
               transcriptionMs: transcribedAt - encodedAt,
               interpretationMs: outcome?.interpretationMs ?? finishedAt - transcribedAt,
+              aiMs: outcome?.aiMs ?? 0,
               executionMs: outcome?.executionMs ?? 0,
               totalMs: finishedAt - started,
             });

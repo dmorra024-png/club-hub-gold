@@ -522,3 +522,24 @@ export const getAdministrativeAiStatus = createServerFn({ method: "GET" })
     const { administrativeAiStatus } = await import("./administrative-ai.server");
     return administrativeAiStatus();
   });
+
+// Only a closed non-personal vocabulary is accepted by the server. No history or field values.
+export const suggestVoiceNavigation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseClubAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({ text: z.string().max(180), consent: z.literal(true) })
+      .strict()
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { proposeVoiceCommand, snoopAiFailure } = await import("./voice-command-ai.server");
+    try {
+      return {
+        command: await proposeVoiceCommand(data.text, `${context.clubId}:${context.userId}`),
+        error: null,
+      };
+    } catch (error) {
+      return { command: null, error: snoopAiFailure(error) };
+    }
+  });

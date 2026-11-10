@@ -1,3 +1,4 @@
+import { safeVoiceCommand, proposalMatchesInput } from "@/lib/voice-command-ai";
 import { resolveVoiceUtterance } from "@/lib/voice-intents";
 import { premiumVoiceIntent } from "@/lib/premium-voice";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -7,7 +8,11 @@ import { Mic, X, Loader2, Square, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { informationalVoiceCommand } from "@/lib/informational-voice";
 import { parseAdministrativeDictation } from "@/lib/member-administration";
-import { transcribeAudio, getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
+import {
+  transcribeAudio,
+  getAdministrativeAiStatus,
+  suggestVoiceNavigation,
+} from "@/lib/voice-agent.functions";
 
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import {
@@ -120,18 +125,27 @@ export function VoiceAgent({
     [speaking, setSpeaking] = useState(false),
     [clarification, setClarification] = useState(""),
     [fault, setFault] = useState("");
+  const sessionEpoch = useRef(0);
   const activeRef = useRef(false),
     cancelRef = useRef<() => void>(() => {}),
     recordingPath = useRef(""),
     executing = useRef(false);
   const stopSession = useCallback(() => {
     activeRef.current = false;
+    sessionEpoch.current++;
+    window.dispatchEvent(new Event("snoop:conversation-reset"));
     setSessionActive(false);
     setSpeaking(false);
     setFeedback("");
     setFault("");
+    setTranscript("");
+    setManual("");
+    setClarification("");
+    setTimings([]);
     cancelRef.current();
   }, []);
+  const aiBudget = useRef({ count: 0, blocked: false });
+  const [commandAiConsent, setCommandAiConsent] = useState(false);
   const [timings, setTimings] = useState<import("@/hooks/useWhisperDictation").VoiceTiming[]>([]);
   useEffect(() => {
     let allowed = false;
@@ -143,6 +157,7 @@ export function VoiceAgent({
   }, [consentKey]);
   const aiStatus = useServerFn(getAdministrativeAiStatus),
     transcribe = useServerFn(transcribeAudio);
+  const proposeNavigation = useServerFn(suggestVoiceNavigation);
   const processingRef = useRef(false);
   const voiceDestination = useRef<string | null>(null);
   const routerNavigate = useNavigate();
@@ -174,8 +189,16 @@ export function VoiceAgent({
     }
   }, []);
   useEffect(() => {
+    stopSession();
     setFeedback("");
-  }, [scope]);
+    setCommandAiConsent(false);
+    aiBudget.current = { count: 0, blocked: false };
+    setTranscript("");
+    setManual("");
+    setClarification("");
+    setTimings([]);
+    window.dispatchEvent(new Event("snoop:conversation-reset"));
+  }, [scope, stopSession]);
   // --- Process a final transcript ---
   const handleTranscript = useCallback(
     async (raw: string) => {
@@ -528,18 +551,109 @@ export function VoiceAgent({
         return;
       }
       const interpretationStart = performance.now();
-      const intent = resolveVoiceUtterance(text, locRef.current.pathname);
-      const interpretationMs = performance.now() - interpretationStart;
-      setTranscript(text);
+      let intent = resolveVoiceUtterance(text, locRef.current.pathname);
+      let aiMs = 0;
       if (intent.kind === "stop") {
         stopSession();
         setFeedback("Escucha terminada.");
         return;
       }
+      const commandText = intent.kind === "command" ? intent.text : "";
+      const routeCommand =
+        intent.kind === "command" &&
+        (premiumVoiceIntent(commandText, locRef.current.pathname) ||
+          (!Object.keys(parseAdministrativeDictation(commandText)).length &&
+            NAV_INTENTS.some((n) => n.rx.test(commandText))));
+      if (
+        !routeCommand &&
+        locRef.current.pathname === "/soci/nuovo" &&
+        voiceIntentAllowed(accessRef.current.access, "/soci/nuovo")
+      ) {
+        let reply: { handled: boolean; message: string } | undefined;
+        window.dispatchEvent(
+          new CustomEvent("snoop:member-conversation", {
+            detail: {
+              text,
+              language,
+              respond: (result: typeof reply) => {
+                reply = result;
+              },
+            },
+          }),
+        );
+        if (reply?.handled) {
+          setClarification(reply.message);
+          const interpretationMs = performance.now() - interpretationStart;
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          );
+          return {
+            interpretationMs,
+            executionMs: performance.now() - interpretationStart - interpretationMs,
+          };
+        }
+      }
+      let interpretationMs = performance.now() - interpretationStart;
+      setTranscript(text);
       if (intent.kind === "uncertain") {
         setClarification(intent.message);
-        return;
+        const safe = safeVoiceCommand(text);
+        if (safe && commandAiConsent && !aiBudget.current.blocked && aiBudget.current.count < 10) {
+          aiBudget.current.count++;
+          const epoch = sessionEpoch.current;
+          const path = locRef.current.pathname;
+          const revision = fieldEdits.current;
+          const identity = JSON.stringify(accessRef.current);
+          const aiStart = performance.now();
+          try {
+            const proposal = await proposeNavigation({ data: { text: safe, consent: true } });
+            aiMs = performance.now() - aiStart;
+            if (proposal.error) {
+              aiBudget.current.blocked = true;
+              if (activeRef.current && sessionEpoch.current === epoch)
+                setClarification(
+                  proposal.error === "quota"
+                    ? "Cuota IA agotada. Usa el formulario o comandos locales."
+                    : "SNOOP temporalmente limitado. Usa el formulario o comandos locales.",
+                );
+              return {
+                interpretationMs: performance.now() - interpretationStart,
+                executionMs: 0,
+                aiMs,
+              };
+            }
+            if (
+              activeRef.current &&
+              sessionEpoch.current === epoch &&
+              locRef.current.pathname === path &&
+              fieldEdits.current === revision &&
+              JSON.stringify(accessRef.current) === identity &&
+              proposal.command &&
+              proposalMatchesInput(proposal.command, safe)
+            ) {
+              const target =
+                premiumVoiceIntent(proposal.command, path)?.to ??
+                NAV_INTENTS.find((n) => n.rx.test(proposal.command!))?.to;
+              if (target && voiceIntentAllowed(accessRef.current.access, target)) {
+                intent = { kind: "command", text: proposal.command };
+                setClarification("");
+              }
+            }
+          } catch {
+            aiMs = performance.now() - aiStart;
+            aiBudget.current.blocked = true;
+            if (activeRef.current && sessionEpoch.current === epoch)
+              setClarification("SNOOP no disponible. Usa un comando local o el formulario.");
+          }
+        }
+        if (intent.kind === "uncertain")
+          return {
+            interpretationMs: performance.now() - interpretationStart,
+            executionMs: 0,
+            aiMs,
+          };
       }
+      interpretationMs = performance.now() - interpretationStart;
       setManual(intent.text);
       executing.current = true;
       setStage("Ejecutando");
@@ -572,9 +686,29 @@ export function VoiceAgent({
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       );
+      if (/^Crear socio\b/i.test(intent.text)) {
+        let ready = false;
+        const until = performance.now() + 1000;
+        while (!ready && locRef.current.pathname === "/soci/nuovo" && performance.now() < until) {
+          window.dispatchEvent(
+            new CustomEvent("snoop:member-conversation", {
+              detail: {
+                text: null,
+                language,
+                respond: (reply: { message: string }) => {
+                  ready = true;
+                  setClarification(reply.message);
+                },
+              },
+            }),
+          );
+          if (!ready) await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      }
       return {
         interpretationMs,
         executionMs: performance.now() - interpretationStart - interpretationMs,
+        aiMs,
       };
     },
   });
@@ -602,6 +736,8 @@ export function VoiceAgent({
     return () => clearTimeout(timer);
   }, [dictation.phase, sessionActive, dictation.error, dictation.start, continuous]);
   useEffect(() => {
+    sessionEpoch.current++;
+    setClarification("");
     if (voiceDestination.current === location.pathname) {
       voiceDestination.current = null;
       return;
@@ -731,13 +867,16 @@ export function VoiceAgent({
           className={`snoop-listening ${speaking ? "is-speaking" : ""}`}
           aria-label="Sesión de voz"
           data-phase={dictation.phase}
+          data-active={sessionActive}
         >
           <span className="snoop-listening-dot" aria-hidden="true" />
           <span role="status">
             {consentPrompt
               ? "Permite transcribir con Cloudflare Whisper. El audio no se guarda."
               : sessionActive
-                ? clarification || status
+                ? dictation.phase === "processing" || dictation.phase === "starting"
+                  ? status
+                  : clarification || status
                 : fault
                   ? shortError
                   : feedback || dictation.error}
@@ -784,15 +923,15 @@ export function VoiceAgent({
         <section
           role="dialog"
           aria-modal="false"
-          aria-label="Voice 2.0"
+          aria-label="SNOOP"
           className="premium-voice-panel"
           data-phase={dictation.phase}
         >
           <header>
-            <strong>Voice 2.0</strong>
+            <strong>SNOOP</strong>
             <button
               type="button"
-              aria-label="Cerrar Voice 2.0"
+              aria-label="Cerrar SNOOP"
               onClick={() => {
                 closeWhenIdle.current = false;
                 stopSession();
@@ -806,6 +945,15 @@ export function VoiceAgent({
           <p className="text-xs text-muted-foreground">
             Comandos administrativos · Revisa y confirma siempre en el formulario.
           </p>
+          <label className="text-xs flex gap-2">
+            <input
+              type="checkbox"
+              checked={commandAiConsent}
+              onChange={(e) => setCommandAiConsent(e.target.checked)}
+            />
+            Permitir sugerencias IA de navegación sin datos personales (requiere configuración
+            autorizada).
+          </label>
           <label className="text-xs">
             Idioma de voz / Lingua voce
             <select
@@ -868,7 +1016,7 @@ export function VoiceAgent({
           <button
             type="button"
             className={`premium-record ${enabled ? "is-listening" : ""}`}
-            aria-label={enabled ? "Apagar Snoop" : "Encender Snoop"}
+            aria-label={enabled ? "Apagar SNOOP" : "Encender SNOOP"}
             disabled={busy || !consent}
             onClick={
               enabled

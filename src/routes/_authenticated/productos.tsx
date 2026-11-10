@@ -991,18 +991,6 @@ function Stock({
             <X className="w-4 h-4" />
           </button>
         )}
-        <button
-          disabled={dict.busy}
-          onClick={dict.listening ? dict.stop : dict.start}
-          className={`p-1.5 rounded ${dict.listening ? "text-neon glow-neon" : "text-muted-foreground hover:text-neon"}`}
-          title="Dictar búsqueda"
-        >
-          {dict.listening ? (
-            <Square className="w-4 h-4 fill-current" />
-          ) : (
-            <Mic className="w-4 h-4" />
-          )}
-        </button>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -1635,19 +1623,6 @@ function NuevoProducto({
             placeholder="ej. Amnesia Haze"
             className="flex-1 bg-input border border-border rounded-lg px-3 py-2.5 text-sm focus:border-neon outline-none"
           />
-          <button
-            type="button"
-            disabled={nameDict.busy}
-            onClick={nameDict.listening ? nameDict.stop : nameDict.start}
-            className={`px-3 rounded-lg border ${nameDict.listening ? "border-neon text-neon glow-neon" : "border-border text-muted-foreground"}`}
-            title="Dictar nombre"
-          >
-            {nameDict.listening ? (
-              <Square className="w-4 h-4 fill-current" />
-            ) : (
-              <Mic className="w-4 h-4" />
-            )}
-          </button>
         </div>
       </Field>
 

@@ -144,17 +144,23 @@ try {
       ({ auth, language, key }) => {
         localStorage.setItem(key, JSON.stringify(auth));
         localStorage.setItem("snoop:voice-language", language + "-" + language.toUpperCase());
+        localStorage.setItem(
+          `snoop:voice-consent:v2:${auth.user.id}:10000000-0000-4000-8000-000000000001:mode`,
+          "single",
+        );
       },
       { auth, language, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
     );
     const page = await context.newPage();
     page.on("dialog", (d) => d.accept());
     await page.goto(base + "/soci/nuovo", { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Dictar datos", exact: true }).click();
-    await page.getByText("● Escuchando… pulsa para parar", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+    await page.getByRole("button", { name: "Permitir y escuchar", exact: true }).click();
+    await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
     // Record a real MediaRecorder chunk from Chromium's synthetic microphone.
     await page.waitForTimeout(1800);
-    await page.getByRole("button", { name: "Dictar datos", exact: true }).click();
+    if (await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).isVisible())
+      await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).click();
     await page.waitForFunction(() =>
       Array.from(document.querySelectorAll("input")).some((input) => input.value === "Persona"),
     );
