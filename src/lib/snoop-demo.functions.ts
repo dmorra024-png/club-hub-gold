@@ -4,7 +4,6 @@ import { requireSupabaseClubAuth } from "@/integrations/supabase/auth-middleware
 import { z } from "zod";
 import { ConversationRequest } from "./snoop-conversation";
 import { parseAccountAccess } from "./access-context";
-import { interpretConversation, conversationAvailability } from "./snoop-conversation.server";
 
 const DemoTurn = ConversationRequest.refine((v) => v.mode === "demo" && v.synthetic === true, {
   message: "SNOOP_DEMO_SYNTHETIC_ONLY",
@@ -21,6 +20,7 @@ async function demoAccess(context: any) {
   const { data, error } = await context.supabase.rpc("snoop_access_context");
   if (error) throw new Error("SNOOP_DEMO_ACCESS_DENIED");
   const access = parseAccountAccess(data);
+  const { conversationAvailability } = await import("./snoop-conversation.server");
   if (access.clubId !== context.clubId || !conversationAvailability(access).demo)
     throw new Error("SNOOP_DEMO_NOT_AVAILABLE");
   return access;
@@ -29,7 +29,8 @@ export const demoStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseClubAuth])
   .handler(async ({ context }) => {
     setResponseHeader("Cache-Control", "no-store, private");
-    return { available: conversationAvailability(await demoAccess(context)).demo };
+    await demoAccess(context);
+    return { available: true };
   });
 
 export const interpretSnoopDemo = createServerFn({ method: "POST" })
@@ -42,6 +43,7 @@ export const interpretSnoopDemo = createServerFn({ method: "POST" })
       throw new Error("SNOOP_DEMO_NOT_AUTHORIZED");
     // In DEMO there are no catalog, member or cash reads and no write tools.
     // All form drafts are temporary, held only in the calling React component.
+    const { interpretConversation } = await import("./snoop-conversation.server");
     return interpretConversation(data, { userId: context.userId, access });
   });
 
