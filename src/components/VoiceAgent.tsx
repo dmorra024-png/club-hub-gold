@@ -641,7 +641,7 @@ export function VoiceAgent({
             consent: true,
             synthetic: conversationMode === "pilot",
             text,
-            screen: screenTarget(path),
+            screen: product ? "product_create" : screenTarget(path),
             context,
           },
         });

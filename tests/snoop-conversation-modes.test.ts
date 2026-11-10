@@ -236,3 +236,43 @@ test("quota and invalid structured responses fail closed, without retries or alt
     restore();
   }
 });
+test("offscreen personal values never reach GLM; resumption uses field identifiers only", async () => {
+  const restore = env(flags),
+    root = globalThis as typeof globalThis & { __env__?: any },
+    previous = root.__env__;
+  let screen = "home";
+  root.__env__ = {
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SNOOP_AI: {
+      run: async (_: string, payload: any) => {
+        const body = JSON.parse(payload.messages[1].content);
+        assert.deepEqual(body.context.availableDrafts.member, ["first_name", "birth_date"]);
+        if (screen === "home") {
+          assert.deepEqual(body.context.member, {});
+          assert.doesNotMatch(JSON.stringify(payload), /SyntheticPrivateName|1995-03-12/);
+        } else assert.equal(body.context.member.first_name, "SyntheticPrivateName");
+        return { response: JSON.stringify(dialogueCases[0].proposal) };
+      },
+    },
+  };
+  try {
+    for (screen of ["home", "member_create"])
+      await interpretConversation(
+        {
+          mode: "pilot",
+          consent: true,
+          synthetic: true,
+          text: "Continua",
+          screen,
+          context: {
+            ...emptyConversation(),
+            member: { first_name: "SyntheticPrivateName", birth_date: "1995-03-12" },
+          },
+        },
+        { userId: "minimization-synthetic", access },
+      );
+  } finally {
+    root.__env__ = previous;
+    restore();
+  }
+});
