@@ -214,7 +214,7 @@ for (const [name, engine, device] of [
           if (data.consent === true && data.sketch) {
             assert.deepEqual(Object.keys(data).sort(), ["consent", "sketch"]);
             assert.deepEqual(data.sketch, {
-              symbols: ["request", "open", "create", "member"],
+              symbols: ["request", "member", "create"],
               screen: "home",
               references: [],
             });
@@ -480,6 +480,8 @@ for (const [name, engine, device] of [
           ["Nombre Mario", "Nombre *", "Mario"],
           ["Apellido Rossi", "Apellidos *", "Rossi"],
           ["Ciudad Palma", "Ciudad", "Palma"],
+          ["Apellidos Pérez", "Apellidos *", "Pérez"],
+          ["Nombre Ana", "Nombre *", "Ana"],
           ["Nombre Marco", "Nombre *", "Marco"],
         ]) {
           await phrase(utterance);
@@ -630,7 +632,7 @@ for (const [name, engine, device] of [
         assert.equal(aiProposalCalls, 0);
         await page.getByRole("button", { name: "SNOOP", exact: true }).click();
         await listening();
-        const fuzzy = "Quisiera ir a la pantalla para dar de alta un miembro";
+        const fuzzy = "Snoop fammi uno socio nuovo";
         await phrase(fuzzy);
         await page.waitForURL(base + "/soci/nuovo");
         assert.equal(
