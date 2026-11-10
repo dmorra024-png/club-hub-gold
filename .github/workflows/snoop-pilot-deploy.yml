@@ -151,7 +151,7 @@ jobs:
               // uploading only three non-secret activation values. No secret writes.
               config.vars = glmActivation;
               stage = 'config-allowlist';
-              const allowedConfigKeys = ['compatibility_date','$schema','name','main','compatibility_flags','workers_dev','preview_urls','assets','ai','no_bundle','rules','triggers'];
+              const allowedConfigKeys = ['compatibility_date','$schema','name','main','compatibility_flags','workers_dev','preview_urls','assets','ai','no_bundle','rules','triggers','vars'];
               assert.ok(Object.keys(config).every(key=>allowedConfigKeys.includes(key)));
               stage = 'scheduled-triggers';
               assert.deepEqual(config.triggers, {crons:['*/5 * * * *']});
