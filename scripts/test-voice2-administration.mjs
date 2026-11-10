@@ -525,7 +525,9 @@ for (const [name, engine, device] of [
             assertions.push(row.text);
             break;
           }
+          if (aiProposalCalls === 15) catalogDelay = 1400;
           await phrase(row.text);
+          catalogDelay = 0;
           if (p.target)
             await page.waitForURL(
               base +

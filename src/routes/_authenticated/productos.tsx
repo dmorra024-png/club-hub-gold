@@ -515,7 +515,7 @@ function ProductosPage() {
 
   return (
     <SnoopLayout title="Productos" subtitle="Stock, categorías y altas">
-      <span data-snoop-products-page hidden />
+      <span data-snoop-products-page={loading ? undefined : "ready"} hidden />
       <div className="flex gap-2 overflow-x-auto -mx-1 px-1 mb-4 sm:mb-6 sm:flex-wrap scrollbar-thin">
         {TABS.map((t) => (
           <button

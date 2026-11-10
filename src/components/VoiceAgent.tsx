@@ -689,6 +689,12 @@ export function VoiceAgent({
               if (performance.now() > until) throw new Error("SNOOP_FORM_UNAVAILABLE");
               await new Promise((r) => setTimeout(r, 30));
             }
+            if (
+              generation !== conversationGeneration.current ||
+              revision !== fieldEdits.current ||
+              identity !== JSON.stringify(accessRef.current)
+            )
+              return;
             window.dispatchEvent(
               new CustomEvent("snoop:ai-products", {
                 detail: { target: proposal.target, patch: proposal.product, query: proposal.query },
@@ -736,6 +742,12 @@ export function VoiceAgent({
               if (performance.now() > until) throw new Error("SNOOP_FORM_UNAVAILABLE");
               await new Promise((r) => setTimeout(r, 30));
             }
+            if (
+              generation !== conversationGeneration.current ||
+              revision !== fieldEdits.current ||
+              identity !== JSON.stringify(accessRef.current)
+            )
+              return;
             let applied: any = null;
             window.dispatchEvent(
               new CustomEvent("snoop:ai-form", {
