@@ -208,6 +208,7 @@ for (const [device, engine, profile, standalone] of [
       await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
       await home().filter({ hasText: "No disponible" }).waitFor();
       assert.doesNotMatch(await home().innerText(), /0,00/);
+      await page.getByRole("button", { name: "Reintentar caja", exact: true }).waitFor();
       fault = null;
       records.membership_receipts.push({
         id: "new-fee",
@@ -217,8 +218,20 @@ for (const [device, engine, profile, standalone] of [
         amount_cents: 100,
         payment_method: "cash",
       });
-      await page.getByRole("button", { name: "Reintentar caja", exact: true }).click();
+      // WebKit may focus a standalone window on pointer activation. That focus
+      // already triggers the required retry and can replace the button before
+      // Playwright finishes its click. Require the refreshed amount in either
+      // case; only an action timeout after proven recovery is acceptable.
+      const retryOutcome = page
+        .getByRole("button", { name: "Reintentar caja", exact: true })
+        .click({ timeout: 3000 })
+        .then(
+          () => null,
+          (error) => error,
+        );
       await money(home(), admin ? 7300 : 3500);
+      const retryError = await retryOutcome;
+      if (retryError) assert.equal(retryError.name, "TimeoutError");
       await page.goto(base + "/caja", { waitUntil: "networkidle" });
       await page.getByRole("tab", { name: "Informe de caja", exact: true }).click();
       await money(page.getByLabel("Total del día", { exact: true }), admin ? 7300 : 3500);
