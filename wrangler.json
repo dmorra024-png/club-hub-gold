@@ -26,6 +26,9 @@
     "SNOOP_INVITATION_DELIVERY": "auto",
     "AI_VOICE_PROCESSING_ENABLED": "true",
     "AI_VOICE_ONLY": "true",
-    "AI_CATALOG_PROCESSING_ENABLED": "true"
+    "AI_CATALOG_PROCESSING_ENABLED": "true",
+    "AI_VOICE_INTENTS_ENABLED": "true",
+    "SNOOP_AI_FREE_TIER_CONFIRMED": "true",
+    "SNOOP_AI_ASSISTANT_MODEL": "@cf/zai-org/glm-4.7-flash"
   }
 }
