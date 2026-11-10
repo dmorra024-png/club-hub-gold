@@ -1,3 +1,4 @@
+import { checkOrderKeyboard, installOrderViewport } from "./order-keyboard-checks.mjs";
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -56,10 +57,23 @@ const rows = [
     active: true,
   },
 ];
+const keyboard = process.argv.includes("--keyboard");
+if (keyboard) {
+  cats[1].unit_type = "gr";
+  rows[1].sell_price = 10;
+  rows[1].stock = 20;
+  for (let i = 0; i < 8; i++)
+    rows.push({
+      ...rows[1],
+      id: `paper-${i}`,
+      name: `Muestra administrativa sintética ${i} con nombre largo`,
+    });
+}
 const outcomes = [];
 for (const [label, engine, device] of [
   ["samsung", chromium, { ...devices["Galaxy S9+"], viewport: { width: 360, height: 800 } }],
   ["iphone-webkit", webkit, devices["iPhone 13"]],
+  ...(keyboard ? [["iphone-pwa-webkit", webkit, devices["iPhone 13"]]] : []),
 ]) {
   const browser = await engine.launch({
     headless: true,
@@ -71,22 +85,36 @@ for (const [label, engine, device] of [
       : {}),
   });
   try {
-    for (const scenario of [
-      "loaded",
-      "error",
-      "empty",
-      "inactive",
-      "forbidden",
-      "category-error",
-      "scope-error",
-      "denied",
-    ]) {
+    for (const scenario of keyboard
+      ? ["loaded"]
+      : [
+          "loaded",
+          "error",
+          "empty",
+          "inactive",
+          "forbidden",
+          "category-error",
+          "scope-error",
+          "denied",
+        ]) {
       let mode = scenario,
         writes = 0,
         productReads = 0;
       let release;
       const held = new Promise((resolve) => (release = resolve));
-      const context = await browser.newContext({ ...device, serviceWorkers: "block" });
+      const context = await browser.newContext({
+        ...device,
+        ...(keyboard ? { viewport: { width: 390, height: 844 } } : {}),
+        serviceWorkers: "block",
+      });
+      if (keyboard) await context.addInitScript(installOrderViewport);
+      if (label === "iphone-pwa-webkit")
+        await context.addInitScript(() => {
+          Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+          const native = window.matchMedia.bind(window);
+          window.matchMedia = (q) =>
+            q === "(display-mode: standalone)" ? { ...native(q), matches: true } : native(q);
+        });
       await context.addInitScript(
         ({ auth, key }) => localStorage.setItem(key, JSON.stringify(auth)),
         { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
@@ -190,6 +218,26 @@ for (const [label, engine, device] of [
         release();
         await catalog.getByText("Cuaderno sintético", { exact: true }).waitFor();
         await catalog.getByText("Hoja de prueba", { exact: true }).waitFor();
+        if (keyboard) {
+          if (process.argv.includes("--baseline-pan"))
+            await page.addStyleTag({
+              content: "input { font-size:16px!important; min-width:0!important; }",
+            });
+          await checkOrderKeyboard(page, catalog, label);
+          assert.equal(writes, 0);
+          assert.deepEqual(errors, []);
+          await context.close();
+          outcomes.push({
+            device: label,
+            result: "PASS",
+            physical: false,
+            keyboard: "synthetic VisualViewport; not physical iOS keyboard",
+            standalone: label === "iphone-pwa-webkit",
+            databaseWrites: writes,
+          });
+          console.log("PASS order keyboard", label);
+          continue;
+        }
         const search = catalog.getByPlaceholder("Buscar producto por nombre…");
         await search.fill("sintetico");
         await catalog.getByText("Cuaderno sintético", { exact: true }).waitFor();
@@ -262,4 +310,7 @@ for (const [label, engine, device] of [
     await browser.close();
   }
 }
-await writeFile("docs/CATALOG_READ_BROWSER_RESULTS.json", JSON.stringify({ outcomes }, null, 2));
+await writeFile(
+  keyboard ? "docs/ORDER_KEYBOARD_RESULTS.json" : "docs/CATALOG_READ_BROWSER_RESULTS.json",
+  JSON.stringify({ outcomes }, null, 2),
+);

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { focusedFieldDelta, keyboardGeometry } from "@/lib/mobile-viewport";
+export { keyboardGeometry } from "@/lib/mobile-viewport";
 export function editableElement(element: Element | null): element is HTMLElement {
   return (
     element instanceof HTMLElement &&
@@ -10,114 +12,130 @@ export function editableElement(element: Element | null): element is HTMLElement
         )))
   );
 }
-/** Visual viewport is the visible screen; layout viewport can remain behind the keyboard. */
-export function keyboardGeometry(
-  baseline: number,
-  layout: number,
-  visible: number,
-  offset: number,
-  focused: boolean,
-) {
-  const open = focused && (baseline - visible >= 100 || layout - visible - offset >= 100);
-  return { open, top: offset + 12, bottom: offset + visible - 20 };
-}
-let expandedHeight = 0,
-  lastOrientation = "";
+// Kept across route layouts, separately per physical orientation. Never derive
+// orientation from the keyboard-shortened innerHeight (Safari can retain focus).
+const expandedHeights = new Map<string, number>();
 export function useMobileKeyboard() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    const orientation = () =>
-      String(screen.orientation?.type ?? (innerWidth > innerHeight ? "landscape" : "portrait"));
-    if (lastOrientation !== orientation()) {
-      lastOrientation = orientation();
-      expandedHeight = 0;
-    }
-    expandedHeight = Math.max(expandedHeight, innerHeight, window.visualViewport?.height ?? 0);
+    const orientation = () => {
+      const native = screen.orientation?.type?.split("-")[0];
+      if (native) return native;
+      const angle = (window as Window & { orientation?: number }).orientation;
+      if (typeof angle === "number") return Math.abs(angle) % 180 === 90 ? "landscape" : "portrait";
+      return screen.width > screen.height ? "landscape" : "portrait";
+    };
     let frame = 0,
       settle: ReturnType<typeof setTimeout> | undefined,
-      observed: ResizeObserver | undefined;
-    const update = () => {
+      observed: ResizeObserver | undefined,
+      reveal = false;
+    const update = (ensureVisible = false) => {
+      reveal ||= ensureVisible;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        const shouldReveal = reveal;
+        reveal = false;
         const vv = window.visualViewport,
           active = document.activeElement;
         const height = vv?.height ?? innerHeight,
-          offset = vv?.offsetTop ?? 0;
-        const focused = editableElement(active);
-        const geometry = keyboardGeometry(expandedHeight, innerHeight, height, offset, focused);
-        // Older mobile browsers expose no keyboard geometry: hide the dock while editing.
-        if (!vv && focused && matchMedia("(pointer: coarse)").matches) geometry.open = true;
-        if (!focused || !geometry.open)
-          expandedHeight = Math.max(expandedHeight, height, innerHeight);
-        const voiceBar = document.querySelector(".snoop-listening")?.getBoundingClientRect();
-        if (voiceBar) geometry.top = Math.max(geometry.top, voiceBar.bottom + 12);
+          offset = vv?.offsetTop ?? 0,
+          scale = vv?.scale ?? 1,
+          key = `${orientation()}:${Math.round(innerWidth)}`;
+        const baseline = Math.max(expandedHeights.get(key) ?? 0, innerHeight, height * scale);
+        expandedHeights.set(key, baseline);
+        // An orientation notification can precede the new width. Its old-size
+        // sample must not become the baseline for the final rotated viewport.
+        if (expandedHeights.size > 12) expandedHeights.delete(expandedHeights.keys().next().value!);
+        const focused = editableElement(active),
+          mobile = matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+        const geometry = keyboardGeometry(
+          baseline,
+          innerHeight,
+          height,
+          offset,
+          focused && mobile,
+          scale,
+        );
+        if (!vv && focused && mobile) geometry.open = true;
+        const voice = document.querySelector(".snoop-listening")?.getBoundingClientRect();
+        if (voice) geometry.top = Math.max(geometry.top, voice.bottom + 12);
         setOpen(geometry.open);
-        document.documentElement.style.setProperty("--snoop-visible-height", `${height}px`);
-        document.documentElement.style.setProperty("--snoop-visible-top", `${offset}px`);
-        document.documentElement.style.setProperty(
+        const style = document.documentElement.style;
+        style.setProperty("--snoop-visible-height", `${height}px`);
+        style.setProperty("--snoop-visible-top", `${offset}px`);
+        style.setProperty(
           "--snoop-keyboard-inset",
           `${geometry.open ? Math.max(0, innerHeight - height - offset) : 0}px`,
         );
         document.body.dataset.snoopKeyboard = String(geometry.open);
-        if (!geometry.open || !focused) return;
+        if (!shouldReveal || !geometry.open || !focused) return;
         const rect = active.getBoundingClientRect();
-        if (rect.top >= geometry.top && rect.bottom <= geometry.bottom) return;
-        const delta =
-          rect.height > geometry.bottom - geometry.top
-            ? rect.top - geometry.top
-            : (rect.top + rect.bottom - geometry.top - geometry.bottom) / 2;
+        let remaining = focusedFieldDelta(geometry.top, geometry.bottom, rect.top, rect.bottom);
+        if (Math.abs(remaining) < 1) return;
         let parent = active.parentElement;
         while (parent && parent !== document.body) {
           if (
             /auto|scroll/.test(getComputedStyle(parent).overflowY) &&
             parent.scrollHeight > parent.clientHeight
           ) {
-            parent.scrollTop += delta;
-            return;
+            const before = parent.scrollTop;
+            parent.scrollTop += remaining;
+            remaining -= parent.scrollTop - before;
+            if (Math.abs(remaining) < 1) return;
           }
           parent = parent.parentElement;
         }
-        window.scrollBy({ top: delta, behavior: "instant" });
+        window.scrollBy({ top: remaining, behavior: "instant" });
       });
     };
+    const resize = () => update(true),
+      pan = () => update(false);
     const focus = () => {
       observed?.disconnect();
       const active = document.activeElement;
       if (editableElement(active) && typeof ResizeObserver !== "undefined") {
-        // Portalled dialogs can shrink after the first keyboard measurement.
-        // Recheck the final layout, without replacing the field or its focus.
-        observed ??= new ResizeObserver(update);
+        observed ??= new ResizeObserver(resize);
         observed.observe(active);
         const dialog = active.closest('[role="dialog"], [role="alertdialog"]');
         if (dialog) observed.observe(dialog);
       }
-      update();
+      resize();
       clearTimeout(settle);
-      settle = setTimeout(update, 80);
+      settle = setTimeout(resize, 280);
     };
     const rotate = () => {
-      expandedHeight = Math.max(innerHeight, window.visualViewport?.height ?? 0);
-      lastOrientation = orientation();
-      update();
+      resize();
+      clearTimeout(settle);
+      settle = setTimeout(resize, 280);
     };
-    window.visualViewport?.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("scroll", update);
-    window.addEventListener("resize", update);
+    const resume = () => {
+      if (document.visibilityState === "visible") focus();
+    };
+    window.visualViewport?.addEventListener("resize", resize);
+    // Safari pans on focus and on document scroll. Do not counter-scroll its pan.
+    window.visualViewport?.addEventListener("scroll", pan);
+    window.addEventListener("resize", resize);
     window.addEventListener("orientationchange", rotate);
+    window.addEventListener("pageshow", resume);
+    document.addEventListener("visibilitychange", resume);
     document.addEventListener("focusin", focus);
     document.addEventListener("focusout", focus);
-    update();
+    resize();
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settle);
       observed?.disconnect();
-      window.visualViewport?.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("scroll", pan);
+      window.removeEventListener("resize", resize);
       window.removeEventListener("orientationchange", rotate);
+      window.removeEventListener("pageshow", resume);
+      document.removeEventListener("visibilitychange", resume);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("focusout", focus);
       delete document.body.dataset.snoopKeyboard;
+      for (const key of ["--snoop-visible-height", "--snoop-visible-top", "--snoop-keyboard-inset"])
+        document.documentElement.style.removeProperty(key);
     };
   }, []);
   return open;

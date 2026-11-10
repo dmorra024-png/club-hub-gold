@@ -41,11 +41,13 @@ export function SnoopLayout({
   title,
   subtitle,
   home = false,
+  contentClassName,
 }: {
   children: ReactNode;
   title?: string;
   subtitle?: string;
   home?: boolean;
+  contentClassName?: string;
 }) {
   const voicePhase = useVoicePhase();
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
@@ -174,7 +176,7 @@ export function SnoopLayout({
           </aside>
         </>
       )}
-      <main id="main-content" className="premium-main" tabIndex={-1}>
+      <main id="main-content" className={`premium-main ${contentClassName ?? ""}`} tabIndex={-1}>
         {title && (
           <div className="premium-page-heading">
             <h1>{title}</h1>

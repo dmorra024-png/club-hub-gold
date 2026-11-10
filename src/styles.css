@@ -1235,4 +1235,42 @@ body:has(.snoop-listening) {
 }
 
 /* A foreground conversation replaces the legacy member dictation launcher. */
-body:has(.snoop-listening[data-active="true"]) [data-snoop-contextual-voice] { display: none; }
+body:has(.snoop-listening[data-active="true"]) [data-snoop-contextual-voice] {
+  display: none;
+}
+
+/* Keep the order form in document flow when iOS pans its visual viewport. */
+.snoop-order-page,
+.snoop-order-page .grid > *,
+.snoop-order-product {
+  min-width: 0;
+}
+.snoop-order-amounts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.snoop-order-amounts input {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (pointer: coarse) and (max-width: 1024px) {
+  html:has(.snoop-order-page),
+  body:has(.snoop-order-page) {
+    background-attachment: scroll;
+  }
+  /* Safari zooms focused controls below 16px, changing viewport coordinates. */
+  .snoop-order-page input,
+  .snoop-order-page textarea,
+  .snoop-order-page select {
+    font-size: 16px;
+  }
+  .snoop-order-amounts input,
+  .snoop-order-amounts button {
+    min-height: 38px;
+  }
+  .snoop-order-page button {
+    overflow-wrap: anywhere;
+  }
+}
