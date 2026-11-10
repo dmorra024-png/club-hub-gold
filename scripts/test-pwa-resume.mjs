@@ -153,6 +153,14 @@ for (const [label, engine, device] of engines) {
         ];
       } else if (url.pathname.endsWith("/clubs"))
         data = [{ id: club, name: "Club Sintetico Realista" }];
+      if (url.pathname.endsWith("/orders")) {
+        const at = new Date().toISOString();
+        data = data.map((o) => ({ created_at: at, status: "completed", created_by: uid, ...o }));
+      }
+      if (url.pathname.endsWith("/membership_receipts")) {
+        const at = new Date().toISOString();
+        data = data.map((r) => ({ recorded_at: at, ...r }));
+      }
       if (req.headers().accept?.includes("vnd.pgrst.object+json") && Array.isArray(data))
         data = data[0] ?? null;
       return route.fulfill({

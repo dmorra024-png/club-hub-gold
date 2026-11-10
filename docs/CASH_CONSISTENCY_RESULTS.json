@@ -1,0 +1,76 @@
+{
+  "results": [
+    {
+      "device": "android",
+      "role": "admin",
+      "result": "PASS",
+      "physical": false,
+      "standaloneSimulation": false,
+      "dayTotal": 7200,
+      "updatedTotal": 7300,
+      "nextDay": 500,
+      "transport": "synthetic read-only API; actual shared server reader",
+      "databaseWrites": 0
+    },
+    {
+      "device": "android",
+      "role": "collaborator",
+      "result": "PASS",
+      "physical": false,
+      "standaloneSimulation": false,
+      "dayTotal": 3400,
+      "updatedTotal": 3500,
+      "nextDay": 500,
+      "transport": "synthetic read-only API; actual shared server reader",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "role": "admin",
+      "result": "PASS",
+      "physical": false,
+      "standaloneSimulation": false,
+      "dayTotal": 7200,
+      "updatedTotal": 7300,
+      "nextDay": 500,
+      "transport": "synthetic read-only API; actual shared server reader",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "role": "collaborator",
+      "result": "PASS",
+      "physical": false,
+      "standaloneSimulation": false,
+      "dayTotal": 3400,
+      "updatedTotal": 3500,
+      "nextDay": 500,
+      "transport": "synthetic read-only API; actual shared server reader",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-pwa-webkit",
+      "role": "admin",
+      "result": "PASS",
+      "physical": false,
+      "standaloneSimulation": true,
+      "dayTotal": 7200,
+      "updatedTotal": 7300,
+      "nextDay": 500,
+      "transport": "synthetic read-only API; actual shared server reader",
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-pwa-webkit",
+      "role": "collaborator",
+      "result": "PASS",
+      "physical": false,
+      "standaloneSimulation": true,
+      "dayTotal": 3400,
+      "updatedTotal": 3500,
+      "nextDay": 500,
+      "transport": "synthetic read-only API; actual shared server reader",
+      "databaseWrites": 0
+    }
+  ]
+}

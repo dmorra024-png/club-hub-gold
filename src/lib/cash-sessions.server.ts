@@ -1,3 +1,4 @@
+import { cashInstant, cashRows, cashPages, readCashLedger } from "./cash-ledger.ts";
 import {
   financialReversals,
   financialReversalsInPeriod,
@@ -6,13 +7,8 @@ import {
 } from "./financial-reversals.server.ts";
 import { clubDayRange } from "./cash-summary.ts";
 import { cashMovements } from "./cash-sessions.ts";
-import { uniqueLedgerRows } from "./cash-summary.ts";
 export type CashScope = { userId: string; clubId: string };
-async function rows(query: any) {
-  const { data, error } = await query;
-  if (error) throw new Error("No se pudo cargar la caja");
-  return data ?? [];
-}
+const rows = cashRows;
 export async function openSession(client: any, scope: CashScope, opening: number) {
   const { data, error } = await client
     .from("cash_sessions")
@@ -56,59 +52,37 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
     throw new Error("No se pudieron verificar los permisos de caja");
   const { start, end } = clubDayRange(day);
   const own = (query: any, key: string) => (admin ? query : query.eq(key, scope.userId));
-  async function all(make: () => any) {
-    const result: any[] = [];
-    for (let n = 0; ; n += 1000) {
-      const page = await rows(
-        make()
-          .order("id")
-          .range(n, n + 999),
-      );
-      result.push(...page);
-      if (page.length < 1000) return uniqueLedgerRows(result);
-    }
-  }
-  const sessions = await all(() =>
-    own(
-      client
-        .from("cash_sessions")
-        .select("*")
-        .eq("club_id", scope.clubId)
-        .lt("opened_at", end)
-        .or(`closed_at.is.null,closed_at.gte.${start}`)
-        .order("opened_at", { ascending: false }),
-      "user_id",
-    ),
-  );
+  const all = cashPages;
+  const sessions = (
+    await all(() =>
+      own(
+        client
+          .from("cash_sessions")
+          .select("*")
+          .eq("club_id", scope.clubId)
+          .lt("opened_at", end)
+          .or(`closed_at.is.null,closed_at.gte.${start}`)
+          .order("opened_at", { ascending: false }),
+        "user_id",
+      ),
+    )
+  ).map((s: any) => ({
+    ...s,
+    opened_at: new Date(cashInstant(s.opened_at)).toISOString(),
+    closed_at: s.closed_at ? new Date(cashInstant(s.closed_at)).toISOString() : null,
+  }));
   // Full session intervals are needed for overnight sessions; day totals are filtered separately.
   const earliest = sessions.reduce((a: any, s: any) => (s.opened_at < a ? s.opened_at : a), start);
   const latest = sessions.reduce((a: any, s: any) => {
     const until = s.closed_at ?? now().toISOString();
-    return Date.parse(until) > Date.parse(a) ? until : a;
+    return cashInstant(until) > cashInstant(a) ? until : a;
   }, end);
-  const orders = await all(() =>
-    own(
-      client
-        .from("orders")
-        .select("id,total_cents,created_by,created_at,cash_session_id,status")
-        .eq("club_id", scope.clubId)
-        .gte("created_at", earliest)
-        .lt("created_at", latest)
-        .order("created_at"),
-      "created_by",
-    ),
-  );
-  const fees = await all(() =>
-    own(
-      client
-        .from("membership_receipts")
-        .select("id,amount_cents,recorded_by,recorded_at,payment_method")
-        .eq("club_id", scope.clubId)
-        .gte("recorded_at", earliest)
-        .lt("recorded_at", latest)
-        .order("recorded_at"),
-      "recorded_by",
-    ),
+  const { orders, fees } = await readCashLedger(
+    client,
+    { ...scope, admin },
+    earliest,
+    latest,
+    true,
   );
   const refunds = await financialRefundsInPeriod(
     client,
@@ -168,10 +142,10 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
     })
     .filter(
       (r) =>
-        (Date.parse(r.at) >= Date.parse(start) && Date.parse(r.at) < Date.parse(end)) ||
+        (cashInstant(r.at) >= cashInstant(start) && cashInstant(r.at) < cashInstant(end)) ||
         (r.reversal &&
-          Date.parse(r.reversal.at) >= Date.parse(start) &&
-          Date.parse(r.reversal.at) < Date.parse(end)),
+          cashInstant(r.reversal.at) >= cashInstant(start) &&
+          cashInstant(r.reversal.at) < cashInstant(end)),
     );
   const ids = [
     ...new Set(

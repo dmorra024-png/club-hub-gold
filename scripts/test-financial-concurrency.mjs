@@ -70,6 +70,8 @@ try {
         "-i",
         container,
         "psql",
+        "-h",
+        "127.0.0.1",
         "-X",
         "-A",
         "-t",
@@ -86,7 +88,17 @@ try {
   let ready = false;
   for (let n = 0; n < 60; n++) {
     try {
-      await docker(["exec", container, "pg_isready", "-U", "postgres", "-d", "snoop_fixture"]);
+      await docker([
+        "exec",
+        container,
+        "pg_isready",
+        "-h",
+        "127.0.0.1",
+        "-U",
+        "postgres",
+        "-d",
+        "snoop_fixture",
+      ]);
       ready = true;
       break;
     } catch {
@@ -94,21 +106,10 @@ try {
     }
   }
   assert.ok(ready, "isolated PostgreSQL must become ready");
-  // Docker's PostgreSQL entrypoint briefly starts a temporary server and then
-  // shuts it down before the final server starts. pg_isready can observe that
-  // temporary server, so retry only this specific startup race.
-  let initialized = false;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    try {
-      await psql(separationBootstrapSql + "\n" + (await separationInitializationSql()));
-      initialized = true;
-      break;
-    } catch (error) {
-      if (!/database system is shutting down|connection refused|no such file or directory|the database system is starting up|database .+ does not exist/i.test(String(error))) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-  assert.ok(initialized, "isolated PostgreSQL initialization must complete");
+  // The entrypoint's temporary initialization server only accepts Unix sockets.
+  // Wait for TCP and use the same endpoint so bootstrap cannot hit that server
+  // while it shuts down. Never retry SQL that may have partially applied.
+  await psql(separationBootstrapSql + "\n" + (await separationInitializationSql()));
   await psql(
     await readFile("supabase/migrations/20261106150000_platform_club_separation.sql", "utf8"),
   );

@@ -39,7 +39,16 @@ const receiptTime = (hour) => {
 const ago = (m) => new Date(fixtureNow - m * 60000).toISOString();
 const tables = {
   members: [{ id: "synthetic-member", club_id: club, created_at: ago(12), member_number: "1042" }],
-  orders: [{ id: "synthetic-order", club_id: club, created_at: ago(37), total_cents: 12000 }],
+  orders: [
+    {
+      id: "synthetic-order",
+      club_id: club,
+      created_at: ago(37),
+      status: "completed",
+      created_by: uid,
+      total_cents: 12000,
+    },
+  ],
   membership_receipts: [
     { id: "synthetic-fee-a", club_id: club, recorded_at: receiptTime(8), amount_cents: 1000 },
     { id: "synthetic-fee-b", club_id: club, recorded_at: receiptTime(11), amount_cents: 1500 },

@@ -1,3 +1,4 @@
+import { setResponseHeader } from "@tanstack/react-start/server";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireClubCashAuth } from "@/integrations/supabase/auth-middleware";
@@ -18,13 +19,14 @@ export const getCashReport = createServerFn({ method: "POST" })
       .strict()
       .parse(v),
   )
-  .handler(async ({ context, data }) =>
-    loadCash(
+  .handler(async ({ context, data }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return loadCash(
       context.supabase,
       { userId: context.userId, clubId: context.clubId },
       data.day ?? madridToday(),
-    ),
-  );
+    );
+  });
 export const openCash = createServerFn({ method: "POST" })
   .middleware([requireClubCashAuth])
   .inputValidator((v: unknown) => z.object({ openingCash: cents }).strict().parse(v))

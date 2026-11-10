@@ -14,12 +14,16 @@ export function calendarDate(value: string): string | null {
 }
 
 export function madridToday(now = new Date()): string {
-  return new Intl.DateTimeFormat("sv-SE", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Madrid",
+    calendar: "iso8601",
+    numberingSystem: "latn",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(now);
+  }).formatToParts(now);
+  const value = (type: string) => parts.find((p) => p.type === type)!.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
 export function isAdult(birth: string, today = madridToday()): boolean {
@@ -258,9 +262,14 @@ export function parseAdministrativeDictation(
       // Never place an entire transcription or subsequent field labels in a
       // person's name. An uncertain name must remain empty for manual review.
       const words = text.split(/\s+/).filter(Boolean);
-      const unexpected = /\b(?:fecha|nacimiento|nato|nata|nacido|nacida|ciudad|residente|residencia|telefono|teléfono|email|correo|dni|apellido|apellidos|cognome|nombre|nome|plan|cuota)\b/i;
-      if (words.length <= 4 && text.length <= 80 &&
-          !unexpected.test(text) && /^[\p{L}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,3}$/u.test(text))
+      const unexpected =
+        /\b(?:fecha|nacimiento|nato|nata|nacido|nacida|ciudad|residente|residencia|telefono|teléfono|email|correo|dni|apellido|apellidos|cognome|nombre|nome|plan|cuota)\b/i;
+      if (
+        words.length <= 4 &&
+        text.length <= 80 &&
+        !unexpected.test(text) &&
+        /^[\p{L}][\p{L}'’.-]*(?:\s+[\p{L}][\p{L}'’.-]*){0,3}$/u.test(text)
+      )
         result[key] = text;
     } else result[key] = text;
   }
