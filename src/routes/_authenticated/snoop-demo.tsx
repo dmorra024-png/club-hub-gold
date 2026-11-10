@@ -186,7 +186,7 @@ function SnoopAiDemo() {
           {Object.entries(kind === "member" ? memberLabels : productLabels).map(([field, label]) => (
             <div key={field} className="flex justify-between gap-3 border-b border-white/10 py-2 text-sm">
               <span>{label}</span>
-              <strong className="text-right">{(kind === "member" ? memory.member : memory.product)[field as keyof typeof memory.member] || "—"}</strong>
+              <strong className="text-right">{((kind === "member" ? memory.member : memory.product) as Record<string, string | undefined>)[field] || "—"}</strong>
             </div>
           ))}
         </div>
