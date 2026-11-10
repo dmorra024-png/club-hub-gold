@@ -211,9 +211,13 @@ for (const [name, engine, device] of [
         };
         if (req.method() === "POST") {
           const data = fromJSON(JSON.parse(req.postData())).data;
-          if (data.consent === true && typeof data.text === "string") {
-            assert.deepEqual(Object.keys(data).sort(), ["consent", "text"]);
-            assert.equal(data.text, "quisiera ir a la pantalla para dar de alta un miembro");
+          if (data.consent === true && data.sketch) {
+            assert.deepEqual(Object.keys(data).sort(), ["consent", "sketch"]);
+            assert.deepEqual(data.sketch, {
+              symbols: ["request", "member", "create"],
+              screen: "home",
+              references: [],
+            });
             aiProposalCalls++;
             return route.fulfill({
               contentType: "application/json",
@@ -403,6 +407,7 @@ for (const [name, engine, device] of [
       await page.getByRole("button", { name: "SNOOP", exact: true }).click();
       await page.getByRole("button", { name: "Permitir y escuchar", exact: true }).click();
       const listening = () => page.locator('.snoop-listening[data-phase="recording"]').waitFor();
+      const verifiedTurns = [];
       async function phrase(text) {
         transcript = text;
         await listening();
@@ -430,6 +435,7 @@ for (const [name, engine, device] of [
           throw error;
         }
         await listening();
+        verifiedTurns.push(text);
       }
       await phrase("Crear socio");
       await page.waitForURL(base + "/soci/nuovo");
@@ -451,6 +457,42 @@ for (const [name, engine, device] of [
         await page.getByLabel("Apellidos *", { exact: true }).inputValue(),
         conversational ? "Rossi" : "García",
       );
+      if (conversational) {
+        await phrase("Si chiama Marco, no scusa Mario Rossi");
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Mario");
+        await phrase("Aspetta, cambia il cognome");
+        assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Rossi");
+        await page
+          .locator(".snoop-listening")
+          .filter({ hasText: /apellidos|cognome/ })
+          .waitFor();
+        await phrase("Bianchi");
+        assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Bianchi");
+        await phrase("È nato il dodici marzo del novantacinque a Palma");
+        assert.equal(await page.getByLabel("Fecha de nacimiento *").inputValue(), "");
+        await phrase("1995");
+        assert.equal(await page.getByLabel("Fecha de nacimiento *").inputValue(), "1995-03-12");
+        await phrase("Nombre Marco, apellido Rossi");
+        assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Marco");
+        for (const [utterance, field, expected] of [
+          ["Nombre Carlos, apellido López", "Nombre *", "Carlos"],
+          ["Cambia el apellido a García", "Apellidos *", "García"],
+          ["Nombre Mario", "Nombre *", "Mario"],
+          ["Apellido Rossi", "Apellidos *", "Rossi"],
+          ["Ciudad Palma", "Ciudad", "Palma"],
+          ["Apellidos Pérez", "Apellidos *", "Pérez"],
+          ["Nombre Ana", "Nombre *", "Ana"],
+          ["Nombre Marco", "Nombre *", "Marco"],
+        ]) {
+          await phrase(utterance);
+          assert.equal(
+            await page
+              .getByLabel(field === "Ciudad" ? /^Ciudad/ : field, { exact: true })
+              .inputValue(),
+            expected,
+          );
+        }
+      }
       await phrase(
         conversational ? "12 marzo 1995, vive a Palma" : "Fecha de nacimiento 15 de marzo de 1995",
       );
@@ -595,7 +637,7 @@ for (const [name, engine, device] of [
         assert.equal(aiProposalCalls, 0);
         await page.getByRole("button", { name: "SNOOP", exact: true }).click();
         await listening();
-        const fuzzy = "Quisiera ir a la pantalla para dar de alta un miembro";
+        const fuzzy = "Snoop fammi uno socio nuovo";
         await phrase(fuzzy);
         await page.waitForURL(base + "/soci/nuovo");
         assert.equal(
@@ -674,6 +716,11 @@ for (const [name, engine, device] of [
       );
       assert.equal(audioCalls, beforeRevoked, "permission revocation discards pending audio");
       assert.equal(writes, 0);
+      if (conversational)
+        assert.ok(
+          new Set(verifiedTurns).size >= 30,
+          "at least 30 distinct full browser utterances",
+        );
       assert.deepEqual(errors, []);
       metrics = await page.evaluate(() => window.voiceTimings);
       results.push({
@@ -681,6 +728,7 @@ for (const [name, engine, device] of [
         physical: false,
         result: "PASS",
         transcription: "simulated",
+        verifiedTurns,
         ai: conversational ? "simulated proposals and quota, not live GLM" : "not requested",
         metrics,
         capabilities: await page.evaluate(() => window.voiceCapabilities),

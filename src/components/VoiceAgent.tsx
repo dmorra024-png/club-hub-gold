@@ -1,5 +1,9 @@
-import { safeVoiceCommand, proposalMatchesInput } from "@/lib/voice-command-ai";
-import { resolveVoiceUtterance } from "@/lib/voice-intents";
+import {
+  planSnoopTurn,
+  projectSnoopTurn,
+  sketchSupports,
+  bindSnoopCommand,
+} from "@/lib/snoop-orchestrator";
 import { premiumVoiceIntent } from "@/lib/premium-voice";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -551,7 +555,7 @@ export function VoiceAgent({
         return;
       }
       const interpretationStart = performance.now();
-      let intent = resolveVoiceUtterance(text, locRef.current.pathname);
+      let intent = planSnoopTurn(text, locRef.current.pathname);
       let aiMs = 0;
       if (intent.kind === "stop") {
         stopSession();
@@ -597,7 +601,10 @@ export function VoiceAgent({
       setTranscript(text);
       if (intent.kind === "uncertain") {
         setClarification(intent.message);
-        const safe = safeVoiceCommand(text);
+        const projection = projectSnoopTurn(text, locRef.current.pathname);
+        const safe =
+          projection.sketch.symbols.length > 0 &&
+          !projection.sketch.symbols.some((s) => ["commit", "negate", "stop"].includes(s));
         if (safe && commandAiConsent && !aiBudget.current.blocked && aiBudget.current.count < 10) {
           aiBudget.current.count++;
           const epoch = sessionEpoch.current;
@@ -606,7 +613,9 @@ export function VoiceAgent({
           const identity = JSON.stringify(accessRef.current);
           const aiStart = performance.now();
           try {
-            const proposal = await proposeNavigation({ data: { text: safe, consent: true } });
+            const proposal = await proposeNavigation({
+              data: { sketch: projection.sketch, consent: true },
+            });
             aiMs = performance.now() - aiStart;
             if (proposal.error) {
               aiBudget.current.blocked = true;
@@ -629,13 +638,16 @@ export function VoiceAgent({
               fieldEdits.current === revision &&
               JSON.stringify(accessRef.current) === identity &&
               proposal.command &&
-              proposalMatchesInput(proposal.command, safe)
+              sketchSupports(proposal.command, projection.sketch)
             ) {
               const target =
                 premiumVoiceIntent(proposal.command, path)?.to ??
                 NAV_INTENTS.find((n) => n.rx.test(proposal.command!))?.to;
               if (target && voiceIntentAllowed(accessRef.current.access, target)) {
-                intent = { kind: "command", text: proposal.command };
+                intent = {
+                  kind: "command",
+                  text: bindSnoopCommand(proposal.command, projection.localReference),
+                };
                 setClarification("");
               }
             }

@@ -1,3 +1,4 @@
+import { localMemberSlot, localBirthParts, type SlotMemory } from "./member-conversation-slots.ts";
 import {
   parseAdministrativeDictation,
   spokenAdministrativeDate,
@@ -5,6 +6,7 @@ import {
   type MemberDictation,
 } from "./member-administration.ts";
 export type ConversationState = {
+  slots?: SlotMemory;
   awaiting: "name" | "first" | "last" | "birth" | "phone" | "optional" | "review";
 };
 export type ConversationReply = {
@@ -87,6 +89,37 @@ export function memberConversation(
         ? "Rivedi i dati nel modulo. Per salvare usa il pulsante del modulo."
         : "Revisa los datos del formulario. Para guardar usa su botón.",
     };
+  }
+  const slot = localMemberSlot(text, current, state.slots ?? {}, it);
+  if (slot?.kind === "ask")
+    return {
+      handled: true,
+      patch: {},
+      state: { ...state, awaiting: slot.field, slots: { field: slot.field } },
+      message: slot.message,
+    };
+  if (slot?.kind === "patch") {
+    const next = { ...current, ...slot.patch };
+    return {
+      handled: true,
+      patch: slot.patch,
+      state: memberAwaiting(next),
+      message: memberQuestion(next, it),
+    };
+  }
+  if (slot?.kind === "repair")
+    return memberConversation({ ...state, slots: undefined }, slot.text, current, plans, it);
+  if (state.awaiting === "birth" || /\b(?:nato|nacido|naci[oó])\b/i.test(text)) {
+    const partial = localBirthParts(text);
+    if (partial && partial.year < 100)
+      return {
+        handled: true,
+        patch: {},
+        state: { ...state, slots: { pendingDate: { day: partial.day, month: partial.month } } },
+        message: it
+          ? "Qual è l'anno completo a quattro cifre? Non deduco il secolo."
+          : "¿Cuál es el año completo de cuatro cifras? No deduzco el siglo.",
+      };
   }
   // Route commands are handled by the existing permission-aware controller, never mistaken for names.
   if (
