@@ -77,6 +77,10 @@ export function cashBackend(
       let offset = 0,
         end = Infinity;
       const query = {
+        setHeader(header, value) {
+          calls.push({ table, header, value });
+          return query;
+        },
         select() {
           return query;
         },

@@ -27,6 +27,9 @@ test("same reader/calculator produces identical Home and report totals without b
       4500,
       "open session keeps its full interval, daily totals exclude yesterday",
     );
+    const cacheHeaders = client.calls.filter((c) => c.header === "Cache-Control");
+    assert.ok(cacheHeaders.length >= 4);
+    assert.ok(cacheHeaders.every((c) => c.value === "no-cache, no-store"));
     assert.equal(client.writes, 0);
     assert.deepEqual(records, before);
   }

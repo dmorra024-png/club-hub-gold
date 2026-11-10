@@ -47,7 +47,8 @@ export async function cashPages(make: () => any) {
       .order("id")
       .range(n, n + 999);
     // PostgREST exposes setHeader; isolated SQL adapters do not use an HTTP cache.
-    if (typeof query.setHeader === "function") query.setHeader("Cache-Control", "no-store");
+    if (typeof query.setHeader === "function")
+      query.setHeader("Cache-Control", "no-cache, no-store");
     const page = await cashRows(query);
     result.push(...page);
     if (page.length < 1000) return uniqueLedgerRows(result);
