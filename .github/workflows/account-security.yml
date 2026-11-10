@@ -75,6 +75,7 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:pwa:resume
           TEST_BASE_URL=http://127.0.0.1:3001 TEST_WEBKIT=true npm run test:premium:home
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:cash:browser
+          TEST_BASE_URL=http://127.0.0.1:3001 npm run test:cash:consistency
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:critical:browser
           npm run test:voice:lifecycle
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:conversation
@@ -101,6 +102,8 @@ jobs:
             docs/screenshots/critical-*.png
             docs/CRITICAL_BROWSER_RESULTS.json
             docs/CAJA_BROWSER_RESULTS.json
+            docs/CASH_CONSISTENCY_RESULTS.json
+            docs/screenshots/cash-consistency-*.png
             docs/screenshots/caja-simple-*.png
           if-no-files-found: ignore
           retention-days: 7

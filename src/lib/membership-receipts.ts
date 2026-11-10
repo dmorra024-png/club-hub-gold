@@ -40,11 +40,27 @@ export function currentReceiptMonth() {
 export function madridMidnight(date: string): string {
   if (!calendarDate(date)) throw new Error("Fecha no válida");
   const utc = new Date(date + "T00:00:00Z");
-  const offset = new Intl.DateTimeFormat("en", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Madrid",
-    timeZoneName: "longOffset",
-  })
-    .formatToParts(utc)
-    .find((p) => p.type === "timeZoneName")!.value;
-  return new Date(date + "T00:00:00" + offset.replace("GMT", "")).toISOString();
+    calendar: "iso8601",
+    numberingSystem: "latn",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(utc);
+  const value = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  const offset =
+    Date.UTC(
+      value("year"),
+      value("month") - 1,
+      value("day"),
+      value("hour"),
+      value("minute"),
+      value("second"),
+    ) - utc.getTime();
+  return new Date(utc.getTime() - offset).toISOString();
 }

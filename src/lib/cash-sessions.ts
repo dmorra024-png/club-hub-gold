@@ -1,3 +1,4 @@
+import { cashInstant, cashRange } from "./cash-ledger.ts";
 import { cashAmounts, uniqueLedgerRows } from "./cash-summary.ts";
 export type CashSession = {
   id: string;
@@ -36,12 +37,12 @@ export function cashMovements(orders: any[], fees: any[], sessions: CashSession[
       payment_method: null,
     })),
     ...uniqueLedgerRows(fees).map((r: any) => {
-      const at = Date.parse(r.recorded_at);
+      const at = cashInstant(r.recorded_at);
       const matches = sessions.filter(
         (s) =>
           s.user_id === r.recorded_by &&
-          Date.parse(s.opened_at) <= at &&
-          (!s.closed_at || at < Date.parse(s.closed_at)),
+          cashInstant(s.opened_at) <= at &&
+          (!s.closed_at || at < cashInstant(s.closed_at)),
       );
       return {
         id: r.id,
@@ -53,7 +54,7 @@ export function cashMovements(orders: any[], fees: any[], sessions: CashSession[
         payment_method: r.payment_method ?? null,
       };
     }),
-  ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  ].sort((a, b) => cashInstant(b.at) - cashInstant(a.at));
 }
 export function sessionRevenue(session: CashSession, movements: CashMovement[]) {
   return movements
@@ -61,13 +62,13 @@ export function sessionRevenue(session: CashSession, movements: CashMovement[]) 
     .reduce((sum, m) => sum + m.cents, 0);
 }
 export function dayRevenue(movements: CashMovement[], start: string, end: string) {
-  return movements.filter((m) => inCashDay(m, start, end)).reduce((sum, m) => sum + m.cents, 0);
+  return cashDaySummary(movements, [], start, end).totalCents;
 }
 
 export function inCashDay(m: CashMovement, start: string, end: string) {
-  const at = Date.parse(m.at);
-  if (!Number.isFinite(at)) throw new Error("Fecha del movimiento no válida");
-  return at >= Date.parse(start) && at < Date.parse(end);
+  const at = cashInstant(m.at),
+    { from, until } = cashRange(start, end);
+  return at >= from && at < until;
 }
 
 /** Unknown payment methods never become assumed cash. Opening floats are balances, not revenue. */
@@ -97,8 +98,8 @@ export function countedCashOnDay(sessions: CashSession[], start: string, end: st
       (s) =>
         s.status === "closed" &&
         s.closed_at !== null &&
-        Date.parse(s.closed_at) >= Date.parse(start) &&
-        Date.parse(s.closed_at) < Date.parse(end) &&
+        cashInstant(s.closed_at) >= cashInstant(start) &&
+        cashInstant(s.closed_at) < cashInstant(end) &&
         s.closing_cash_cents !== null,
     )
     .reduce((total, s) => total + s.closing_cash_cents!, 0);
@@ -111,6 +112,7 @@ export function cashDaySummary(
   start: string,
   end: string,
 ) {
+  cashRange(start, end);
   const ledger = uniqueLedgerRows(movements.map((m) => ({ ...m, id: `${m.source}:${m.id}` })));
   const day = ledger.filter((m) => inCashDay(m, start, end));
   const amounts = cashAmounts(
@@ -127,8 +129,8 @@ export function cashDaySummary(
     (s) =>
       s.status === "closed" &&
       s.closed_at &&
-      Date.parse(s.closed_at) >= Date.parse(start) &&
-      Date.parse(s.closed_at) < Date.parse(end),
+      cashInstant(s.closed_at) >= cashInstant(start) &&
+      cashInstant(s.closed_at) < cashInstant(end),
   );
   const balances = closed.map((s) => reconcileCash(s, ledger));
   const complete = closed.every(

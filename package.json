@@ -47,6 +47,7 @@
     "test:discounts:browser": "node scripts/test-member-discounts.mjs",
     "test:records:browser": "node scripts/test-administrative-records.mjs",
     "test:catalog:browser": "node scripts/test-read-only-catalog.mjs",
+    "test:cash:consistency": "node scripts/test-cash-consistency.mjs",
     "test:cash:browser": "node --test tests/simple-cash.test.mjs && node scripts/test-cash-sessions.mjs",
     "test:voice:lifecycle": "node scripts/test-voice-lifecycle.mjs",
     "test:voice:conversation": "node scripts/test-voice2-administration.mjs --conversation",
