@@ -76,6 +76,11 @@ function NewSocio() {
   const plansRef = useRef<Plan[]>([]);
   const [saving, setSaving] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [registrationError, setRegistrationError] = useState("");
+  const failRegistration = (message: string) => {
+    setRegistrationError(message);
+    toast.error(message);
+  };
   const registrationId = useRef(crypto.randomUUID());
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const savingRef = useRef(false);
@@ -424,29 +429,30 @@ function NewSocio() {
   }
 
   async function submit(confirmedCents?: number) {
+    setRegistrationError("");
     if (savingRef.current || !navigator.onLine)
-      return toast.error("Espera a que termine el envío y comprueba la conexión.");
+      return failRegistration("Espera a que termine el envío y comprueba la conexión.");
     if (!form.first_name.trim() || !form.last_name.trim())
-      return toast.error("Falta nombre y apellido");
+      return failRegistration("Falta nombre y apellido");
     const req = (k: keyof FieldConfigMap) => fieldCfg[k].visible && fieldCfg[k].required;
     const vis = (k: keyof FieldConfigMap) => fieldCfg[k].visible;
     if (req("birth_date")) {
-      if (!form.birth_date) return toast.error("Falta la fecha de nacimiento");
-      if (!calendarDate(form.birth_date)) return toast.error("Fecha de nacimiento no válida");
-      if (!isAdult(form.birth_date)) return toast.error("El socio debe ser mayor de edad");
+      if (!form.birth_date) return failRegistration("Falta la fecha de nacimiento");
+      if (!calendarDate(form.birth_date)) return failRegistration("Fecha de nacimiento no válida");
+      if (!isAdult(form.birth_date)) return failRegistration("El socio debe ser mayor de edad");
     }
-    if (req("address") && !form.address.trim()) return toast.error("Falta la dirección");
-    if (req("city") && !form.city.trim()) return toast.error("Falta la ciudad");
+    if (req("address") && !form.address.trim()) return failRegistration("Falta la dirección");
+    if (req("city") && !form.city.trim()) return failRegistration("Falta la ciudad");
     if (req("postal_code") && !form.postal_code.trim())
-      return toast.error("Falta el código postal");
-    if (req("phone") && !form.phone.trim()) return toast.error("Falta el teléfono");
-    if (req("email") && !form.email.trim()) return toast.error("Falta el email");
-    if (req("dni_number") && !form.dni_number.trim()) return toast.error("Falta el número de DNI");
-    if (req("dni_photo") && !form.dni_file) return toast.error("Falta la foto del DNI");
-    if (req("plan") && !form.plan_id) return toast.error("Selecciona una cuota");
+      return failRegistration("Falta el código postal");
+    if (req("phone") && !form.phone.trim()) return failRegistration("Falta el teléfono");
+    if (req("email") && !form.email.trim()) return failRegistration("Falta el email");
+    if (req("dni_number") && !form.dni_number.trim()) return failRegistration("Falta el número de DNI");
+    if (req("dni_photo") && !form.dni_file) return failRegistration("Falta la foto del DNI");
+    if (req("plan") && !form.plan_id) return failRegistration("Selecciona una cuota");
     if (req("signature")) {
-      if (!form.contract_read) return toast.error("Marca que has leído el contrato");
-      if (sigRef.current?.isEmpty()) return toast.error("Falta la firma del socio");
+      if (!form.contract_read) return failRegistration("Marca que has leído el contrato");
+      if (sigRef.current?.isEmpty()) return failRegistration("Falta la firma del socio");
     }
 
     const due = selectedPlan?.price_cents ?? 0;
@@ -455,7 +461,7 @@ function NewSocio() {
       return;
     }
     if (confirmedCents !== undefined && confirmedCents !== due)
-      return toast.error("La cuota ha cambiado. Revisa el importe.");
+      return failRegistration("La cuota ha cambiado. Revisa el importe.");
     savingRef.current = true;
     setSaving(true);
     try {
@@ -472,10 +478,9 @@ function NewSocio() {
       let sigUploaded = false;
       if (vis("signature") && !sigRef.current?.isEmpty()) {
         const sigBlob = await sigRef.current!.toBlob();
-        if (sigBlob) {
-          await uploadToSnoopDocs(sigBlob, sigPath);
-          sigUploaded = true;
-        }
+        if (!sigBlob || sigBlob.size === 0) throw new Error("No se pudo guardar la firma. Inténtalo de nuevo antes de crear el socio.");
+        await uploadToSnoopDocs(sigBlob, sigPath);
+        sigUploaded = true;
       }
 
       const joined = madridToday();
@@ -557,7 +562,7 @@ function NewSocio() {
       nav({ to: "/soci/gestisci" });
       return true;
     } catch (e: any) {
-      toast.error(e.message);
+      failRegistration(e?.message || "Error al registrar el socio. No repitas el pago sin comprobar el estado.");
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -574,8 +579,15 @@ function NewSocio() {
         totalCents={selectedPlan?.price_cents ?? 0}
         method={paymentMethod}
         busy={saving}
+        error={registrationError}
         onConfirm={() => submit(selectedPlan?.price_cents ?? 0)}
       />
+      {registrationError && (
+        <section role="alert" aria-live="assertive" className="max-w-3xl mb-5 rounded-lg border border-destructive/60 bg-destructive/10 p-4 text-sm text-destructive break-words" style={{ overflowWrap: "anywhere" }}>
+          <strong>Error al registrar el socio</strong>
+          <p className="mt-1">{registrationError}</p>
+        </section>
+      )}
       {(voiceSummary || voice.error) && (
         <section
           className="max-w-3xl mb-6 rounded-lg border border-neon/30 p-3"
