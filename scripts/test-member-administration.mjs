@@ -57,6 +57,7 @@ try {
   const created = [];
   const updated = [];
   let requireSignature = false;
+  let rejectRegistration = false;
   const plan = {
     id: planId,
     name: "Cuota Demo",
@@ -126,6 +127,9 @@ try {
       url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
     ) {
       const payload = request.postDataJSON();
+      if (rejectRegistration && !payload.p_renew) {
+        return route.fulfill({ status: 400, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ code: "PGRST202", message: "Prueba: función de inscripción no disponible" }) });
+      }
       if (url.pathname.endsWith("/rpc/confirm_membership_with_receipt")) {
         assert.deepEqual(Object.keys(payload).sort(), [
           "p_confirmed_cents",
@@ -305,6 +309,31 @@ try {
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
   await page.locator('section[role="alert"]').getByText("Falta la firma del socio").waitFor();
   assert.equal(created.length, 1, "Validation and signature interactions must not save a member");
+
+  // Backend errors must stay readable inside the payment modal on iOS, not only
+  // in a transient toast hidden behind the modal's focus/scroll layer.
+  requireSignature = false;
+  rejectRegistration = true;
+  await page.goto(new URL("/soci/nuovo", origin).href, { waitUntil: "networkidle" });
+  await page.getByLabel("Nombre *").waitFor({ state: "visible" });
+  await page.getByText("Firma del socio", { exact: true }).waitFor({ state: "hidden" });
+  await page.getByLabel("Nombre *").fill("Error");
+  await page.getByLabel("Apellidos *").fill("Prueba");
+  await page.getByLabel("Fecha de nacimiento *").fill("2000-02-29");
+  await page.getByLabel("Ciudad *").fill("Lugar Demo");
+  await page.getByLabel("Teléfono *").fill("000000000");
+  await page.getByRole("button", { name: /Cuota Demo/ }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) =>
+    b.textContent?.includes("Cuota Demo") && b.getAttribute("aria-pressed") === "true"
+  ));
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  const payment = page.getByRole("dialog");
+  await payment.waitFor();
+  await payment.getByLabel("Dinero recibido (€)").fill("10");
+  await payment.getByRole("button", { name: "Confirmar aportación" }).click();
+  await payment.getByRole("alert").getByText("Prueba: función de inscripción no disponible").waitFor();
+  assert.equal(created.length, 1, "Rejected registration must not write a member");
+  await payment.getByRole("button", { name: "Cancelar" }).click();
   console.log(
     "PASS member administration: synthetic registration, duplicate guard, cancelled/confirmed renewal, QR view and AI draft without automatic writes (mock Supabase)",
   );
