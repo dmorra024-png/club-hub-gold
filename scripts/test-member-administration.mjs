@@ -310,6 +310,12 @@ try {
   await canvas.scrollIntoViewIfNeeded();
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100);
+  await canvas.evaluate((el) => {
+    window.__signaturePointerEvents = [];
+    for (const type of ["pointerdown", "pointermove", "pointerup", "touchstart"]) {
+      el.addEventListener(type, (event) => window.__signaturePointerEvents.push({ type, primary: event.isPrimary, pointerType: event.pointerType }), { passive: true });
+    }
+  });
   if (isWebkit) {
     // iPhone WebKit emulates touch input; page.mouse does not model a finger.
     await page.touchscreen.tap(bounds.x + 45, bounds.y + 70);
@@ -327,7 +333,8 @@ try {
     return painted;
   });
   const beforeResize = await ink();
-  assert.ok(beforeResize > 0, "A touch or mouse signature must contain actual ink");
+  const pointerDiagnostics = await page.evaluate(() => ({ events: window.__signaturePointerEvents, width: document.querySelector('canvas[aria-label="Firma del socio"]')?.width }));
+  assert.ok(beforeResize > 0, `A touch or mouse signature must contain actual ink: ${JSON.stringify(pointerDiagnostics)}`);
   await page.evaluate(() => window.dispatchEvent(new Event("resize")));
   assert.ok((await ink()) > 5, "Safari resize must preserve signature strokes");
   await page.setViewportSize({ width: 375, height: 700 });
