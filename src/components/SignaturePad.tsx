@@ -115,7 +115,13 @@ export const SignaturePad = forwardRef<SignaturePadHandle, { height?: number }>(
   function clear() {
     const c = canvasRef.current;
     if (!c) return;
-    c.getContext("2d")?.clearRect(0, 0, c.width, c.height);
+    const ctx = c.getContext("2d");
+    if (ctx) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.restore();
+    }
     drawing.current = null;
     last.current = null;
     hasInk.current = false;
