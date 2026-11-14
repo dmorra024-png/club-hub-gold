@@ -18,6 +18,7 @@ import {
   Save,
   X,
   Mail,
+  Share2,
 } from "lucide-react";
 import { expiryBadge, formatPrice, signedUrl } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
@@ -115,6 +116,41 @@ function SocioDetail() {
       toast.error(e.message ?? "No se pudo reenviar");
     } finally {
       setResendingQr(false);
+    }
+  }
+
+  // A local-only fallback when the transactional email provider is not configured.
+  // Never sends the QR to a server or to another app without an explicit tap.
+  async function shareQr() {
+    if (!member || !qrUrl) return;
+    try {
+      const encoded = qrUrl.split(",")[1];
+      if (!encoded) throw new Error("QR no disponible");
+      const raw = atob(encoded);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const filename = `snoop-carnet-${member.member_number.replace(/[^0-9]/g, "")}.png`;
+      const file = new File([bytes], filename, { type: "image/png" });
+      const name = [member.first_name, member.last_name].join(" ").trim();
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: "Carnet QR SNOOP", text: `Carnet QR de ${name}` });
+        } catch (error) {
+          if ((error as Error)?.name !== "AbortError") throw error;
+        }
+      } else {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        toast.info("QR descargado. Puedes adjuntarlo a un email.");
+      }
+    } catch {
+      toast.error("No se pudo compartir el QR. Usa la imagen del carnet.");
     }
   }
 
@@ -458,9 +494,21 @@ function SocioDetail() {
             </p>
             <button
               type="button"
+              onClick={() => void shareQr()}
+              disabled={!qrUrl}
+              className="mt-4 w-full flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-2.5 rounded-lg text-[11px] uppercase tracking-widest font-semibold disabled:opacity-50"
+              title="Compartir el QR como imagen desde este dispositivo"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Compartir carnet QR
+            </button>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Puedes elegir tu app de email o descargar la imagen. No se envía automáticamente.
+            </p>
+            <button
+              type="button"
               onClick={resendQr}
               disabled={resendingQr || !member.email}
-              className="mt-4 w-full flex items-center justify-center gap-2 border border-neon/40 text-neon py-2 rounded-lg text-[11px] uppercase tracking-widest hover:bg-neon/10 disabled:opacity-50"
+              className="mt-2 w-full flex items-center justify-center gap-2 border border-neon/40 text-neon py-2 rounded-lg text-[11px] uppercase tracking-widest hover:bg-neon/10 disabled:opacity-50"
               title={member.email ? "" : "Este socio no tiene email"}
             >
               <Mail className="w-3.5 h-3.5" />{" "}

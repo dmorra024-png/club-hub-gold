@@ -70,7 +70,7 @@ for (const [name, engine, device] of [
       ({ auth, key, conversational }) => {
         localStorage.setItem(key, JSON.stringify(auth));
         localStorage.setItem("snoop:voice-language", conversational ? "es-ES" : "it-IT");
-        window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0 };
+        window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0, speechSamples: 0 };
         const NativeAudio = window.AudioContext || window.webkitAudioContext;
         const NativeRecorder = window.MediaRecorder;
         const Speech = window.SpeechRecognition ?? window.webkitSpeechRecognition;
@@ -179,6 +179,7 @@ for (const [name, engine, device] of [
             return {
               fftSize: 1024,
               getByteTimeDomainData(a) {
+                if (!window.__voice.silent) window.__voice.speechSamples++;
                 a.fill(window.__voice.silent ? 128 : 144);
               },
             };
@@ -488,10 +489,21 @@ for (const [name, engine, device] of [
         transcript = text;
         await listening();
         assert.equal(await page.getByRole("dialog", { name: "SNOOP", exact: true }).count(), 0);
-        await page.evaluate(() => (window.__voice.silent = false));
-        await page.waitForTimeout(400);
         const before = await page.evaluate(() => window.voiceTimings.length);
-        await page.evaluate(() => (window.__voice.silent = true));
+        const sampleStart = await page.evaluate(() => window.__voice.speechSamples);
+        await page.evaluate(() => (window.__voice.silent = false));
+        try {
+          // Wait until the actual VAD analyser has sampled synthetic speech.
+          // A fixed 400 ms wall clock sleep can miss the window while the
+          // continuous recorder is restarting after a navigation.
+          await page.waitForFunction(
+            (baseline) => window.__voice.speechSamples >= baseline + 4,
+            sampleStart,
+            { timeout: 10000 },
+          );
+        } finally {
+          await page.evaluate(() => (window.__voice.silent = true));
+        }
         try {
           await page.waitForFunction((before) => window.voiceTimings.length > before, before);
         } catch (error) {

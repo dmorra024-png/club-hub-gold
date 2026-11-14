@@ -520,6 +520,9 @@ function NewSocio() {
 
       setPaymentOpen(false);
       registrationId.current = crypto.randomUUID();
+      // Email failure must not undo a committed registration. Open the new
+      // member card so a staff member can share its QR without a provider.
+      let qrMailFailed = false;
       // Send the QR carnet by email if the socio provided one
       try {
         if (form.email.trim()) {
@@ -548,13 +551,15 @@ function NewSocio() {
         }
       } catch (mailErr: any) {
         console.error("qr email failed", mailErr);
-        toast.warning("Socio creado, pero el email del QR no se pudo enviar");
+        qrMailFailed = true;
+        toast.warning("Socio creado, pero falta el email. Comparte el QR desde esta ficha.");
       }
 
       try {
         window.sessionStorage.removeItem("snoop:new-member-transcript");
       } catch {}
-      nav({ to: "/soci/gestisci" });
+      if (qrMailFailed) nav({ to: "/soci/$id", params: { id: memberId } });
+      else nav({ to: "/soci/gestisci" });
       return true;
     } catch (e: any) {
       toast.error(e.message);
