@@ -18,6 +18,7 @@ export function AdministrativePaymentDialog({
   totalCents,
   method,
   busy,
+  error,
   onConfirm,
 }: {
   open: boolean;
@@ -26,6 +27,7 @@ export function AdministrativePaymentDialog({
   totalCents: number;
   method: string;
   busy: boolean;
+  error?: string;
   onConfirm: () => Promise<unknown>;
 }) {
   const [received, setReceived] = useState("");
@@ -81,6 +83,7 @@ export function AdministrativePaymentDialog({
             }
           </p>
         )}
+        {error && <p role="alert" className="rounded-lg border border-destructive/60 bg-destructive/10 p-3 text-sm text-destructive break-words" style={{ overflowWrap: "anywhere" }}>{error}</p>}
         <div className="flex gap-2">
           <Button
             variant="outline"

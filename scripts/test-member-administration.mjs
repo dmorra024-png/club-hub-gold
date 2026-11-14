@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { chromium } from "playwright-core";
+import { chromium, webkit, devices } from "playwright-core";
 import process from "node:process";
 
 const origin = new URL(process.env.TEST_BASE_URL || "http://127.0.0.1:3001");
@@ -37,17 +37,27 @@ const session = {
   expires_at: exp,
   token_type: "bearer",
 };
-const browser = await chromium.launch({
-  executablePath:
-    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
-    (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
-  args: ["--no-sandbox"],
+const isWebkit = process.env.TEST_WEBKIT === "true";
+const browser = await (isWebkit ? webkit : chromium).launch({
+  ...(!isWebkit
+    ? {
+        executablePath:
+          process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
+          (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
+        args: ["--no-sandbox"],
+      }
+    : {}),
   headless: true,
 });
 try {
-  const context = await browser.newContext({ serviceWorkers: "block" });
+  const context = await browser.newContext({
+    ...(isWebkit ? devices["iPhone 13"] : {}),
+    serviceWorkers: "block",
+  });
   const created = [];
   const updated = [];
+  let requireSignature = false;
+  let rejectRegistration = false;
   const plan = {
     id: planId,
     name: "Cuota Demo",
@@ -106,13 +116,20 @@ try {
     else if (url.pathname.endsWith("/membership_plans")) body = [plan];
     else if (url.pathname.endsWith("/club_member_field_config"))
       body = ["dni_photo", "signature", "address", "postal_code", "email", "dni_number"].map(
-        (field_key) => ({ field_key, visible: false, required: false }),
+        (field_key) => ({
+          field_key,
+          visible: field_key === "signature" && requireSignature,
+          required: field_key === "signature" && requireSignature,
+        }),
       );
     else if (
       url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
       url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
     ) {
       const payload = request.postDataJSON();
+      if (rejectRegistration && !payload.p_renew) {
+        return route.fulfill({ status: 400, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ code: "PGRST202", message: "Prueba: función de inscripción no disponible" }) });
+      }
       if (url.pathname.endsWith("/rpc/confirm_membership_with_receipt")) {
         assert.deepEqual(Object.keys(payload).sort(), [
           "p_confirmed_cents",
@@ -172,6 +189,10 @@ try {
   await page.goto(new URL("/soci/nuovo", origin).href, {
     waitUntil: "networkidle",
   });
+  // Default form requires a signature; the mock club disables that field.
+  // Wait for async club configuration, not just networkidle, before submitting.
+  await page.getByLabel("Nombre *").waitFor({ state: "visible" });
+  await page.getByText("Firma del socio", { exact: true }).waitFor({ state: "hidden" });
   const input = (name) => page.getByLabel(name, { exact: true });
   await input("Nombre *").fill("Persona");
   await input("Apellidos *").fill("Demo");
@@ -179,6 +200,7 @@ try {
   await input("Ciudad *").fill("Lugar Demo");
   await input("Teléfono *").fill("000000000");
   await page.getByRole("button", { name: /Cuota Demo/ }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((button) => button.textContent?.includes("Cuota Demo") && button.getAttribute("aria-pressed") === "true"));
   await page.getByRole("button", { name: "Crear socio", exact: true }).dblclick();
   await page.getByRole("dialog").waitFor();
   assert.equal(created.length, 0, "Opening payment review must not save");
@@ -243,6 +265,75 @@ try {
   );
   assert.equal(created.length, 1, "Opening an AI draft must not register a member automatically");
   assert.equal(await page.evaluate(() => sessionStorage.getItem("snoop:member-draft")), null);
+  // Regression: iPhone/Safari canvas resizing must not erase a captured signature.
+  // It must be impossible to continue without a signature when one is required.
+  requireSignature = true;
+  await page.goto(new URL("/soci/nuovo", origin).href, { waitUntil: "networkidle" });
+  await page.getByText("Firma del socio", { exact: true }).waitFor();
+  await page.getByLabel("Nombre *").fill("Firma");
+  await page.getByLabel("Apellidos *").fill("Prueba");
+  await page.getByLabel("Fecha de nacimiento *").fill("2000-02-29");
+  await page.getByLabel("Ciudad *").fill("Lugar Demo");
+  await page.getByLabel("Teléfono *").fill("000000000");
+  await page.getByRole("button", { name: /Cuota Demo/ }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((button) => button.textContent?.includes("Cuota Demo") && button.getAttribute("aria-pressed") === "true"));
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  await page.locator('section[role="alert"]').getByText("Marca que has leído el contrato").waitFor();
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  await page.locator('section[role="alert"]').getByText("Falta la firma del socio").waitFor();
+  const canvas = page.locator('canvas[aria-label="Firma del socio"]');
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  await canvas.scrollIntoViewIfNeeded();
+  const bounds = await canvas.boundingBox();
+  assert.ok(bounds && bounds.width > 100 && bounds.height > 100);
+  await page.mouse.move(bounds.x + 20, bounds.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 85, bounds.y + 100, { steps: 8 });
+  await page.mouse.up();
+  const ink = async () => canvas.evaluate((el) => {
+    const c = el;
+    const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let painted = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
+    return painted;
+  });
+  const beforeResize = await ink();
+  assert.ok(beforeResize > 5, "A drawn signature must contain actual ink");
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  assert.ok((await ink()) > 5, "Safari resize must preserve signature strokes");
+  await page.setViewportSize({ width: 375, height: 700 });
+  assert.ok((await ink()) > 5, "Real iPhone viewport resize must preserve signature");
+  await page.getByRole("button", { name: "Borrar" }).click();
+  assert.equal(await ink(), 0, "Borrar must erase all retina canvas pixels");
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  await page.locator('section[role="alert"]').getByText("Falta la firma del socio").waitFor();
+  assert.equal(created.length, 1, "Validation and signature interactions must not save a member");
+
+  // Backend errors must stay readable inside the payment modal on iOS, not only
+  // in a transient toast hidden behind the modal's focus/scroll layer.
+  requireSignature = false;
+  rejectRegistration = true;
+  await page.goto(new URL("/soci/nuovo", origin).href, { waitUntil: "networkidle" });
+  await page.getByLabel("Nombre *").waitFor({ state: "visible" });
+  await page.getByText("Firma del socio", { exact: true }).waitFor({ state: "hidden" });
+  await page.getByLabel("Nombre *").fill("Error");
+  await page.getByLabel("Apellidos *").fill("Prueba");
+  await page.getByLabel("Fecha de nacimiento *").fill("2000-02-29");
+  await page.getByLabel("Ciudad *").fill("Lugar Demo");
+  await page.getByLabel("Teléfono *").fill("000000000");
+  await page.getByRole("button", { name: /Cuota Demo/ }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) =>
+    b.textContent?.includes("Cuota Demo") && b.getAttribute("aria-pressed") === "true"
+  ));
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  const payment = page.getByRole("dialog");
+  await payment.waitFor();
+  await payment.getByLabel("Dinero recibido (€)").fill("10");
+  await payment.getByRole("button", { name: "Confirmar aportación" }).click();
+  await payment.getByRole("alert").getByText("Prueba: función de inscripción no disponible").waitFor();
+  assert.equal(created.length, 1, "Rejected registration must not write a member");
+  await payment.getByRole("button", { name: "Cancelar" }).click();
   console.log(
     "PASS member administration: synthetic registration, duplicate guard, cancelled/confirmed renewal, QR view and AI draft without automatic writes (mock Supabase)",
   );
