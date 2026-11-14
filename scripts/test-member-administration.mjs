@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { chromium } from "playwright-core";
+import { chromium, webkit, devices } from "playwright-core";
 import process from "node:process";
 
 const origin = new URL(process.env.TEST_BASE_URL || "http://127.0.0.1:3001");
@@ -37,15 +37,23 @@ const session = {
   expires_at: exp,
   token_type: "bearer",
 };
-const browser = await chromium.launch({
-  executablePath:
-    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
-    (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
-  args: ["--no-sandbox"],
+const isWebkit = process.env.TEST_WEBKIT === "true";
+const browser = await (isWebkit ? webkit : chromium).launch({
+  ...(!isWebkit
+    ? {
+        executablePath:
+          process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
+          (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
+        args: ["--no-sandbox"],
+      }
+    : {}),
   headless: true,
 });
 try {
-  const context = await browser.newContext({ serviceWorkers: "block" });
+  const context = await browser.newContext({
+    ...(isWebkit ? devices["iPhone 13"] : {}),
+    serviceWorkers: "block",
+  });
   const created = [];
   const updated = [];
   let requireSignature = false;
