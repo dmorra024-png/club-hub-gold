@@ -201,7 +201,7 @@ try {
   await input("Teléfono *").fill("000000000");
   await page.getByRole("button", { name: /Cuota Demo/ }).click();
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some((button) => button.textContent?.includes("Cuota Demo") && button.getAttribute("aria-pressed") === "true"));
-  await page.getByRole("button", { name: "Crear socio", exact: true }).dblclick();
+  await (isWebkit ? page.getByRole("button", { name: "Crear socio", exact: true }).click() : page.getByRole("button", { name: "Crear socio", exact: true }).dblclick());
   await page.getByRole("dialog").waitFor();
   assert.equal(created.length, 0, "Opening payment review must not save");
   await page.getByLabel("Dinero recibido (€)").fill("9,99");
@@ -211,7 +211,7 @@ try {
   );
   await page.getByLabel("Dinero recibido (€)").fill("20");
   await page.getByLabel("Cambio", { exact: true }).getByText(/10,00/).waitFor();
-  await page.getByRole("button", { name: "Confirmar aportación", exact: true }).dblclick();
+  await (isWebkit ? page.getByRole("button", { name: "Confirmar aportación", exact: true }).click() : page.getByRole("button", { name: "Confirmar aportación", exact: true }).dblclick());
   await page.waitForURL("**/soci/gestisci");
   assert.equal(created.length, 1, "Double-click must create only one record");
   assert.equal(created[0].club_id, clubId);
