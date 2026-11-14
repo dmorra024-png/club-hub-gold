@@ -203,6 +203,29 @@ try {
   });
   await page.getByRole("button", { name: "Renovar", exact: true }).waitFor();
   await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
+  // Synthetic browser-share test: never contacts any external provider or recipient.
+  await page.evaluate(() => {
+    window.__snoopQrShared = null;
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: ({ files }) =>
+      Array.isArray(files) && files.length === 1 && files[0].type === "image/png",
+    });
+    Object.defineProperty(navigator, "share", { configurable: true, value: async ({ files, title }) => {
+      const bytes = new Uint8Array(await files[0].arrayBuffer());
+      window.__snoopQrShared = {
+        filename: files[0].name, title, bytes: bytes.length,
+        signature: Array.from(bytes.slice(0, 8)),
+      };
+    } });
+  });
+  await page.getByRole("button", { name: "Compartir carnet QR" }).click();
+  await page.waitForFunction(() => window.__snoopQrShared !== null);
+  const shared = await page.evaluate(() => window.__snoopQrShared);
+  assert.equal(shared.filename, "snoop-carnet-0000123.png");
+  assert.equal(shared.title, "Carnet QR SNOOP");
+  assert.ok(shared.bytes > 200);
+  assert.deepEqual(shared.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(created.length, 1, "Sharing a QR must never register another member");
+
 
   await page.getByRole("button", { name: "Renovar", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
