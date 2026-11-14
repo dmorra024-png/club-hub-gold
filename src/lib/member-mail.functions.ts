@@ -6,6 +6,15 @@ export const requestMemberMail = createServerFn({ method: "POST" })
   .middleware([requireClubMemberAuth])
   .inputValidator((d: unknown) => input.parse(d))
   .handler(async ({ context, data }) => {
+    // Do not promise a queued email when the dedicated delivery task has no
+    // provider credentials. Club/collaborator auth invitations use a separate
+    // channel and are not evidence that member QR delivery is configured.
+    const env = (globalThis as any).__env__ ?? process.env;
+    if (!env.EMAIL_API_KEY || !env.EMAIL_FROM) {
+      throw new Error(
+        "El envío automático de QR todavía no está configurado. Usa Compartir carnet QR.",
+      );
+    }
     const { data: result, error } = await (context.supabase as any).rpc(
       "snoop_member_mail_request",
       { p_member: data.memberId, p_retry: data.retry },
