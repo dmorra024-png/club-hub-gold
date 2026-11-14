@@ -860,6 +860,11 @@ function NewSocio() {
           </section>
         )}
 
+        {registrationError && (
+          <p role="status" aria-live="polite" className="rounded-lg border border-destructive/60 bg-destructive/10 p-3 text-sm text-destructive" style={{ overflowWrap: "anywhere" }}>
+            {registrationError}
+          </p>
+        )}
         <div className="flex flex-col sm:flex-row gap-3 sm:items-end justify-end pt-4 border-t border-border">
           <label className="block text-xs text-neon">
             Método de pago de la cuota
