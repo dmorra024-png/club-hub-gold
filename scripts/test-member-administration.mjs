@@ -318,7 +318,7 @@ try {
   });
   if (isWebkit) {
     // iPhone WebKit emulates touch input; page.mouse does not model a finger.
-    await canvas.tap({ position: { x: 45, y: 70 }, force: true });
+    await canvas.tap({ position: { x: 45, y: 70 }, timeout: 10000 });
   } else {
     await page.mouse.move(bounds.x + 20, bounds.y + 70);
     await page.mouse.down();
