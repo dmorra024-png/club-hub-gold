@@ -452,7 +452,7 @@ function NewSocio() {
     if (req("plan") && !form.plan_id) return failRegistration("Selecciona una cuota");
     if (req("signature")) {
       if (!form.contract_read) return failRegistration("Marca que has leído el contrato");
-      if (sigRef.current?.isEmpty()) return failRegistration("Falta la firma del socio");
+      if (!sigRef.current || sigRef.current.isEmpty()) return failRegistration("Falta la firma del socio");
     }
 
     const due = selectedPlan?.price_cents ?? 0;
