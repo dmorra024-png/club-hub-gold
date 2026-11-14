@@ -68,7 +68,9 @@ export const SignaturePad = forwardRef<SignaturePadHandle, { height?: number }>(
   }
 
   function down(e: ReactPointerEvent<HTMLCanvasElement>) {
-    if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+    // Safari may report a non-primary touch pointer after viewport/keyboard changes.
+    // Allow one active finger, while still rejecting non-left mouse buttons.
+    if ((e.pointerType === "mouse" && e.button !== 0) || drawing.current !== null) return;
     e.preventDefault();
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
