@@ -259,10 +259,10 @@ try {
   await page.getByLabel("Ciudad *").fill("Lugar Demo");
   await page.getByLabel("Teléfono *").fill("000000000");
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
-  await page.getByRole("alert").getByText("Marca que has leído el contrato").waitFor();
+  await page.locator('section[role="alert"]').getByText("Marca que has leído el contrato").waitFor();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
-  await page.getByRole("alert").getByText("Falta la firma del socio").waitFor();
+  await page.locator('section[role="alert"]').getByText("Falta la firma del socio").waitFor();
   const canvas = page.locator('canvas[aria-label="Firma del socio"]');
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100);
@@ -286,7 +286,7 @@ try {
   await page.getByRole("button", { name: "Borrar" }).click();
   assert.equal(await ink(), 0, "Borrar must erase all retina canvas pixels");
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
-  await page.getByRole("alert").getByText("Falta la firma del socio").waitFor();
+  await page.locator('section[role="alert"]').getByText("Falta la firma del socio").waitFor();
   assert.equal(created.length, 1, "Validation and signature interactions must not save a member");
   console.log(
     "PASS member administration: synthetic registration, duplicate guard, cancelled/confirmed renewal, QR view and AI draft without automatic writes (mock Supabase)",
