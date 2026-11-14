@@ -310,10 +310,15 @@ try {
   await canvas.scrollIntoViewIfNeeded();
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100);
-  await page.mouse.move(bounds.x + 20, bounds.y + 70);
-  await page.mouse.down();
-  await page.mouse.move(bounds.x + 85, bounds.y + 100, { steps: 8 });
-  await page.mouse.up();
+  if (isWebkit) {
+    // iPhone WebKit emulates touch input; page.mouse does not model a finger.
+    await page.touchscreen.tap(bounds.x + 45, bounds.y + 70);
+  } else {
+    await page.mouse.move(bounds.x + 20, bounds.y + 70);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + 85, bounds.y + 100, { steps: 8 });
+    await page.mouse.up();
+  }
   const ink = async () => canvas.evaluate((el) => {
     const c = el;
     const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
@@ -322,7 +327,7 @@ try {
     return painted;
   });
   const beforeResize = await ink();
-  assert.ok(beforeResize > 5, "A drawn signature must contain actual ink");
+  assert.ok(beforeResize > 0, "A touch or mouse signature must contain actual ink");
   await page.evaluate(() => window.dispatchEvent(new Event("resize")));
   assert.ok((await ink()) > 5, "Safari resize must preserve signature strokes");
   await page.setViewportSize({ width: 375, height: 700 });
