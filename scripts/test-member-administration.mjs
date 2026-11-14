@@ -48,6 +48,7 @@ try {
   const context = await browser.newContext({ serviceWorkers: "block" });
   const created = [];
   const updated = [];
+  let requireSignature = false;
   const plan = {
     id: planId,
     name: "Cuota Demo",
@@ -106,7 +107,11 @@ try {
     else if (url.pathname.endsWith("/membership_plans")) body = [plan];
     else if (url.pathname.endsWith("/club_member_field_config"))
       body = ["dni_photo", "signature", "address", "postal_code", "email", "dni_number"].map(
-        (field_key) => ({ field_key, visible: false, required: false }),
+        (field_key) => ({
+          field_key,
+          visible: field_key === "signature" && requireSignature,
+          required: field_key === "signature" && requireSignature,
+        }),
       );
     else if (
       url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
@@ -243,6 +248,46 @@ try {
   );
   assert.equal(created.length, 1, "Opening an AI draft must not register a member automatically");
   assert.equal(await page.evaluate(() => sessionStorage.getItem("snoop:member-draft")), null);
+  // Regression: iPhone/Safari canvas resizing must not erase a captured signature.
+  // It must be impossible to continue without a signature when one is required.
+  requireSignature = true;
+  await page.goto(new URL("/soci/nuovo", origin).href, { waitUntil: "networkidle" });
+  await page.getByText("Firma del socio", { exact: true }).waitFor();
+  await page.getByLabel("Nombre *").fill("Firma");
+  await page.getByLabel("Apellidos *").fill("Prueba");
+  await page.getByLabel("Fecha de nacimiento *").fill("2000-02-29");
+  await page.getByLabel("Ciudad *").fill("Lugar Demo");
+  await page.getByLabel("Teléfono *").fill("000000000");
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  await page.getByRole("alert").getByText("Marca que has leído el contrato").waitFor();
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  await page.getByRole("alert").getByText("Falta la firma del socio").waitFor();
+  const canvas = page.locator('canvas[aria-label="Firma del socio"]');
+  const bounds = await canvas.boundingBox();
+  assert.ok(bounds && bounds.width > 100 && bounds.height > 100);
+  await page.mouse.move(bounds.x + 20, bounds.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 85, bounds.y + 100, { steps: 8 });
+  await page.mouse.up();
+  const ink = async () => canvas.evaluate((el) => {
+    const c = el;
+    const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let painted = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
+    return painted;
+  });
+  const beforeResize = await ink();
+  assert.ok(beforeResize > 5, "A drawn signature must contain actual ink");
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  assert.ok((await ink()) > 5, "Safari resize must preserve signature strokes");
+  await page.setViewportSize({ width: 375, height: 700 });
+  assert.ok((await ink()) > 5, "Real iPhone viewport resize must preserve signature");
+  await page.getByRole("button", { name: "Borrar" }).click();
+  assert.equal(await ink(), 0, "Borrar must erase all retina canvas pixels");
+  await page.getByRole("button", { name: "Crear socio", exact: true }).click();
+  await page.getByRole("alert").getByText("Falta la firma del socio").waitFor();
+  assert.equal(created.length, 1, "Validation and signature interactions must not save a member");
   console.log(
     "PASS member administration: synthetic registration, duplicate guard, cancelled/confirmed renewal, QR view and AI draft without automatic writes (mock Supabase)",
   );
