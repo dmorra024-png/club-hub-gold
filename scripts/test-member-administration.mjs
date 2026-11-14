@@ -277,6 +277,8 @@ try {
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
   await page.locator('section[role="alert"]').getByText("Falta la firma del socio").waitFor();
   const canvas = page.locator('canvas[aria-label="Firma del socio"]');
+  await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+  await canvas.scrollIntoViewIfNeeded();
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100);
   await page.mouse.move(bounds.x + 20, bounds.y + 70);
