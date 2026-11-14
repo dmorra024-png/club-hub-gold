@@ -196,6 +196,7 @@ try {
   await input("Ciudad *").fill("Lugar Demo");
   await input("Teléfono *").fill("000000000");
   await page.getByRole("button", { name: /Cuota Demo/ }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((button) => button.textContent?.includes("Cuota Demo") && button.getAttribute("aria-pressed") === "true"));
   await page.getByRole("button", { name: "Crear socio", exact: true }).dblclick();
   await page.getByRole("dialog").waitFor();
   assert.equal(created.length, 0, "Opening payment review must not save");
@@ -271,6 +272,7 @@ try {
   await page.getByLabel("Ciudad *").fill("Lugar Demo");
   await page.getByLabel("Teléfono *").fill("000000000");
   await page.getByRole("button", { name: /Cuota Demo/ }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((button) => button.textContent?.includes("Cuota Demo") && button.getAttribute("aria-pressed") === "true"));
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
   await page.locator('section[role="alert"]').getByText("Marca que has leído el contrato").waitFor();
   await page.getByRole("checkbox").check();
