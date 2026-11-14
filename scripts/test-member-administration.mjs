@@ -187,6 +187,7 @@ try {
   });
   // Default form requires a signature; the mock club disables that field.
   // Wait for async club configuration, not just networkidle, before submitting.
+  await page.getByLabel("Nombre *").waitFor({ state: "visible" });
   await page.getByText("Firma del socio", { exact: true }).waitFor({ state: "hidden" });
   const input = (name) => page.getByLabel(name, { exact: true });
   await input("Nombre *").fill("Persona");
