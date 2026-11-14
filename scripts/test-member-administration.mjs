@@ -266,6 +266,7 @@ try {
   await page.getByLabel("Fecha de nacimiento *").fill("2000-02-29");
   await page.getByLabel("Ciudad *").fill("Lugar Demo");
   await page.getByLabel("Teléfono *").fill("000000000");
+  await page.getByRole("button", { name: /Cuota Demo/ }).click();
   await page.getByRole("button", { name: "Crear socio", exact: true }).click();
   await page.locator('section[role="alert"]').getByText("Marca que has leído el contrato").waitFor();
   await page.getByRole("checkbox").check();
