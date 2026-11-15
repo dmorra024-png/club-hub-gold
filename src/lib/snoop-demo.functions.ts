@@ -44,7 +44,20 @@ export const interpretSnoopDemo = createServerFn({ method: "POST" })
     // In DEMO there are no catalog, member or cash reads and no write tools.
     // All form drafts are temporary, held only in the calling React component.
     const { interpretConversation } = await import("./snoop-conversation.server");
-    return interpretConversation(data, { userId: context.userId, access });
+    try {
+      return { proposal: await interpretConversation(data, { userId: context.userId, access }), error: null };
+    } catch (failure) {
+      // Stable, bounded diagnostics. Never send provider responses, personal data or secrets.
+      const message = failure instanceof Error ? failure.message : "";
+      const category =
+        /SNOOP_CONVERSATION_NOT_AUTHORIZED|SNOOP_DEMO_NOT_AUTHORIZED/.test(message) ? "not_authorized"
+        : /Límite de solicitudes|429|quota|neuron|allocation/i.test(message) ? "rate_limited"
+        : /timeout|tarda demasiado/i.test(message) ? "timeout"
+        : /SNOOP_INVALID_PROPOSAL/.test(message) ? "invalid_proposal"
+        : /binding independiente SNOOP_AI/.test(message) ? "binding_unavailable"
+        : "provider_unavailable";
+      return { proposal: null, error: category };
+    }
   });
 
 export const transcribeSnoopDemo = createServerFn({ method: "POST" })
