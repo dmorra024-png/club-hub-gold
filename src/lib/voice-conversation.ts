@@ -7,7 +7,7 @@ import {
 } from "./member-administration.ts";
 export type ConversationState = {
   slots?: SlotMemory;
-  awaiting: "name" | "first" | "last" | "birth" | "phone" | "optional" | "review";
+  awaiting: "name" | "first" | "last" | "birth" | "city" | "phone" | "optional" | "review";
 };
 export type ConversationReply = {
   handled: boolean;
@@ -27,9 +27,11 @@ export function memberAwaiting(values: Partial<MemberDictation>): ConversationSt
             ? "last"
             : !values.birth_date
               ? "birth"
-              : !values.phone
-                ? "phone"
-                : "optional",
+              : !values.city
+                ? "city"
+                : !values.phone
+                  ? "phone"
+                  : "optional",
   };
 }
 export function memberQuestion(values: Partial<MemberDictation>, it = false): string {
@@ -38,6 +40,7 @@ export function memberQuestion(values: Partial<MemberDictation>, it = false): st
   if (!values.first_name) return it ? "Qual è il nome?" : "¿Cuál es el nombre?";
   if (!values.last_name) return it ? "Cognome?" : "¿Apellidos?";
   if (!values.birth_date) return it ? "Data di nascita?" : "¿Fecha de nacimiento?";
+  if (!values.city) return it ? "In quale città risiede il socio?" : "¿En qué ciudad reside el socio?";
   if (!values.phone) return it ? "Vuoi aggiungere un telefono?" : "¿Quieres añadir un teléfono?";
   return it
     ? "Vuoi aggiungere altri dati? Puoi dire riepilogo."
@@ -153,6 +156,18 @@ export function memberConversation(
       .replace(/[,;]\s*$/g, "");
     const date = spokenAdministrativeDate(prefix);
     if (date) patch.birth_date = date;
+  }
+  if (state.awaiting === "city" && !patch.city) {
+    const place = text
+      .replace(/^(?:abito|vivo|resido|vive|reside|ciudad|città|citta|a|in|en)\s+(?:(?:a|in|en)\s+)?/i, "")
+      .trim();
+    const words = place.split(/\s+/);
+    if (
+      words.length <= 6 &&
+      place.length <= 90 &&
+      /^[\p{L}][\p{L} .\x27’\-]*$/u.test(place) &&
+      !/\b(?:no|si|sì|stop|snoop|terminar|termina|salva|guardar|aspetta|espera|telefono|teléfono|numero|número|ayuda|aiuto|prueba|prova)\b/i.test(place)
+    ) patch.city = place;
   }
   if (state.awaiting === "phone" && !patch.phone) {
     const prefix = prepared
