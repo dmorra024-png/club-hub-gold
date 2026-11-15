@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   authorizeWorkersAi,
   workersAiBinding,
+  withSnoopWorkersAi,
   workersAiFetch,
   transcribeWorkersAudio,
   FREE_TEXT_MODEL,
@@ -139,5 +140,36 @@ test("Workers AI tool responses are adapted without executing writes", async () 
   assert.equal(
     data.choices[0].message.tool_calls[0].function.arguments,
     '{"first_name":"Persona"}',
+  );
+});
+
+test("Cloudflare binding is available to the correct request without leaking across requests", async () => {
+  const a = { run: async () => ({ text: "A" }) };
+  const b = { run: async () => ({ text: "B" }) };
+  const runtime = (ai: typeof a) => ({
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SNOOP_AI: ai,
+    SUPABASE_SERVICE_ROLE_KEY: "synthetic-not-forwarded",
+  });
+  const [one, two] = await Promise.all([
+    withSnoopWorkersAi(runtime(a), async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return workersAiBinding();
+    }),
+    withSnoopWorkersAi(runtime(b), async () => {
+      await Promise.resolve();
+      return workersAiBinding();
+    }),
+  ]);
+  assert.equal(one, a);
+  assert.equal(two, b);
+  assert.throws(workersAiBinding, /binding/);
+  assert.throws(
+    () => withSnoopWorkersAi({ ...runtime(a), SNOOP_RESOURCE_NAMESPACE: "wrong" }, () => workersAiBinding()),
+    /binding/,
+  );
+  assert.throws(
+    () => withSnoopWorkersAi({ SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" }, () => workersAiBinding()),
+    /binding/,
   );
 });
