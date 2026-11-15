@@ -186,7 +186,20 @@ export async function interpretConversation(
       (result.choices.length !== 1 || choice.finish_reason !== "stop" || choice.message?.tool_calls)
     )
       throw new Error("SNOOP_INVALID_PROPOSAL");
-    let value = choice ? choice.message.content : result?.response;
+    // Workers AI models may return structured JSON as an object rather than text.
+    // Accept only the documented content shapes; the strict proposal validator below
+    // still rejects unknown fields, unauthorized actions and invented mutations.
+    let value = choice ? choice.message?.content : result?.response;
+    if (Array.isArray(value)) {
+      const pieces = value.filter((item: unknown) =>
+        typeof item === "object" && item !== null &&
+        (item as { type?: unknown }).type === "text" &&
+        typeof (item as { text?: unknown }).text === "string"
+      ) as Array<{ type: "text"; text: string }>;
+      if (pieces.length !== value.length || pieces.length !== 1)
+        throw new Error("SNOOP_INVALID_PROPOSAL");
+      value = pieces[0].text;
+    }
     if (typeof value === "string") {
       if (value.length > 8000) throw new Error("SNOOP_INVALID_PROPOSAL");
       try {
