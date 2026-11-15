@@ -80,7 +80,7 @@ export function administrativeModel(
 export async function transcribeAdministrativeAudio(input: {
   audioBase64: string;
   mimeType: string;
-  language?: "it" | "es";
+  language?: "it" | "es" | "auto";
   catalogNames?: string[];
 }) {
   if (process.env.AI_PROVIDER === "cloudflare") authorizeWorkersAi("transcription");
@@ -96,12 +96,12 @@ export async function transcribeAdministrativeAudio(input: {
   const bytes = Buffer.from(input.audioBase64, "base64");
   if (bytes.toString("base64") !== input.audioBase64) throw new Error("Audio base64 inválido");
   if (!config)
-    return transcribeWorkersAudio(workersAiBinding(), input.audioBase64, input.language || "es", input.catalogNames);
+    return transcribeWorkersAudio(workersAiBinding(), input.audioBase64, input.language || "auto", input.catalogNames);
   const mime = input.mimeType.split(";")[0];
   const ext = mime.split("/")[1].replace("mpeg", "mp3").replace("x-wav", "wav");
   const body = new FormData();
   body.set("model", process.env.AI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe");
-  body.set("language", input.language || "es");
+  if (input.language && input.language !== "auto") body.set("language", input.language);
   body.set("file", new Blob([bytes], { type: mime }), `recording.${ext}`);
   const response = await providerFetch(`${config.baseURL}/audio/transcriptions`, {
     method: "POST",
