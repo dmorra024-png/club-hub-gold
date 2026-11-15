@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   deploy-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/stabilize-independent-club' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy(snoop-pilot): authorized voice release')) }}
+    if: >-
+      ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/stabilize-independent-club' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy(snoop-pilot): authorized voice release')) }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
