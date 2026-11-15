@@ -17,17 +17,18 @@ type Options = {
   onSpeechActivity?: (speaking: boolean) => void;
   onTiming?: (timing: VoiceTiming) => void;
   scope: string;
-  language: "it" | "es";
-  getLanguage?: () => "it" | "es";
+  language: "it" | "es" | "auto";
+  getLanguage?: () => "it" | "es" | "auto";
   available: () => Promise<{ available: boolean }>;
   transcribe: (data: {
     audioBase64: string;
     mimeType: string;
-    language: "it" | "es";
-  }) => Promise<{ text: string }>;
+    language: "it" | "es" | "auto";
+  }) => Promise<{ text: string; language?: "it" | "es" }>;
   onStart?: () => void;
   onTranscript: (
     text: string,
+    detectedLanguage?: "it" | "es",
   ) =>
     | Promise<void | { interpretationMs: number; executionMs: number; aiMs?: number }>
     | void
@@ -277,7 +278,7 @@ export function useWhisperDictation(options: Options) {
               "No se entendió el dictado. Reintenta o introduce los datos manualmente.",
             );
           const transcribedAt = performance.now();
-          const outcome = await latest.current.onTranscript(result.text.trim());
+          const outcome = await latest.current.onTranscript(result.text.trim(), result.language);
           const finishedAt = performance.now();
           if (valid())
             latest.current.onTiming?.({
