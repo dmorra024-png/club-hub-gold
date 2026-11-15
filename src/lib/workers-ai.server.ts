@@ -129,11 +129,11 @@ export function workersAiFetch(binding: SnoopAiBinding): typeof fetch {
 export async function transcribeWorkersAudio(
   binding: SnoopAiBinding,
   audio: string,
-  language: "it" | "es",
+  language: "it" | "es" | "auto",
   catalogNames: readonly string[] = [],
 ) {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let result: { text?: unknown };
+  let result: { text?: unknown; transcription_info?: { language?: unknown } };
   // Never include members, transactions, notes or other club information.
   // A small, unique, validated catalog glossary is used only when separately authorized.
   const permittedNames = [...new Set(catalogNames
@@ -145,14 +145,16 @@ export async function transcribeWorkersAudio(
     result = (await Promise.race([
       binding.run(FREE_AUDIO_MODEL, {
         audio,
-        language,
+        ...(language === "auto" ? {} : { language }),
         task: "transcribe",
         vad_filter: true,
         condition_on_previous_text: false,
         initial_prompt:
           language === "it"
             ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa. Nomi dei prodotti: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Trascrivi i nomi propri letteralmente." + catalogGlossary
-            : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja. Nombres de productos: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Transcribe los nombres propios literalmente." + catalogGlossary,
+            : language === "es"
+              ? "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja. Nombres de productos: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Transcribe los nombres propios literalmente." + catalogGlossary
+              : "SNOOP, italiano o español. Nome, cognome, data di nascita, città; nombre, apellidos, fecha de nacimiento, ciudad. Trascrivi nella lingua parlata, non tradurre. " + catalogGlossary,
       }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Workers AI transcription timeout")), 25000);
@@ -166,5 +168,9 @@ export async function transcribeWorkersAudio(
   }
   if (typeof result?.text !== "string" || !result.text.trim() || result.text.length > 12000)
     throw new Error("Workers AI no ha devuelto una transcripción");
-  return { text: result.text.trim() };
+  const detected = result.transcription_info?.language;
+  return {
+    text: result.text.trim(),
+    language: detected === "it" || detected === "es" ? detected : language === "auto" ? undefined : language,
+  };
 }
