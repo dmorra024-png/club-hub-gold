@@ -383,3 +383,46 @@ test("DEMO interpreter requires explicit synthetic confirmation and leaves REAL 
     restore();
   }
 });
+
+test("Cloudflare GLM text-part choices are accepted only after strict validated proposal parsing", async () => {
+  const restore = env({ ...flags, SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" });
+  const root = globalThis as typeof globalThis & { __env__?: any };
+  const previous = root.__env__;
+  const proposal = dialogueCases[0].proposal;
+  let valid = true;
+  root.__env__ = {
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SNOOP_AI: {
+      run: async () => ({
+        choices: [{
+          finish_reason: "stop",
+          message: {
+            content: [{ type: "text", text: JSON.stringify(valid ? proposal : { ...proposal, save: true }) }],
+          },
+        }],
+      }),
+    },
+  };
+  try {
+    const request = {
+      mode: "pilot" as const,
+      consent: true as const,
+      synthetic: true,
+      text: "Crea un socio ficticio",
+      screen: "member_create" as const,
+      context: emptyConversation(),
+    };
+    assert.deepEqual(
+      await interpretConversation(request, { userId: "text-part-synthetic", access }),
+      proposal,
+    );
+    valid = false;
+    await assert.rejects(
+      interpretConversation(request, { userId: "text-part-synthetic", access }),
+      /SNOOP_INVALID_PROPOSAL/,
+    );
+  } finally {
+    root.__env__ = previous;
+    restore();
+  }
+});
