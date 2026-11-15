@@ -20,7 +20,7 @@ import {
 const TranscribeInput = z.object({
   audioBase64: z.string().min(1).max(12_000_000),
   mimeType: z.string().min(1).max(80),
-  language: z.enum(["it", "es"]).optional(),
+  language: z.enum(["it", "es", "auto"]).optional(),
 });
 
 export const transcribeAudio = createServerFn({ method: "POST" })
