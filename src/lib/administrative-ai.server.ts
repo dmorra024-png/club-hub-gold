@@ -1,3 +1,4 @@
+import { voiceFailureMessage } from "./voice-errors.ts";
 import {
   authorizeWorkersAi,
   workersAiBinding,
@@ -96,7 +97,12 @@ export async function transcribeAdministrativeAudio(input: {
   const bytes = Buffer.from(input.audioBase64, "base64");
   if (bytes.toString("base64") !== input.audioBase64) throw new Error("Audio base64 inválido");
   if (!config)
-    return transcribeWorkersAudio(workersAiBinding(), input.audioBase64, input.language || "es", input.catalogNames);
+    return transcribeWorkersAudio(
+      workersAiBinding(),
+      input.audioBase64,
+      input.language || "es",
+      input.catalogNames,
+    );
   const mime = input.mimeType.split(";")[0];
   const ext = mime.split("/")[1].replace("mpeg", "mp3").replace("x-wav", "wav");
   const body = new FormData();
@@ -145,17 +151,19 @@ export async function administrativeSpeech(text: string) {
 
 export function administrativeAiStatus() {
   let available = false;
+  let reason: string | undefined;
   try {
     if (process.env.AI_PROVIDER === "cloudflare") {
       authorizeWorkersAi("transcription");
       workersAiBinding();
     } else aiConfiguration();
     available = true;
-  } catch {
-    /* No credentials or details in public status. */
+  } catch (failure) {
+    reason = voiceFailureMessage(failure instanceof Error ? failure.message : "");
   }
   return {
     available,
+    ...(reason ? { reason } : {}),
     documents:
       available &&
       process.env.AI_PROVIDER !== "cloudflare" &&

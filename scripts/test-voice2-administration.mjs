@@ -67,10 +67,42 @@ for (const [name, engine, device] of [
       aiDelay = 0,
       aiQuota = false;
     await context.addInitScript(
-      ({ auth, key, conversational }) => {
+      ({ auth, key, conversational, aiDialogue }) => {
         localStorage.setItem(key, JSON.stringify(auth));
         localStorage.setItem("snoop:voice-language", conversational ? "es-ES" : "it-IT");
         window.__voice = { denied: false, created: 0, stopped: 0, recorders: 0, speechSamples: 0 };
+        if (aiDialogue) {
+          window.__snoopReplies = { active: false, spoken: 0, overlaps: 0 };
+          window.SpeechSynthesisUtterance = class {
+            constructor(text) {
+              this.text = text;
+            }
+          };
+          let timer;
+          Object.defineProperty(window, "speechSynthesis", {
+            configurable: true,
+            value: {
+              cancel() {
+                clearTimeout(timer);
+                window.__snoopReplies.active = false;
+              },
+              getVoices() {
+                return [
+                  { lang: "it-IT", localService: true },
+                  { lang: "es-ES", localService: true },
+                ];
+              },
+              speak(utterance) {
+                window.__snoopReplies.active = true;
+                window.__snoopReplies.spoken++;
+                timer = setTimeout(() => {
+                  window.__snoopReplies.active = false;
+                  utterance.onend?.();
+                }, 100);
+              },
+            },
+          });
+        }
         const NativeAudio = window.AudioContext || window.webkitAudioContext;
         const NativeRecorder = window.MediaRecorder;
         const Speech = window.SpeechRecognition ?? window.webkitSpeechRecognition;
@@ -147,6 +179,7 @@ for (const [name, engine, device] of [
           constructor(stream, options) {
             this.mimeType = options.mimeType;
             this.state = "inactive";
+            if (window.__snoopReplies?.active) window.__snoopReplies.overlaps++;
             window.__voice.recorders++;
           }
           start() {
@@ -190,7 +223,7 @@ for (const [name, engine, device] of [
           value: LocalAnalyserContext,
         });
       },
-      { auth, conversational, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
+      { auth, conversational, aiDialogue, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
     );
     await context.route("**/*", async (route) => {
       const req = route.request(),
@@ -640,7 +673,19 @@ for (const [name, engine, device] of [
           automaticWrites: writes,
           metrics: await page.evaluate(() => window.voiceTimings),
         });
-        console.log("PASS SNOOP AI isolated dialogue", name, assertions.length, "turns");
+        const replies = await page.evaluate(() => window.__snoopReplies);
+        assert.ok(replies.spoken > 0, "device reply adapter must actually run");
+        assert.equal(
+          replies.overlaps,
+          0,
+          "the recorder must not listen while device speech is active",
+        );
+        console.log(
+          "PASS SNOOP AI isolated dialogue",
+          name,
+          assertions.length,
+          "turns; device replies without microphone overlap",
+        );
         await context.close();
         continue;
       }

@@ -5,6 +5,7 @@ on:
     paths:
       - src/server.ts
       - src/lib/workers-ai.server.ts
+      - scripts/test-voice-worker-binding.mjs
       - tests/workers-ai.test.ts
       - .github/workflows/snoop-voice-binding-verify.yml
 permissions:
@@ -38,5 +39,7 @@ jobs:
         run: npm run typecheck
       - name: Build real Cloudflare Worker
         run: npm run build:worker
+      - name: Actual Workerd request and audio transport (synthetic only)
+        run: node scripts/test-voice-worker-binding.mjs
       - name: Wrangler dry run (no deployment)
         run: npm run worker:dry-run

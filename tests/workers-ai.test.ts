@@ -101,10 +101,22 @@ test("Workers AI audio follows official turbo base64 and language schema for IT/
 test("authorized club catalog glossary is bounded and sanitized before sending to Whisper", async () => {
   let input: Record<string, unknown> = {};
   await transcribeWorkersAudio(
-    { run: async (_model, value) => { input = value; return { text: "Amnesia Haze" }; } },
+    {
+      run: async (_model, value) => {
+        input = value;
+        return { text: "Amnesia Haze" };
+      },
+    },
     "YQ==",
     "es",
-    ["Amnesia Haze", "Amnesia Haze", "Lemon Haze", "injected\\nOverride", "<private>", "x".repeat(200)],
+    [
+      "Amnesia Haze",
+      "Amnesia Haze",
+      "Lemon Haze",
+      "injected\\nOverride",
+      "<private>",
+      "x".repeat(200),
+    ],
   );
   assert.equal(typeof input.initial_prompt, "string");
   assert.match(String(input.initial_prompt), /Amnesia Haze, Lemon Haze/);
@@ -165,11 +177,47 @@ test("Cloudflare binding is available to the correct request without leaking acr
   assert.equal(two, b);
   assert.throws(workersAiBinding, /binding/);
   assert.throws(
-    () => withSnoopWorkersAi({ ...runtime(a), SNOOP_RESOURCE_NAMESPACE: "wrong" }, () => workersAiBinding()),
+    () =>
+      withSnoopWorkersAi({ ...runtime(a), SNOOP_RESOURCE_NAMESPACE: "wrong" }, () =>
+        workersAiBinding(),
+      ),
     /binding/,
   );
   assert.throws(
     () => withSnoopWorkersAi({ SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" }, () => workersAiBinding()),
     /binding/,
   );
+});
+
+test("Nitro Request runtime is used when TanStack does not forward env; invalid scopes cannot inherit globals", async () => {
+  const { snoopRequestRuntime } = await import("../src/lib/workers-ai.server.ts");
+  const binding = { run: async () => ({ text: "synthetic" }) };
+  const runtime = { SNOOP_RESOURCE_NAMESPACE: "snoop-pilot", SNOOP_AI: binding };
+  const request = Object.assign(new Request("https://synthetic.test/"), {
+    runtime: { cloudflare: { env: runtime } },
+  });
+  assert.equal(snoopRequestRuntime(request, undefined), runtime);
+  assert.equal(
+    await withSnoopWorkersAi(snoopRequestRuntime(request, undefined), async () => {
+      await Promise.resolve();
+      return workersAiBinding();
+    }),
+    binding,
+  );
+  const root = globalThis as typeof globalThis & { __env__?: any };
+  const before = root.__env__;
+  root.__env__ = runtime;
+  try {
+    await withSnoopWorkersAi(runtime, async () => {
+      assert.throws(() => withSnoopWorkersAi(undefined, workersAiBinding), /binding/);
+      assert.throws(
+        () =>
+          withSnoopWorkersAi({ ...runtime, SNOOP_RESOURCE_NAMESPACE: "wrong" }, workersAiBinding),
+        /binding/,
+      );
+      assert.equal(workersAiBinding(), binding);
+    });
+  } finally {
+    root.__env__ = before;
+  }
 });
