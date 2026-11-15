@@ -19,7 +19,7 @@ type Options = {
   scope: string;
   language: "it" | "es";
   getLanguage?: () => "it" | "es";
-  available: () => Promise<{ available: boolean }>;
+  available: () => Promise<{ available: boolean; reason?: string }>;
   transcribe: (data: {
     audioBase64: string;
     mimeType: string;
@@ -54,7 +54,7 @@ export function useWhisperDictation(options: Options) {
     [error, setError] = useState(""),
     [hint, setHint] = useState("");
   const retained = useRef<{ stream: MediaStream; context: AudioContext } | null>(null);
-  const availability = useRef<{ scope: string; at: number; value: { available: boolean } } | null>(
+  const availability = useRef<{ scope: string; at: number; value: { available: boolean; reason?: string } } | null>(
     null,
   );
   const capture = useRef<Capture | null>(null),
@@ -184,7 +184,9 @@ export function useWhisperDictation(options: Options) {
         return;
       }
       if (!config.available)
-        throw new Error("IA no disponible. Puedes introducir los datos manualmente.");
+        throw new Error(
+          config.reason || "IA no disponible. Puedes introducir los datos manualmente.",
+        );
       const held = retained.current;
       const tracks =
         latest.current.continuous && held?.stream.getTracks().every((t) => t.readyState === "live")

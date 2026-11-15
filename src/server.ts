@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { withSnoopWorkersAi, snoopRequestRuntime } from "./lib/workers-ai.server";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -46,7 +47,9 @@ export default {
       return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
     try {
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await withSnoopWorkersAi(snoopRequestRuntime(request, env), () =>
+        handler.fetch(request, env, ctx),
+      );
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);

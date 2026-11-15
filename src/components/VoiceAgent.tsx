@@ -1,3 +1,4 @@
+import { voiceFailureMessage } from "@/lib/voice-errors";
 import {
   ConversationProposal,
   emptyConversation,
@@ -150,6 +151,11 @@ export function VoiceAgent({
     [clarification, setClarification] = useState(""),
     [fault, setFault] = useState("");
   const [spokenReplies, setSpokenReplies] = useState(true);
+  useEffect(() => {
+    try {
+      window.speechSynthesis?.getVoices();
+    } catch {}
+  }, []);
   const [voiceReplyPlaying, setVoiceReplyPlaying] = useState(false);
   const replyPlayingRef = useRef(false);
   const sessionEpoch = useRef(0);
@@ -961,16 +967,19 @@ export function VoiceAgent({
   });
   cancelRef.current = dictation.cancel;
   useEffect(() => {
-    if (!clarification.trim() || !spokenReplies || !activeRef.current)
-      return;
+    if (!clarification.trim() || !spokenReplies || !activeRef.current) return;
     const generation = conversationGeneration.current;
     replyPlayingRef.current = true;
     setVoiceReplyPlaying(true);
-    const launched = speakBrowserVoice(clarification, language.startsWith("it") ? "it" : "es", () => {
-      if (generation !== conversationGeneration.current) return;
-      replyPlayingRef.current = false;
-      setVoiceReplyPlaying(false);
-    });
+    const launched = speakBrowserVoice(
+      clarification,
+      language.startsWith("it") ? "it" : "es",
+      () => {
+        if (generation !== conversationGeneration.current) return;
+        replyPlayingRef.current = false;
+        setVoiceReplyPlaying(false);
+      },
+    );
     if (!launched) {
       replyPlayingRef.current = false;
       setVoiceReplyPlaying(false);
@@ -978,6 +987,7 @@ export function VoiceAgent({
     return () => {
       stopBrowserVoice();
       replyPlayingRef.current = false;
+      setVoiceReplyPlaying(false);
     };
   }, [clarification, spokenReplies, conversationMode, language]);
   useEffect(() => {
@@ -999,11 +1009,23 @@ export function VoiceAgent({
     )
       return;
     const timer = setTimeout(() => {
-      if (activeRef.current && document.visibilityState === "visible" && navigator.onLine)
+      if (
+        activeRef.current &&
+        !replyPlayingRef.current &&
+        document.visibilityState === "visible" &&
+        navigator.onLine
+      )
         void dictation.start();
     }, 150);
     return () => clearTimeout(timer);
-  }, [dictation.phase, sessionActive, dictation.error, dictation.start, continuous, voiceReplyPlaying]);
+  }, [
+    dictation.phase,
+    sessionActive,
+    dictation.error,
+    dictation.start,
+    continuous,
+    voiceReplyPlaying,
+  ]);
   useEffect(() => {
     sessionEpoch.current++;
     setClarification("");
@@ -1115,13 +1137,7 @@ export function VoiceAgent({
       window.removeEventListener("snoop:cash-report-open", event);
     };
   }, [scope, location.pathname]);
-  const shortError = /Permiso|denegado/i.test(fault)
-    ? "Permite el micrófono para continuar."
-    : /conex|fetch|network/i.test(fault)
-      ? "Sin conexión. Puedes usar el teclado."
-      : /tarda|timeout/i.test(fault)
-        ? "La voz tarda demasiado. Reintenta."
-        : "Voz no disponible. Puedes usar el teclado.";
+  const shortError = voiceFailureMessage(fault);
   const status =
     dictation.phase === "processing"
       ? stage === "Escuchando"
@@ -1215,7 +1231,14 @@ export function VoiceAgent({
           <p className="text-xs text-muted-foreground">
             Comandos administrativos · Revisa y confirma siempre en el formulario.
           </p>
-          <a href="/snoop-demo" className="block rounded-xl border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-center text-amber-200 font-medium" onClick={() => { stopSession(); setPanelOpen(false); }}>
+          <a
+            href="/snoop-demo"
+            className="block rounded-xl border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-center text-amber-200 font-medium"
+            onClick={() => {
+              stopSession();
+              setPanelOpen(false);
+            }}
+          >
             Probar SNOOP AI · DEMO sin guardar datos
           </a>
           <label className="text-xs">

@@ -1,18 +1,45 @@
 // Workers AI binding only; no REST API key, remote fallback or paid model routing.
+import { AsyncLocalStorage } from "node:async_hooks";
 export interface SnoopAiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
 export const FREE_TEXT_MODEL = "@cf/meta/llama-3.2-3b-instruct";
 export const FREE_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
+type SnoopRuntimeAi = { SNOOP_AI: SnoopAiBinding; SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" };
+const requestAi = new AsyncLocalStorage<SnoopRuntimeAi | null>();
+
+/** Bind the Cloudflare Worker AI resource to THIS request, never a shared global. */
+export function withSnoopWorkersAi<T>(runtimeEnv: unknown, action: () => T): T {
+  if (typeof runtimeEnv !== "object" || runtimeEnv === null) return requestAi.run(null, action);
+  const runtime = runtimeEnv as Record<string, unknown>;
+  const ai = runtime.SNOOP_AI as Partial<SnoopAiBinding> | undefined;
+  if (runtime.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot" || typeof ai?.run !== "function")
+    return requestAi.run(null, action);
+  return requestAi.run(
+    { SNOOP_RESOURCE_NAMESPACE: "snoop-pilot", SNOOP_AI: ai as SnoopAiBinding },
+    action,
+  );
+}
+/** Nitro forwards the Cloudflare context on Request, not TanStack fetch's second argument. */
+export function snoopRequestRuntime(request: Request, env: unknown): unknown {
+  return (
+    env ??
+    (request as Request & { runtime?: { cloudflare?: { env?: unknown } } }).runtime?.cloudflare?.env
+  );
+}
 export function workersAiBinding(): SnoopAiBinding {
-  const bindings = (
-    globalThis as typeof globalThis & {
-      __env__?: {
-        SNOOP_AI?: SnoopAiBinding;
-        SNOOP_RESOURCE_NAMESPACE?: string;
-      };
-    }
-  ).__env__;
+  const scoped = requestAi.getStore();
+  const bindings =
+    scoped !== undefined
+      ? scoped
+      : (
+          globalThis as typeof globalThis & {
+            __env__?: {
+              SNOOP_AI?: SnoopAiBinding;
+              SNOOP_RESOURCE_NAMESPACE?: string;
+            };
+          }
+        ).__env__;
   if (bindings?.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot" || !bindings.SNOOP_AI?.run)
     throw new Error("Falta el binding independiente SNOOP_AI de SNOOP");
   return bindings.SNOOP_AI;
@@ -136,11 +163,17 @@ export async function transcribeWorkersAudio(
   let result: { text?: unknown };
   // Never include members, transactions, notes or other club information.
   // A small, unique, validated catalog glossary is used only when separately authorized.
-  const permittedNames = [...new Set(catalogNames
-    .filter((n): n is string => typeof n === "string")
-    .map((n) => n.trim())
-    .filter((n) => n.length >= 2 && n.length <= 60 && !/[\r\n<>]|\\[rn]/i.test(n)))].slice(0, 35);
-  const catalogGlossary = permittedNames.length ? ` Nombres de productos del catálogo: ${permittedNames.join(", ").slice(0, 1200)}.` : "";
+  const permittedNames = [
+    ...new Set(
+      catalogNames
+        .filter((n): n is string => typeof n === "string")
+        .map((n) => n.trim())
+        .filter((n) => n.length >= 2 && n.length <= 60 && !/[\r\n<>]|\\[rn]/i.test(n)),
+    ),
+  ].slice(0, 35);
+  const catalogGlossary = permittedNames.length
+    ? ` Nombres de productos del catálogo: ${permittedNames.join(", ").slice(0, 1200)}.`
+    : "";
   try {
     result = (await Promise.race([
       binding.run(FREE_AUDIO_MODEL, {
@@ -151,8 +184,10 @@ export async function transcribeWorkersAudio(
         condition_on_previous_text: false,
         initial_prompt:
           language === "it"
-            ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa. Nomi dei prodotti: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Trascrivi i nomi propri letteralmente." + catalogGlossary
-            : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja. Nombres de productos: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Transcribe los nombres propios literalmente." + catalogGlossary,
+            ? "SNOOP. Soci, nome, cognome, data di nascita, città, telefono, prodotti, categoria, inventario, cassa. Nomi dei prodotti: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Trascrivi i nomi propri letteralmente." +
+              catalogGlossary
+            : "SNOOP. Socios, nombre, apellidos, fecha de nacimiento, ciudad, teléfono, productos, categoría, inventario, caja. Nombres de productos: Amnesia Haze, Haze, Lemon Haze, Super Silver Haze, Purple Haze, OG Kush, Critical, White Widow, Gelato. Transcribe los nombres propios literalmente." +
+              catalogGlossary,
       }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("Workers AI transcription timeout")), 25000);

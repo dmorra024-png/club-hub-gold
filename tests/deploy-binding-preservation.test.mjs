@@ -67,6 +67,9 @@ async function proof({
         GITHUB_REPOSITORY: "dmorra024-png/club-hub-gold",
         GITHUB_REF_NAME: "codex/stabilize-independent-club",
         SNOOP_BINDINGS_CHECK_ONLY: String(checkOnly),
+        SUPABASE_URL: "https://bnwanxbmprbymbutoths.supabase.co",
+        APP_URL: "https://snoop-pilot.dmorra024.workers.dev",
+        SNOOP_PUBLISHABLE_KEY: "sb_publishable_SYNTHETIC_TEST_ONLY",
       },
     });
     assert.ifError(result.error);
@@ -94,23 +97,22 @@ test("regression: old allowlist rejects Nitro cron after every binding and Wrang
   assert.match(result.output, /unaccounted_resource_bindings":\[\]/);
   assert.match(result.output, /"stage":"config-allowlist"/);
 });
-test("actual workflow inherits existing bindings and sends exactly the three public GLM activation values", async () => {
+test("actual workflow inherits existing public bindings by name and never resends their values", async () => {
   const result = await proof();
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /SNOOP_BINDINGS_PRESERVATION_OK/);
   assert.match(result.output, /"secret_values_sent":false/);
   assert.deepEqual(result.config.triggers, { crons: ["*/5 * * * *"] });
-  assert.deepEqual(result.config.vars, {
-    AI_VOICE_INTENTS_ENABLED: "true",
-    SNOOP_AI_FREE_TIER_CONFIRMED: "true",
-    SNOOP_AI_ASSISTANT_MODEL: "@cf/zai-org/glm-4.7-flash",
-  });
+  assert.deepEqual(result.config.vars, {});
+  assert.deepEqual(
+    result.config.unsafe.bindings,
+    bindings()
+      .filter((b) => ["plain_text", "json"].includes(b.type))
+      .map((b) => ({ name: b.name, type: "inherit" })),
+  );
   assert.equal(result.config.ai.binding, "SNOOP_AI");
   assert.equal(result.config.assets.binding, "ASSETS");
-  assert.match(
-    result.output,
-    /"payload_keep_bindings":\["plain_text","json","secret_text","secret_key"\]/,
-  );
+  assert.match(result.output, /"payload_keep_bindings":\["secret_text","secret_key"\]/);
 });
 for (const [label, triggers] of [
   ["different schedule", { crons: ["* * * * *"] }],
@@ -218,4 +220,19 @@ test("missing mandatory private secret and duplicate binding names fail closed",
   result = await proof({ live: [...bindings(), { name: "SNOOP_AI", type: "ai" }] });
   assert.equal(result.status, 1);
   assert.match(result.output, /"stage":"binding-names"/);
+});
+test("restore only absent SNOOP public runtime values, preserving every existing binding by reference", async () => {
+  const missing = ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "APP_URL"];
+  const live = bindings().filter((b) => !missing.includes(b.name));
+  const result = await proof({ live });
+  assert.equal(result.status, 0, result.output);
+  assert.deepEqual(result.config.vars, {
+    SUPABASE_URL: "https://bnwanxbmprbymbutoths.supabase.co",
+    SUPABASE_PUBLISHABLE_KEY: "sb_publishable_SYNTHETIC_TEST_ONLY",
+    APP_URL: "https://snoop-pilot.dmorra024.workers.dev",
+  });
+  assert.ok(
+    result.config.unsafe.bindings.every((b) => b.type === "inherit" && !missing.includes(b.name)),
+  );
+  assert.doesNotMatch(JSON.stringify(result.config), new RegExp(canary));
 });

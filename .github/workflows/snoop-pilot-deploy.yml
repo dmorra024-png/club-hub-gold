@@ -151,14 +151,17 @@ jobs:
               assert.ok(deployStart > 0 && /keepSecrets:\s*true/.test(cli.slice(deployStart,cli.indexOf('let workerBundle;',deployStart))));
               const factory = vm.runInNewContext('('+cli.slice(start,end)+')', {import_undici9:{FormData}, File, extractBindingsOfType:(type,bs)=>Object.entries(bs??{}).filter(([,b])=>b.type===type).map(([binding,b])=>({...b,binding})),isUnsafeBindingType:type=>type.startsWith('unsafe_'),toMimeType:()=> 'application/javascript+module'});
               stage = 'upload-metadata';
-              const transmittedPublic = {...glmActivation,...restoreMissing};
+              const transmittedPublic = {...Object.fromEntries(Object.entries(glmActivation).filter(([name])=>!bindings.has(name))),...restoreMissing};
+              const inheritedPublic = result.bindings.filter(b=>['plain_text','json'].includes(b.type)).map(b=>({name:b.name,type:'inherit'}));
+              const inheritedPublicBindings = Object.fromEntries(inheritedPublic.map(b=>[b.name,{type:'inherit'}]));
               const publicActivationBindings = Object.fromEntries(Object.entries(transmittedPublic).map(([name,value])=>[name,{type:'plain_text',value}]));
-              const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:true,keepSecrets:true}, {...publicActivationBindings,SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
-              assert.deepEqual([...metadata.keep_bindings].sort(), [...inheritedTypes].sort());
+              const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:false,keepSecrets:true}, {...inheritedPublicBindings,...publicActivationBindings,SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
+              assert.deepEqual([...metadata.keep_bindings].sort(), ['secret_text','secret_key'].sort());
+              assert.deepEqual(metadata.bindings.filter(b=>b.type==='inherit'), inheritedPublic);
               assert.deepEqual(metadata.bindings.filter(b=>b.type==='plain_text'), Object.entries(transmittedPublic).map(([name,text])=>({name,type:'plain_text',text})));
-              assert.deepEqual(metadata.bindings.filter(b=>b.type!=='plain_text').map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
-              assert.equal(metadata.bindings.length, Object.keys(transmittedPublic).length+2);
-              // Preserve existing variables and secrets via --keep-vars. Restore only absent
+              assert.deepEqual(metadata.bindings.filter(b=>!['plain_text','inherit'].includes(b.type)).map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
+              assert.equal(metadata.bindings.length, Object.keys(transmittedPublic).length+inheritedPublic.length+2);
+              // Preserve existing variables by name and secrets by type. Restore only absent
               // non-secret Supabase public URL/key and app origin; never change existing secrets.
               config.vars = transmittedPublic;
               stage = 'config-allowlist';
@@ -170,6 +173,9 @@ jobs:
               assert.ok(Object.keys(config.ai).every(key=>['binding','remote'].includes(key)));
               assert.ok(Object.keys(config.assets).every(key=>['binding','directory'].includes(key)));
               stage = 'write-local-config';
+              // Named inheritance preserves existing public/JSON bindings without resending their values.
+              // Keep-by-type can suppress additions of the same type; secrets remain type-inherited.
+              config.unsafe = {bindings:inheritedPublic};
               await writeFile(file, JSON.stringify(config,null,2)+'\n');
               console.log(JSON.stringify({wrangler:'4.157.0',payload_keep_bindings:metadata.keep_bindings,resources:metadata.bindings.map(b=>({name:b.name,type:b.type})),secret_values_sent:false}));
             }
@@ -187,7 +193,9 @@ jobs:
           set -euo pipefail
           # Validate the generated config still targets exactly snoop-pilot.
           node -e 'const c=require("./.output/server/wrangler.json");if(c.name!=="snoop-pilot")throw Error("Wrong Worker target")'
-          npx wrangler deploy --config .output/server/wrangler.json --keep-vars
+          npx wrangler deploy --config .output/server/wrangler.json
+      - name: Verify restored runtime and unauthenticated voice boundary (no user data)
+        run: node scripts/verify-snoop-runtime.mjs
       - name: Sanity check HTTPS (does not register users)
         shell: bash
         run: |
