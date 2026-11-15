@@ -32,6 +32,15 @@ const payload = {
   chat_template_kwargs:{enable_thinking:false,clear_thinking:true},
   response_format:{type:"json_schema",json_schema:{name:"snoop_conversation",strict:true,schema}},
 };
+// A read-only Worker settings call tells a bad token from an AI REST permission issue.
+let settingsStatus = 0;
+try {
+  const settings = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/snoop-pilot/settings`, {
+    headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000), redirect: "error",
+  });
+  settingsStatus = settings.status;
+  console.log(settingsStatus === 200 ? "SNOOP_CLOUDFLARE_WORKER_TOKEN_VALID" : "SNOOP_CLOUDFLARE_WORKER_SETTINGS_HTTP_"+settingsStatus);
+} catch { console.error("SNOOP_CLOUDFLARE_SETTINGS_CHECK_UNAVAILABLE"); }
 let response;
 try {
   response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/@cf/zai-org/glm-4.7-flash`,{
