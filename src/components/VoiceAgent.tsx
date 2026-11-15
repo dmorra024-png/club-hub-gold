@@ -961,7 +961,7 @@ export function VoiceAgent({
   });
   cancelRef.current = dictation.cancel;
   useEffect(() => {
-    if (!clarification.trim() || !spokenReplies || conversationMode === "off" || !activeRef.current)
+    if (!clarification.trim() || !spokenReplies || !activeRef.current)
       return;
     const generation = conversationGeneration.current;
     replyPlayingRef.current = true;
