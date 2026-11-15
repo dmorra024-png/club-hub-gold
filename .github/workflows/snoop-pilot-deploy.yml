@@ -109,6 +109,14 @@ jobs:
               SNOOP_AI_FREE_TIER_CONFIRMED: 'true',
               SNOOP_AI_ASSISTANT_MODEL: '@cf/zai-org/glm-4.7-flash'
             };
+            // Restore only absent public app bindings, never replace any existing secret.
+            const publicRuntime = {SUPABASE_URL:process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY:process.env.SNOOP_PUBLISHABLE_KEY, APP_URL:process.env.APP_URL};
+            const restoreMissing = checkOnly ? {} : Object.fromEntries(Object.entries(publicRuntime).filter(([name]) => !bindings.has(name)));
+            if (!checkOnly) {
+              assert.equal(publicRuntime.SUPABASE_URL, 'https://bnwanxbmprbymbutoths.supabase.co');
+              assert.equal(publicRuntime.APP_URL, 'https://snoop-pilot.dmorra024.workers.dev');
+              assert.match(publicRuntime.SUPABASE_PUBLISHABLE_KEY ?? '', /^sb_publishable_[A-Za-z0-9_-]+$/);
+            }
             for (const [name, value] of Object.entries(glmActivation)) {
               assert.equal(config.vars?.[name], value, 'Unexpected GLM activation configuration');
             }
@@ -124,7 +132,7 @@ jobs:
               const live = result.bindings.find(b=>b.name===name);
               if (live?.type==='plain_text') assert.equal(new URL(live.text).href,new URL(expected).href);
             }
-            const report = Object.entries(required).map(([name,types]) => ({name,type:bindings.get(name) ?? 'MISSING',valid:types.includes(bindings.get(name))}));
+            const report = Object.entries(required).map(([name,types]) => ({name,type:bindings.get(name) ?? 'MISSING',restoring:Object.hasOwn(restoreMissing,name),valid:types.includes(bindings.get(name)) || Object.hasOwn(restoreMissing,name)}));
             console.log(JSON.stringify({http:result.http,required:report}));
             assert.ok(report.every(b => b.valid));
             stage = 'resource-bindings';
@@ -147,16 +155,16 @@ jobs:
               assert.ok(deployStart > 0 && /keepSecrets:\s*true/.test(cli.slice(deployStart,cli.indexOf('let workerBundle;',deployStart))));
               const factory = vm.runInNewContext('('+cli.slice(start,end)+')', {import_undici9:{FormData}, File, extractBindingsOfType:(type,bs)=>Object.entries(bs??{}).filter(([,b])=>b.type===type).map(([binding,b])=>({...b,binding})),isUnsafeBindingType:type=>type.startsWith('unsafe_'),toMimeType:()=> 'application/javascript+module'});
               stage = 'upload-metadata';
-              const publicActivationBindings = Object.fromEntries(Object.entries(glmActivation).map(([name,value])=>[name,{type:'plain_text',value}]));
+              const transmittedPublic = {...glmActivation,...restoreMissing};
+              const publicActivationBindings = Object.fromEntries(Object.entries(transmittedPublic).map(([name,value])=>[name,{type:'plain_text',value}]));
               const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:true,keepSecrets:true}, {...publicActivationBindings,SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
               assert.deepEqual([...metadata.keep_bindings].sort(), [...inheritedTypes].sort());
-              assert.deepEqual(metadata.bindings.filter(b=>b.type==='plain_text'), Object.entries(glmActivation).map(([name,text])=>({name,type:'plain_text',text})));
+              assert.deepEqual(metadata.bindings.filter(b=>b.type==='plain_text'), Object.entries(transmittedPublic).map(([name,text])=>({name,type:'plain_text',text})));
               assert.deepEqual(metadata.bindings.filter(b=>b.type!=='plain_text').map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
-              assert.equal(metadata.bindings.length, Object.keys(glmActivation).length+2);
-              // Only the three public activation values are sent; existing vars and secrets are inherited.
-              // Preserve all existing vars/secrets via Wrangler --keep-vars,
-              // uploading only three non-secret activation values. No secret writes.
-              config.vars = glmActivation;
+              assert.equal(metadata.bindings.length, Object.keys(transmittedPublic).length+2);
+              // Preserve existing variables and secrets via --keep-vars. Restore only absent
+              // non-secret Supabase public URL/key and app origin; never change existing secrets.
+              config.vars = transmittedPublic;
               stage = 'config-allowlist';
               const allowedConfigKeys = ['compatibility_date','$schema','name','main','compatibility_flags','workers_dev','preview_urls','assets','ai','no_bundle','rules','triggers','vars'];
               assert.ok(Object.keys(config).every(key=>allowedConfigKeys.includes(key)));
