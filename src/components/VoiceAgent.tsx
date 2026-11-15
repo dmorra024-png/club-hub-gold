@@ -32,6 +32,7 @@ import {
 } from "@/lib/voice-agent.functions";
 
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
+import { speakBrowserVoice, stopBrowserVoice } from "@/lib/browser-voice";
 import {
   administrativeIntent,
   cleanVoiceCommand,
@@ -148,6 +149,9 @@ export function VoiceAgent({
     [speaking, setSpeaking] = useState(false),
     [clarification, setClarification] = useState(""),
     [fault, setFault] = useState("");
+  const [spokenReplies, setSpokenReplies] = useState(true);
+  const [voiceReplyPlaying, setVoiceReplyPlaying] = useState(false);
+  const replyPlayingRef = useRef(false);
   const sessionEpoch = useRef(0);
   const conversationGeneration = useRef(0);
   const activeRef = useRef(false),
@@ -156,6 +160,9 @@ export function VoiceAgent({
     executing = useRef(false);
   const stopSession = useCallback(() => {
     activeRef.current = false;
+    replyPlayingRef.current = false;
+    stopBrowserVoice();
+    setVoiceReplyPlaying(false);
     conversationMemory.current = emptyConversation();
     conversationGeneration.current++;
     sessionEpoch.current++;
@@ -954,6 +961,26 @@ export function VoiceAgent({
   });
   cancelRef.current = dictation.cancel;
   useEffect(() => {
+    if (!clarification.trim() || !spokenReplies || conversationMode === "off" || !activeRef.current)
+      return;
+    const generation = conversationGeneration.current;
+    replyPlayingRef.current = true;
+    setVoiceReplyPlaying(true);
+    const launched = speakBrowserVoice(clarification, language.startsWith("it") ? "it" : "es", () => {
+      if (generation !== conversationGeneration.current) return;
+      replyPlayingRef.current = false;
+      setVoiceReplyPlaying(false);
+    });
+    if (!launched) {
+      replyPlayingRef.current = false;
+      setVoiceReplyPlaying(false);
+    }
+    return () => {
+      stopBrowserVoice();
+      replyPlayingRef.current = false;
+    };
+  }, [clarification, spokenReplies, conversationMode, language]);
+  useEffect(() => {
     if (dictation.error) {
       stopSession();
       setFault(dictation.error.slice(0, 160));
@@ -966,7 +993,9 @@ export function VoiceAgent({
       !continuous ||
       !sessionActive ||
       !activeRef.current ||
-      dictation.error
+      dictation.error ||
+      voiceReplyPlaying ||
+      replyPlayingRef.current
     )
       return;
     const timer = setTimeout(() => {
@@ -974,7 +1003,7 @@ export function VoiceAgent({
         void dictation.start();
     }, 150);
     return () => clearTimeout(timer);
-  }, [dictation.phase, sessionActive, dictation.error, dictation.start, continuous]);
+  }, [dictation.phase, sessionActive, dictation.error, dictation.start, continuous, voiceReplyPlaying]);
   useEffect(() => {
     sessionEpoch.current++;
     setClarification("");
@@ -1231,6 +1260,19 @@ export function VoiceAgent({
               : conversationMode === "pilot"
                 ? "Permitir conversación Cloudflare con datos sintéticos."
                 : "Permitir contexto mínimo Cloudflare según la revisión de privacidad."}
+          </label>
+          <label className="text-xs flex gap-2">
+            <input
+              type="checkbox"
+              checked={spokenReplies}
+              onChange={(event) => {
+                stopBrowserVoice();
+                replyPlayingRef.current = false;
+                setVoiceReplyPlaying(false);
+                setSpokenReplies(event.target.checked);
+              }}
+            />
+            Respuestas habladas gratis / Risposte vocali gratuite (voz del dispositivo)
           </label>
           <label className="text-xs">
             Idioma de voz / Lingua voce
