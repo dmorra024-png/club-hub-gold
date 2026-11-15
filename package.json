@@ -24,7 +24,7 @@
     "test:sandbox:ai": "node scripts/test-administrative-ai.mjs",
     "test:sandbox:mobile": "node scripts/test-mobile-administration.mjs",
     "test:security:bundle": "node scripts/verify-client-secrets.mjs",
-    "build:worker": "SNOOP_RUNTIME=cloudflare vite build --mode pilot && node scripts/preserve-worker-runtime-vars.mjs",
+    "build:worker": "SNOOP_RUNTIME=cloudflare vite build --mode pilot",
     "build:worker:test": "SNOOP_RUNTIME=cloudflare vite build --mode sandbox",
     "worker:dry-run": "WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --config .output/server/wrangler.json --outdir .sandbox/cloudflare-dry-run",
     "test:worker": "node scripts/prepare-worker-test.mjs && node scripts/test-worker.mjs",
