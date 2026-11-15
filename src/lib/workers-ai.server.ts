@@ -1,11 +1,27 @@
 // Workers AI binding only; no REST API key, remote fallback or paid model routing.
+import { AsyncLocalStorage } from "node:async_hooks";
 export interface SnoopAiBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
 }
 export const FREE_TEXT_MODEL = "@cf/meta/llama-3.2-3b-instruct";
 export const FREE_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
+type SnoopRuntimeAi = { SNOOP_AI: SnoopAiBinding; SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" };
+const requestAi = new AsyncLocalStorage<SnoopRuntimeAi>();
+
+/** Bind the Cloudflare Worker AI resource to THIS request, never a shared global. */
+export function withSnoopWorkersAi<T>(runtimeEnv: unknown, action: () => T): T {
+  if (typeof runtimeEnv !== "object" || runtimeEnv === null) return action();
+  const runtime = runtimeEnv as Record<string, unknown>;
+  const ai = runtime.SNOOP_AI as Partial<SnoopAiBinding> | undefined;
+  if (runtime.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot" || typeof ai?.run !== "function")
+    return action();
+  return requestAi.run(
+    { SNOOP_RESOURCE_NAMESPACE: "snoop-pilot", SNOOP_AI: ai as SnoopAiBinding },
+    action,
+  );
+}
 export function workersAiBinding(): SnoopAiBinding {
-  const bindings = (
+  const bindings = requestAi.getStore() ?? (
     globalThis as typeof globalThis & {
       __env__?: {
         SNOOP_AI?: SnoopAiBinding;
