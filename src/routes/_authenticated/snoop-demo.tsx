@@ -87,7 +87,19 @@ function SnoopAiDemo() {
         },
       });
       if (currentEpoch !== epoch.current) return;
-      const result = ConversationProposal.parse(response);
+      if (response.error || !response.proposal) {
+        const details: Record<string, string> = {
+          not_authorized: "SNOOP AI: permiso denegado. No se cambió ningún dato.",
+          rate_limited: "SNOOP AI: cuota o límite de solicitudes alcanzado. No se cambió ningún dato.",
+          timeout: "SNOOP AI: tiempo de espera agotado. No se cambió ningún dato.",
+          invalid_proposal: "SNOOP AI: respuesta con formato no válido. No se cambió ningún dato.",
+          binding_unavailable: "SNOOP AI: no se encuentra la conexión SNOOP_AI de Cloudflare. No se cambió ningún dato.",
+          provider_unavailable: "SNOOP AI: error del servicio de interpretación. No se cambió ningún dato.",
+        };
+        setError(details[response.error ?? "provider_unavailable"] ?? details.provider_unavailable);
+        return;
+      }
+      const result = ConversationProposal.parse(response.proposal);
       if (result.intent === "stop") {
         reset();
         return;
