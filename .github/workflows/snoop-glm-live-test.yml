@@ -1,0 +1,26 @@
+name: SNOOP Voice live AI synthetic verification
+on:
+  push:
+    branches: [fix/snoop-demo-ai-error-diagnostics-20261115]
+    paths:
+      - scripts/verify-snoop-glm-live.mjs
+      - .github/workflows/snoop-glm-live-test.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-glm:
+    if: github.repository == 'dmorra024-png/club-hub-gold'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    environment: snoop-pilot
+    env:
+      SNOOP_CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Synthetic GLM response shape (no personal data, no writes)
+        run: node scripts/verify-snoop-glm-live.mjs
