@@ -176,7 +176,7 @@ export async function interpretConversation(
         },
       }),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("SNOOP tarda demasiado")), 8000);
+        timer = setTimeout(() => reject(new Error("SNOOP tarda demasiado")), 20000);
         timer.unref?.();
       }),
     ])) as any;
