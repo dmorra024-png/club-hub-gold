@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useRef, type ReactNode } from "react";
 import { useLocation } from "@tanstack/react-router";
 import type { useAuth } from "@/hooks/useAuth";
 import type { DictationPhase } from "@/hooks/useWhisperDictation";
@@ -20,15 +20,17 @@ export function VoiceSessionProvider({
   const [phase, setPhase] = useState<DictationPhase>("idle");
   const [pilot, setPilot] = useState(false);
   const checkPilot = useServerFn(deepgramPilotStatus);
+  const checkPilotRef = useRef(checkPilot);
+  checkPilotRef.current = checkPilot;
   useEffect(() => {
     let live = true;
     setPilot(false);
     if (auth.user?.id && auth.access.role === "admin" && auth.access.status === "active") {
-      checkPilot().then((r) => { if (live) setPilot(r.enabled === true); })
+      checkPilotRef.current().then((r) => { if (live) setPilot(r.enabled === true); })
         .catch(() => { if (live) setPilot(false); });
     }
     return () => { live = false; };
-  }, [auth.user?.id, auth.access.clubId, auth.access.role, auth.access.status, checkPilot]);
+  }, [auth.user?.id, auth.access.clubId, auth.access.role, auth.access.status]);
   const path = useLocation().pathname;
   const allowed =
     auth.user &&
