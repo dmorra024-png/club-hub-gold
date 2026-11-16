@@ -88,8 +88,18 @@ for (const [name, engine, device] of [
               },
               getVoices() {
                 return [
-                  { lang: "it-IT", localService: true },
-                  { lang: "es-ES", localService: true },
+                  {
+                    lang: "it-IT",
+                    localService: true,
+                    name: "Synthetic Italian",
+                    voiceURI: "synthetic-it",
+                  },
+                  {
+                    lang: "es-ES",
+                    localService: true,
+                    name: "Synthetic Spanish",
+                    voiceURI: "synthetic-es",
+                  },
                 ];
               },
               speak(utterance) {
@@ -503,6 +513,17 @@ for (const [name, engine, device] of [
             .locator('select[aria-label="Modo conversacional"] option[value="real"]')
             .evaluate((option) => option instanceof HTMLOptionElement && option.disabled),
           true,
+        );
+        const recordingsBeforePreview = await page.evaluate(() => window.__voice.created);
+        await page.getByLabel("Voz local del dispositivo").selectOption("synthetic-es");
+        await page.getByRole("button", { name: "Probar voz", exact: true }).click();
+        await page.waitForFunction(
+          () => window.__snoopReplies.spoken > 0 && !window.__snoopReplies.active,
+        );
+        assert.equal(
+          await page.evaluate(() => window.__voice.created),
+          recordingsBeforePreview,
+          "voice preview must not open or record the microphone",
         );
         await page.getByLabel("Modo conversacional").selectOption("pilot");
         await page
