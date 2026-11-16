@@ -32,7 +32,8 @@ const auth = {
   expires_in: 3600,
   token_type: "bearer",
 };
-const aiDialogue = process.argv.includes("--ai-dialogue");
+const diagnostics = process.argv.includes("--diagnostics");
+const aiDialogue = process.argv.includes("--ai-dialogue") || diagnostics;
 const conversational = process.argv.includes("--conversation") || aiDialogue;
 const results = [];
 await mkdir("docs/screenshots", { recursive: true });
@@ -107,7 +108,10 @@ for (const [name, engine, device] of [
                 window.__snoopReplies.spoken++;
                 timer = setTimeout(() => {
                   window.__snoopReplies.active = false;
-                  utterance.onend?.();
+                  if (window.__snoopReplies.fail) {
+                    window.__snoopReplies.failures = (window.__snoopReplies.failures || 0) + 1;
+                    utterance.onerror?.({ error: "SYNTHETIC_PRIVATE_PAYLOAD" });
+                  } else utterance.onend?.();
                 }, 100);
               },
             },
@@ -365,7 +369,7 @@ for (const [name, engine, device] of [
       if (u.pathname.endsWith("/auth/v1/user")) data = user;
       else if (u.pathname.endsWith("/rpc/snoop_access_context"))
         data = {
-          role: "collaborator",
+          role: diagnostics ? "admin" : "collaborator",
           status: "active",
           clubId: club,
           clubName: "Club Sintético",
@@ -514,6 +518,13 @@ for (const [name, engine, device] of [
             .evaluate((option) => option instanceof HTMLOptionElement && option.disabled),
           true,
         );
+        const privateDiagnostic = page.getByRole("checkbox", { name: /Diagnóstico privado/ });
+        assert.equal(
+          await privateDiagnostic.count(),
+          diagnostics ? 1 : 0,
+          "only an administrator can enable private diagnostic details",
+        );
+        if (diagnostics) await privateDiagnostic.check();
         const recordingsBeforePreview = await page.evaluate(() => window.__voice.created);
         await page.getByLabel("Voz local del dispositivo").selectOption("synthetic-es");
         assert.equal(
@@ -522,10 +533,28 @@ for (const [name, engine, device] of [
           "device voice choice stays on the device",
         );
         await page.getByLabel("Idioma de voz / Lingua voce").selectOption("it-IT");
+        await page.getByLabel("Voz local del dispositivo").selectOption("synthetic-it");
         await page.getByLabel("Idioma de voz / Lingua voce").selectOption("es-ES");
         await page.waitForFunction(
-          () => document.querySelector('select[aria-label="Voz local del dispositivo"]')?.value === "synthetic-es",
+          () =>
+            document.querySelector('select[aria-label="Voz local del dispositivo"]')?.value ===
+            "synthetic-es",
         );
+        await page.reload({ waitUntil: "networkidle" });
+        await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+        await page.waitForFunction(
+          () =>
+            document.querySelector('select[aria-label="Voz local del dispositivo"]')?.value ===
+            "synthetic-es",
+        );
+        await page.getByLabel("Idioma de voz / Lingua voce").selectOption("it-IT");
+        await page.waitForFunction(
+          () =>
+            document.querySelector('select[aria-label="Voz local del dispositivo"]')?.value ===
+            "synthetic-it",
+        );
+        await page.getByLabel("Idioma de voz / Lingua voce").selectOption("es-ES");
+        if (diagnostics) await privateDiagnostic.check();
         await page.getByRole("button", { name: "Probar voz", exact: true }).click();
         await page.waitForFunction(
           () => window.__snoopReplies.spoken > 0 && !window.__snoopReplies.active,
@@ -588,6 +617,60 @@ for (const [name, engine, device] of [
         }
         await listening();
         verifiedTurns.push(text);
+      }
+      if (diagnostics) {
+        const command = dialogueCases[0].text;
+        await phrase(command);
+        await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+        const details = page.getByRole("region", { name: "Diagnóstico privado SNOOP" });
+        await details.waitFor();
+        assert.ok((await details.innerText()).includes(command));
+        assert.ok((await details.innerText()).includes("GLM · PILOT"));
+        assert.ok((await details.innerText()).includes("Estado: ok"));
+        assert.ok((await details.innerText()).includes("Respuesta:"));
+        assert.ok((await details.innerText()).includes("es-ES"));
+        await details.scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `docs/screenshots/snoop-private-diagnostics-${name}.png`,
+          fullPage: false,
+        });
+        assert.equal(
+          await page.evaluate(() =>
+            Object.values(localStorage)
+              .concat(Object.values(sessionStorage))
+              .some((value) => value.includes("Snoop fammi uno socio nuovo")),
+          ),
+          false,
+        );
+        await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
+        await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+        assert.equal(await details.count(), 0, "explicit close clears diagnostic text");
+        aiOverride = dialogueCases[0].proposal;
+        await page.evaluate(() => {
+          window.__snoopReplies.fail = true;
+        });
+        await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+        await phrase(command);
+        await page.waitForFunction(() => window.__snoopReplies.failures > 0);
+        await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
+        assert.ok((await details.innerText()).includes("Componente: synthesis"));
+        assert.ok((await details.innerText()).includes("Estado: unavailable"));
+        assert.ok(!(await details.innerText()).includes("SYNTHETIC_PRIVATE_PAYLOAD"));
+        await page.getByRole("button", { name: "Cerrar SNOOP", exact: true }).click();
+        assert.equal(writes, 0);
+        results.push({
+          device: name,
+          result: "PASS",
+          physical: false,
+          test: "admin private diagnostics and per-language preferences after reload",
+          automaticWrites: writes,
+        });
+        console.log(
+          "PASS private diagnostics, non-persistence, explicit clear and voice preferences after reload",
+          name,
+        );
+        await context.close();
+        continue;
       }
       if (aiDialogue) {
         const assertions = [];
@@ -957,6 +1040,19 @@ for (const [name, engine, device] of [
         );
         await phrase("Nombre Marco, apellido Rossi");
         assert.equal(await page.getByLabel("Nombre *", { exact: true }).inputValue(), "Marco");
+        await phrase("Nació el 12 de marzo de 1995");
+        await phrase("deja el teléfono vacío");
+        await phrase("ciudad Inca");
+        assert.equal(await page.getByLabel(/^Ciudad/).inputValue(), "Inca");
+        assert.ok(
+          !/tel[eé]fono|telefono/i.test(await page.locator(".snoop-listening").innerText()),
+          "a declined phone must not be requested again after a city correction",
+        );
+        await phrase("Cambia el apellido a Ejemplo");
+        assert.equal(await page.getByLabel("Apellidos *", { exact: true }).inputValue(), "Ejemplo");
+        assert.ok(
+          !/tel[eé]fono|telefono/i.test(await page.locator(".snoop-listening").innerText()),
+        );
         assert.equal(aiProposalCalls, 2, "member fields stay local despite AI opt-in");
         transcript = "Snoop, fermati";
         await page.evaluate(() => (window.__voice.silent = false));
@@ -1458,12 +1554,14 @@ for (const [name, engine, device] of [
   }
 }
 await writeFile(
-  aiDialogue
-    ? "docs/SNOOP_AI_DIALOGUE_RESULTS.json"
-    : conversational
-      ? "docs/VOICE_CONVERSATION_RESULTS.json"
-      : process.argv.includes("--continuous")
-        ? "docs/VOICE_SESSION_RESULTS.json"
-        : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
+  diagnostics
+    ? "docs/SNOOP_VOICE_DIAGNOSTICS_RESULTS.json"
+    : aiDialogue
+      ? "docs/SNOOP_AI_DIALOGUE_RESULTS.json"
+      : conversational
+        ? "docs/VOICE_CONVERSATION_RESULTS.json"
+        : process.argv.includes("--continuous")
+          ? "docs/VOICE_SESSION_RESULTS.json"
+          : "docs/VOICE2_ADMINISTRATIVE_BROWSER_RESULTS.json",
   JSON.stringify({ results }, null, 2),
 );

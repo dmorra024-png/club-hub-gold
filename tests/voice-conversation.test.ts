@@ -173,3 +173,49 @@ test("optional AI binding returns proposals only, preserves privacy gates and re
     root.__env__ = previous;
   }
 });
+
+test("declined optional phone survives later field corrections locally and resets only on an explicit phone", () => {
+  for (const it of [false, true]) {
+    let values = {
+      first_name: "Ana",
+      last_name: "Prueba",
+      birth_date: "1995-03-12",
+      city: "Palma",
+      phone: "",
+    };
+    const declined = memberConversation(
+      { awaiting: "phone" },
+      it ? "lascia il telefono vuoto" : "deja el teléfono vacío",
+      values,
+      [],
+      it,
+    );
+    assert.equal(declined.state.declinedPhone, true);
+    const correction = memberConversation(
+      declined.state,
+      it ? "città Inca" : "ciudad Inca",
+      values,
+      [],
+      it,
+    );
+    assert.deepEqual(correction.patch, { city: "Inca" });
+    assert.equal(correction.state.declinedPhone, true);
+    assert.ok(!/telefon|teléfon/i.test(correction.message));
+    const surname = memberConversation(
+      correction.state,
+      "Cambia el apellido a Ejemplo",
+      { ...values, ...correction.patch },
+      [],
+      it,
+    );
+    assert.deepEqual(surname.patch, { last_name: "Ejemplo" });
+    assert.equal(surname.state.declinedPhone, true);
+    assert.ok(!/telefon|teléfon/i.test(surname.message));
+    const accepted = memberConversation(surname.state, "teléfono 000000000", values, [], it);
+    assert.deepEqual(accepted.patch, { phone: "000000000" });
+    assert.ok(!accepted.state.declinedPhone);
+    const no = memberConversation({ awaiting: "phone" }, "No", values, [], it);
+    assert.equal(no.state.declinedPhone, true);
+    assert.deepEqual(no.patch, {});
+  }
+});

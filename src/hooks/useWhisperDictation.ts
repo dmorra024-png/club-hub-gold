@@ -1,3 +1,9 @@
+import {
+  voiceDiagnosticCode,
+  type VoiceDiagnosticFailure,
+  type VoiceDiagnosticStage,
+} from "../lib/voice-diagnostics";
+import { voiceFailureMessage } from "../lib/voice-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SpeechEndpoint } from "../lib/speech-endpoint";
 export type DictationPhase = "idle" | "starting" | "recording" | "processing";
@@ -14,6 +20,8 @@ export type VoiceTiming = {
 type Options = {
   continuous?: boolean;
   onInterrupt?: () => void;
+  onFailure?: (failure: VoiceDiagnosticFailure) => void;
+  onStage?: (stage: VoiceDiagnosticStage) => void;
   onSpeechActivity?: (speaking: boolean) => void;
   onTiming?: (timing: VoiceTiming) => void;
   scope: string;
@@ -54,9 +62,11 @@ export function useWhisperDictation(options: Options) {
     [error, setError] = useState(""),
     [hint, setHint] = useState("");
   const retained = useRef<{ stream: MediaStream; context: AudioContext } | null>(null);
-  const availability = useRef<{ scope: string; at: number; value: { available: boolean; reason?: string } } | null>(
-    null,
-  );
+  const availability = useRef<{
+    scope: string;
+    at: number;
+    value: { available: boolean; reason?: string };
+  } | null>(null);
   const capture = useRef<Capture | null>(null),
     generation = useRef(0),
     pending = useRef(false),
@@ -137,10 +147,12 @@ export function useWhisperDictation(options: Options) {
     setError("");
     setHint("");
     if (!navigator.onLine) {
+      latest.current.onFailure?.({ stage: "availability", code: "network" });
       setError("Sin conexión. Puedes completar el formulario manualmente.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      latest.current.onFailure?.({ stage: "microphone", code: "unavailable" });
       setError("Micrófono no disponible. Usa HTTPS y la entrada manual.");
       return;
     }
@@ -153,6 +165,7 @@ export function useWhisperDictation(options: Options) {
     try {
       language = latest.current.getLanguage?.() ?? language;
     } catch {}
+    let startupStage: VoiceDiagnosticStage = "availability";
     const s: Capture = {};
     capture.current = s;
     pending.current = true;
@@ -187,6 +200,8 @@ export function useWhisperDictation(options: Options) {
         throw new Error(
           config.reason || "IA no disponible. Puedes introducir los datos manualmente.",
         );
+      startupStage = "microphone";
+      latest.current.onStage?.(startupStage);
       const held = retained.current;
       const tracks =
         latest.current.continuous && held?.stream.getTracks().every((t) => t.readyState === "live")
@@ -247,6 +262,8 @@ export function useWhisperDictation(options: Options) {
         );
         if (!valid()) return;
         setPhase("processing");
+        let failureStage: VoiceDiagnosticStage = "microphone";
+        let recognizedText: string | undefined;
         try {
           if (s.discard) return;
           const audio = new Blob(chunks, { type: rec.mimeType });
@@ -261,6 +278,8 @@ export function useWhisperDictation(options: Options) {
           if (!valid()) return;
           const encodedAt = performance.now();
           let deadline: ReturnType<typeof setTimeout> | undefined;
+          failureStage = "whisper";
+          latest.current.onStage?.(failureStage);
           const result = await Promise.race([
             latest.current.transcribe({ audioBase64: data, mimeType: rec.mimeType, language }),
             new Promise<never>((_, reject) => {
@@ -279,7 +298,9 @@ export function useWhisperDictation(options: Options) {
               "No se entendió el dictado. Reintenta o introduce los datos manualmente.",
             );
           const transcribedAt = performance.now();
-          const outcome = await latest.current.onTranscript(result.text.trim());
+          recognizedText = result.text.trim();
+          failureStage = "interpretation";
+          const outcome = await latest.current.onTranscript(recognizedText);
           const finishedAt = performance.now();
           if (valid())
             latest.current.onTiming?.({
@@ -295,9 +316,14 @@ export function useWhisperDictation(options: Options) {
         } catch (e) {
           if (valid()) {
             latest.current.onInterrupt?.();
-            cancel(
-              e instanceof Error ? e.message : "No se pudo transcribir. Usa la entrada manual.",
-            );
+            const message =
+              e instanceof Error ? e.message : "No se pudo transcribir. Usa la entrada manual.";
+            cancel(message.startsWith("SNOOP_WHISPER_") ? voiceFailureMessage(message) : message);
+            latest.current.onFailure?.({
+              stage: failureStage,
+              code: voiceDiagnosticCode(e),
+              transcript: recognizedText,
+            });
           }
         } finally {
           if (id === generation.current) {
@@ -365,6 +391,7 @@ export function useWhisperDictation(options: Options) {
         pending.current = false;
         if (mounted.current) {
           setPhase("idle");
+          latest.current.onFailure?.({ stage: startupStage, code: voiceDiagnosticCode(e) });
           setError(
             e instanceof Error && e.name === "NotAllowedError"
               ? "Permiso de micrófono denegado. Puedes introducir los datos manualmente."

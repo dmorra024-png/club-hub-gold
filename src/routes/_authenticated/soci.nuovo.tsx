@@ -167,7 +167,7 @@ function NewSocio() {
       const state = conversation.current ?? memberAwaiting(current);
       if (text === null) {
         conversation.current = state;
-        respond({ handled: true, message: memberQuestion(current, it) });
+        respond({ handled: true, message: memberQuestion(current, it, state.declinedPhone) });
         return;
       }
       const reply = memberConversation(

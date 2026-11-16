@@ -194,7 +194,14 @@ export async function transcribeWorkersAudio(
         timer.unref?.();
       }),
     ])) as { text?: unknown };
-  } catch {
+  } catch (error) {
+    // Preserve bounded failure categories, never the provider body or dictation.
+    const failure = error as { status?: number; statusCode?: number; message?: string };
+    const message = typeof failure?.message === "string" ? failure.message : "";
+    if (/timeout|tarda demasiado/i.test(message)) throw new Error("SNOOP_WHISPER_TIMEOUT");
+    if (/quota|neuron|allocation|cuota/i.test(message)) throw new Error("SNOOP_WHISPER_QUOTA");
+    if (failure?.status === 429 || failure?.statusCode === 429)
+      throw new Error("SNOOP_WHISPER_LIMITED");
     throw new Error("Workers AI: transcripción no disponible. Usa la entrada manual.");
   } finally {
     if (timer) clearTimeout(timer);

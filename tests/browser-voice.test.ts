@@ -132,3 +132,66 @@ test("interrupting a reply settles its turn immediately and cannot finish the ne
     root.SpeechSynthesisUtterance = previousUtterance;
   }
 });
+
+test("native synthesis failures are bounded, cancellation is distinct and diagnostics cannot stall a turn", () => {
+  const root = globalThis as any,
+    previousWindow = root.window,
+    previousUtterance = root.SpeechSynthesisUtterance;
+  let spoken: any,
+    done = 0;
+  const outcomes: string[] = [];
+  root.SpeechSynthesisUtterance = class {
+    text: string;
+    constructor(text: string) {
+      this.text = text;
+    }
+  };
+  root.window = {
+    speechSynthesis: {
+      cancel() {},
+      getVoices: () => [{ lang: "es-ES", localService: true }],
+      speak(value: any) {
+        spoken = value;
+      },
+    },
+  };
+  try {
+    speakBrowserVoice(
+      "Respuesta",
+      "es",
+      () => done++,
+      undefined,
+      (value) => outcomes.push(value),
+    );
+    spoken.onerror({ error: "PRIVATE_CANARY" });
+    spoken.onend();
+    assert.deepEqual(outcomes, ["error"]);
+    assert.equal(done, 1);
+    speakBrowserVoice(
+      "Respuesta",
+      "es",
+      () => done++,
+      undefined,
+      (value) => outcomes.push(value),
+    );
+    stopBrowserVoice();
+    spoken.onend();
+    assert.deepEqual(outcomes, ["error", "cancelled"]);
+    assert.equal(done, 2);
+    speakBrowserVoice(
+      "Respuesta",
+      "es",
+      () => done++,
+      undefined,
+      () => {
+        throw new Error("diagnostic observer");
+      },
+    );
+    spoken.onend();
+    assert.equal(done, 3);
+  } finally {
+    stopBrowserVoice();
+    root.window = previousWindow;
+    root.SpeechSynthesisUtterance = previousUtterance;
+  }
+});

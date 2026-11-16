@@ -6,6 +6,7 @@ const SAFE_VOICE_MESSAGES = new Set([
   "Transcripción desactivada por la configuración de privacidad.",
   "Sin conexión. Puedes usar el teclado.",
   "Cuota gratuita de IA agotada. Usa el teclado.",
+  "Demasiadas solicitudes de voz. Espera un momento o usa el teclado.",
   "La voz tarda demasiado. Reintenta.",
   "No se pudo grabar con este micrófono. Revisa sus permisos o usa el teclado.",
   "Whisper no pudo transcribir el audio. Reintenta.",
@@ -15,6 +16,10 @@ const SAFE_VOICE_MESSAGES = new Set([
 /** Bounded component diagnostics; never echo provider payloads, keys or user dictation. */
 export function voiceFailureMessage(message: string): string {
   if (SAFE_VOICE_MESSAGES.has(message)) return message;
+  if (message === "SNOOP_WHISPER_QUOTA") return "Cuota gratuita de IA agotada. Usa el teclado.";
+  if (message === "SNOOP_WHISPER_TIMEOUT") return "La voz tarda demasiado. Reintenta.";
+  if (message === "SNOOP_WHISPER_LIMITED")
+    return "Demasiadas solicitudes de voz. Espera un momento o usa el teclado.";
   if (/Missing Supabase environment|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY/.test(message))
     return "Configuración del servidor incompleta. No se ha abierto el micrófono.";
   if (/Unauthorized|Forbidden|SNOOP_ACCESS|not_authorized|autorización|sesión/i.test(message))

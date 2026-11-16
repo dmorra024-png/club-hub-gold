@@ -104,7 +104,7 @@ test("free-quota failure is not retried and never falls back to another provider
   process.env.AI_API_KEY = "synthetic-unused-fallback";
   await assert.rejects(
     transcribeAdministrativeAudio({ audioBase64: "YQ==", mimeType: "audio/ogg", language: "it" }),
-    /transcripción no disponible/,
+    /^Error: SNOOP_WHISPER_QUOTA$/,
   );
   assert.equal(calls, 1);
 });

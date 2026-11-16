@@ -122,11 +122,14 @@ async function runSnoopInterpretation(safe: string, scope: string): Promise<stri
 }
 
 /** Safe UI codes only; never serialize provider bodies, identifiers or credentials. */
-export function snoopAiFailure(error: unknown): "quota" | "limited" | "timeout" | "unavailable" {
+export function snoopAiFailure(
+  error: unknown,
+): "quota" | "limited" | "timeout" | "invalid_response" | "unavailable" {
   const e = error as { status?: number; statusCode?: number; message?: string };
   if (e?.status === 429 || e?.statusCode === 429)
     return /quota|neuron|allocation/i.test(e.message ?? "") ? "quota" : "limited";
   if (/Límite de solicitudes/.test(e?.message ?? "")) return "limited";
   if (/tarda demasiado/.test(e?.message ?? "")) return "timeout";
+  if (/SNOOP_INVALID_PROPOSAL/.test(e?.message ?? "")) return "invalid_response";
   return "unavailable";
 }
