@@ -109,6 +109,21 @@ export async function deepgramAppSocket(request: Request, envValue: unknown): Pr
         owner = verified.user;
         const settings = agentSettings(a.language, a.sampleRate, verified.catalog);
         settings.tags = ["snoop-admin-pilot"];
+        // The actual club has consented to a names-only catalogue, unlike the
+        // isolated public lab. Keep members fictional and all operations drafts.
+        settings.agent.think.prompt = settings.agent.think.prompt
+          .replace(
+            "ISOLATED SYNTHETIC voice laboratory",
+            "AUTHENTICATED READ-ONLY club administrator pilot",
+          )
+          .replace(
+            "Only fictional people and data are allowed. Do not request real identifiers, documents or club information.",
+            "Use fictional people only. The server has supplied approved club product/category DISPLAY NAMES with administrator consent. Never request actual member identifiers, documents, financial values or private records.",
+          ) +
+          " For a NEW category draft use intent category, target categories, " +
+          "product.name as the requested label and do not claim it already exists. " +
+          "For assignment to a product, category must match a verified catalogue label. " +
+          "Every action is a non-persistent draft; only the manual app may save.";
         const response = await fetch("https://agent.deepgram.com/v1/agent/converse", {
           headers: { Upgrade: "websocket", Authorization: "Token " + key },
           signal: AbortSignal.timeout(12000), redirect: "manual",
