@@ -58,7 +58,7 @@ Pilot requires explicit administrator consent. Use fictional member details. Onl
 2. `node scripts/test-deepgram-app-worker.mjs`: actual Workerd runtime, mocked Supabase/Deepgram upstreams, JWT/role/club denial, names-only scoped queries, binary PCM, two turns separated by over 12 seconds, concurrent-session rejection and no writes/secrets forwarded.
 3. Build the normal app, start locally and run `TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs`: real rendered Chromium/WebKit routes and forms, simulated microphone/provider, persistent socket through navigation, manual-edit preservation, product/category/member drafts, search, audio playback/interruption and stop.
 4. `npm run test:genetics:browser` retains the original archive-removal regression check.
-5. Worker build, client-secret scan and Wrangler dry-run are required before any release.
+5. Worker build, client-secret scan and Wrangler dry-run are required before any release. After the Cloudflare build, `node scripts/test-deepgram-app-worker.mjs --compiled` repeats the authenticated WebSocket/audio checks through the actual Nitro/TanStack Cloudflare entrypoint rather than the standalone gateway.
 
 These tests are not proof of real Deepgram availability, credits, acoustic recognition, email delivery or a physical Samsung/iPhone. No synthetic fixture may be used to bypass production authentication.
 
@@ -67,3 +67,5 @@ These tests are not proof of real Deepgram availability, credits, acoustic recog
 The read-only production binding audit on 2026-11-16 returned ABSENT for all four `DEEPGRAM_*` / `SNOOP_DEEPGRAM_PILOT_*` bindings listed above. The production app therefore cannot connect to Deepgram. Provisioning the key and the exact administrator/club allowlist in protected Worker configuration is required before deployment or a genuine authenticated online voice test. Do not guess account IDs or extract another Worker's secrets.
 
 The current four-session/hour limiter is per Worker isolate, not a durable organization-wide billing cap. The 90-second and audio-byte limits apply per session. Deepgram uses existing account credits; no new paid plan or automatic credit top-up is enabled by this code. Commercial/monthly budget guarantees are not established by these limits.
+
+The repeated read-only binding audit at 2026-11-16 19:53 UTC confirmed the same four bindings remain ABSENT. Public `/auth` returned HTTP 200, while the not-yet-deployed `/api/snoop-deepgram/socket` returned HTTP 404. Neither result is evidence of an authenticated real-provider voice session.

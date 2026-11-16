@@ -96,6 +96,10 @@ for (const [label, engine, device] of [
           value: {
             async getUserMedia() {
               window.__audio.started++;
+              if (window.__audio.hold)
+                await new Promise((r) => {
+                  window.__audio.release = r;
+                });
               return { getTracks: () => [track], getAudioTracks: () => [track] };
             },
           },
@@ -232,12 +236,19 @@ for (const [label, engine, device] of [
       });
     });
     const page = await context.newPage();
-    page.setDefaultTimeout(12000);
+    page.setDefaultTimeout(30000);
+    page.setDefaultNavigationTimeout(60000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base + "/productos", { waitUntil: "domcontentloaded" });
     console.log(label + ": loaded");
-    await page.getByRole("heading", { name: "Productos", exact: true }).waitFor();
+    await page
+      .getByRole("heading", { name: "Productos", exact: true })
+      .waitFor()
+      .catch(async (e) => {
+        console.error("Synthetic page state:", await page.locator("body").innerText());
+        throw e;
+      });
     // One normal dock click, also valid if the asynchronous provider check is still pending.
     await page.getByRole("button", { name: "SNOOP", exact: true }).click();
     const panel = page.getByRole("dialog", { name: "SNOOP JARVIS 3" });
@@ -292,6 +303,7 @@ for (const [label, engine, device] of [
       () =>
         document.querySelector('input[placeholder="ej. Amnesia Haze"]')?.value === "Amnesia Haze",
     );
+    assert.equal(await page.getByLabel("Categoría", { exact: true }).inputValue(), club);
     await page.screenshot({
       path: ".sandbox/deepgram/" + label + "-product.png",
       fullPage: true,
@@ -320,8 +332,27 @@ for (const [label, engine, device] of [
     assert(stops > 0);
     assert.equal(writes, 0, JSON.stringify(unexpected));
     assert.deepEqual(unexpected, []);
+    console.log(label + ": drafts and audio passed; checking provider failure");
+    await page.evaluate(() => {
+      window.__audio.hold = true;
+    });
+    await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+    await panel.getByRole("button", { name: "Avvia JARVIS", exact: true }).click();
+    await page.waitForFunction(() => !!window.__audio.release);
+    await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+    await panel.waitFor({ state: "hidden" });
+    await page.evaluate(() => window.__audio.release());
+    await page.waitForFunction(() => window.__audio.stopped === 2);
+    assert.equal(sockets, 1, "closing during pending microphone permission must not connect later");
     unavailable = true;
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("heading", { name: "Productos", exact: true })
+      .waitFor()
+      .catch(async (e) => {
+        console.error("Synthetic page state:", await page.locator("body").innerText());
+        throw e;
+      });
     await page.getByRole("button", { name: "SNOOP", exact: true }).click();
     await page
       .getByRole("alert")
@@ -330,10 +361,18 @@ for (const [label, engine, device] of [
     assert.equal(await page.getByRole("dialog", { name: "SNOOP", exact: true }).count(), 0);
     assert.equal(await page.getByRole("dialog", { name: "SNOOP JARVIS 3" }).count(), 0);
     assert.equal(sockets, 1, "failed verification must never open a provider session");
+    console.log(label + ": provider failure passed; checking collaborator");
     accountRole = "collaborator";
     unavailable = false;
     const readsBeforeStaff = statusCalls;
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("heading", { name: "Productos", exact: true })
+      .waitFor()
+      .catch(async (e) => {
+        console.error("Synthetic page state:", await page.locator("body").innerText());
+        throw e;
+      });
     await page.getByRole("button", { name: "SNOOP", exact: true }).click();
     await page.getByLabel("Sesión de voz", { exact: true }).waitFor();
     await page

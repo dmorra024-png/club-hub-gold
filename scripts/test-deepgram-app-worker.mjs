@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
+import { resolve } from "node:path";
+import { readdir } from "node:fs/promises";
+const compiled = process.argv.includes("--compiled");
 const require = createRequire(import.meta.url),
   { Miniflare, convertV4MiniflareOptions } = require(
     require.resolve("miniflare", { paths: [require.resolve("wrangler")] }),
@@ -52,13 +55,30 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0;export de
  }
  forbiddenCalls++;return new Response('unexpected network request',{status:403});
 }}`;
+const compiledFiles = compiled
+  ? [
+      "index.mjs",
+      ...(await readdir(".output/server", { recursive: true })).filter(
+        (n) => n.endsWith(".mjs") && n !== "index.mjs",
+      ),
+    ]
+  : [];
 const mf = new Miniflare(
   convertV4MiniflareOptions({
     workers: [
       {
         name: "app",
         modules: true,
-        script,
+        ...(compiled
+          ? {
+              modulesRoot: resolve(".output/server"),
+              modules: compiledFiles.map((path) => ({
+                type: "ESModule",
+                path: resolve(".output/server", path),
+              })),
+            }
+          : { script }),
+        compatibilityFlags: ["nodejs_compat"],
         compatibilityDate: "2026-11-05",
         bindings,
         outboundService: "fake",
@@ -121,11 +141,13 @@ try {
     s.ws.close();
   }
   assert.equal((await stats()).providerCalls, 0);
-  const wrong = await socket("synthetic.authorized.token", true);
-  await until(() => wrong.events.some((e) => e.type === "AppClosed"));
-  assert(wrong.events.some((e) => e.code === "AUTH_CONFIG"));
-  wrong.ws.close();
-  assert.equal((await stats()).providerCalls, 0);
+  if (!compiled) {
+    const wrong = await socket("synthetic.authorized.token", true);
+    await until(() => wrong.events.some((e) => e.type === "AppClosed"));
+    assert(wrong.events.some((e) => e.code === "AUTH_CONFIG"));
+    wrong.ws.close();
+    assert.equal((await stats()).providerCalls, 0);
+  }
   const s = await socket("synthetic.authorized.token");
   await until(() => s.events.some((e) => e.type === "AppReady"));
   s.ws.send(new ArrayBuffer(4800));
@@ -155,7 +177,8 @@ try {
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
   console.log(
-    "PASS actual Workerd gateway: JWT verification, wrong user/club/staff/revoked denied, exact names-only RLS requests, binary audio, two turns beyond 12s, one active session, no writes or secret exposure (provider simulated)",
+    (compiled ? "PASS compiled application Worker: " : "PASS isolated Workerd gateway: ") +
+      " JWT verification, wrong user/club/staff/revoked denied, exact names-only RLS requests, binary audio, two turns beyond 12s, one active session, no writes or secret exposure (provider simulated)",
   );
 } finally {
   await mf.dispose();

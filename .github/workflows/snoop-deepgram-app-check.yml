@@ -42,6 +42,10 @@ jobs:
           ENV
       - name: Build authenticated application Worker (synthetic, no secrets)
         run: npm run build:worker:test
+      - name: Dry-run only (no upload)
+        run: npm run worker:dry-run
+      - name: Compiled application WebSocket regression (synthetic)
+        run: node scripts/test-deepgram-app-worker.mjs --compiled
       - name: Scan public bundle for credentials
         run: npm run test:security:bundle
       - name: No deployment or database writes
