@@ -82,10 +82,12 @@ jobs:
           npm run test:voice:lifecycle
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:conversation
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:ai:dialogue
+          TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-voice2-administration.mjs --diagnostics
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:session
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice2:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:genetics:browser
+          TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs
       - name: Save real premium home browser renders
         if: always()
         uses: actions/upload-artifact@v4
@@ -102,6 +104,8 @@ jobs:
             docs/VOICE_SESSION_RESULTS.json
             docs/VOICE_CONVERSATION_RESULTS.json
             docs/SNOOP_AI_DIALOGUE_RESULTS.json
+            docs/SNOOP_VOICE_DIAGNOSTICS_RESULTS.json
+            docs/screenshots/snoop-private-diagnostics-*.png
             docs/screenshots/snoop-ai-dialogue-*.png
             docs/ORDER_KEYBOARD_RESULTS.json
             docs/screenshots/order-keyboard-*.png

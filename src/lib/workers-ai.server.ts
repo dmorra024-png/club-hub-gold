@@ -5,6 +5,17 @@ export interface SnoopAiBinding {
 }
 export const FREE_TEXT_MODEL = "@cf/meta/llama-3.2-3b-instruct";
 export const FREE_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
+/** Empty/null call lists mean no tools. Malformed lists and any legacy call are rejected. */
+export function hasAiToolInvocations(message: unknown): boolean {
+  if (!message || typeof message !== "object") return false;
+  const value = message as { tool_calls?: unknown; function_call?: unknown };
+  return (
+    value.function_call != null ||
+    (value.tool_calls != null &&
+      (!Array.isArray(value.tool_calls) || value.tool_calls.length !== 0))
+  );
+}
+
 type SnoopRuntimeAi = { SNOOP_AI: SnoopAiBinding; SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" };
 const requestAi = new AsyncLocalStorage<SnoopRuntimeAi | null>();
 
@@ -194,7 +205,14 @@ export async function transcribeWorkersAudio(
         timer.unref?.();
       }),
     ])) as { text?: unknown };
-  } catch {
+  } catch (error) {
+    // Preserve bounded failure categories, never the provider body or dictation.
+    const failure = error as { status?: number; statusCode?: number; message?: string };
+    const message = typeof failure?.message === "string" ? failure.message : "";
+    if (/timeout|tarda demasiado/i.test(message)) throw new Error("SNOOP_WHISPER_TIMEOUT");
+    if (/quota|neuron|allocation|cuota/i.test(message)) throw new Error("SNOOP_WHISPER_QUOTA");
+    if (failure?.status === 429 || failure?.statusCode === 429)
+      throw new Error("SNOOP_WHISPER_LIMITED");
     throw new Error("Workers AI: transcripción no disponible. Usa la entrada manual.");
   } finally {
     if (timer) clearTimeout(timer);

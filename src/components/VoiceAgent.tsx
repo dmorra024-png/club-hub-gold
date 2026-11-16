@@ -1,3 +1,4 @@
+import { voiceDiagnosticCode, type VoiceDiagnosticFailure } from "@/lib/voice-diagnostics";
 import { voiceFailureMessage } from "@/lib/voice-errors";
 import {
   ConversationProposal,
@@ -128,6 +129,13 @@ export function VoiceAgent({
   userId: string;
   onPhaseChange?: (phase: import("@/hooks/useWhisperDictation").DictationPhase) => void;
 }) {
+  const scope = [
+    userId,
+    access.clubId,
+    access.status,
+    access.role,
+    ...[...access.permissions].sort(),
+  ].join(":");
   const [conversationMode, setConversationMode] = useState<"off" | "pilot" | "real">("off");
   const [conversationModes, setConversationModes] = useState({ pilot: false, real: false });
   const [syntheticConfirmed, setSyntheticConfirmed] = useState(false);
@@ -151,10 +159,71 @@ export function VoiceAgent({
     [clarification, setClarification] = useState(""),
     [fault, setFault] = useState("");
   const [spokenReplies, setSpokenReplies] = useState(true);
+  const [diagnosticScope, setDiagnosticScope] = useState<string | null>(null);
+  const diagnosticsEnabled =
+    access.role === "admin" && access.status === "active" && diagnosticScope === scope;
+  const [diagnostic, setDiagnostic] = useState<
+    | (VoiceDiagnosticFailure & {
+        scope: string;
+        language: string;
+        interpreter: string;
+        response?: string;
+      })
+    | null
+  >(null);
+  const recordDiagnostic = useCallback(
+    (event: VoiceDiagnosticFailure) => {
+      if (!diagnosticsEnabled) return;
+      setDiagnostic((previous) => {
+        // Continuous capture starts the next turn immediately. Keep the last
+        // transcribed result available until a new transcript or failure arrives.
+        if (
+          event.code === "pending" &&
+          !event.transcript &&
+          previous?.scope === scope &&
+          previous.transcript
+        )
+          return previous;
+        return {
+          ...event,
+          transcript: event.transcript?.slice(0, 2000),
+          scope,
+          language,
+          interpreter:
+            conversationMode === "off"
+              ? "Local / IA anónima de navegación"
+              : `GLM · ${conversationMode.toUpperCase()}`,
+        };
+      });
+    },
+    [diagnosticsEnabled, scope, language, conversationMode],
+  );
+
+  const [deviceVoices, setDeviceVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [preferredVoice, setPreferredVoice] = useState("");
+  // Voice preference is private to this browser and language, never sent to the server.
   useEffect(() => {
     try {
-      window.speechSynthesis?.getVoices();
-    } catch {}
+      setPreferredVoice(
+        localStorage.getItem(`snoop:device-voice:v1:${language.slice(0, 2)}`) ?? "",
+      );
+    } catch {
+      setPreferredVoice("");
+    }
+  }, [language]);
+  useEffect(() => {
+    const synthesis = window.speechSynthesis;
+    if (!synthesis) return;
+    const update = () => {
+      try {
+        setDeviceVoices(synthesis.getVoices().filter((v) => v.localService));
+      } catch {
+        setDeviceVoices([]);
+      }
+    };
+    update();
+    synthesis.addEventListener?.("voiceschanged", update);
+    return () => synthesis.removeEventListener?.("voiceschanged", update);
   }, []);
   const [voiceReplyPlaying, setVoiceReplyPlaying] = useState(false);
   const replyPlayingRef = useRef(false);
@@ -164,7 +233,8 @@ export function VoiceAgent({
     cancelRef = useRef<() => void>(() => {}),
     recordingPath = useRef(""),
     executing = useRef(false);
-  const stopSession = useCallback(() => {
+  const stopSession = useCallback((preserveDiagnostic: unknown = false) => {
+    if (preserveDiagnostic !== true) setDiagnostic(null);
     activeRef.current = false;
     replyPlayingRef.current = false;
     stopBrowserVoice();
@@ -227,13 +297,6 @@ export function VoiceAgent({
   locRef.current = location;
   const accessRef = useRef({ access, userId });
   accessRef.current = { access, userId };
-  const scope = [
-    userId,
-    access.clubId,
-    access.status,
-    access.role,
-    ...[...access.permissions].sort(),
-  ].join(":");
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("snoop:voice-language") || navigator.language;
@@ -578,7 +641,19 @@ export function VoiceAgent({
     transcribe: (data) => transcribe({ data }),
     continuous,
     onInterrupt: stopSession,
+    onFailure: recordDiagnostic,
+    onStage: (stage) => recordDiagnostic({ stage, code: "pending" }),
     onTiming: (timing) => {
+      setDiagnostic((previous) =>
+        previous?.scope === scope && previous.code === "pending"
+          ? {
+              ...previous,
+              stage: "routing",
+              code: "ok",
+              response: (clarification || feedback).slice(0, 500),
+            }
+          : previous,
+      );
       setTimings((old) => [...old.slice(-19), timing]);
       window.dispatchEvent(new CustomEvent("snoop:voice-timing", { detail: timing }));
     },
@@ -589,6 +664,7 @@ export function VoiceAgent({
       recordingEdits.current = fieldEdits.current;
       recordingPath.current = locRef.current.pathname;
       setStage("Escuchando");
+      recordDiagnostic({ stage: "availability", code: "pending" });
     },
     onTranscript: async (text) => {
       setSpeaking(false);
@@ -600,13 +676,17 @@ export function VoiceAgent({
       }
       setStage("Interpretando");
       if (recordingPath.current !== locRef.current.pathname) {
+        recordDiagnostic({ stage: "routing", code: "stale", transcript: text });
         setFeedback("Pantalla cambiada. Repite el comando.");
         return;
       }
       if (fieldEdits.current !== recordingEdits.current) {
+        recordDiagnostic({ stage: "routing", code: "manual_edit", transcript: text });
         setFeedback("Conservo tu edición manual. Repite el dictado.");
         return;
       }
+      setTranscript(text);
+      recordDiagnostic({ stage: "interpretation", code: "pending", transcript: text });
       const interpretationStart = performance.now();
       if (conversationMode !== "off") {
         if (
@@ -672,6 +752,11 @@ export function VoiceAgent({
         const parsed = ConversationProposal.safeParse(response.proposal);
         if (response.error || !parsed.success) {
           stopSession();
+          recordDiagnostic({
+            stage: "interpretation",
+            code: response.error ? voiceDiagnosticCode(response.error) : "invalid_response",
+            transcript: text,
+          });
           setFeedback(
             response.error === "quota"
               ? "Cuota IA agotada. Usa el formulario."
@@ -787,6 +872,7 @@ export function VoiceAgent({
           conversationMemory.current = reduceConversation(context, proposal);
           setClarification(proposal.question || "Revisa los datos. Nada guardado.");
         } catch {
+          recordDiagnostic({ stage: "routing", code: "unavailable", transcript: text });
           setClarification("No se pudo preparar el formulario. No se guardó nada.");
         } finally {
           executing.current = false;
@@ -979,6 +1065,25 @@ export function VoiceAgent({
         replyPlayingRef.current = false;
         setVoiceReplyPlaying(false);
       },
+      preferredVoice,
+      (outcome) => {
+        if (
+          generation !== conversationGeneration.current ||
+          !diagnosticsEnabled ||
+          !["error", "unavailable", "timeout"].includes(outcome)
+        )
+          return;
+        setDiagnostic((previous) =>
+          previous?.scope === scope
+            ? {
+                ...previous,
+                stage: "synthesis",
+                response: previous.response || clarification,
+                code: outcome === "timeout" ? "timeout" : "unavailable",
+              }
+            : previous,
+        );
+      },
     );
     if (!launched) {
       replyPlayingRef.current = false;
@@ -989,10 +1094,18 @@ export function VoiceAgent({
       replyPlayingRef.current = false;
       setVoiceReplyPlaying(false);
     };
-  }, [clarification, spokenReplies, conversationMode, language]);
+  }, [
+    clarification,
+    spokenReplies,
+    conversationMode,
+    language,
+    preferredVoice,
+    diagnosticsEnabled,
+    scope,
+  ]);
   useEffect(() => {
     if (dictation.error) {
-      stopSession();
+      stopSession(true);
       setFault(dictation.error.slice(0, 160));
       setFeedback(dictation.error.slice(0, 160));
     }
@@ -1059,6 +1172,7 @@ export function VoiceAgent({
     setFeedback("");
     activeRef.current = true;
     setSessionActive(true);
+    stopBrowserVoice();
     void dictation.start();
   }, [consent, dictation.start, stopSession, continuous]);
   useEffect(() => {
@@ -1081,13 +1195,14 @@ export function VoiceAgent({
   }, [startRecording, stopSession]);
   useEffect(() => {
     const open = () => {
-      stopSession();
+      stopSession(true);
       setPanelOpen(true);
     };
     window.addEventListener("snoop:voice-open", open);
     return () => window.removeEventListener("snoop:voice-open", open);
   }, []);
   useEffect(() => {
+    setDiagnosticScope(null);
     setPanelOpen(false);
     closeWhenIdle.current = false;
     stopSession();
@@ -1178,6 +1293,7 @@ export function VoiceAgent({
                 setPanelOpen(!continuous);
                 activeRef.current = true;
                 setSessionActive(true);
+                stopBrowserVoice();
                 void dictation.start();
               }}
             >
@@ -1197,7 +1313,7 @@ export function VoiceAgent({
           <button
             aria-label="Ajustes de voz"
             onClick={() => {
-              stopSession();
+              stopSession(true);
               setPanelOpen(true);
             }}
           >
@@ -1314,6 +1430,52 @@ export function VoiceAgent({
               <option value="it-IT">Italiano</option>
             </select>
           </label>
+          <label className="text-xs">
+            Voz local del dispositivo
+            <select
+              aria-label="Voz local del dispositivo"
+              value={preferredVoice}
+              disabled={sessionActive || busy || enabled}
+              onChange={(event) => {
+                const value = event.target.value;
+                setPreferredVoice(value);
+                try {
+                  localStorage.setItem(`snoop:device-voice:v1:${language.slice(0, 2)}`, value);
+                } catch {
+                  // Private browsing may disable local storage; selection still works.
+                }
+              }}
+            >
+              <option value="">Automática</option>
+              {deviceVoices
+                .filter((v) => v.lang.toLowerCase().startsWith(language.slice(0, 2)))
+                .map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} · {v.lang}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={sessionActive || busy || enabled}
+            onClick={() => {
+              const ok = speakBrowserVoice(
+                language.startsWith("it")
+                  ? "Sono SNOOP. Questa è un'anteprima della voce locale."
+                  : "Soy SNOOP. Esta es una prueba de la voz local.",
+                language.startsWith("it") ? "it" : "es",
+                () => {},
+                preferredVoice,
+              );
+              if (!ok)
+                setFault(
+                  "No hay una voz local disponible para este idioma. Puedes continuar con texto.",
+                );
+            }}
+          >
+            Probar voz
+          </button>
           <label className="premium-voice-consent">
             <input
               type="checkbox"
@@ -1346,6 +1508,7 @@ export function VoiceAgent({
                 if (allowed) {
                   activeRef.current = true;
                   setSessionActive(true);
+                  stopBrowserVoice();
                   void dictation.start();
                 } else {
                   closeWhenIdle.current = false;
@@ -1367,6 +1530,7 @@ export function VoiceAgent({
                 : () => {
                     activeRef.current = true;
                     setSessionActive(true);
+                    stopBrowserVoice();
                     void dictation.start();
                   }
             }
@@ -1392,6 +1556,31 @@ export function VoiceAgent({
             <button type="button" onClick={stopSession}>
               Cancelar dictado
             </button>
+          )}
+          {access.role === "admin" && access.status === "active" && (
+            <label className="text-xs flex gap-2">
+              <input
+                type="checkbox"
+                checked={diagnosticsEnabled}
+                onChange={(event) => {
+                  setDiagnostic(null);
+                  setDiagnosticScope(event.target.checked ? scope : null);
+                }}
+              />
+              Diagnóstico privado (solo memoria local; puede mostrar el dictado)
+            </label>
+          )}
+          {diagnosticsEnabled && diagnostic?.scope === scope && (
+            <section aria-label="Diagnóstico privado SNOOP" className="text-xs space-y-1">
+              <p>Último turno diagnosticado · Idioma solicitado a Whisper: {diagnostic.language}</p>
+              <p>Intérprete configurado: {diagnostic.interpreter}</p>
+              <p>
+                Componente: {diagnostic.stage} · Estado: {diagnostic.code}
+              </p>
+              {diagnostic.transcript && <p>Transcripción: {diagnostic.transcript}</p>}
+              {diagnostic.response && <p>Respuesta: {diagnostic.response}</p>}
+              <p>Sin historial, exportación ni envío de este diagnóstico. Se borra al terminar.</p>
+            </section>
           )}
           {transcript && (
             <p className="text-xs text-muted-foreground" aria-label="Transcripción">

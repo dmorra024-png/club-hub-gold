@@ -7,6 +7,7 @@ import {
 } from "./member-administration.ts";
 export type ConversationState = {
   slots?: SlotMemory;
+  declinedPhone?: boolean;
   awaiting: "name" | "first" | "last" | "birth" | "phone" | "optional" | "review";
 };
 export type ConversationReply = {
@@ -16,8 +17,12 @@ export type ConversationReply = {
   message: string;
   summary?: string;
 };
-export function memberAwaiting(values: Partial<MemberDictation>): ConversationState {
+export function memberAwaiting(
+  values: Partial<MemberDictation>,
+  declinedPhone = false,
+): ConversationState {
   return {
+    ...(declinedPhone ? { declinedPhone: true } : {}),
     awaiting:
       !values.first_name && !values.last_name
         ? "name"
@@ -27,18 +32,23 @@ export function memberAwaiting(values: Partial<MemberDictation>): ConversationSt
             ? "last"
             : !values.birth_date
               ? "birth"
-              : !values.phone
+              : !values.phone && !declinedPhone
                 ? "phone"
                 : "optional",
   };
 }
-export function memberQuestion(values: Partial<MemberDictation>, it = false): string {
+export function memberQuestion(
+  values: Partial<MemberDictation>,
+  it = false,
+  declinedPhone = false,
+): string {
   if (!values.first_name && !values.last_name)
     return it ? "Dimmi nome e cognome." : "Dime nombre y apellidos.";
   if (!values.first_name) return it ? "Qual è il nome?" : "¿Cuál es el nombre?";
   if (!values.last_name) return it ? "Cognome?" : "¿Apellidos?";
   if (!values.birth_date) return it ? "Data di nascita?" : "¿Fecha de nacimiento?";
-  if (!values.phone) return it ? "Vuoi aggiungere un telefono?" : "¿Quieres añadir un teléfono?";
+  if (!values.phone && !declinedPhone)
+    return it ? "Vuoi aggiungere un telefono?" : "¿Quieres añadir un teléfono?";
   return it
     ? "Vuoi aggiungere altri dati? Puoi dire riepilogo."
     : "¿Otros datos? Puedes decir resumen.";
@@ -79,7 +89,11 @@ export function memberConversation(
     return {
       handled: true,
       patch: {},
-      state: { awaiting: "review" },
+      state: {
+        ...state,
+        awaiting: "review",
+        ...(state.awaiting === "phone" && n === "no" ? { declinedPhone: true } : {}),
+      },
       summary:
         [current.first_name, current.last_name].filter(Boolean).join(" ") +
         " · " +
@@ -103,8 +117,8 @@ export function memberConversation(
     return {
       handled: true,
       patch: slot.patch,
-      state: memberAwaiting(next),
-      message: memberQuestion(next, it),
+      state: memberAwaiting(next, !!state.declinedPhone && !slot.patch.phone),
+      message: memberQuestion(next, it, !!state.declinedPhone && !slot.patch.phone),
     };
   }
   if (slot?.kind === "repair")
@@ -186,7 +200,7 @@ export function memberConversation(
       return {
         handled: true,
         patch: {},
-        state: { awaiting: "first" },
+        state: { ...state, awaiting: "first" },
         message: it
           ? "Qual è solo il nome, anche composto?"
           : "Dime solo el nombre, puede ser compuesto.",
@@ -220,7 +234,9 @@ export function memberConversation(
   return {
     handled: true,
     patch,
-    state: memberAwaiting(next),
-    message: missingPlan ? planWarning : memberQuestion(next, it),
+    state: memberAwaiting(next, clearPhone || (!!state.declinedPhone && !patch.phone)),
+    message: missingPlan
+      ? planWarning
+      : memberQuestion(next, it, clearPhone || (!!state.declinedPhone && !patch.phone)),
   };
 }

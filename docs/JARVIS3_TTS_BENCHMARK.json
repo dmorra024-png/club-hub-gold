@@ -1,0 +1,61 @@
+{
+  "model_revision": "e9ab671f2a0e50a701b34361136ba3e6a3a9eb0c",
+  "models_source": "https://huggingface.co/rhasspy/piper-voices",
+  "no_app_integration": true,
+  "results": [
+    {
+      "language": "it",
+      "engine": "piper-tts 1.8.0 / ONNXRuntime 1.32.0",
+      "model": "it_IT-paola-medium",
+      "load_s": 0.7978046180005549,
+      "runs": [
+        {
+          "inference_s": 1.0547811660007937,
+          "audio_s": 5.3986394557823125,
+          "real_time_factor": 0.19537907182726397
+        },
+        {
+          "inference_s": 0.3963728070002617,
+          "audio_s": 5.410249433106576,
+          "real_time_factor": 0.0732633147327301
+        }
+      ],
+      "peak_rss_mib": 186.3984375,
+      "physical_mobile": false,
+      "platform": "Linux x86_64 CPU; not a browser benchmark",
+      "synthetic_text": "Ciao, sono SNOOP. Posso aiutarti a compilare una scheda. Nessun dato viene salvato senza conferma.",
+      "sample_rate": 22050,
+      "channels": 1,
+      "wav_sha256": "a699a9a0141be47d98e33d0fe82314770a035fe1b56c39c9fc7a28944559ad38",
+      "wav_bytes": 238636,
+      "rms_pcm16": 5197.7941469916905
+    },
+    {
+      "language": "es",
+      "engine": "piper-tts 1.8.0 / ONNXRuntime 1.32.0",
+      "model": "es_ES-sharvard-medium",
+      "load_s": 0.5898204099994473,
+      "runs": [
+        {
+          "inference_s": 0.3505501280005774,
+          "audio_s": 5.735328798185941,
+          "real_time_factor": 0.061121191188106744
+        },
+        {
+          "inference_s": 0.3741008349998083,
+          "audio_s": 5.735328798185941,
+          "real_time_factor": 0.06522744347597555
+        }
+      ],
+      "peak_rss_mib": 218.453125,
+      "physical_mobile": false,
+      "platform": "Linux x86_64 CPU; not a browser benchmark",
+      "synthetic_text": "Hola, soy SNOOP. Puedo ayudarte a completar una ficha. No se guarda ning\u00fan dato sin tu confirmaci\u00f3n.",
+      "sample_rate": 22050,
+      "channels": 1,
+      "wav_sha256": "4d49816325bdeb14528ed3e4b383cea5d97cb965e34a97741f8277da9db8f31d",
+      "wav_bytes": 252972,
+      "rms_pcm16": 4999.250563899552
+    }
+  ]
+}

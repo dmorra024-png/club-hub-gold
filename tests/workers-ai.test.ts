@@ -4,6 +4,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import {
   authorizeWorkersAi,
+  hasAiToolInvocations,
   workersAiBinding,
   withSnoopWorkersAi,
   workersAiFetch,
@@ -220,4 +221,47 @@ test("Nitro Request runtime is used when TanStack does not forward env; invalid 
   } finally {
     root.__env__ = before;
   }
+});
+
+test("Whisper preserves bounded quota, rate and timeout failures without retrying or leaking provider data", async () => {
+  for (const [failure, expected] of [
+    [
+      Object.assign(new Error("quota allocation PRIVATE_CANARY"), { status: 429 }),
+      "SNOOP_WHISPER_QUOTA",
+    ],
+    [Object.assign(new Error("rate PRIVATE_CANARY"), { statusCode: 429 }), "SNOOP_WHISPER_LIMITED"],
+    [new Error("Workers AI transcription timeout PRIVATE_CANARY"), "SNOOP_WHISPER_TIMEOUT"],
+    [
+      new Error("PRIVATE_CANARY"),
+      "Workers AI: transcripción no disponible. Usa la entrada manual.",
+    ],
+  ] as const) {
+    let calls = 0;
+    await assert.rejects(
+      transcribeWorkersAudio(
+        {
+          run: async () => {
+            calls++;
+            throw failure;
+          },
+        },
+        "c3ludGhldGlj",
+        "it",
+      ),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message === expected &&
+        !error.message.includes("PRIVATE_CANARY"),
+    );
+    assert.equal(calls, 1);
+  }
+});
+
+test("empty GLM call arrays are accepted while actual, legacy and malformed calls remain blocked", () => {
+  for (const tool_calls of [undefined, null, []])
+    assert.equal(hasAiToolInvocations({ tool_calls, function_call: null }), false);
+  for (const tool_calls of [[{ name: "write" }], {}, "", "[]", 0, false])
+    assert.equal(hasAiToolInvocations({ tool_calls }), true);
+  for (const function_call of [{ name: "write" }, {}, "", false])
+    assert.equal(hasAiToolInvocations({ tool_calls: [], function_call }), true);
 });
