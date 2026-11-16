@@ -114,9 +114,10 @@ export async function deepgramAppSocket(request: Request, envValue: unknown): Pr
           signal: AbortSignal.timeout(12000), redirect: "manual",
         });
         if (ended) return;
-        if (response.status !== 101 || !response.webSocket)
+        const upgraded = response as Response & { webSocket?: WebSocket };
+        if (upgraded.status !== 101 || !upgraded.webSocket)
           return close("PROVIDER_UNAVAILABLE");
-        upstream = response.webSocket;
+        upstream = upgraded.webSocket;
         (upstream as any).accept();
         upstream.binaryType = "arraybuffer";
         upstream.addEventListener("close", () => close("PROVIDER_CLOSED"));
