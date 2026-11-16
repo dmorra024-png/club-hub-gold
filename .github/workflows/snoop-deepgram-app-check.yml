@@ -1,0 +1,35 @@
+name: SNOOP Deepgram App Pilot Verification
+on:
+  push:
+    branches: [feature/deepgram-admin-pilot-20261116]
+  pull_request:
+    branches: [codex/jarvis3-voice]
+permissions:
+  contents: read
+jobs:
+  isolated-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - run: bun install --frozen-lockfile
+      - name: Pilot policy and fail-closed authorization
+        run: node --test --experimental-test-isolation=none src/lib/deepgram-pilot-policy.test.ts
+      - name: Type checking
+        run: npm run typecheck
+      - name: Application regression checks
+        run: npm test
+      - name: Build authenticated application Worker (synthetic, no secrets)
+        run: npm run build:worker:test
+      - name: Scan public bundle for credentials
+        run: npm run test:security:bundle
+      - name: No deployment or database writes
+        run: echo "Verification only; no production deployment, cloud provider login, or data mutations"
