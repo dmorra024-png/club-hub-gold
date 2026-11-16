@@ -55,3 +55,33 @@ test("live access failures expose HTTP/codes only, never provider messages or to
   assert.ok(!JSON.stringify(events).includes("SYNTHETIC_TOKEN"));
   assert.throws(() => liveSnoopClient(""), /TOKEN_UNAVAILABLE/);
 });
+
+test("synthetic GLM diagnostics redact the token and settle an already-issued request without retrying", async () => {
+  const events = [];
+  let finish;
+  let calls = 0;
+  const client = liveSnoopClient(
+    "SYNTHETIC_TOKEN",
+    () => {
+      calls++;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    },
+    events,
+  );
+  const operation = client.run("@cf/zai-org/glm-4.7-flash", { messages: [] });
+  const settling = client.settle();
+  finish(
+    Response.json({
+      success: true,
+      result: { response: "SYNTHETIC_TOKEN fixed synthetic response" },
+    }),
+  );
+  await operation;
+  await settling;
+  assert.equal(calls, 1);
+  assert.equal(events[0].http, 200);
+  assert.ok(events[0].syntheticModelResponse.includes("[REDACTED_TOKEN]"));
+  assert.ok(!JSON.stringify(events).includes("SYNTHETIC_TOKEN"));
+});

@@ -10,6 +10,7 @@ const GLM = "@cf/zai-org/glm-4.7-flash";
 export function liveSnoopClient(token, transport = fetch, events = []) {
   if (!token?.trim()) throw new Error("SNOOP_LIVE_TOKEN_UNAVAILABLE");
   let count = 0;
+  const pending = new Set();
   async function request(path, stage, body) {
     if (++count > 12) throw new Error("SNOOP_LIVE_REQUEST_BUDGET");
     const started = performance.now();
@@ -51,11 +52,28 @@ export function liveSnoopClient(token, transport = fetch, events = []) {
     return json.result;
   }
   return {
+    settle: () => Promise.allSettled([...pending]),
     settings: () => request("/workers/scripts/snoop-pilot/settings", "worker_settings"),
     models: () => request("/ai/models/search?search=glm-4.7-flash", "models_catalogue"),
     run(model, input) {
       if (![AUDIO, GLM].includes(model)) throw new Error("SNOOP_LIVE_MODEL_NOT_ALLOWED");
-      return request(`/ai/run/${model}`, model === AUDIO ? "whisper" : "glm", input);
+      const operation = request(`/ai/run/${model}`, model === AUDIO ? "whisper" : "glm", input)
+        .then((result) => {
+          if (model === GLM) {
+            const selected = {
+              response: result?.response,
+              choices: result?.choices,
+              usage: result?.usage,
+            };
+            events.at(-1).syntheticModelResponse = (JSON.stringify(selected) ?? "null")
+              .replaceAll(token, "[REDACTED_TOKEN]")
+              .slice(0, 12000);
+          }
+          return result;
+        })
+        .finally(() => pending.delete(operation));
+      pending.add(operation);
+      return operation;
     },
   };
 }
@@ -92,8 +110,9 @@ async function main() {
     result: "RUNNING",
   };
   await mkdir(".sandbox/live-ai", { recursive: true });
+  let client;
   try {
-    const client = liveSnoopClient(process.env.CLOUDFLARE_API_TOKEN, fetch, report.requests);
+    client = liveSnoopClient(process.env.CLOUDFLARE_API_TOKEN, fetch, report.requests);
     const settings = await client.settings();
     const bindings = settings.bindings ?? [];
     const value = (name) => bindings.find((b) => b.name === name && b.type === "plain_text")?.text;
@@ -217,12 +236,17 @@ async function main() {
       code:
         lastRequest?.http >= 400
           ? `SNOOP_LIVE_${lastRequest.stage.toUpperCase()}_HTTP_${lastRequest.http}`
-          : typeof error?.message === "string" && /^SNOOP_/.test(error.message)
-            ? (error.message.match(/^SNOOP_[A-Z0-9_]+/)?.[0] ?? "SNOOP_LIVE_EXPECTATION_NOT_MET")
-            : "SNOOP_LIVE_EXPECTATION_NOT_MET",
+          : /tarda demasiado|timeout/i.test(error?.message ?? "")
+            ? "SNOOP_LIVE_GLM_TIMEOUT"
+            : typeof error?.message === "string" && /^SNOOP_/.test(error.message)
+              ? (error.message.match(/^SNOOP_[A-Z0-9_]+/)?.[0] ?? "SNOOP_LIVE_EXPECTATION_NOT_MET")
+              : "SNOOP_LIVE_EXPECTATION_NOT_MET",
     };
     process.exitCode = 1;
   } finally {
+    // Drain only the already-issued request (bounded by its 25 s transport deadline).
+    // This does not retry or extend the application's 20 s interpretation timeout.
+    await client?.settle();
     report.realModelInferenceAttempted = report.requests.some(
       (r) => r.stage === "whisper" || r.stage === "glm",
     );
@@ -231,7 +255,7 @@ async function main() {
       JSON.stringify({
         result: report.result,
         failure: report.failure,
-        requests: report.requests,
+        requests: report.requests.map(({ syntheticModelResponse, ...metadata }) => metadata),
         transcriptionWER: report.transcriptions.map((r) => ({
           language: r.language,
           value: r.wordErrorRate,
