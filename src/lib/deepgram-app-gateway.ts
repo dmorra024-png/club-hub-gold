@@ -1,7 +1,7 @@
-import { parseAccountAccess, type AccountAccess } from "./access-context";
-import { deepgramPilotAllowed, normalizedPilotNames } from "./deepgram-pilot-policy";
-import { agentSettings, authorizeProposal } from "../../lab/deepgram/policy";
-import type { CatalogVocabulary } from "../../lab/deepgram/vocabulary";
+import { parseAccountAccess, type AccountAccess } from "./access-context.ts";
+import { deepgramPilotAllowed, normalizedPilotNames } from "./deepgram-pilot-policy.ts";
+import { agentSettings, authorizeProposal } from "../../lab/deepgram/policy.ts";
+import type { CatalogVocabulary } from "../../lab/deepgram/vocabulary.ts";
 
 const active = new Set<string>();
 const recent = new Map<string, { at: number; count: number }>();
