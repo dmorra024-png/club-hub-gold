@@ -4,7 +4,7 @@ import {
   conversationAllowed,
   type ConversationProposalValue,
 } from "./snoop-conversation.ts";
-import { workersAiBinding } from "./workers-ai.server.ts";
+import { workersAiBinding, hasAiToolInvocations } from "./workers-ai.server.ts";
 import { reserveSnoopRequest, SNOOP_GLM_MODEL } from "./voice-command-ai.server.ts";
 import type { AccountAccess } from "./access-context.ts";
 export function conversationAvailability(access: AccountAccess) {
@@ -182,8 +182,8 @@ export async function interpretConversation(
     ])) as any;
     const choice = result?.choices?.[0];
     if (
-      choice &&
-      (result.choices.length !== 1 || choice.finish_reason !== "stop" || choice.message?.tool_calls)
+      (choice && (result.choices.length !== 1 || choice.finish_reason !== "stop")) ||
+      hasAiToolInvocations(choice ? choice.message : result)
     )
       throw new Error("SNOOP_INVALID_PROPOSAL");
     // Workers AI models may return structured JSON as an object rather than text.

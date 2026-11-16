@@ -219,3 +219,46 @@ test("declined optional phone survives later field corrections locally and reset
     assert.deepEqual(no.patch, {});
   }
 });
+
+test("GLM navigation accepts an empty call list and still rejects a real invocation", async () => {
+  const values = {
+    AI_PROVIDER: "cloudflare",
+    AI_EXTERNAL_PROCESSING_ENABLED: "true",
+    AI_VOICE_PROCESSING_ENABLED: "true",
+    AI_VOICE_INTENTS_ENABLED: "true",
+    SNOOP_AI_FREE_TIER_CONFIRMED: "true",
+    SNOOP_AI_ASSISTANT_MODEL: "@cf/zai-org/glm-4.7-flash",
+  };
+  const saved = Object.keys(values).map((k) => [k, process.env[k]]);
+  const root = globalThis as typeof globalThis & { __env__?: any },
+    previous = root.__env__;
+  let toolCalls: unknown = [];
+  Object.assign(process.env, values);
+  root.__env__ = {
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SNOOP_AI: {
+      run: async () => ({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: '{"command":"Crear socio"}',
+              tool_calls: toolCalls,
+              function_call: null,
+            },
+          },
+        ],
+      }),
+    },
+  };
+  try {
+    assert.equal(await proposeVoiceCommand("Crear socio", "empty-tool-navigation"), "Crear socio");
+    toolCalls = [{ name: "forbidden-tool" }];
+    assert.equal(await proposeVoiceCommand("Crear socio", "empty-tool-navigation"), null);
+  } finally {
+    root.__env__ = previous;
+    for (const [key, value] of saved)
+      if (value === undefined) delete process.env[key!];
+      else process.env[key!] = value;
+  }
+});

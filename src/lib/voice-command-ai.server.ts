@@ -1,6 +1,6 @@
 import { SnoopSketch, sketchSupports } from "./snoop-orchestrator.ts";
 import { safeVoiceCommand, safeCommands, validatedCommandProposal } from "./voice-command-ai.ts";
-import { workersAiBinding, FREE_TEXT_MODEL } from "./workers-ai.server.ts";
+import { workersAiBinding, FREE_TEXT_MODEL, hasAiToolInvocations } from "./workers-ai.server.ts";
 export const SNOOP_GLM_MODEL = "@cf/zai-org/glm-4.7-flash";
 const limits = new Map<string, { start: number; count: number }>();
 /** Per-isolate abuse bound, not an account-wide quota ledger. Workers Free must enforce its hard daily cap. */
@@ -100,10 +100,8 @@ async function runSnoopInterpretation(safe: string, scope: string): Promise<stri
     };
     const choice = result?.choices?.[0];
     if (
-      choice &&
-      (result.choices?.length !== 1 ||
-        choice.finish_reason !== "stop" ||
-        choice.message?.tool_calls)
+      (choice && (result.choices?.length !== 1 || choice.finish_reason !== "stop")) ||
+      hasAiToolInvocations(choice ? choice.message : result)
     )
       return null;
     let response = choice ? choice.message?.content : result?.response;

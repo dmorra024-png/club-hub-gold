@@ -5,6 +5,17 @@ export interface SnoopAiBinding {
 }
 export const FREE_TEXT_MODEL = "@cf/meta/llama-3.2-3b-instruct";
 export const FREE_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
+/** Empty/null call lists mean no tools. Malformed lists and any legacy call are rejected. */
+export function hasAiToolInvocations(message: unknown): boolean {
+  if (!message || typeof message !== "object") return false;
+  const value = message as { tool_calls?: unknown; function_call?: unknown };
+  return (
+    value.function_call != null ||
+    (value.tool_calls != null &&
+      (!Array.isArray(value.tool_calls) || value.tool_calls.length !== 0))
+  );
+}
+
 type SnoopRuntimeAi = { SNOOP_AI: SnoopAiBinding; SNOOP_RESOURCE_NAMESPACE: "snoop-pilot" };
 const requestAi = new AsyncLocalStorage<SnoopRuntimeAi | null>();
 

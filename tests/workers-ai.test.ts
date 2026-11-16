@@ -4,6 +4,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import {
   authorizeWorkersAi,
+  hasAiToolInvocations,
   workersAiBinding,
   withSnoopWorkersAi,
   workersAiFetch,
@@ -254,4 +255,13 @@ test("Whisper preserves bounded quota, rate and timeout failures without retryin
     );
     assert.equal(calls, 1);
   }
+});
+
+test("empty GLM call arrays are accepted while actual, legacy and malformed calls remain blocked", () => {
+  for (const tool_calls of [undefined, null, []])
+    assert.equal(hasAiToolInvocations({ tool_calls, function_call: null }), false);
+  for (const tool_calls of [[{ name: "write" }], {}, "", "[]", 0, false])
+    assert.equal(hasAiToolInvocations({ tool_calls }), true);
+  for (const function_call of [{ name: "write" }, {}, "", false])
+    assert.equal(hasAiToolInvocations({ tool_calls: [], function_call }), true);
 });

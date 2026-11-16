@@ -426,3 +426,76 @@ test("Cloudflare GLM text-part choices are accepted only after strict validated 
     restore();
   }
 });
+
+test("GLM documented empty tool_calls is absence of tools, not an invocation", async () => {
+  const restore = env(flags);
+  const root = globalThis as typeof globalThis & { __env__?: any },
+    previous = root.__env__;
+  const proposal = {
+    ...dialogueCases[0].proposal,
+    intent: "member",
+    target: "member_create",
+    member: { first_name: "Luca", last_name: "Prova", birth_date: "1995-03-12", city: "Palma" },
+  };
+  let calls: unknown = [];
+  let legacy: unknown = null;
+  root.__env__ = {
+    SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
+    SNOOP_AI: {
+      run: async () => ({
+        choices: [
+          {
+            index: 0,
+            finish_reason: "stop",
+            logprobs: null,
+            message: {
+              role: "assistant",
+              content: JSON.stringify(proposal),
+              refusal: null,
+              tool_calls: calls,
+              function_call: legacy,
+            },
+          },
+        ],
+      }),
+    },
+  };
+  try {
+    const actual = await interpretConversation(
+      {
+        mode: "pilot",
+        consent: true,
+        synthetic: true,
+        text: "Crea un socio, nome Luca cognome Prova, nato il 12 marzo 1995, città Palma",
+        screen: "home",
+        context: emptyConversation(),
+      },
+      { userId: "empty-tool-list-regression", access },
+    );
+    assert.deepEqual(actual.member, proposal.member);
+    const request = {
+      mode: "pilot",
+      consent: true,
+      synthetic: true,
+      text: "Crear socio",
+      screen: "home",
+      context: emptyConversation(),
+    };
+    for (const bad of [[{ id: "forbidden-tool" }], {}, ""]) {
+      calls = bad;
+      await assert.rejects(
+        interpretConversation(request, { userId: "empty-tool-list-regression", access }),
+        /SNOOP_INVALID_PROPOSAL/,
+      );
+    }
+    calls = [];
+    legacy = { name: "forbidden-function" };
+    await assert.rejects(
+      interpretConversation(request, { userId: "empty-tool-list-regression", access }),
+      /SNOOP_INVALID_PROPOSAL/,
+    );
+  } finally {
+    root.__env__ = previous;
+    restore();
+  }
+});
