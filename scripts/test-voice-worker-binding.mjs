@@ -1,3 +1,4 @@
+import { defaultSerovalPlugins } from "@tanstack/router-core";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFile, readdir, mkdtemp, cp, writeFile, rm } from "node:fs/promises";
@@ -99,7 +100,7 @@ try {
         {
           name: "ai",
           modules: true,
-          script: `import {WorkerEntrypoint} from 'cloudflare:workers'; export class SyntheticAi extends WorkerEntrypoint {async run(model,input){if(model!=='@cf/openai/whisper-large-v3-turbo'||input.audio!=='U1lOVEhFVElD'||input.language!=='es')throw new Error('Unexpected model input');return {text:'Crear socio'};}} export default {fetch(){return new Response('no public AI endpoint',{status:404})}};`,
+          script: `import {WorkerEntrypoint} from 'cloudflare:workers'; export class SyntheticAi extends WorkerEntrypoint {async run(model,input){if(model!=='@cf/openai/whisper-large-v3-turbo'||input.language!=='es')throw new Error('Unexpected model input');if(input.audio==='UVVPVEE=')throw new Error('Synthetic free allocation exhausted PRIVATE_PROVIDER_PAYLOAD');if(input.audio!=='U1lOVEhFVElD')throw new Error('Unexpected audio');return {text:'Crear socio'};}} export default {fetch(){return new Response('no public AI endpoint',{status:404})}};`,
           compatibilityDate: "2026-11-05",
         },
       ],
@@ -120,7 +121,8 @@ try {
       );
       assert.equal(response.status, 200);
       const wire = await response.json();
-      const result = fromCrossJSON(wire, { refs: new Map(), plugins: [] });
+      const result = fromCrossJSON(wire, { refs: new Map(), plugins: defaultSerovalPlugins });
+      if (result instanceof Error) throw result;
       if (result.error) throw result.error;
       return result.result;
     };
@@ -132,9 +134,17 @@ try {
       language: "es",
     });
     assert.equal(transcript.text, "Crear socio");
+    await assert.rejects(
+      call("transcribeAudio", {
+        audioBase64: "UVVPVEE=",
+        mimeType: "audio/webm",
+        language: "es",
+      }),
+      (error) => error instanceof Error && error.message === "SNOOP_WHISPER_QUOTA",
+    );
     assert.equal(writes, 0);
     console.log(
-      "PASS actual Workerd + Nitro + TanStack request-scoped availability and audio transport; synthetic auth/model, no real network or writes",
+      "PASS actual Workerd + Nitro + TanStack request-scoped availability, audio transport and bounded quota errors; synthetic auth/model, no real network or writes",
     );
   } finally {
     await mf.dispose();

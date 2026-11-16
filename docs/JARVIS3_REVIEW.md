@@ -200,3 +200,13 @@ mobile inference. No runtime or model weights are shipped in SNOOP. The native
 benchmark's RAM/CPU values must not be presented as browser/phone results.
 Declining a phone in conversation does not override any club-required-field
 validation: confirmation and existing form validation remain authoritative.
+
+
+The real compiled Workerd/Nitro/TanStack transport test now also injects a
+synthetic provider quota error and asserts that only SNOOP_WHISPER_QUOTA reaches
+the client. It uses TanStack's actual default Seroval error plugins, as the browser
+does. The existing targeted runtime CI workflow runs this regression on
+codex/jarvis3-voice, along with Cloudflare build and dry-run; it performs no deploy
+or real-model/database access. The Jarvis synthetic job requires no Cloudflare or Supabase credentials; the old
+branch verification job retains its existing protected build settings. No secret
+or billing setting is introduced or rewritten.
