@@ -123,7 +123,11 @@ export function DeepgramPilotVoice({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: false,
       });
-      if (generation.current !== current) return;
+      if (generation.current !== current) {
+        stream.getTracks().forEach((track) => track.stop());
+        void ctx.close();
+        return;
+      }
       setStatus("Verificando sessione SNOOP…");
       // This call also verifies current club scope and the consented vocabulary.
       const names = await catalog({ data: { consent: true } });
@@ -136,7 +140,11 @@ export function DeepgramPilotVoice({
       const blob = URL.createObjectURL(new Blob([worklet], { type: "application/javascript" }));
       try { await ctx.audioWorklet.addModule(blob); }
       finally { URL.revokeObjectURL(blob); }
-      if (generation.current !== current) return;
+      if (generation.current !== current) {
+        stream.getTracks().forEach((track) => track.stop());
+        void ctx.close();
+        return;
+      }
       const source = ctx.createMediaStreamSource(stream);
       const node = new AudioWorkletNode(ctx, "snoop-app-capture");
       const sink = ctx.createGain();
@@ -168,8 +176,8 @@ export function DeepgramPilotVoice({
         if (generation.current !== current || audio.current !== state || !state.ready ||
             socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount > 128000) return;
         // Half duplex: never transcribe the agent's audio playback.
-        if (ctx.currentTime < state.playEnd + 0.12) return;
-        socket.send(event.data);
+        if (state.ctx.currentTime < state.playEnd + 0.12) return;
+        state.socket.send(event.data);
       };
       socket.onmessage = (event: MessageEvent) => {
         if (generation.current !== current) return;
@@ -208,14 +216,14 @@ export function DeepgramPilotVoice({
         if (generation.current === current) stop("Connessione chiusa, microfono spento");
       };
     } catch (error) {
-      if (generation.current === current) stop(
-        error instanceof Error ? error.message : "Impossibile attivare SNOOP",
-      );
-      else {
+      if (!audio.current) {
         stream?.getTracks().forEach((track) => track.stop());
         void ctx?.close();
         socket?.close();
       }
+      if (generation.current === current) stop(
+        error instanceof Error ? error.message : "Impossibile attivare SNOOP",
+      );
     }
   };
 
