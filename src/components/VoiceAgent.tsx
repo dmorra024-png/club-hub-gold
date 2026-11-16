@@ -156,7 +156,13 @@ export function VoiceAgent({
   useEffect(() => {
     const synthesis = window.speechSynthesis;
     if (!synthesis) return;
-    const update = () => setDeviceVoices(synthesis.getVoices().filter((v) => v.localService));
+    const update = () => {
+      try {
+        setDeviceVoices(synthesis.getVoices().filter((v) => v.localService));
+      } catch {
+        setDeviceVoices([]);
+      }
+    };
     update();
     synthesis.addEventListener?.("voiceschanged", update);
     return () => synthesis.removeEventListener?.("voiceschanged", update);

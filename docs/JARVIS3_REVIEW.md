@@ -24,6 +24,12 @@ Supertonic 3 official model metadata lists ONNX payloads of 3,700,147 +
 36,416,150 + 256,534,781 + 101,424,195 bytes: **398,075,273 bytes** before
 runtime, voice styles and working memory. This is download size, not measured
 peak memory. It is not appropriate to silently add this download to the installed PWA.
+Kokoro ONNX quantized weights are 92,361,116 bytes (q8f16: 86,033,585),
+before runtime and voice data. Examining the official `kokoro.js/src/voices.js`
+and `phonemize.js` reveals only English voices enabled; other languages remain
+under a TODO/commented section. Python support for IT/ES does not prove the
+JavaScript package supports them. A multilingual G2P/voice port would need its own
+verification rather than installing the current JS package and claiming success.
 Neither neural engine has been benchmarked on a physical Samsung or iPhone here.
 No neural quality/latency claim, automatic model download, paid hosting, or new
 remote speech provider is introduced by this change.
@@ -55,3 +61,14 @@ measure Cloudflare accuracy, real microphone performance, acoustic echo behavior
 or physical iOS/Android compatibility. End-to-end real audio, neural TTS mobile
 benchmarks and comparative perceived quality remain required before calling the
 Jarvis 3 request complete or publishing it as such.
+
+## Executed checks for this incremental change
+
+- 337/337 unit tests passed; TypeScript and production build passed.
+- Client-secret scan: 76 public artifacts passed.
+- Chromium mobile and WebKit mobile each completed 51 synthetic dialogue turns,
+  with device speech and recorder doubles and no microphone/reply overlap.
+- Dedicated browser assertions passed local voice selection and preview in both
+  engines with zero microphone recordings during preview.
+- No authenticated real Whisper/GLM call, physical microphone measurement, neural
+  model inference benchmark or perceived-quality test was executed.
