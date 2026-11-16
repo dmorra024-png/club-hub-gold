@@ -210,3 +210,24 @@ codex/jarvis3-voice, along with Cloudflare build and dry-run; it performs no dep
 or real-model/database access. The Jarvis synthetic job requires no Cloudflare or Supabase credentials; the old
 branch verification job retains its existing protected build settings. No secret
 or billing setting is introduced or rewritten.
+
+
+### Opt-in authentic model verification
+
+A separate live check uses the existing protected SNOOP Cloudflare token only in
+its execution step, never during dependency installation. It first GETs only
+snoop-pilot settings, verifies its namespace, AI binding and operator free-tier
+confirmation, then checks the model catalogue. Both catalogue and inference
+endpoints require Workers AI Read (Workers AI Write is also accepted), per
+Cloudflare's official API documentation. A Workers Scripts Edit token alone does
+not establish this independent REST permission; the app's binding is separate.
+
+Only an explicitly tagged trusted-branch commit can run this job. Its data are
+fixed synthetic fixtures, with verified audio hashes, a fake user/club context,
+PILOT-only processing and REAL disabled. It permits just Whisper/GLM, at most 12
+requests including preflight, no retries, redirects, other accounts, other models,
+billing calls, database access, or resource mutations. HTTP/error codes are
+bounded; token values and provider error messages are not logged. Live results
+must be read separately from CI/model doubles. No live accuracy or availability
+is claimed until that job has actually completed. An access/permission failure
+is BLOCKED, not a product PASS and not evidence that the app binding itself fails.
