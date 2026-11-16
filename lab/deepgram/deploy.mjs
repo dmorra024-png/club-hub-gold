@@ -76,7 +76,7 @@ assert(
 assert(/export\s*\{[\s\S]*default|export\s+default/.test(root), "LAB_EXPECTS_DEFAULT_HANDLER");
 const hash = (s) => createHash("sha256").update(s).digest("hex");
 const probeToken = randomBytes(32).toString("hex");
-const compiled = (await readFile(".sandbox/deepgram-lab/module.mjs", "utf8")).replace(
+const compiled = (await readFile(".sandbox/deepgram-lab/module.mjs", "utf8")).replaceAll(
   "__LAB_PROBE_HASH__",
   hash(probeToken),
 );

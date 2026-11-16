@@ -147,13 +147,14 @@ async function run(ref) {
       }
       if (m.type === "LabProposal") s.proposal = m;
       if (m.type === "AgentAudioDone") finished = true;
-      if (m.type === "LabError" || m.type === "LabClosed") failure = m.code;
+      if (m.type === "LabError" || m.type === "LabClosed") failure ||= m.code;
+      if (m.detail) s.providerDiagnostic = m.detail;
     } catch {
       failure = "LAB_INVALID_EVENT";
     }
   });
   ws.on("error", () => {
-    failure = "LAB_SOCKET_ERROR";
+    failure ||= "LAB_SOCKET_ERROR";
   });
   const until = async (test, limit) => {
     const deadline = performance.now() + limit;
@@ -189,6 +190,7 @@ async function run(ref) {
     s.passed = true;
   } catch (e) {
     s.passed = false;
+    if (e instanceof assert.AssertionError) s.assertion = e.message.slice(0, 400);
     s.error = /^[A-Z0-9_]+$/.test(e.message) ? e.message : "LAB_ASSERTION_FAILED";
   } finally {
     s.connectedMs = performance.now() - start;

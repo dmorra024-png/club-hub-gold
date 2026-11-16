@@ -62,7 +62,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
     try {
       const p = await fetch("https://api.deepgram.com/v1/projects", {
         headers,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(10000),
       });
       if (!p.ok) return safeJson({ available: false, stage: "projects", http: p.status });
@@ -74,7 +74,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         return safeJson({ available: false, code: "LAB_BALANCE_INVALID_SCOPE" });
       const r = await fetch(`https://api.deepgram.com/v1/projects/${id}/balances`, {
         headers,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(10000),
       });
       if (!r.ok) return safeJson({ available: false, stage: "balances", http: r.status });
@@ -157,13 +157,14 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         sessionDeadline = setTimeout(() => close("LAB_SESSION_LIMIT_90S"), MAX_MS);
         const response = await fetch("https://agent.deepgram.com/v1/agent/converse", {
           headers: { Upgrade: "websocket", Authorization: `Token ${env.DEEPGRAM_API_KEY}` },
-          redirect: "error",
+          redirect: "manual",
           signal: AbortSignal.timeout(12000),
         });
         if (response.status !== 101 || !response.webSocket) {
           send({ type: "LabError", code: "DEEPGRAM_CONNECT_FAILED", http: response.status });
           return close();
         }
+        const privateProbe = await equal(await digest(auth.key), "__LAB_PROBE_HASH__");
         upstream = response.webSocket;
         upstream.accept();
         if (closed) {
@@ -218,9 +219,19 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
               send({
                 type: "LabError",
                 code:
-                  typeof msg.code === "string" && /^[A-Z0-9_]{1,80}$/.test(msg.code)
+                  typeof msg.code === "string" && /^[A-Za-z0-9_]{1,80}$/.test(msg.code)
                     ? msg.code
                     : "DEEPGRAM_AGENT_ERROR",
+                stage: ready ? "conversation" : "settings",
+                ...(privateProbe
+                  ? {
+                      detail: String(msg.description ?? msg.message ?? "")
+                        .replaceAll(env.DEEPGRAM_API_KEY, "[REDACTED]")
+                        .replaceAll(env.VOICE_PREVIEW_KEY, "[REDACTED]")
+                        .replaceAll(auth.key, "[REDACTED]")
+                        .slice(0, 300),
+                    }
+                  : {}),
               });
               return close();
             }

@@ -69,8 +69,17 @@ try {
   );
   await done;
   assert.equal(outbound, 0);
+  const credit = await mf.dispatchFetch(base + "/deepgram/credit", {
+    method: "POST",
+    headers: { "x-preview-key": "synthetic-preview-key" },
+  });
+  const observed = await credit.json();
+  console.log("Synthetic outbound diagnostic", JSON.stringify(observed), "outbound:", outbound);
+  assert.equal(observed.stage, "projects");
+  assert.equal(observed.http, 401);
+  assert.equal(outbound, 1);
   console.log(
-    "PASS real Workerd: old route, health, same-origin, auth rejection, zero provider requests and no secret exposure",
+    "PASS real Workerd: old route, health, same-origin, auth rejection with zero unauthorized provider requests and no secret exposure",
   );
 } finally {
   await mf.dispose();
