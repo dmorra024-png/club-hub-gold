@@ -516,6 +516,16 @@ for (const [name, engine, device] of [
         );
         const recordingsBeforePreview = await page.evaluate(() => window.__voice.created);
         await page.getByLabel("Voz local del dispositivo").selectOption("synthetic-es");
+        assert.equal(
+          await page.evaluate(() => localStorage.getItem("snoop:device-voice:v1:es")),
+          "synthetic-es",
+          "device voice choice stays on the device",
+        );
+        await page.getByLabel("Idioma de voz / Lingua voce").selectOption("it-IT");
+        await page.getByLabel("Idioma de voz / Lingua voce").selectOption("es-ES");
+        await page.waitForFunction(
+          () => document.querySelector('select[aria-label="Voz local del dispositivo"]')?.value === "synthetic-es",
+        );
         await page.getByRole("button", { name: "Probar voz", exact: true }).click();
         await page.waitForFunction(
           () => window.__snoopReplies.spoken > 0 && !window.__snoopReplies.active,
