@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
@@ -10,6 +10,16 @@ const api = new URL(
   base,
 );
 
+// Distinguish the new read-only provider gate from obsolete archive calls.
+const pilotFile = (await readdir(".output/server/_ssr")).find((n) =>
+  n.startsWith("deepgram-pilot.functions-"),
+);
+assert(pilotFile, "Deepgram SSR function manifest missing");
+const pilotSource = await readFile(".output/server/_ssr/" + pilotFile, "utf8");
+const pilotStatusId = /id:\s*["'`]([a-f0-9]+)["'`],\s*name:\s*["'`]deepgramPilotStatus["'`]/.exec(
+  pilotSource,
+)?.[1];
+assert(pilotStatusId, "Read-only pilot status function must be identified exactly");
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -48,7 +58,8 @@ for (const [label, engine, device] of [
     const context = await browser.newContext({ ...device, serviceWorkers: "block" });
     let archiveCalls = 0,
       lookupCalls = 0,
-      writes = 0;
+      writes = 0,
+      pilotStatusReads = 0;
     await context.addInitScript(
       ({ auth, key }) => localStorage.setItem(key, JSON.stringify(auth)),
       { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
@@ -75,6 +86,13 @@ for (const [label, engine, device] of [
             },
             context: {},
           }),
+        });
+      }
+      if (req.method() === "GET" && u.pathname.endsWith("/" + pilotStatusId)) {
+        pilotStatusReads++;
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ result: { enabled: false }, context: {} }),
         });
       }
       if (u.pathname.includes("_serverFn")) {
@@ -132,6 +150,7 @@ for (const [label, engine, device] of [
     );
     assert.equal(writes, 0);
     assert.equal(archiveCalls, 0);
+    assert.equal(pilotStatusReads, 1, "Only the identified read-only provider check is allowed");
     results.push({
       device: label,
       result: "PASS",

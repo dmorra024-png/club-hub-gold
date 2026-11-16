@@ -44,19 +44,18 @@ export const deepgramPilotCatalog = createServerFn({ method: "POST" })
         .from("product_categories")
         .select("name")
         .eq("club_id", context.clubId)
-        .eq("archived", false)
+        .or("archived.eq.false,archived.is.null")
         .order("name")
         .limit(35),
       context.supabase
         .from("products")
         .select("name")
         .eq("club_id", context.clubId)
-        .eq("active", true)
+        .or("active.eq.true,active.is.null")
         .order("name")
         .limit(35),
     ]);
-    if (categories.error || products.error)
-      throw new Error("SNOOP_DEEPGRAM_CATALOG_UNAVAILABLE");
+    if (categories.error || products.error) throw new Error("SNOOP_DEEPGRAM_CATALOG_UNAVAILABLE");
     return {
       categories: normalizedPilotNames(categories.data),
       products: normalizedPilotNames(products.data),
@@ -71,11 +70,19 @@ export const deepgramPilotStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseClubAuth])
   .handler(async ({ context }) => {
     setResponseHeader("Cache-Control", "no-store, private");
+    if (
+      process.env.SNOOP_DEEPGRAM_PILOT_ENABLED !== "true" ||
+      process.env.SNOOP_DEEPGRAM_PILOT_USER_ID !== context.userId ||
+      process.env.SNOOP_DEEPGRAM_PILOT_CLUB_ID !== context.clubId
+    )
+      return { enabled: false, unavailable: false };
+    if (!process.env.DEEPGRAM_API_KEY) return { enabled: false, unavailable: true };
     try {
       const { data, error } = await context.supabase.rpc("snoop_access_context");
-      if (error) return { enabled: false };
+      if (error) return { enabled: false, unavailable: true };
       const access = parseAccountAccess(data);
       return {
+        unavailable: false,
         enabled:
           access.clubId === context.clubId &&
           !!process.env.DEEPGRAM_API_KEY &&
@@ -86,6 +93,6 @@ export const deepgramPilotStatus = createServerFn({ method: "GET" })
           }),
       };
     } catch {
-      return { enabled: false };
+      return { enabled: false, unavailable: true };
     }
   });

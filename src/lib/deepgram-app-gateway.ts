@@ -3,6 +3,12 @@ import { deepgramPilotAllowed, normalizedPilotNames } from "./deepgram-pilot-pol
 import { agentSettings, authorizeProposal } from "../../lab/deepgram/policy.ts";
 import type { CatalogVocabulary } from "../../lab/deepgram/vocabulary.ts";
 
+const SAFE_FAILURES = new Set([
+  "AUTH_CONFIG",
+  "AUTH_FAILED",
+  "AUTH_FORBIDDEN",
+  "CATALOG_UNAVAILABLE",
+]);
 const active = new Set<string>();
 const recent = new Map<string, { at: number; count: number }>();
 const setting = (env: Record<string, unknown>, name: string) =>
@@ -11,6 +17,7 @@ const setting = (env: Record<string, unknown>, name: string) =>
 async function verifySession(
   token: string,
   env: Record<string, unknown>,
+  signal: AbortSignal,
 ): Promise<{
   user: string;
   access: AccountAccess;
@@ -19,7 +26,7 @@ async function verifySession(
   const base = setting(env, "SUPABASE_URL").replace(/\/$/, "");
   const key = setting(env, "SUPABASE_PUBLISHABLE_KEY");
   if (
-    !/^https:\/\/[^/]+$/.test(base) ||
+    base !== "https://bnwanxbmprbymbutoths.supabase.co" ||
     !key ||
     token.length > 5000 ||
     token.split(".").length !== 3
@@ -32,7 +39,7 @@ async function verifySession(
       headers: { ...headers, "Content-Type": "application/json" },
       body: method === "POST" ? "{}" : undefined,
       redirect: "manual",
-      signal: AbortSignal.timeout(8000),
+      signal,
     });
     if (!res.ok) throw Error("AUTH_FAILED");
     return res.json();
@@ -53,12 +60,12 @@ async function verifySession(
     get(
       "/rest/v1/product_categories?select=name&club_id=eq." +
         club +
-        "&archived=eq.false&order=name.asc&limit=35",
+        "&or=(archived.eq.false,archived.is.null)&order=name.asc&limit=35",
     ),
     get(
       "/rest/v1/products?select=name&club_id=eq." +
         club +
-        "&active=eq.true&order=name.asc&limit=35",
+        "&or=(active.eq.true,active.is.null)&order=name.asc&limit=35",
     ),
   ]);
   if (!Array.isArray(cats) || !Array.isArray(products)) throw Error("CATALOG_UNAVAILABLE");
@@ -99,6 +106,11 @@ export async function deepgramAppSocket(
     server = p[1] as WebSocket;
   server.binaryType = "arraybuffer";
   (server as any).accept();
+  const authController = new AbortController();
+  let connectionController: AbortController | undefined;
+  let keepalive: ReturnType<typeof setInterval> | undefined;
+  let providerReady = false,
+    lastAudioAt = Date.now();
   let upstream: WebSocket | undefined,
     ended = false,
     handshakeStarted = false;
@@ -116,6 +128,9 @@ export async function deepgramAppSocket(
     if (ended) return;
     ended = true;
     clearTimeout(deadline);
+    clearInterval(keepalive);
+    authController.abort();
+    connectionController?.abort();
     if (owner) active.delete(owner);
     send({ type: "AppClosed", code: reason });
     try {
@@ -144,7 +159,7 @@ export async function deepgramAppSocket(
           typeof a.token !== "string"
         )
           return close("AUTH_INVALID");
-        const verified = await verifySession(a.token, env);
+        const verified = await verifySession(a.token, env, authController.signal);
         if (ended) return;
         const now = Date.now();
         for (const [id, slot] of recent) if (now - slot.at > 3600000) recent.delete(id);
@@ -167,12 +182,18 @@ export async function deepgramAppSocket(
             .replace(
               "Only fictional people and data are allowed. Do not request real identifiers, documents or club information.",
               "Use fictional people only. The server has supplied approved club product/category DISPLAY NAMES with administrator consent. Never request actual member identifiers, documents, financial values or private records.",
+            )
+            .replace(
+              "This lab role permits member and informational product drafts/search only, not financial/reports access.",
+              "You may propose navigation to existing app cash and report screens; SNOOP checks permissions locally. You cannot read or request financial values or perform transactions.",
             ) +
+          " For an explicit stop request, call snoop_propose with intent stop and target null to stop capture immediately. " +
           " For a NEW category draft use intent category, target categories, " +
           "product.name as the requested label and do not claim it already exists. " +
           "For assignment to a product, category must match a verified catalogue label. " +
           "Every action is a non-persistent draft; only the manual app may save.";
         const controller = new AbortController();
+        connectionController = controller;
         const connectionDeadline = setTimeout(() => controller.abort(), 12000);
         let response: Response;
         try {
@@ -236,7 +257,17 @@ export async function deepgramAppSocket(
                   }),
                 );
               }
+            } else if (m.type === "Error") {
+              send({
+                type: "AppError",
+                code:
+                  typeof m.code === "string" && /^[A-Za-z0-9_]{1,80}$/.test(m.code)
+                    ? m.code
+                    : "PROVIDER_ERROR",
+              });
+              close("PROVIDER_REJECTED");
             } else if (m.type === "SettingsApplied") {
+              providerReady = true;
               send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length });
             } else if (m.type === "ConversationText" && ["user", "assistant"].includes(m.role)) {
               send({
@@ -244,7 +275,11 @@ export async function deepgramAppSocket(
                 role: m.role,
                 content: String(m.content || "").slice(0, 1200),
               });
-            } else if (m.type === "UserStartedSpeaking" || m.type === "AgentThinking") {
+            } else if (
+              m.type === "UserStartedSpeaking" ||
+              m.type === "AgentThinking" ||
+              m.type === "AgentAudioDone"
+            ) {
               send({ type: m.type });
             }
           } catch {
@@ -254,19 +289,34 @@ export async function deepgramAppSocket(
         clearTimeout(deadline);
         deadline = setTimeout(() => close("SESSION_LIMIT_90S"), 90000);
         upstream.send(JSON.stringify(settings));
+        keepalive = setInterval(() => {
+          if (Date.now() - lastAudioAt > 6000) {
+            try {
+              upstream?.send(JSON.stringify({ type: "KeepAlive" }));
+            } catch {
+              close("PROVIDER_ERROR");
+            }
+          }
+        }, 8000);
         return;
       }
       if (typeof e.data === "string") {
         if (e.data === "STOP") return close("STOPPED");
         return close("INVALID_SEQUENCE");
       }
-      if (!(e.data instanceof ArrayBuffer) || !upstream) return close("INVALID_AUDIO");
+      if (!(e.data instanceof ArrayBuffer) || !upstream || !providerReady)
+        return close("INVALID_AUDIO");
       bytes += e.data.byteLength;
       if (e.data.byteLength > 32768 || bytes > 10_000_000) return close("AUDIO_LIMIT");
       if (upstream.readyState !== 1) return close("PROVIDER_CLOSED");
+      lastAudioAt = Date.now();
       upstream.send(e.data);
-    } catch {
-      close("SESSION_UNAVAILABLE");
+    } catch (error) {
+      close(
+        error instanceof Error && SAFE_FAILURES.has(error.message)
+          ? error.message
+          : "SESSION_UNAVAILABLE",
+      );
     }
   });
   return new Response(null, { status: 101, webSocket: client } as ResponseInit);
