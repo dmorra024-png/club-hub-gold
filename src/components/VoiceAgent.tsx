@@ -153,6 +153,14 @@ export function VoiceAgent({
   const [spokenReplies, setSpokenReplies] = useState(true);
   const [deviceVoices, setDeviceVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [preferredVoice, setPreferredVoice] = useState("");
+  // Voice preference is private to this browser and language, never sent to the server.
+  useEffect(() => {
+    try {
+      setPreferredVoice(localStorage.getItem(`snoop:device-voice:v1:${language.slice(0, 2)}`) ?? "");
+    } catch {
+      setPreferredVoice("");
+    }
+  }, [language]);
   useEffect(() => {
     const synthesis = window.speechSynthesis;
     if (!synthesis) return;
@@ -1334,7 +1342,15 @@ export function VoiceAgent({
               aria-label="Voz local del dispositivo"
               value={preferredVoice}
               disabled={sessionActive || busy || enabled}
-              onChange={(event) => setPreferredVoice(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setPreferredVoice(value);
+                try {
+                  localStorage.setItem(`snoop:device-voice:v1:${language.slice(0, 2)}`, value);
+                } catch {
+                  // Private browsing may disable local storage; selection still works.
+                }
+              }}
             >
               <option value="">Automática</option>
               {deviceVoices
