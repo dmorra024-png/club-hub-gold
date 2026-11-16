@@ -124,6 +124,7 @@ async function run(ref) {
         language: ref.language,
         sampleRate: inputRate,
         synthetic: true,
+        expectedBuild: process.env.GITHUB_SHA,
       }),
     ),
   );
@@ -137,6 +138,10 @@ async function run(ref) {
     try {
       const m = JSON.parse(data.toString());
       if (m.type === "LabReady") {
+        if (m.build !== process.env.GITHUB_SHA) {
+          failure = "LAB_STALE_BUILD";
+          return;
+        }
         ready = true;
         s.settingsApplied = true;
         s.connectMs = performance.now() - start;
@@ -203,6 +208,21 @@ async function run(ref) {
   }
 }
 await mkdir(".sandbox/deepgram-lab", { recursive: true });
+let fresh = 0;
+for (let attempt = 0; attempt < 30 && fresh < 3; attempt++) {
+  const health = await fetch(ORIGIN + "/deepgram/health", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  });
+  let data;
+  try {
+    data = await health.json();
+  } catch {}
+  fresh = data?.build === process.env.GITHUB_SHA ? fresh + 1 : 0;
+  if (fresh < 3) await wait(1000);
+}
+assert.equal(fresh, 3, "LAB_BUILD_NOT_PROPAGATED_NO_AUDIO_SENT");
+result.build = process.env.GITHUB_SHA;
 result.creditBefore = await credit();
 for (const ref of JSON.parse(await readFile("lab/deepgram/audio/references.json", "utf8")))
   await run(ref);

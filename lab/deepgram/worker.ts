@@ -5,6 +5,7 @@ interface Env {
   [key: string]: unknown;
 }
 const ORIGIN = "https://snoop-voice-lab.dmorra024.workers.dev";
+const BUILD = "__LAB_BUILD_SHA__";
 const MAX_MS = 90000,
   MAX_BYTES = 10000000;
 const security = {
@@ -49,6 +50,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
       lab: true,
       syntheticOnly: true,
       provider: "Deepgram Voice Agent",
+      build: BUILD,
       keyConfigured: !!env.DEEPGRAM_API_KEY,
       maxSessionSeconds: MAX_MS / 1000,
       productionConnected: false,
@@ -146,6 +148,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
           !(await authorized(auth.key, env))
         )
           return close("LAB_UNAUTHORIZED");
+        if (auth.expectedBuild && auth.expectedBuild !== BUILD) return close("LAB_BUILD_PENDING");
         if (!env.DEEPGRAM_API_KEY) return close("LAB_DEEPGRAM_KEY_MISSING");
         // Bounded per-isolate burst guard; not a global billing cap.
         const bucket = await digest(auth.key);
@@ -221,7 +224,12 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
             }
             if (msg.type === "SettingsApplied") {
               ready = true;
-              send({ type: "LabReady", language: auth.language, maxSessionSeconds: 90 });
+              send({
+                type: "LabReady",
+                language: auth.language,
+                maxSessionSeconds: 90,
+                build: BUILD,
+              });
             }
             // Never forward raw provider errors or headers; no audio/transcript logging.
             if (msg.type === "Error") {

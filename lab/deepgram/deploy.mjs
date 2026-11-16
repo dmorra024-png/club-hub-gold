@@ -92,11 +92,13 @@ assert(
 assert(/export\s*\{[\s\S]*default|export\s+default/.test(root), "LAB_EXPECTS_DEFAULT_HANDLER");
 const hash = (s) => createHash("sha256").update(s).digest("hex");
 const probeToken = randomBytes(32).toString("hex");
-const compiled = (await readFile(".sandbox/deepgram-lab/module.mjs", "utf8")).replaceAll(
+let compiled = (await readFile(".sandbox/deepgram-lab/module.mjs", "utf8")).replaceAll(
   "__LAB_PROBE_HASH__",
   hash(probeToken),
 );
 assert(!compiled.includes("__LAB_PROBE_HASH__"));
+assert.match(process.env.GITHUB_SHA || "", /^[0-9a-f]{40}$/);
+compiled = compiled.replaceAll("__LAB_BUILD_SHA__", process.env.GITHUB_SHA);
 const wrapper = `// original-lab-entrypoint: ${entry}\nimport old from './${entry}';\nimport {labFetch,labAssets,safeJson} from './__snoop_dg_module.mjs';\nexport default {async fetch(req,env,ctx){const path=new URL(req.url).pathname;const asset=labAssets[path];if(asset&&req.method==='GET'){const headers=new Headers(safeJson({}).headers);headers.set('Content-Type',asset.type);return new Response(asset.content,{headers});}const response=await labFetch(req,env);return response??old.fetch(req,env,ctx);}};`;
 const metadata = {
   main_module: "__snoop_dg_wrapper.mjs",

@@ -69,6 +69,34 @@ try {
   );
   await done;
   assert.equal(outbound, 0);
+  const stale = await mf.dispatchFetch(base + "/deepgram/socket", {
+    headers: { Upgrade: "websocket", Origin: base },
+  });
+  const staleWs = stale.webSocket;
+  staleWs.accept();
+  const staleDone = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error("stale build did not close")), 3000);
+    staleWs.addEventListener("message", (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === "LabClosed") {
+        clearTimeout(timer);
+        assert.equal(m.code, "LAB_BUILD_PENDING");
+        resolve();
+      }
+    });
+  });
+  staleWs.send(
+    JSON.stringify({
+      type: "LabStart",
+      key: "synthetic-preview-key",
+      synthetic: true,
+      language: "it",
+      sampleRate: 24000,
+      expectedBuild: "0000000000000000000000000000000000000000",
+    }),
+  );
+  await staleDone;
+  assert.equal(outbound, 0);
   const credit = await mf.dispatchFetch(base + "/deepgram/credit", {
     method: "POST",
     headers: { "x-preview-key": "synthetic-preview-key" },
