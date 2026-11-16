@@ -1,0 +1,28 @@
+name: SNOOP Deepgram isolated voice lab
+on:
+  push:
+    branches: [codex/deepgram-voice-lab]
+    paths: ['lab/deepgram/**', '.github/workflows/snoop-deepgram-lab.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    environment: snoop-pilot
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Read only snoop-voice-lab metadata (no secret values)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+        run: node lab/deepgram/inspect.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snoop-deepgram-lab-inspection
+          path: .sandbox/deepgram-lab/inspection.json
