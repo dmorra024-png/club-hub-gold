@@ -1,7 +1,9 @@
+import { configuredCatalog } from "./vocabulary.ts";
 import { authorizeProposal, agentSettings } from "./policy.ts";
 interface Env {
   DEEPGRAM_API_KEY: string;
   VOICE_PREVIEW_KEY: string;
+  VOICE_LAB_CATALOG?: string;
   [key: string]: unknown;
 }
 const ORIGIN = "https://snoop-voice-lab.dmorra024.workers.dev";
@@ -144,7 +146,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         const envelopeValid =
           auth.type === "LabStart" &&
           auth.synthetic === true &&
-          ["it", "es"].includes(auth.language) &&
+          ["it", "es", "en"].includes(auth.language) &&
           [16000, 24000, 44100, 48000].includes(auth.sampleRate);
         const credentialValid = await authorized(auth.key, env);
         if (!envelopeValid || !credentialValid) {
@@ -159,6 +161,13 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         }
         if (auth.expectedBuild && auth.expectedBuild !== BUILD) return close("LAB_BUILD_PENDING");
         if (!env.DEEPGRAM_API_KEY) return close("LAB_DEEPGRAM_KEY_MISSING");
+        let vocabulary;
+        try {
+          vocabulary = configuredCatalog(env.VOICE_LAB_CATALOG);
+        } catch {
+          return close("LAB_CATALOG_CONFIG_INVALID");
+        }
+        const settings = agentSettings(auth.language, auth.sampleRate, vocabulary);
         // Bounded per-isolate burst guard; not a global billing cap.
         const bucket = await digest(auth.key);
         const now = Date.now();
@@ -216,7 +225,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
                 ) {
                   seen.add(f.id);
                   try {
-                    result = authorizeProposal(JSON.parse(f.arguments));
+                    result = authorizeProposal(JSON.parse(f.arguments), undefined, vocabulary);
                   } catch {}
                 }
                 send({ type: "LabProposal", ...result });
@@ -239,6 +248,13 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
                 maxSessionSeconds: 90,
                 build: BUILD,
                 probeSlot: "__LAB_PROBE_HASH__".slice(0, 16),
+                turnDetection: {
+                  eotThreshold: settings.agent.listen.provider.eot_threshold,
+                  silenceBackstopMs: settings.agent.listen.provider.eot_timeout_ms,
+                },
+                recognitionLanguages: settings.agent.listen.provider.language_hints,
+                keytermCount: settings.agent.listen.provider.keyterms.length,
+                verifiedCategoryCount: vocabulary.categories.length,
               });
             }
             // Never forward raw provider errors or headers; no audio/transcript logging.
@@ -293,7 +309,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
             close("DEEPGRAM_PROTOCOL_ERROR");
           }
         });
-        upstream.send(JSON.stringify(agentSettings(auth.language, auth.sampleRate)));
+        upstream.send(JSON.stringify(settings));
         keepalive = setInterval(() => {
           try {
             upstream?.send(JSON.stringify({ type: "KeepAlive" }));

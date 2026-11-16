@@ -70,3 +70,38 @@ jobs:
             .sandbox/deepgram-lab/deepgram-*-reply.wav
             .sandbox/deepgram-lab/browser-results.json
             .sandbox/deepgram-lab/lab-*.png
+  verify-only:
+    if: "!contains(github.event.head_commit.message, '[lab-prototype]')"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - run: bun install --frozen-lockfile
+      - name: Regression and lab policy checks (synthetic only)
+        run: |
+          npm test
+          npm run typecheck
+          npx tsc -p lab/deepgram/tsconfig.json --noEmit
+          node --test --experimental-test-isolation=none lab/deepgram/*.test.ts
+          node lab/deepgram/build.mjs
+          node lab/deepgram/test-worker.mjs
+          node lab/deepgram/test-audio-relay.mjs
+      - name: Chromium and WebKit lab checks (no real microphone or provider)
+        run: |
+          npx playwright-core install --with-deps chromium webkit
+          node lab/deepgram/test-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snoop-lab-tuning-browser-results
+          path: |
+            .sandbox/deepgram-lab/browser-results.json
+            .sandbox/deepgram-lab/lab-*.png

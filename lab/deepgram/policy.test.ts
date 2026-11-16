@@ -32,10 +32,11 @@ test("malformed fields and mixed intent are rejected by existing SNOOP schema", 
   assert.equal(authorizeProposal({ ...draft, intent: "navigate" }).ok, false);
 });
 test("Deepgram uses explicit IT/ES streaming voices with MIP opt-out and one proposal-only tool", () => {
-  for (const language of ["it", "es"] as const) {
+  for (const language of ["it", "es", "en"] as const) {
     const c = agentSettings(language, 48000);
     assert.equal(c.mip_opt_out, true);
-    assert.deepEqual(c.agent.listen.provider.language_hints, [language]);
+    assert.equal(c.agent.listen.provider.language_hints[0], language);
+    assert.deepEqual([...c.agent.listen.provider.language_hints].sort(), ["en", "es", "it"]);
     assert.equal(c.agent.speak.provider.version, "v2");
     assert(c.agent.speak.provider.model.endsWith("-" + language));
     assert.equal(c.agent.think.functions.length, 1);

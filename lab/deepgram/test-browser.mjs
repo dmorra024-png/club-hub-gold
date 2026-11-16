@@ -86,8 +86,17 @@ try {
           const m = JSON.parse(data);
           assert.equal(m.synthetic, true);
           assert(!JSON.stringify(m).includes("DEEPGRAM_API_KEY"));
+          if (starts === 1) assert.equal(m.language, "en");
           starts++;
-          route.send(JSON.stringify({ type: "LabReady" }));
+          route.send(
+            JSON.stringify({
+              type: "LabReady",
+              turnDetection: { eotThreshold: 0.85, silenceBackstopMs: 5000 },
+              recognitionLanguages: ["it", "es", "en"],
+              keytermCount: 25,
+              verifiedCategoryCount: 0,
+            }),
+          );
         });
       });
       await page.goto(base + "/deepgram");
@@ -99,6 +108,8 @@ try {
       await page.waitForFunction(() =>
         document.querySelector("#status").textContent.includes("in ascolto"),
       );
+      assert((await page.locator("#metrics").textContent()).includes("0.85"));
+      assert((await page.locator("#metrics").textContent()).includes("5000 ms"));
       ws.send(JSON.stringify({ type: "UserStartedSpeaking" }));
       await page.waitForFunction(
         () => document.querySelector("#status").textContent === "Ti ascolto…",
@@ -123,6 +134,39 @@ try {
       assert.equal(await page.locator("#confirm").isEnabled(), true);
       await page.locator("#confirm").click();
       assert((await page.locator("#proposal").textContent()).includes("Nessun dato scritto"));
+      // Simulated transcription and interpretation remain distinct for diagnosis.
+      ws.send(
+        JSON.stringify({
+          type: "ConversationText",
+          role: "user",
+          content: "Cerca Amnesia Hayes nella categoria Flores",
+        }),
+      );
+      ws.send(
+        JSON.stringify({
+          type: "LabProposal",
+          ok: true,
+          proposal: {
+            intent: "product",
+            target: "product_create",
+            member: {},
+            product: { name: "Amnesia Haze" },
+          },
+        }),
+      );
+      await page.waitForFunction(
+        () => document.querySelector("[name=name]").value === "Amnesia Haze",
+      );
+      assert((await page.locator("#transcript").textContent()).includes("Amnesia Hayes"));
+      ws.send(
+        JSON.stringify({ type: "LabProposal", ok: false, code: "SNOOP_CATEGORY_CONTEXT_REQUIRED" }),
+      );
+      await page.waitForFunction(() =>
+        document.querySelector("#proposal").textContent.includes("categorie verificate"),
+      );
+      assert.equal(await page.locator("#confirm").isEnabled(), false);
+      assert.equal(await page.locator("[name=category]").inputValue(), "");
+      assert.equal(await page.locator("#language option[value=en]").count(), 1);
       await page.setViewportSize({ width: viewport.width, height: viewport.height - 290 });
       await page.locator("[name=category]").fill("Sintetica");
       assert.equal(
@@ -134,6 +178,7 @@ try {
       await page.locator("#stop").click();
       assert.equal(await page.locator("#key").inputValue(), "");
       assert((await page.evaluate(() => window.__lab.stops)) > 0);
+      await page.locator("#language").selectOption("en");
       await page.locator("#key").fill("synthetic-lab-pass");
       await page.locator("#start").click();
       await page.waitForFunction(() =>
@@ -170,6 +215,8 @@ try {
           "stop-and-restart",
           "background-stop",
           "permission-denied",
+          "transcript-versus-proposal-diagnosis",
+          "unverified-category-not-assigned",
         ],
       });
       console.log("PASS lab browser " + name + "; synthetic recorder/provider only");

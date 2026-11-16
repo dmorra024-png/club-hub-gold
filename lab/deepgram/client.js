@@ -17,7 +17,8 @@ let socket,
   audioBytes = 0,
   dirty = new Map(),
   turnVersion = new Map(),
-  proposal = null;
+  proposal = null,
+  sessionInfo = "";
 const status = (t) => {
   $("status").textContent = t;
 };
@@ -84,13 +85,19 @@ async function play(data) {
   if (!firstAudioAt) {
     firstAudioAt = performance.now();
     $("metrics").textContent =
-      `Prima risposta audio: ${((firstAudioAt - (lastUserAt || started)) / 1000).toFixed(2)} s dal riferimento locale. Non è una misura fine-frase del provider.`;
+      `Prima risposta audio: ${((firstAudioAt - (lastUserAt || started)) / 1000).toFixed(2)} s dal riferimento locale. Non è una misura fine-frase del provider. ${sessionInfo}`;
   }
   status("SNOOP sta parlando · puoi interrompere");
 }
 function proposed(msg) {
   if (!msg.ok) {
-    $("proposal").textContent = "Proposta rifiutata dai controlli SNOOP.";
+    $("confirm").disabled = true;
+    $("proposal").textContent =
+      msg.code === "SNOOP_CATEGORY_CONTEXT_REQUIRED"
+        ? "Il laboratorio non ha le categorie verificate del club. Nessuna categoria assegnata."
+        : msg.code === "SNOOP_UNKNOWN_CATEGORY"
+          ? "Categoria non presente nel vocabolario autorizzato. Nessuna categoria assegnata."
+          : "Proposta rifiutata dai controlli SNOOP.";
     return;
   }
   proposal = msg.proposal;
@@ -188,6 +195,10 @@ $("start").onclick = async () => {
       const msg = JSON.parse(e.data);
       if (msg.type === "LabReady") {
         ready = true;
+        sessionInfo = msg.turnDetection
+          ? `Fine turno: ${msg.turnDetection.eotThreshold}; timeout massimo silenzio: ${msg.turnDetection.silenceBackstopMs} ms; lingue: ${(msg.recognitionLanguages || []).join("/")}; termini: ${msg.keytermCount ?? 0}; categorie verificate: ${msg.verifiedCategoryCount ?? 0}.`
+          : "";
+        $("metrics").textContent = sessionInfo;
         $("interrupt").disabled = false;
         status("● SNOOP in ascolto");
         $("status").dataset.active = "true";
