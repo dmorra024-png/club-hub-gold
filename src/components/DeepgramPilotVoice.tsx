@@ -379,7 +379,7 @@ export function DeepgramPilotVoice({
         bottom: 78,
         zIndex: 100,
         borderRadius: 18,
-        padding: 18,
+        padding: running ? 12 : 18,
         background: "#0e1933",
         color: "#f7df9d",
         border: "1px solid #a98b4c",
@@ -391,7 +391,7 @@ export function DeepgramPilotVoice({
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <strong>SNOOP · JARVIS 3</strong>
+        <strong style={{ fontSize: running ? 13 : undefined }}>SNOOP · JARVIS 3</strong>
         <button
           type="button"
           onClick={() => {
@@ -403,36 +403,51 @@ export function DeepgramPilotVoice({
           ✕
         </button>
       </div>
-      <p role="status">{status}</p>
-      <label>
-        Lingua{" "}
-        <select
-          value={language}
-          disabled={running}
-          onChange={(event) => setLanguage(event.target.value as Language)}
-        >
-          <option value="es">Español</option>
-          <option value="it">Italiano</option>
-          <option value="en">English</option>
-        </select>
-      </label>
-      <p style={{ fontSize: 12 }}>
-        Prova riservata all'amministratore. Invii audio di prova e solo nomi di categorie/prodotti a
-        Deepgram. Non pronunciare dati personali reali. Sessione massima 90 s; servizio a consumo.
+      <p
+        role="status"
+        style={running ? { fontSize: 12, margin: "4px 0", lineHeight: 1.3 } : undefined}
+      >
+        {status}
       </p>
-      <label style={{ display: "flex", gap: 8 }}>
-        <input
-          type="checkbox"
-          checked={consent}
-          disabled={running}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        Acconsento al test vocale con dati fittizi.
-      </label>
+      <div hidden={running}>
+        <label>
+          Lingua{" "}
+          <select
+            value={language}
+            disabled={running}
+            onChange={(event) => setLanguage(event.target.value as Language)}
+          >
+            <option value="es">Español</option>
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <p style={{ fontSize: 12 }}>
+          Prova riservata all'amministratore. Invii audio di prova e solo nomi di categorie/prodotti
+          a Deepgram. Non pronunciare dati personali reali. Sessione massima 90 s; servizio a
+          consumo.
+        </p>
+        <label style={{ display: "flex", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={consent}
+            disabled={running}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          Acconsento al test vocale con dati fittizi.
+        </label>
+      </div>
+      {running && (
+        <p style={{ fontSize: 11, margin: "4px 0" }}>
+          Solo dati sintetici · massimo 90 s · nessun salvataggio automatico
+        </p>
+      )}
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-        <button type="button" disabled={running || !consent} onClick={() => void start()}>
-          Avvia JARVIS
-        </button>
+        {!running && (
+          <button type="button" disabled={!consent} onClick={() => void start()}>
+            Avvia JARVIS
+          </button>
+        )}
         <button type="button" disabled={!running} onClick={() => stop()}>
           Ferma
         </button>
@@ -440,15 +455,15 @@ export function DeepgramPilotVoice({
           Interrompi
         </button>
       </div>
-      {verifiedCount !== null && <p>Categorie verificate: {verifiedCount}</p>}
-      <div aria-live="polite" style={{ maxHeight: 140, overflow: "auto" }}>
-        {lines.map((line, i) => (
-          <p key={i} style={{ fontSize: 13 }}>
+      {!running && verifiedCount !== null && <p>Categorie verificate: {verifiedCount}</p>}
+      <div aria-live="polite" style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}>
+        {(running ? lines.slice(-1) : lines).map((line, i) => (
+          <p key={i} style={{ fontSize: 13, margin: running ? 0 : undefined }}>
             <b>{line.role === "user" ? "Tu" : "SNOOP"}:</b> {line.content}
           </p>
         ))}
       </div>
-      {proposal && (
+      {proposal && !running && (
         <div>
           <p>
             Bozza proposta (nessun dato salvato):{" "}

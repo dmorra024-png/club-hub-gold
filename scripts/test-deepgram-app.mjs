@@ -258,6 +258,10 @@ for (const [label, engine, device] of [
     await page.waitForFunction(() =>
       document.body.innerText.includes("interruzione vocale attiva"),
     );
+    assert(
+      (await panel.boundingBox()).height < 220,
+      "active voice must leave the actual form visible",
+    );
     assert.equal(sockets, 1);
     assert.equal(catalogCalls, 1);
     assert.equal(statusCalls, 1);
