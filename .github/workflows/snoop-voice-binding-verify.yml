@@ -5,6 +5,7 @@ on:
     paths:
       - src/server.ts
       - src/lib/workers-ai.server.ts
+      - src/lib/snoop-conversation.server.ts
       - scripts/test-voice-worker-binding.mjs
       - scripts/check-live-snoop-ai.mjs
       - tests/live-ai-boundary.test.mjs
