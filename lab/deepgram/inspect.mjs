@@ -15,8 +15,8 @@ try {
  report.hasDeepgramSecret=report.bindings.some(b=>b.name==='DEEPGRAM_API_KEY'&&b.type==='secret_text');
  report.observabilityEnabled=s.observability?.enabled===true;
  report.isolationBlockers=report.bindings.filter(b=>!['plain_text','secret_text','ai'].includes(b.type)).map(b=>b.name);
- const content=await fetch(base+'/content',{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(20000)});
- if(!content.ok)throw Error('LAB_CONTENT_READ_FAILED');
+ const content=await fetch(base,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(20000)});
+ report.contentHttp=content.status; report.entrypoint=content.headers.get('cf-entrypoint'); report.contentType=content.headers.get('content-type'); if(!content.ok)throw Error('LAB_CONTENT_READ_FAILED');
  const body=await content.text();
  report.contentSha256=createHash('sha256').update(body).digest('hex');
  report.moduleParts=[...body.matchAll(/filename="([^"]+)"/g)].map(m=>m[1]);
