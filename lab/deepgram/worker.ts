@@ -51,6 +51,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
       syntheticOnly: true,
       provider: "Deepgram Voice Agent",
       build: BUILD,
+      probeSlot: "__LAB_PROBE_HASH__".slice(0, 16),
       keyConfigured: !!env.DEEPGRAM_API_KEY,
       maxSessionSeconds: MAX_MS / 1000,
       productionConnected: false,
@@ -140,14 +141,22 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         if (typeof event.data !== "string" || event.data.length > 2048)
           return close("LAB_AUTH_REQUIRED");
         const auth = JSON.parse(event.data);
-        if (
-          auth.type !== "LabStart" ||
-          auth.synthetic !== true ||
-          !["it", "es"].includes(auth.language) ||
-          ![16000, 24000, 44100, 48000].includes(auth.sampleRate) ||
-          !(await authorized(auth.key, env))
-        )
+        const envelopeValid =
+          auth.type === "LabStart" &&
+          auth.synthetic === true &&
+          ["it", "es"].includes(auth.language) &&
+          [16000, 24000, 44100, 48000].includes(auth.sampleRate);
+        const credentialValid = await authorized(auth.key, env);
+        if (!envelopeValid || !credentialValid) {
+          send({
+            type: "LabAuthRejected",
+            build: BUILD,
+            envelopeValid,
+            credentialValid,
+            probeSlot: "__LAB_PROBE_HASH__".slice(0, 16),
+          });
           return close("LAB_UNAUTHORIZED");
+        }
         if (auth.expectedBuild && auth.expectedBuild !== BUILD) return close("LAB_BUILD_PENDING");
         if (!env.DEEPGRAM_API_KEY) return close("LAB_DEEPGRAM_KEY_MISSING");
         // Bounded per-isolate burst guard; not a global billing cap.
@@ -229,6 +238,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
                 language: auth.language,
                 maxSessionSeconds: 90,
                 build: BUILD,
+                probeSlot: "__LAB_PROBE_HASH__".slice(0, 16),
               });
             }
             // Never forward raw provider errors or headers; no audio/transcript logging.

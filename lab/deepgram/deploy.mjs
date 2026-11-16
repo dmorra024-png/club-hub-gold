@@ -148,6 +148,17 @@ const verify = await readSource();
 assert.equal(verify.status, 200);
 const vf = await verify.formData();
 const v = vf.get(entry);
+for (const [name, expected] of [
+  ["__snoop_dg_module.mjs", compiled],
+  ["__snoop_dg_wrapper.mjs", wrapper],
+]) {
+  const file = vf.get(name);
+  assert(
+    file && hash(typeof file === "string" ? file : await file.text()) === hash(expected),
+    "LAB_NEW_MODULE_MISMATCH",
+  );
+}
+
 assert(
   v && hash(typeof v === "string" ? v : await v.text()) === hash(root),
   "LAB_ORIGINAL_CODE_CHANGED",
@@ -175,6 +186,11 @@ console.log(
 );
 const live = spawnSync(process.execPath, ["lab/deepgram/check-live.mjs"], {
   stdio: "inherit",
-  env: { ...process.env, LAB_PROBE_TOKEN: probeToken, CLOUDFLARE_API_TOKEN: "" },
+  env: {
+    ...process.env,
+    LAB_PROBE_TOKEN: probeToken,
+    LAB_PROBE_SLOT: hash(probeToken).slice(0, 16),
+    CLOUDFLARE_API_TOKEN: "",
+  },
 });
 process.exitCode = live.status ?? 1;

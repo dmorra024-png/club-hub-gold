@@ -33,6 +33,18 @@ try {
   report.contentType = content.headers.get("content-type");
   if (!content.ok) throw Error("LAB_CONTENT_READ_FAILED");
   const body = await content.text();
+  const d = await fetch(base + "/deployments", {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(20000),
+  });
+  report.deploymentsHttp = d.status;
+  if (d.ok) {
+    const j = await d.json();
+    const list = j.result?.deployments || j.result?.items || [];
+    report.recentDeployments = list
+      .slice(0, 4)
+      .map((x) => ({ createdOn: x.created_on, source: x.source, versions: x.versions }));
+  }
   report.contentSha256 = createHash("sha256").update(body).digest("hex");
   report.moduleParts = [...body.matchAll(/filename="([^"]+)"/g)].map((m) => m[1]);
   report.sourceReferencesProduction =

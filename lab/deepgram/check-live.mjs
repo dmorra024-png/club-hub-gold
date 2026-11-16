@@ -150,6 +150,7 @@ async function run(ref) {
         if (m.role === "user") s.transcript += " " + m.content;
         else s.reply = m.content;
       }
+      if (m.type === "LabAuthRejected") s.authDiagnostic = m;
       if (m.type === "LabProposal") s.proposal = m;
       if (m.type === "AgentAudioDone") finished = true;
       if (m.type === "LabError" || m.type === "LabClosed") failure ||= m.code;
@@ -218,7 +219,10 @@ for (let attempt = 0; attempt < 30 && fresh < 3; attempt++) {
   try {
     data = await health.json();
   } catch {}
-  fresh = data?.build === process.env.GITHUB_SHA ? fresh + 1 : 0;
+  fresh =
+    data?.build === process.env.GITHUB_SHA && data?.probeSlot === process.env.LAB_PROBE_SLOT
+      ? fresh + 1
+      : 0;
   if (fresh < 3) await wait(1000);
 }
 assert.equal(fresh, 3, "LAB_BUILD_NOT_PROPAGATED_NO_AUDIO_SENT");

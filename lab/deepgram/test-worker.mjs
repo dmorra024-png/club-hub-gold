@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 const require = createRequire(import.meta.url),
   { Miniflare, convertV4MiniflareOptions } = require(
     require.resolve("miniflare", { paths: [require.resolve("wrangler")] }),
   );
-const code = await readFile(".sandbox/deepgram-lab/module.mjs", "utf8");
+const probe = "fixed-synthetic-probe-capability";
+const code = (await readFile(".sandbox/deepgram-lab/module.mjs", "utf8")).replaceAll(
+  "__LAB_PROBE_HASH__",
+  createHash("sha256").update(probe).digest("hex"),
+);
 let outbound = 0;
 const mf = new Miniflare(
   convertV4MiniflareOptions({
@@ -106,6 +111,40 @@ try {
   assert.equal(observed.stage, "projects");
   assert.equal(observed.http, 401);
   assert.equal(outbound, 1);
+  const probeCredit = await mf.dispatchFetch(base + "/deepgram/credit", {
+    method: "POST",
+    headers: { "x-preview-key": probe },
+  });
+  assert.equal((await probeCredit.json()).stage, "projects");
+  assert.equal(outbound, 2);
+  const probeWs = (
+    await mf.dispatchFetch(base + "/deepgram/socket", {
+      headers: { Upgrade: "websocket", Origin: base },
+    })
+  ).webSocket;
+  probeWs.accept();
+  const probeDone = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error("probe auth response missing")), 3000);
+    probeWs.addEventListener("message", (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === "LabError") {
+        clearTimeout(timer);
+        assert.equal(m.code, "DEEPGRAM_CONNECT_FAILED");
+        resolve();
+      }
+    });
+  });
+  probeWs.send(
+    JSON.stringify({
+      type: "LabStart",
+      key: probe,
+      synthetic: true,
+      language: "it",
+      sampleRate: 24000,
+    }),
+  );
+  await probeDone;
+  assert.equal(outbound, 3);
   console.log(
     "PASS real Workerd: old route, health, same-origin, auth rejection with zero unauthorized provider requests and no secret exposure",
   );
