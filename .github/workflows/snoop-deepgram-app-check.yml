@@ -27,6 +27,17 @@ jobs:
         run: npm run typecheck
       - name: Application regression checks
         run: npm test
+      - name: Prepare isolated synthetic build settings
+        run: |
+          cat > .env.sandbox.local <<'ENV'
+          VITE_SUPABASE_URL=/sandbox-api
+          SUPABASE_URL=http://127.0.0.1:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SYNTHETIC
+          SUPABASE_PUBLISHABLE_KEY=sb_publishable_SYNTHETIC
+          SNOOP_RESOURCE_NAMESPACE=snoop-pilot
+          AI_PERSONAL_DATA_PROCESSING_ENABLED=false
+          APP_URL=http://127.0.0.1:8798
+          ENV
       - name: Build authenticated application Worker (synthetic, no secrets)
         run: npm run build:worker:test
       - name: Scan public bundle for credentials
