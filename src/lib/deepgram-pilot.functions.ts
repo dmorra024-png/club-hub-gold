@@ -65,3 +65,27 @@ export const deepgramPilotCatalog = createServerFn({ method: "POST" })
       providerConnected: false as const,
     };
   });
+
+/** Server-validated availability. Do not reveal allowed IDs or provider secrets. */
+export const deepgramPilotStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseClubAuth])
+  .handler(async ({ context }) => {
+    setResponseHeader("Cache-Control", "no-store, private");
+    try {
+      const { data, error } = await context.supabase.rpc("snoop_access_context");
+      if (error) return { enabled: false };
+      const access = parseAccountAccess(data);
+      return {
+        enabled:
+          access.clubId === context.clubId &&
+          !!process.env.DEEPGRAM_API_KEY &&
+          deepgramPilotAllowed(access, context.userId, {
+            enabled: process.env.SNOOP_DEEPGRAM_PILOT_ENABLED,
+            allowedUserId: process.env.SNOOP_DEEPGRAM_PILOT_USER_ID,
+            allowedClubId: process.env.SNOOP_DEEPGRAM_PILOT_CLUB_ID,
+          }),
+      };
+    } catch {
+      return { enabled: false };
+    }
+  });
