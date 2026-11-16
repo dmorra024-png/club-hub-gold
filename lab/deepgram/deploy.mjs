@@ -42,11 +42,27 @@ assert.equal(
   false,
   "LAB_EXISTING_LOGGING_MUST_BE_DISABLED",
 );
-const original = await fetch(BASE, {
-  headers,
-  redirect: "error",
-  signal: AbortSignal.timeout(20000),
-});
+async function readSource() {
+  let response;
+  // Only bounded GETs to this lab. Never retry the upload or an authorization failure.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    response = await fetch(BASE, {
+      headers,
+      redirect: "error",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (response.status === 404)
+      response = await fetch(BASE + "/content/v2", {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+    if (response.status !== 404) return response;
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 500));
+  }
+  return response;
+}
+const original = await readSource();
 assert.equal(original.status, 200, "LAB_SOURCE_READ_FAILED");
 assert.match(original.headers.get("content-type") || "", /^multipart/, "LAB_EXPECTS_MODULE_WORKER");
 const previousEntry = original.headers.get("cf-entrypoint");
@@ -126,11 +142,7 @@ if (!r.ok || !result.success) {
 const after = await settings();
 const signature = (b) => b.map((x) => `${x.name}:${x.type}`).sort();
 assert.deepEqual(signature(after.bindings), signature(before.bindings), "LAB_BINDINGS_CHANGED");
-const verify = await fetch(BASE, {
-  headers,
-  redirect: "error",
-  signal: AbortSignal.timeout(20000),
-});
+const verify = await readSource();
 assert.equal(verify.status, 200);
 const vf = await verify.formData();
 const v = vf.get(entry);
