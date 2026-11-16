@@ -2,7 +2,7 @@ name: SNOOP Deepgram isolated voice lab
 on:
   push:
     branches: [codex/deepgram-voice-lab]
-    paths: ['lab/deepgram/**', '.github/workflows/snoop-deepgram-lab.yml']
+    paths: ["lab/deepgram/**", ".github/workflows/snoop-deepgram-lab.yml"]
 permissions:
   contents: read
 jobs:
@@ -16,7 +16,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
       - name: Read only snoop-voice-lab metadata (no secret values)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
@@ -26,3 +26,46 @@ jobs:
         with:
           name: snoop-deepgram-lab-inspection
           path: .sandbox/deepgram-lab/inspection.json
+  prototype:
+    needs: inspect
+    if: contains(github.event.head_commit.message, '[lab-prototype]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: snoop-pilot
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - name: Install locked dependencies without credentials
+        run: bun install --frozen-lockfile
+      - name: Typecheck and validate SNOOP proposal permissions
+        run: |
+          npx tsc -p lab/deepgram/tsconfig.json --noEmit
+          node --test lab/deepgram/policy.test.ts
+          node lab/deepgram/build.mjs
+          node lab/deepgram/test-worker.mjs
+      - name: Chromium and WebKit lab UI regression (synthetic microphone only)
+        run: |
+          npx playwright-core install --with-deps chromium webkit
+          node lab/deepgram/test-browser.mjs
+      - name: Update only snoop-voice-lab and test two fixed synthetic audio sessions
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+          SNOOP_LAB_ONLY: CONFIRM_ISOLATED_DEEPGRAM_SYNTHETIC
+        run: node lab/deepgram/deploy.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snoop-deepgram-lab-results
+          path: |
+            .sandbox/deepgram-lab/deployment.json
+            .sandbox/deepgram-lab/live-results.json
+            .sandbox/deepgram-lab/deepgram-*-reply.wav
+            .sandbox/deepgram-lab/browser-results.json
+            .sandbox/deepgram-lab/lab-*.png

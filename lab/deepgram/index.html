@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  /><title>SNOOP · Deepgram Lab</title
+  ><link rel="stylesheet" href="/deepgram/style.css" />
+  <main>
+    <header>
+      <a href="/">← Laboratorio</a><strong>SNOOP</strong><small>DEEPGRAM VOICE AGENT</small>
+    </header>
+    <p class="notice">
+      Laboratorio isolato · Solo nomi e dati inventati · Nessun collegamento al club
+    </p>
+    <label>Chiave laboratorio esistente<input id="key" type="password" autocomplete="off" /></label
+    ><label
+      >Lingua<select id="language">
+        <option value="it">Italiano</option>
+        <option value="es">Español</option>
+      </select></label
+    ><label class="check"
+      ><input id="consent" type="checkbox" /> Acconsento all'invio di audio sintetico/di prova a
+      Deepgram e al modello gestito. Non dirò dati personali reali.</label
+    >
+    <p class="hint">
+      Credito Deepgram, non servizio gratuito illimitato. Sessione massima 90 s. Tariffa Standard
+      pubblicata: $0,075/min, costo effettivo da verificare nel saldo. Nessuna ricarica automatica
+      viene attivata.
+    </p>
+    <button id="start">Inizia conversazione</button
+    ><button id="stop" disabled>Termina · microfono spento</button
+    ><button id="interrupt" disabled>Interrompi la risposta e parla</button>
+    <p id="status" role="status" aria-live="polite">Pronto</p>
+    <p id="metrics" class="hint"></p>
+    <section>
+      <h2>Conversazione temporanea</h2>
+      <div id="transcript" aria-live="polite"></div>
+    </section>
+    <section>
+      <h2>Bozza SNOOP · solo laboratorio</h2>
+      <p id="screen">Home</p>
+      <form id="draft" autocomplete="off">
+        <label>Nome<input name="first_name" /></label
+        ><label>Cognome<input name="last_name" /></label
+        ><label>Nascita<input name="birth_date" type="date" /></label
+        ><label>Città<input name="city" /></label
+        ><label>Telefono fittizio<input name="phone" inputmode="tel" /></label
+        ><label>Nome prodotto informativo<input name="name" /></label
+        ><label>Categoria<input name="category" /></label>
+      </form>
+      <button id="confirm" disabled>Conferma bozza solo in memoria</button>
+      <p id="proposal" role="status">Nessun salvataggio o movimento economico disponibile.</p>
+    </section>
+    <footer>
+      Per provare: «Snoop, crea un socio fittizio», «Nome Luca, cognome Prova», «Nato il 12 marzo
+      1995», «No, niente telefono». Usa cuffie per ridurre l'eco. La registrazione si ferma passando
+      in secondo piano. La voce proviene da Deepgram; non dalle voci del telefono.
+    </footer>
+  </main>
+  <script type="module" src="/deepgram/client.js"></script>
+</html>

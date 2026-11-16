@@ -1,30 +1,56 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
-const base='https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/snoop-voice-lab';
-const token=process.env.CLOUDFLARE_API_TOKEN;
-if(!token)throw Error('LAB_CLOUDFLARE_TOKEN_MISSING');
-const report={worker:'snoop-voice-lab',productionTouched:false};
+import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+const base =
+  "https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/snoop-voice-lab";
+const token = process.env.CLOUDFLARE_API_TOKEN;
+if (!token) throw Error("LAB_CLOUDFLARE_TOKEN_MISSING");
+const report = { worker: "snoop-voice-lab", productionTouched: false };
 try {
- const r=await fetch(base+'/settings',{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(20000)});
- report.http=r.status;
- const json=await r.json();
- if(!r.ok||!json.success)throw Error('LAB_SETTINGS_READ_FAILED');
- const s=json.result;
- report.bindings=(s.bindings||[]).map(b=>({name:b.name,type:b.type}));
- report.mainModule=s.main_module||null;report.compatibilityDate=s.compatibility_date;
- report.hasDeepgramSecret=report.bindings.some(b=>b.name==='DEEPGRAM_API_KEY'&&b.type==='secret_text');
- report.observabilityEnabled=s.observability?.enabled===true;
- report.isolationBlockers=report.bindings.filter(b=>!['plain_text','secret_text','ai'].includes(b.type)).map(b=>b.name);
- const content=await fetch(base,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(20000)});
- report.contentHttp=content.status; report.entrypoint=content.headers.get('cf-entrypoint'); report.contentType=content.headers.get('content-type'); if(!content.ok)throw Error('LAB_CONTENT_READ_FAILED');
- const body=await content.text();
- report.contentSha256=createHash('sha256').update(body).digest('hex');
- report.moduleParts=[...body.matchAll(/filename="([^"]+)"/g)].map(m=>m[1]);
- report.sourceReferencesProduction=/snoop-pilot|bnwanxbmprbymbutoths|supabase\.(co|com)|Security PSG/i.test(body);
- report.sourceBindings=[...new Set([...body.matchAll(/\benv\.([A-Z][A-Z0-9_]+)/g)].map(m=>m[1]))];
- report.result=report.hasDeepgramSecret&&!report.sourceReferencesProduction&&report.isolationBlockers.length===0?'PASS_METADATA_ISOLATION':'BLOCKED_ISOLATION';
-} catch(e){report.result='FAILED';report.error=e.message;}
-await mkdir('.sandbox/deepgram-lab',{recursive:true});
-await writeFile('.sandbox/deepgram-lab/inspection.json',JSON.stringify(report,null,2));
+  const r = await fetch(base + "/settings", {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(20000),
+  });
+  report.http = r.status;
+  const json = await r.json();
+  if (!r.ok || !json.success) throw Error("LAB_SETTINGS_READ_FAILED");
+  const s = json.result;
+  report.bindings = (s.bindings || []).map((b) => ({ name: b.name, type: b.type }));
+  report.mainModule = s.main_module || null;
+  report.compatibilityDate = s.compatibility_date;
+  report.hasDeepgramSecret = report.bindings.some(
+    (b) => b.name === "DEEPGRAM_API_KEY" && b.type === "secret_text",
+  );
+  report.observabilityEnabled = s.observability?.enabled === true;
+  report.isolationBlockers = report.bindings
+    .filter((b) => !["plain_text", "secret_text", "ai"].includes(b.type))
+    .map((b) => b.name);
+  const content = await fetch(base, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(20000),
+  });
+  report.contentHttp = content.status;
+  report.entrypoint = content.headers.get("cf-entrypoint");
+  report.contentType = content.headers.get("content-type");
+  if (!content.ok) throw Error("LAB_CONTENT_READ_FAILED");
+  const body = await content.text();
+  report.contentSha256 = createHash("sha256").update(body).digest("hex");
+  report.moduleParts = [...body.matchAll(/filename="([^"]+)"/g)].map((m) => m[1]);
+  report.sourceReferencesProduction =
+    /snoop-pilot|bnwanxbmprbymbutoths|supabase\.(co|com)|Security PSG/i.test(body);
+  report.sourceBindings = [
+    ...new Set([...body.matchAll(/\benv\.([A-Z][A-Z0-9_]+)/g)].map((m) => m[1])),
+  ];
+  report.result =
+    report.hasDeepgramSecret &&
+    !report.sourceReferencesProduction &&
+    report.isolationBlockers.length === 0
+      ? "PASS_METADATA_ISOLATION"
+      : "BLOCKED_ISOLATION";
+} catch (e) {
+  report.result = "FAILED";
+  report.error = e.message;
+}
+await mkdir(".sandbox/deepgram-lab", { recursive: true });
+await writeFile(".sandbox/deepgram-lab/inspection.json", JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report));
-if(report.result!=='PASS_METADATA_ISOLATION')process.exitCode=1;
+if (report.result !== "PASS_METADATA_ISOLATION") process.exitCode = 1;

@@ -1,0 +1,16 @@
+[
+  {
+    "language": "it",
+    "reference": "Snoop, crea un socio fittizio di nome Luca Prova, nato il dodici marzo millenovecentonovantacinque, residente a Palma.",
+    "path": "lab/deepgram/audio/it-member.wav",
+    "voice": "it_IT-paola-medium",
+    "synthetic": true
+  },
+  {
+    "language": "es",
+    "reference": "Snoop, crea un socio ficticio llamado Carlos Prueba, nacido el doce de marzo de mil novecientos noventa y cinco, residente en Palma.",
+    "path": "lab/deepgram/audio/es-member.wav",
+    "voice": "es_ES-sharvard-medium",
+    "synthetic": true
+  }
+]

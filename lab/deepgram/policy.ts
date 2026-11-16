@@ -1,0 +1,113 @@
+import { ConversationProposal, conversationAllowed } from "../../src/lib/snoop-conversation.ts";
+import type { AccountAccess } from "../../src/lib/access-context.ts";
+export const LAB_ACCESS: AccountAccess = Object.freeze<AccountAccess>({
+  role: "collaborator",
+  status: "active",
+  clubId: "synthetic-voice-lab",
+  clubName: "Synthetic lab",
+  clubLogo: null,
+  permissions: ["manage_members", "manage_products"],
+});
+export function authorizeProposal(value: unknown, access: AccountAccess = LAB_ACCESS) {
+  const parsed = ConversationProposal.safeParse(value);
+  if (!parsed.success || !conversationAllowed(access, parsed.data))
+    return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED" };
+  return {
+    ok: true as const,
+    proposal: parsed.data,
+    synthetic: true,
+    requiresConfirmation: true,
+    persisted: false,
+  };
+}
+export const proposalSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["intent", "target", "member", "product", "query", "declined", "question", "asking"],
+  properties: {
+    intent: {
+      type: "string",
+      enum: ["navigate", "member", "product", "category", "search", "clarify", "review", "stop"],
+    },
+    target: {
+      type: ["string", "null"],
+      enum: [
+        "home",
+        "member_create",
+        "members",
+        "products",
+        "product_create",
+        "categories",
+        "stock",
+        "cash",
+        "cash_report",
+        "reports",
+        "activity",
+        null,
+      ],
+    },
+    member: {
+      type: "object",
+      additionalProperties: false,
+      properties: Object.fromEntries(
+        ["first_name", "last_name", "birth_date", "city", "phone"].map((k) => [
+          k,
+          { type: "string" },
+        ]),
+      ),
+    },
+    product: {
+      type: "object",
+      additionalProperties: false,
+      properties: { name: { type: "string" }, category: { type: "string" } },
+    },
+    query: { type: ["string", "null"] },
+    declined: { type: "array", items: { enum: ["phone"] } },
+    question: { type: "string" },
+    asking: {
+      type: ["string", "null"],
+      enum: ["first_name", "last_name", "birth_date", "city", "phone", "other", null],
+    },
+  },
+};
+export function agentSettings(language: "it" | "es", sampleRate: number) {
+  return {
+    type: "Settings",
+    mip_opt_out: true,
+    tags: ["snoop-isolated-synthetic-lab"],
+    audio: {
+      input: { encoding: "linear16", sample_rate: sampleRate },
+      output: { encoding: "linear16", sample_rate: 24000, container: "none" },
+    },
+    agent: {
+      listen: {
+        provider: {
+          type: "deepgram",
+          version: "v2",
+          model: "flux-general-multi",
+          language_hints: [language],
+        },
+      },
+      think: {
+        provider: { type: "open_ai", model: "gpt-4o-mini", temperature: 0.2 },
+        prompt: `You are SNOOP in an ISOLATED SYNTHETIC voice laboratory. Speak ${language === "it" ? "Italian" : "Spanish"} naturally and briefly. Only fictional people and data are allowed. Do not request real identifiers, documents or club information. Do not claim anything was saved or done in a real app. Maintain conversation context and remember corrections and refused optional fields. For administrative navigation or draft fields call snoop_propose with ONLY explicit new fields. Ask a short relevant question for missing data, never invent. ISO birth dates require full unambiguous year. You cannot save, pay, cancel, mutate stock or access a database. SNOOP independently validates permissions and demands confirmation; a rejected tool must not be described as successful. This lab role permits member and informational product drafts/search only, not financial/reports access. For greetings and general conversation, reply conversationally without a tool. Stop requests: say goodbye briefly.`,
+        functions: [
+          {
+            name: "snoop_propose",
+            description:
+              "Propose navigation or a synthetic draft patch. Never executes or saves. All proposals are checked by SNOOP.",
+            parameters: proposalSchema,
+            defer_until_eot: true,
+          },
+        ],
+      },
+      speak: {
+        provider: {
+          type: "deepgram",
+          version: "v2",
+          model: language === "it" ? "flux-paola-it" : "flux-carmen-es",
+        },
+      },
+    },
+  };
+}

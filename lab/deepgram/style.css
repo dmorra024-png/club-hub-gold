@@ -1,0 +1,134 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #04111b;
+  color: #f3eee5;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 600px;
+  margin: auto;
+  padding: 20px 22px calc(28px + env(safe-area-inset-bottom));
+}
+header {
+  text-align: center;
+  padding: 14px 0;
+}
+header a {
+  display: block;
+  text-align: left;
+  font-size: 14px;
+  color: #d8ba80;
+}
+header strong {
+  display: block;
+  font-size: 32px;
+  letter-spacing: 0.2em;
+  color: #ecdbba;
+}
+small {
+  letter-spacing: 0.15em;
+  font-size: 10px;
+  color: #cbb386;
+}
+.notice {
+  border-left: 2px solid #cdb17b;
+  padding: 10px;
+  background: #102333;
+}
+.hint,
+footer {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #b4c2ce;
+}
+label {
+  display: block;
+  margin: 12px 0;
+  font-size: 14px;
+}
+input,
+select,
+button {
+  font: inherit;
+  width: 100%;
+  padding: 13px;
+  border-radius: 12px;
+  border: 1px solid #41515c;
+  background: #0b1f2e;
+  color: #fff;
+  margin-top: 6px;
+  min-width: 0;
+}
+input:focus {
+  outline: 2px solid #d4b578;
+  outline-offset: 2px;
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.5;
+}
+.check input {
+  width: 20px;
+  flex: none;
+}
+button {
+  border-color: #b79a63;
+  color: #ebd19d;
+  margin: 8px 0;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.45;
+}
+#stop {
+  border-color: #a87575;
+}
+#status {
+  padding: 14px;
+  background: #122838;
+  border-radius: 12px;
+}
+section {
+  border-top: 1px solid #34424c;
+  margin-top: 24px;
+  padding-top: 14px;
+}
+h2 {
+  font-size: 17px;
+  color: #e0c492;
+}
+#transcript p {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+#draft {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+}
+#draft label {
+  margin: 2px 0;
+}
+footer {
+  margin-top: 22px;
+}
+@media (max-width: 360px) {
+  #draft {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #status[data-active="true"] {
+    box-shadow: 0 0 18px #bd9a5133;
+  }
+}
