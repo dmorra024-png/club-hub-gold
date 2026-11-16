@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { speakBrowserVoice } from "../src/lib/browser-voice.ts";
+import { speakBrowserVoice, stopBrowserVoice } from "../src/lib/browser-voice.ts";
 import { voiceFailureMessage } from "../src/lib/voice-errors.ts";
 test("device replies select local IT/ES voices, finish once, and never fall back to remote voices", () => {
   const root = globalThis as any,
@@ -17,8 +17,8 @@ test("device replies select local IT/ES voices, finish once, and never fall back
   };
   const voices = [
     { lang: "it-IT", localService: true },
-    { lang: "es-ES", localService: true },
-    { lang: "es-ES", localService: false },
+    { lang: "es-ES", localService: true, voiceURI: "preferred" },
+    { lang: "es-ES", localService: false, voiceURI: "remote" },
   ];
   root.window = {
     speechSynthesis: {
@@ -43,6 +43,18 @@ test("device replies select local IT/ES voices, finish once, and never fall back
       spoken.onerror();
       assert.equal(done, before + 1);
     }
+    assert.equal(
+      speakBrowserVoice("Prueba", "es", () => done++, "remote"),
+      true,
+    );
+    assert.equal(spoken.voice.localService, true);
+    spoken.onend();
+    assert.equal(
+      speakBrowserVoice("Prueba", "es", () => done++, "preferred"),
+      true,
+    );
+    assert.equal(spoken.voice.voiceURI, "preferred");
+    spoken.onend();
     voices.splice(0, 2);
     spoken = null;
     assert.equal(
@@ -79,4 +91,44 @@ test("voice errors identify components without reflecting payloads or secrets", 
     assert.equal(voiceFailureMessage(output), output);
   }
   assert.equal(voiceFailureMessage("PRIVATE_CANARY"), "IA no disponible. Puedes usar el teclado.");
+});
+
+test("interrupting a reply settles its turn immediately and cannot finish the next turn", () => {
+  const root = globalThis as any;
+  const previousWindow = root.window,
+    previousUtterance = root.SpeechSynthesisUtterance;
+  const spoken: any[] = [];
+  let first = 0,
+    second = 0;
+  root.SpeechSynthesisUtterance = class {
+    text: string;
+    constructor(text: string) {
+      this.text = text;
+    }
+  };
+  root.window = {
+    speechSynthesis: {
+      getVoices: () => [{ lang: "es-ES", localService: true }],
+      cancel() {},
+      speak: (reply: any) => spoken.push(reply),
+    },
+  };
+  try {
+    speakBrowserVoice("Primera respuesta", "es", () => first++);
+    speakBrowserVoice("Segunda respuesta", "es", () => second++);
+    assert.equal(first, 1);
+    assert.equal(second, 0);
+    spoken[0].onend();
+    spoken[0].onerror();
+    assert.equal(first, 1);
+    assert.equal(second, 0);
+    stopBrowserVoice();
+    assert.equal(second, 1);
+    spoken[1].onend();
+    assert.equal(second, 1);
+  } finally {
+    stopBrowserVoice();
+    root.window = previousWindow;
+    root.SpeechSynthesisUtterance = previousUtterance;
+  }
 });

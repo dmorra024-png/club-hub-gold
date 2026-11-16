@@ -151,10 +151,15 @@ export function VoiceAgent({
     [clarification, setClarification] = useState(""),
     [fault, setFault] = useState("");
   const [spokenReplies, setSpokenReplies] = useState(true);
+  const [deviceVoices, setDeviceVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [preferredVoice, setPreferredVoice] = useState("");
   useEffect(() => {
-    try {
-      window.speechSynthesis?.getVoices();
-    } catch {}
+    const synthesis = window.speechSynthesis;
+    if (!synthesis) return;
+    const update = () => setDeviceVoices(synthesis.getVoices().filter((v) => v.localService));
+    update();
+    synthesis.addEventListener?.("voiceschanged", update);
+    return () => synthesis.removeEventListener?.("voiceschanged", update);
   }, []);
   const [voiceReplyPlaying, setVoiceReplyPlaying] = useState(false);
   const replyPlayingRef = useRef(false);
@@ -979,6 +984,7 @@ export function VoiceAgent({
         replyPlayingRef.current = false;
         setVoiceReplyPlaying(false);
       },
+      preferredVoice,
     );
     if (!launched) {
       replyPlayingRef.current = false;
@@ -989,7 +995,7 @@ export function VoiceAgent({
       replyPlayingRef.current = false;
       setVoiceReplyPlaying(false);
     };
-  }, [clarification, spokenReplies, conversationMode, language]);
+  }, [clarification, spokenReplies, conversationMode, language, preferredVoice]);
   useEffect(() => {
     if (dictation.error) {
       stopSession();
@@ -1059,6 +1065,7 @@ export function VoiceAgent({
     setFeedback("");
     activeRef.current = true;
     setSessionActive(true);
+    stopBrowserVoice();
     void dictation.start();
   }, [consent, dictation.start, stopSession, continuous]);
   useEffect(() => {
@@ -1178,6 +1185,7 @@ export function VoiceAgent({
                 setPanelOpen(!continuous);
                 activeRef.current = true;
                 setSessionActive(true);
+                stopBrowserVoice();
                 void dictation.start();
               }}
             >
@@ -1314,6 +1322,44 @@ export function VoiceAgent({
               <option value="it-IT">Italiano</option>
             </select>
           </label>
+          <label className="text-xs">
+            Voz local del dispositivo
+            <select
+              aria-label="Voz local del dispositivo"
+              value={preferredVoice}
+              disabled={sessionActive || busy || enabled}
+              onChange={(event) => setPreferredVoice(event.target.value)}
+            >
+              <option value="">Automática</option>
+              {deviceVoices
+                .filter((v) => v.lang.toLowerCase().startsWith(language.slice(0, 2)))
+                .map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} · {v.lang}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={sessionActive || busy || enabled}
+            onClick={() => {
+              const ok = speakBrowserVoice(
+                language.startsWith("it")
+                  ? "Sono SNOOP. Questa è un'anteprima della voce locale."
+                  : "Soy SNOOP. Esta es una prueba de la voz local.",
+                language.startsWith("it") ? "it" : "es",
+                () => {},
+                preferredVoice,
+              );
+              if (!ok)
+                setFault(
+                  "No hay una voz local disponible para este idioma. Puedes continuar con texto.",
+                );
+            }}
+          >
+            Probar voz
+          </button>
           <label className="premium-voice-consent">
             <input
               type="checkbox"
@@ -1346,6 +1392,7 @@ export function VoiceAgent({
                 if (allowed) {
                   activeRef.current = true;
                   setSessionActive(true);
+                  stopBrowserVoice();
                   void dictation.start();
                 } else {
                   closeWhenIdle.current = false;
@@ -1367,6 +1414,7 @@ export function VoiceAgent({
                 : () => {
                     activeRef.current = true;
                     setSessionActive(true);
+                    stopBrowserVoice();
                     void dictation.start();
                   }
             }
