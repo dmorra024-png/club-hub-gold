@@ -156,11 +156,18 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         socket.addEventListener("close", () => sessions.delete(bucket));
         clearTimeout(deadline);
         sessionDeadline = setTimeout(() => close("LAB_SESSION_LIMIT_90S"), MAX_MS);
-        const response = await fetch("https://agent.deepgram.com/v1/agent/converse", {
-          headers: { Upgrade: "websocket", Authorization: `Token ${env.DEEPGRAM_API_KEY}` },
-          redirect: "manual",
-          signal: AbortSignal.timeout(12000),
-        });
+        const handshakeController = new AbortController();
+        const handshakeTimeout = setTimeout(() => handshakeController.abort(), 12000);
+        let response: Response;
+        try {
+          response = await fetch("https://agent.deepgram.com/v1/agent/converse", {
+            headers: { Upgrade: "websocket", Authorization: `Token ${env.DEEPGRAM_API_KEY}` },
+            redirect: "manual",
+            signal: handshakeController.signal,
+          });
+        } finally {
+          clearTimeout(handshakeTimeout);
+        }
         if (response.status !== 101 || !response.webSocket) {
           send({ type: "LabError", code: "DEEPGRAM_CONNECT_FAILED", http: response.status });
           return close();

@@ -47,7 +47,7 @@ jobs:
       - name: Typecheck and validate SNOOP proposal permissions
         run: |
           npx tsc -p lab/deepgram/tsconfig.json --noEmit
-          node --test lab/deepgram/policy.test.ts
+          node --test --experimental-test-isolation=none lab/deepgram/policy.test.ts
           node lab/deepgram/build.mjs
           node lab/deepgram/test-worker.mjs
           node lab/deepgram/test-audio-relay.mjs

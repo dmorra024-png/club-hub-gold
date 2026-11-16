@@ -45,3 +45,7 @@ test("Deepgram uses explicit IT/ES streaming voices with MIP opt-out and one pro
     assert(!JSON.stringify(c).includes("api_key"));
   }
 });
+
+test("a declined optional field cannot also be requested in the same proposal", () => {
+  assert.equal(authorizeProposal({ ...draft, declined: ["phone"], asking: "phone" }).ok, false);
+});

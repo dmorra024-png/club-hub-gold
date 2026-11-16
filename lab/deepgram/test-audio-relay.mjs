@@ -33,8 +33,9 @@ try {
   ws.accept();
   await new Promise((resolve, reject) => {
     let text = false,
-      audio = false;
-    const timeout = setTimeout(() => reject(Error("LAB_BINARY_RELAY_TIMEOUT")), 4000);
+      audio = false,
+      round = 0;
+    const timeout = setTimeout(() => reject(Error("LAB_BINARY_RELAY_TIMEOUT")), 18000);
     ws.addEventListener("message", (e) => {
       try {
         if (typeof e.data !== "string") {
@@ -51,6 +52,12 @@ try {
           if (m.type === "LabClosed") throw Error(m.code);
         }
         if (text && audio) {
+          if (round++ === 0) {
+            text = false;
+            audio = false;
+            setTimeout(() => ws.send(new ArrayBuffer(4800)), 13000);
+            return;
+          }
           clearTimeout(timeout);
           ws.send("STOP");
           ws.close();

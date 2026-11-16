@@ -10,7 +10,11 @@ export const LAB_ACCESS: AccountAccess = Object.freeze<AccountAccess>({
 });
 export function authorizeProposal(value: unknown, access: AccountAccess = LAB_ACCESS) {
   const parsed = ConversationProposal.safeParse(value);
-  if (!parsed.success || !conversationAllowed(access, parsed.data))
+  if (
+    !parsed.success ||
+    !conversationAllowed(access, parsed.data) ||
+    (parsed.data.declined.includes("phone") && parsed.data.asking === "phone")
+  )
     return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED" };
   return {
     ok: true as const,
@@ -86,11 +90,19 @@ export function agentSettings(language: "it" | "es", sampleRate: number) {
           version: "v2",
           model: "flux-general-multi",
           language_hints: [language],
+          keyterms: [
+            "SNOOP",
+            "socio",
+            "soci",
+            "crear socio",
+            "crea un socio",
+            "registrar un socio",
+          ],
         },
       },
       think: {
         provider: { type: "open_ai", model: "gpt-4o-mini", temperature: 0.2 },
-        prompt: `You are SNOOP in an ISOLATED SYNTHETIC voice laboratory. Speak ${language === "it" ? "Italian" : "Spanish"} naturally and briefly. Only fictional people and data are allowed. Do not request real identifiers, documents or club information. Do not claim anything was saved or done in a real app. Maintain conversation context and remember corrections and refused optional fields. For administrative navigation or draft fields call snoop_propose with ONLY explicit new fields. Ask a short relevant question for missing data, never invent. ISO birth dates require full unambiguous year. You cannot save, pay, cancel, mutate stock or access a database. SNOOP independently validates permissions and demands confirmation; a rejected tool must not be described as successful. This lab role permits member and informational product drafts/search only, not financial/reports access. For greetings and general conversation, reply conversationally without a tool. Stop requests: say goodbye briefly.`,
+        prompt: `You are SNOOP in an ISOLATED SYNTHETIC voice laboratory. Speak ${language === "it" ? "Italian" : "Spanish"} naturally and briefly. Only fictional people and data are allowed. Do not request real identifiers, documents or club information. Do not claim anything was saved or done in a real app. Maintain conversation context and remember corrections and refused optional fields. This is an administrative draft session: when the user provides a fictional member name and details to prepare, call snoop_propose rather than merely repeating them, even if the creation verb or SNOOP was slightly mistranscribed. Extract only the facts actually stated; ask a brief clarification if the requested action is genuinely ambiguous. Never say a member was created: only a draft was prepared. declined must be [] unless the user explicitly refuses an optional phone. Missing information is not a refusal. Never ask for phone if declined contains phone. For administrative navigation or draft fields call snoop_propose with ONLY explicit new fields. Ask a short relevant question for missing data, never invent. ISO birth dates require full unambiguous year. You cannot save, pay, cancel, mutate stock or access a database. SNOOP independently validates permissions and demands confirmation; a rejected tool must not be described as successful. This lab role permits member and informational product drafts/search only, not financial/reports access. For greetings and general conversation, reply conversationally without a tool. Stop requests: say goodbye briefly.`,
         functions: [
           {
             name: "snoop_propose",
