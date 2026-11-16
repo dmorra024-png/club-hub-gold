@@ -96,6 +96,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
   const pair = new WebSocketPair(),
     client = pair[0],
     socket = pair[1];
+  socket.binaryType = "arraybuffer";
   socket.accept();
   let upstream: WebSocket | undefined,
     closed = false,
@@ -166,6 +167,7 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         }
         const privateProbe = await equal(await digest(auth.key), "__LAB_PROBE_HASH__");
         upstream = response.webSocket;
+        upstream.binaryType = "arraybuffer";
         upstream.accept();
         if (closed) {
           upstream.close(1000, "lab stopped during connect");
@@ -282,7 +284,8 @@ export async function labFetch(request: Request, env: Env): Promise<Response | n
         return;
       }
       if (!ready) return;
-      bytes += (event.data as ArrayBuffer).byteLength;
+      if (!(event.data instanceof ArrayBuffer)) return close("LAB_AUDIO_FORMAT_REJECTED");
+      bytes += event.data.byteLength;
       if ((event.data as ArrayBuffer).byteLength > 32768 || bytes > MAX_BYTES)
         return close("LAB_AUDIO_LIMIT");
       upstream.send(event.data);

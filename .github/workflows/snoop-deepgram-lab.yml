@@ -50,6 +50,7 @@ jobs:
           node --test lab/deepgram/policy.test.ts
           node lab/deepgram/build.mjs
           node lab/deepgram/test-worker.mjs
+          node lab/deepgram/test-audio-relay.mjs
       - name: Chromium and WebKit lab UI regression (synthetic microphone only)
         run: |
           npx playwright-core install --with-deps chromium webkit
