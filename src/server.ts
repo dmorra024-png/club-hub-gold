@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { deepgramAppSocket } from "./lib/deepgram-app-gateway";
 import { withSnoopWorkersAi, snoopRequestRuntime } from "./lib/workers-ai.server";
 
 type ServerEntry = {
@@ -46,6 +47,8 @@ export default {
     )
       return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
     try {
+      const socketResponse = await deepgramAppSocket(request, snoopRequestRuntime(request, env));
+      if (socketResponse) return socketResponse;
       const handler = await getServerEntry();
       const response = await withSnoopWorkersAi(snoopRequestRuntime(request, env), () =>
         handler.fetch(request, env, ctx),
