@@ -27,7 +27,7 @@ Su Supabase SNOOP:
 - `GET /socio/clubs`: membership verificate dell'utente, senza endpoint di ricerca email pubblico.
 - `POST /socio/link/claim`: challenge monouso e audit; protezione anti-bruteforce.
 - `GET /socio/clubs/:clubId/carnet`: numero socio, stato, token QR breve per link verificato.
-- `GET /socio/clubs/:clubId/wallet` e `/movements`: consultazione consentita se Monedero abilitato.
+- `GET /socio/clubs/:clubId/wallet` e `/wallet/movements`: consultazione consentita se Monedero abilitato; solo saldo e movimenti del club scelto.
 - Endpoint gestionale scansione che verifica token QR, membership, club operatore e scadenza, senza consumare fondi.
 
 Non usare i nomi di route come contratto finale prima di mappare l'infrastruttura esistente. Tutti gli endpoint richiedono Auth e autorizzazione server, eccetto pagina install pubblica.
@@ -39,3 +39,6 @@ Non usare i nomi di route come contratto finale prima di mappare l'infrastruttur
 - Staging verificato da Codex, review incrociata cross-club e revoca.
 - Compatibilità dei QR scanner già presenti.
 - Rollback pronto, deploy separato, niente migrazione dati irreversibile.
+
+## Aggiornamento implementazione 17 novembre 2026
+Interfaccia PWA isolata e servizi business astratti aggiunti in `apps/socio`: `domain.mjs`, `auto-link.mjs`, `service.mjs`, e relativi test. Disponibili contratti per sincronizzazione automatica membership tramite email Auth confermata, QR firmato per singolo club, saldo Monedero e storico read-only, sempre senza dati reali. **Importante:** l'attuale schema `members` non contiene un flag di conferma email al momento dell'iscrizione; Codex dovrà concordare una prova affidabile o un meccanismo equivalente prima di attivare auto-link senza codice. Le sole email uguali non devono abilitare accesso a schede altrui.
