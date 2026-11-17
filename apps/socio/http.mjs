@@ -30,8 +30,8 @@ function statusOf(e){const status=e?.status;return Number.isInteger(status)&&[40
  * renderQrPng(token) -> Uint8Array / ArrayBuffer bytes of a QR image.
  * auth.* handlers must set secure, HttpOnly, SameSite cookies themselves.
  */
-export function makeSocioHttpHandler({service,authenticate,renderQrPng,auth={},origin}){
- if(!service||typeof authenticate!=='function'||typeof origin!=='string'||new URL(origin).origin!==origin)throw Error('SOCIO_HTTP_NOT_CONFIGURED');
+export function makeSocioHttpHandler({service,serviceFactory,authenticate,renderQrPng,auth={},origin}){
+ if((!service&&typeof serviceFactory!=='function')||typeof authenticate!=='function'||typeof origin!=='string'||new URL(origin).origin!==origin)throw Error('SOCIO_HTTP_NOT_CONFIGURED');
  return async function handle(request){
   try{
    const url=new URL(request.url);
@@ -51,26 +51,28 @@ export function makeSocioHttpHandler({service,authenticate,renderQrPng,auth={},o
    }
    const actor=await authenticate(request);
    if(!actor||actor.accountType!=='socio'||actor.emailVerified!==true)return fail('AUTH_REQUIRED',401);
+   const scopedService=serviceFactory?await serviceFactory(actor):service;
+   if(!scopedService)return fail('SERVICE_UNAVAILABLE',503);
    if(method==='GET'&&path==='/me')return json({authenticated:true,email:actor.email,emailVerified:true});
-   if(method==='GET'&&path==='/clubs')return json(await service.clubs(actor));
+   if(method==='GET'&&path==='/clubs')return json(await scopedService.clubs(actor));
    if(method==='POST'&&path==='/memberships/sync'){
     await parseJson(request,200);
-    return json(await service.syncClubs(actor));
+    return json(await scopedService.syncClubs(actor));
    }
    if(method==='POST'&&path==='/link/claim'){
     const input=await parseJson(request,500);
-    return json(await service.linkMembership(actor,input.code));
+    return json(await scopedService.linkMembership(actor,input.code));
    }
    const match=method==='GET'?path.match(clubPattern):null;
    if(!match)return fail('NOT_FOUND',404);
    const [,clubId,resource]=match;
-   if(resource==='carnet')return json(await service.card(actor,clubId));
-   if(resource==='wallet')return json(await service.wallet(actor,clubId));
-   if(resource==='wallet/movements')return json(await service.walletMovements(actor,clubId));
+   if(resource==='carnet')return json(await scopedService.card(actor,clubId));
+   if(resource==='wallet')return json(await scopedService.wallet(actor,clubId));
+   if(resource==='wallet/movements')return json(await scopedService.walletMovements(actor,clubId));
    if(resource==='carnet/qr'){
     if(typeof renderQrPng!=='function')return fail('QR_RENDERER_NOT_CONFIGURED',503);
     // QR issuance is authorized and scoped before any rendering.
-    const proposal=await service.qr(actor,clubId);
+    const proposal=await scopedService.qr(actor,clubId);
     const png=await renderQrPng(proposal.token);
     const bytes=png instanceof Uint8Array?png:png instanceof ArrayBuffer?new Uint8Array(png):null;
     if(!bytes||bytes.length<20||bytes.length>500000||
