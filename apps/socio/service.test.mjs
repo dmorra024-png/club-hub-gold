@@ -8,6 +8,7 @@ const repo={
  linksForUser:async user=>[{authUserId:u,status:'verified',clubId:a,memberId:m},{authUserId:u,status:'verified',clubId:b,memberId:n}].filter(x=>x.authUserId===user),
  membershipsForUser:async user=>user===u?[{clubId:a,memberId:m,active:true,memberNumber:'124',clubName:'Club A',walletEnabled:true},{clubId:b,memberId:n,active:true,memberNumber:'872',clubName:'Club B',walletEnabled:false}]:[],
  claimAndConsumeLinkChallenge:async()=>({ok:false}),
+ autoLinkForVerifiedEmail:async ({verifiedEmail})=>({linkedCount:verifiedEmail==='socio@example.com'?2:0}),
  walletForMember:async clubId=>clubId===a?{balanceCents:2550}:null,
  isMemberActive:async (clubId,memberId)=>clubId===a&&memberId===m
 };
@@ -39,4 +40,10 @@ test('challenge cannot be claimed by simply knowing email or arbitrary code',asy
  await assert.rejects(svc.linkMembership(actor,'abcdef12'),{code:'LINK_NOT_AUTHORIZED'});
  await assert.rejects(svc.linkMembership(actor,'1'),{code:'LINK_CODE_INVALID'});
  await assert.rejects(svc.linkMembership({...actor,emailVerified:false},'abcdef12'),{code:'SOCIO_UNAUTHORIZED'});
+});
+
+test('verified account can synchronize eligible club memberships without a second password',async()=>{
+ assert.deepEqual(await svc.syncClubs({...actor,email:'SOCIO@example.com'}),{synced:true,linkedCount:2});
+ await assert.rejects(svc.syncClubs({...actor,emailVerified:false,email:'socio@example.com'}),{code:'SOCIO_UNAUTHORIZED'});
+ await assert.rejects(svc.syncClubs({...actor,email:'invalid-email'}),{code:'VERIFIED_EMAIL_REQUIRED'});
 });
