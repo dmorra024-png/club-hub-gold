@@ -75,3 +75,19 @@ test('wallet unavailable prevents any operation',async()=>{
  const r=createWalletCommands({repository:{memberWalletEnabled:async()=>false,commitWalletOperation:async()=>{throw Error('SHOULD_NOT_RUN')}}});
  await assert.rejects(r.commit(staff,topup()),{code:'WALLET_DISABLED'});
 });
+
+test('server refuses a financial result without verified committed operation ID',async()=>{
+ const bad=createWalletCommands({repository:{
+  memberWalletEnabled:async()=>true,
+  commitWalletOperation:async()=>({status:'applied',balanceCents:100,operationId:opB})
+ }});
+ await assert.rejects(bad.commit(staff,topup()),{code:'WALLET_OPERATION_MISMATCH'});
+});
+test('staff must be explicitly authorized for refunds, not merely any cash activity',async()=>{
+ const r=rig(2500);
+ await assert.rejects(r.service.commit({...staff,permissions:['wallet_spend']},{
+  clubId:clubA,memberId:member,operationId:opA,kind:'refund',
+  amountCents:2100,orderId:order,reversalOf:opB,confirmed:true
+ }),{code:'WALLET_PERMISSION_DENIED'});
+ assert.equal(r.calls.length,0);
+});
