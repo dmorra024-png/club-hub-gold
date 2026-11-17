@@ -2,18 +2,38 @@
 -- Only Codex-reviewed integration should create these tables; no changes to public.members.
 -- All tables fail closed without the dedicated private staff approval/claim procedure.
 begin;
+-- public.members has PRIMARY KEY(id), but no UNIQUE(id,club_id).
+-- Do not add constraints to the live members table merely for this proposal.
+-- New Socio rows use a single-column FK plus a same-club trigger.
+create function public.socio_enforce_member_club()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $
+begin
+ if not exists (
+  select 1 from public.members m
+  where m.id = new.member_id and m.club_id = new.club_id
+ ) then
+  raise exception 'SOCIO_MEMBER_CLUB_MISMATCH' using errcode = '23514';
+ end if;
+ return new;
+end;
+$;
+revoke all on function public.socio_enforce_member_club() from public, anon, authenticated;
+
 create table if not exists public.socio_membership_links (
  id uuid primary key default gen_random_uuid(),
  auth_user_id uuid not null references auth.users(id) on delete cascade,
  club_id uuid not null references public.clubs(id),
- member_id uuid not null,
+ member_id uuid not null references public.members(id),
  status text not null check (status in ('verified','revoked')),
  verified_at timestamptz,
  revoked_at timestamptz,
  created_at timestamptz not null default now(),
  unique (club_id,member_id),
  unique (auth_user_id,club_id,member_id),
- foreign key (member_id,club_id) references public.members(id,club_id),
  check ((status='verified' and verified_at is not null and revoked_at is null)
    or status='revoked')
 );
@@ -28,15 +48,14 @@ create policy socio_links_read_own on public.socio_membership_links
 -- Reviewed management transactions must keep it in sync with member status/renews.
 create table if not exists public.socio_member_cards (
  club_id uuid not null references public.clubs(id),
- member_id uuid not null,
+ member_id uuid not null references public.members(id),
  club_name text not null,
  member_number text not null,
  active boolean not null default false,
  wallet_enabled boolean not null default false,
  revoked_at timestamptz,
  updated_at timestamptz not null default now(),
- primary key (club_id,member_id),
- foreign key (member_id,club_id) references public.members(id,club_id)
+ primary key (club_id,member_id)
 );
 alter table public.socio_member_cards enable row level security;
 revoke all on public.socio_member_cards from anon, authenticated;
@@ -53,11 +72,10 @@ create policy socio_cards_read_linked_own on public.socio_member_cards
 -- This read-only structure will remain empty until approved rollout.
 create table if not exists public.socio_wallet_accounts (
  club_id uuid not null references public.clubs(id),
- member_id uuid not null,
+ member_id uuid not null references public.members(id),
  balance_cents bigint not null default 0 check(balance_cents>=0),
  updated_at timestamptz not null default now(),
- primary key(club_id,member_id),
- foreign key (member_id,club_id) references public.members(id,club_id)
+ primary key(club_id,member_id)
 );
 alter table public.socio_wallet_accounts enable row level security;
 revoke all on public.socio_wallet_accounts from anon, authenticated;
@@ -76,7 +94,7 @@ create policy socio_wallet_read_own on public.socio_wallet_accounts
 create table if not exists public.socio_wallet_ledger (
  id uuid primary key default gen_random_uuid(),
  club_id uuid not null,
- member_id uuid not null,
+ member_id uuid not null references public.members(id),
  operation_id uuid not null unique,
  kind text not null check(kind in ('topup','spend','refund')),
  order_id uuid references public.orders(id),
@@ -131,7 +149,7 @@ revoke all on public.socio_club_wallet_settings from public,anon,authenticated;
 create table if not exists public.socio_member_claim_challenges (
  id uuid primary key default gen_random_uuid(),
  club_id uuid not null references public.clubs(id),
- member_id uuid not null,
+ member_id uuid not null references public.members(id),
  code_sha256 bytea not null unique check(octet_length(code_sha256)=32),
  issued_by uuid not null references auth.users(id),
  issued_at timestamptz not null default now(),
@@ -139,7 +157,6 @@ create table if not exists public.socio_member_claim_challenges (
  consumed_at timestamptz,
  consumed_by uuid references auth.users(id),
  revoked_at timestamptz,
- foreign key(member_id,club_id) references public.members(id,club_id),
  check(expires_at>issued_at),
  check((consumed_at is null and consumed_by is null)
    or (consumed_at is not null and consumed_by is not null))
@@ -155,16 +172,42 @@ revoke all on public.socio_member_claim_challenges from public,anon,authenticate
 create table if not exists public.socio_qr_scan_nonces (
  nonce_sha256 bytea primary key check(octet_length(nonce_sha256)=32),
  club_id uuid not null references public.clubs(id),
- member_id uuid not null,
+ member_id uuid not null references public.members(id),
  scanned_by uuid not null references auth.users(id),
  scanned_at timestamptz not null default now(),
  expires_at timestamptz not null,
- foreign key(member_id,club_id) references public.members(id,club_id),
  check(expires_at>scanned_at)
 );
 create index if not exists socio_qr_scan_expiry_idx on public.socio_qr_scan_nonces(expires_at);
 alter table public.socio_qr_scan_nonces enable row level security;
 revoke all on public.socio_qr_scan_nonces from public,anon,authenticated;
+
+-- Same-club integrity for every new table referring directly to members.
+-- This remains review-only, and never modifies public.members.
+create trigger socio_membership_links_scope_guard
+ before insert or update of member_id,club_id
+ on public.socio_membership_links for each row
+ execute function public.socio_enforce_member_club();
+
+create trigger socio_member_cards_scope_guard
+ before insert or update of member_id,club_id
+ on public.socio_member_cards for each row
+ execute function public.socio_enforce_member_club();
+
+create trigger socio_wallet_accounts_scope_guard
+ before insert or update of member_id,club_id
+ on public.socio_wallet_accounts for each row
+ execute function public.socio_enforce_member_club();
+
+create trigger socio_member_claim_challenges_scope_guard
+ before insert or update of member_id,club_id
+ on public.socio_member_claim_challenges for each row
+ execute function public.socio_enforce_member_club();
+
+create trigger socio_qr_scan_nonces_scope_guard
+ before insert or update of member_id,club_id
+ on public.socio_qr_scan_nonces for each row
+ execute function public.socio_enforce_member_club();
 
 -- No INSERT/UPDATE/DELETE grants for socio users on any table.
 -- Unique order and reversal constraints are necessary but not sufficient: trusted
