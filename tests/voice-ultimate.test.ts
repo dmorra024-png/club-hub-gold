@@ -99,3 +99,15 @@ test("usage lease pins project, validates server lease, closes exactly once", as
     /VOICE_USAGE_CONFIG_REQUIRED/,
   );
 });
+
+test("receipt metadata cannot carry arbitrary personal text as field keys", () => {
+  assert.equal(
+    ActionReceipt.safeParse({
+      type: "AppActionResult",
+      id: "a",
+      status: "prepared",
+      applied: ["Synthetic private name"],
+    }).success,
+    false,
+  );
+});

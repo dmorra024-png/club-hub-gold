@@ -1,4 +1,4 @@
-import { emptyConversation } from "./snoop-conversation.ts";
+import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
 import { voiceCashToday } from "./voice/cash-read.server.ts";
 import { VoiceUsageLease } from "./voice/usage.server.ts";
 import {
@@ -6,7 +6,7 @@ import {
   openVoiceSnapshot,
   type VoiceSnapshot,
 } from "./voice/checkpoint.server.ts";
-import { ActionReceipt, actionOutcome } from "./voice/action-protocol.ts";
+import { ActionReceipt, actionOutcome, acknowledgedMemory } from "./voice/action-protocol.ts";
 import { parseAccountAccess, type AccountAccess } from "./access-context.ts";
 import { deepgramPilotAllowed, normalizedPilotNames } from "./deepgram-pilot-policy.ts";
 import { agentSettings, authorizeProposal } from "./voice/agent-settings.server.ts";
@@ -165,7 +165,10 @@ export async function deepgramAppSocket(
   let owner: string | undefined,
     calls = 0;
   const seen = new Set<string>();
-  const pending = new Map<string, { name: string; timer: ReturnType<typeof setTimeout> }>();
+  const pending = new Map<
+    string,
+    { name: string; timer: ReturnType<typeof setTimeout>; proposal: ConversationProposalValue }
+  >();
   let deadline: ReturnType<typeof setTimeout>;
   const send = (body: unknown) => {
     try {
@@ -326,24 +329,15 @@ export async function deepgramAppSocket(
                             }
                           : null
                         : args;
-                    result = authorizeProposal(proposal, verified.access, verified.catalog);
+                    result = authorizeProposal(
+                      proposal,
+                      verified.access,
+                      verified.catalog,
+                      memory.declined,
+                    );
                   } catch {}
                 }
                 if ((result as { ok: boolean }).ok) {
-                  const p = (result as any).proposal;
-                  memory = {
-                    ...memory,
-                    operation: ["member", "product", "category", "search"].includes(p.intent)
-                      ? p.intent
-                      : memory.operation,
-                    member: { ...memory.member, ...p.member },
-                    product: { ...memory.product, ...p.product },
-                    declined:
-                      p.declined.includes("phone") || memory.declined.includes("phone")
-                        ? ["phone"]
-                        : [],
-                    lastQuestion: p.question,
-                  };
                   const id = f.id;
                   if (pending.has(id)) continue;
                   const timer = setTimeout(() => {
@@ -363,7 +357,11 @@ export async function deepgramAppSocket(
                       );
                     } catch {}
                   }, 10000);
-                  pending.set(id, { name: f.name, timer });
+                  pending.set(id, {
+                    name: f.name,
+                    timer,
+                    proposal: (result as { proposal: ConversationProposalValue }).proposal,
+                  });
                   send({ type: "AppProposal", id, result });
                 } else {
                   send({ type: "AppProposal", id: f.id, result });
@@ -476,6 +474,7 @@ export async function deepgramAppSocket(
         if (receipt.data.status === "completed") return close("INVALID_ACTION_RESULT");
         clearTimeout(item.timer);
         pending.delete(receipt.data.id);
+        memory = acknowledgedMemory(memory, item.proposal, receipt.data);
         let outcome: unknown = actionOutcome(receipt.data);
         if (item.name === "snoop_cash_today" && receipt.data.status !== "rejected") {
           try {

@@ -13,12 +13,14 @@ export function authorizeProposal(
   value: unknown,
   access: AccountAccess,
   vocabulary: CatalogVocabulary = EMPTY_CATALOG,
+  declined: readonly string[] = [],
 ) {
   const parsed = ConversationProposal.safeParse(value);
   if (
     !parsed.success ||
     !conversationAllowed(access, parsed.data) ||
-    (parsed.data.declined.includes("phone") && parsed.data.asking === "phone")
+    ((parsed.data.declined.includes("phone") || declined.includes("phone")) &&
+      parsed.data.asking === "phone")
   )
     return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED" };
   if (parsed.data.product.category) {
