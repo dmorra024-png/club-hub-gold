@@ -23,7 +23,7 @@ Le tabelle sopra sono **proposte**. Eseguire confronto con migrazioni, vincoli, 
 ## QR
 - Distinguere nettamente **QR di installazione statico** (URL pubblico della PWA) e **QR membership dinamico** (token opaco breve).
 - Il QR membership non espone nome, email, telefono, documento, numero socio in chiaro o dati del wallet. Il numero socio può apparire come testo nel display autenticato, non nel payload QR.
-- Token vincolato a club e singola membership; lifetime ridotto (es. 30–60 s da validare) + rotazione visibile con gestione rete. Preferire scadenza e nonce anti-replay, lato server con controllo club dell'operatore e ruolo; non considerare scansione = consenso a operazione economica.
+- Token cifrato AES-256-GCM opaco (senza UUID leggibili dal QR), vincolato a club e singola membership; lifetime ridotto (es. 30–60 s da validare) + rotazione visibile con gestione rete. Preferire scadenza e nonce anti-replay, lato server con controllo club dell'operatore e ruolo; non considerare scansione = consenso a operazione economica.
 - QR acquisito con screenshot deve perdere validità rapidamente; eventuali screenshot di sessioni recenti non possono autorizzare ricariche/ordini autonomamente.
 - Offline: mostra stato esplicito `Sin conexión`, non promettere un QR valido se non può essere aggiornato/validato.
 - Su iOS PWA consentire uno sblocco sessione quando OS interrompe l'app. Non chiedere nuovi permessi inutili.
