@@ -4,7 +4,8 @@ update public.members
  set member_number='015'
  where id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
 insert into public.socio_club_wallet_settings(club_id,enabled)
-values('4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc',true);
+values('4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc',true)
+on conflict (club_id) do update set enabled=excluded.enabled;
 set role authenticated;
 select set_config('request.jwt.claim.sub',
  '7dbe4ead-c904-4c52-9fc1-51a9018aeb22',false);
@@ -85,4 +86,20 @@ begin
  end if;
 end
 $assert$;
+-- Turning a club wallet off blocks reads immediately, even if card rows
+-- have not yet been resynchronized. The balance remains intact in the ledger.
+update public.socio_club_wallet_settings set enabled=false
+ where club_id='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc';
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '4f778a41-c207-4011-84b6-8a6c2cc1c011',false);
+do $assert$
+declare n integer;
+begin
+ select count(*) into n from public.socio_wallet_accounts
+ where club_id='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc';
+ if n<>0 then raise exception 'DISABLED_WALLET_STILL_READABLE'; end if;
+end
+$assert$;
+reset role;
 select 'SNOOP SOCIO: authorized minimal card sync, wallet setting, expiry and privacy PASS' as result;
