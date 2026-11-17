@@ -86,3 +86,16 @@ test('existing-email response cannot be used to enumerate member accounts',async
  assert.equal(body.accepted,true);
  assert.equal(JSON.stringify(body).includes('already registered'),false);
 });
+
+test('signup never claims verification mail was sent on missing or unauthorized Auth configuration',async()=>{
+ for(const status of [401,403,404]){
+  const auth=createSupabaseSocioAuth({
+   url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+   fetcher:async()=>Response.json({error:'invalid auth configuration'},{status}),
+   authorizeSocioUser:async()=>true
+  });
+  const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+  assert.equal(result.status,503);
+  assert.equal(result.headers.get('set-cookie'),null);
+ }
+});
