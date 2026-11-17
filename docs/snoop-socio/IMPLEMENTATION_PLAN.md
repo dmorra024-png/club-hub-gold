@@ -1,7 +1,7 @@
 # Piano di sviluppo e consegna a Codex — SNOOP Socio
 
 ## Regola assoluta
-Non modificare il codice gestionale attivo, il database di produzione, Worker `snoop-pilot`, workflow di JARVIS, o branch di Codex. Questo ramo contiene solo documenti di design ed è pronto per handoff. **Nessun deploy o merge** finché Codex non valuta compatibilità e sicurezza.
+Non modificare il codice gestionale attivo, il database di produzione, Worker `snoop-pilot`, workflow di JARVIS, o branch di Codex. Questo ramo contiene documenti e codice isolato `apps/socio/` (interfaccia, funzioni di dominio, servizio backend astratto, test). Non è una PWA autenticata funzionante finché non saranno realizzati adapter Supabase, API, migrazioni autorizzate e deployment separato. **Nessun deploy o merge** finché Codex non valuta compatibilità e sicurezza.
 
 ## Verifica tecnica preliminare (read-only completata 17 nov 2026)
 Su Supabase SNOOP:
@@ -14,7 +14,7 @@ Su Supabase SNOOP:
 ## Fasi di sviluppo su questo ramo, separate dal pilot JARVIS
 1. Codex rivede specifica e controlla come il gestionale attuale rappresenta `members`, `club_id`, QR, i permessi e rinnovo.
 2. Nuovo entrypoint PWA dedicato in una directory isolata (`apps/socio/` o progetto separato concordato) con manifest, service worker minimo, design e navigazione indipendenti; niente import da schermate admin.
-3. Implementare login/registrazione e verifica email via Auth con confini e rate limiting; account socio senza permessi gestionali.
+3. Collegare la UI già isolata a login/registrazione e verifica email via Auth con confini e rate limiting; account socio senza permessi gestionali.
 4. Implementare meccanismo verificato di associazione a membership multi-club. Email è l'indice e non il permesso; nessuna esposizione di club di altri soci.
 5. Implementare emissione/validazione QR dinamico club-scoped e lettura via gestionale, con compatibilità studiata anziché cambiare a sorpresa i QR esistenti.
 6. Implementare menu `Mis clubes`, last-club, stato e account.
