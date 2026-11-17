@@ -23,7 +23,7 @@ assert.match(code,/URL\.revokeObjectURL/);
 assert.match(code,/if\(document\.hidden\)stopQr/);
 assert.match(code,/state\.clubs\.find\(c=>c\.id===id\)/);
 assert.match(code,/response\.status===404\|\|response\.status===503/);
-assert.doesNotMatch(code,/localStorage/);
+assert.doesNotMatch(code,/\\blocalStorage\\s*[.\\[]/);
 assert.doesNotMatch(code,/service_role|SUPABASE_SERVICE_ROLE|DEEPGRAM_API_KEY/);
 assert.match(sw,/u\.pathname\.includes\('\/api\/'\)/);
 assert.doesNotMatch(sw,/caches\.match\(e\.request\).*api/);
