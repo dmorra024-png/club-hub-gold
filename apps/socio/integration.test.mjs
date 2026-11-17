@@ -21,6 +21,7 @@ const cards=[
 ];
 function makeFixture(){
  const links=[];
+ const usedNonces=new Set();
  const repo={
   async linksForUser(id){return links.filter(x=>x.authUserId===id)},
   async membershipsForUser(){return cards},
@@ -36,7 +37,8 @@ function makeFixture(){
   async claimAndConsumeLinkChallenge(){return{ok:false}},
   async walletForMember(clubId,memberId){return{balanceCents:clubId===a?5000:clubId===b?1800:0}},
   async walletMovementsForMember(clubId){return[{deltaCents:clubId===a?5000:1800,balanceCents:clubId===a?5000:1800,createdAt:'2026-11-17T12:00:00Z',label:'Recarga'}]},
-  async isMemberActive(clubId,memberId){return cards.some(x=>x.clubId===clubId&&x.memberId===memberId&&x.active)}
+  async isMemberActive(clubId,memberId){return cards.some(x=>x.clubId===clubId&&x.memberId===memberId&&x.active)},
+  async consumeQrNonce({clubId,nonce}){const key=clubId+':'+nonce;if(usedNonces.has(key))return false;usedNonces.add(key);return true}
  };
  const service=makeSocioService({repository:repo,signingSecret:new Uint8Array(32).fill(7),now:()=>now});
  const authenticate=async request=>request.headers.get('authorization')==='socio'?
