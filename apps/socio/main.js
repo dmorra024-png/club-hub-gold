@@ -10,7 +10,12 @@ function notify(message,error=false){state.message=message;state.error=error;ren
 async function api(path,{method='GET',body}={}){
   const options={method,credentials:'include',cache:'no-store',headers:{'Accept':'application/json'}};
   if(body!==undefined){options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}
-  const response=await fetch(endpoint+path,options);
+  let response=await fetch(endpoint+path,options);
+  // Refresh session exactly once on stale authentication; credentials remain in HttpOnly cookies.
+  if(response.status===401&&!path.startsWith('/auth/')){
+    const refreshed=await fetch(endpoint+'/auth/refresh',{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(refreshed.ok)response=await fetch(endpoint+path,options);
+  }
   let value=null;try{value=await response.json();}catch{}
   if(!response.ok)throw Error(response.status===404||response.status===503?'Servicio de socios aún no disponible.':(value?.message||'No se pudo completar la solicitud.'));
   return value;
