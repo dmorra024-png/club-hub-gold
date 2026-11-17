@@ -14,3 +14,24 @@ Required before real operation:
 - Independent staging worker deployment; physical Android/iPhone tests only after real backend becomes available.
 
 Keep the draft separate until Codex reviews JARVIS and authorizes integration.
+## Card synchronization and wallet opt-in (isolated branch)
+`apps/socio/schema/CARD_SYNC_REVIEW_ONLY.sql` introduces a **review-only**
+`socio_sync_member_card(member_id)` RPC, to be called only by authorized club
+staff on membership creation, renewal and suspension. It copies **only**
+club name, member number, active flag and optional wallet flag. It does not
+copy DNI, photographs, signature, names, email, address or personal notes.
+A club must explicitly opt in through `socio_club_wallet_settings` before
+the card can show a wallet. A newly eligible active member receives a zero
+balance wallet **without a fabricated cash receipt**. Re-running the sync
+never resets an existing wallet balance.
+
+Both wallet RLS policies also read the **current** enabled setting from the
+club-scoped settings table. Turning the feature off blocks member wallet reads
+immediately, without waiting for a card re-sync. Tested with disposable
+PostgreSQL 16, not against user accounts in production.
+
+**Release blockers:** mount the staff sync RPC in real club workflows only
+after authorization review; confirm the studio's settlement/legal workflow,
+explicit club-level opt-in, transactional topup/order/refund reconciliation, and
+real Android/iPhone staging tests. No database migration or deployment was
+made by this PR.
