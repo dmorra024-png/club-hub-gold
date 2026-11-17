@@ -10,6 +10,7 @@ const repo={
  claimAndConsumeLinkChallenge:async()=>({ok:false}),
  autoLinkForVerifiedEmail:async ({verifiedEmail})=>({linkedCount:verifiedEmail==='socio@example.com'?2:0}),
  walletForMember:async clubId=>clubId===a?{balanceCents:2550}:null,
+ walletMovementsForMember:async clubId=>clubId===a?[{deltaCents:5000,balanceCents:5000,createdAt:'2026-11-17T12:00:00Z',label:'Recarga'},{deltaCents:-2450,balanceCents:2550,createdAt:'2026-11-17T13:00:00Z',label:'Movimiento'}]:[],
  isMemberActive:async (clubId,memberId)=>clubId===a&&memberId===m
 };
 const svc=makeSocioService({repository:repo,signingSecret:new Uint8Array(32).fill(21),now:()=>now});
@@ -46,4 +47,10 @@ test('verified account can synchronize eligible club memberships without a secon
  assert.deepEqual(await svc.syncClubs({...actor,email:'SOCIO@example.com'}),{synced:true,linkedCount:2});
  await assert.rejects(svc.syncClubs({...actor,emailVerified:false,email:'socio@example.com'}),{code:'SOCIO_UNAUTHORIZED'});
  await assert.rejects(svc.syncClubs({...actor,email:'invalid-email'}),{code:'VERIFIED_EMAIL_REQUIRED'});
+});
+
+test('wallet history returns scoped integer-cent movements for member club A only',async()=>{
+ const result=await svc.walletMovements(actor,a);
+ assert.deepEqual(result.items.map(r=>r.deltaCents),[5000,-2450]);
+ await assert.rejects(svc.walletMovements(actor,b),{code:'WALLET_DISABLED'});
 });
