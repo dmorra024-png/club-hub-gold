@@ -9,12 +9,12 @@ import {createSocioRlsRepository} from './supabase-rls.mjs';
 import {makeSocioService} from './service.mjs';
 import {makeSocioHttpHandler} from './http.mjs';
 import {createSocioRolePolicy} from './socio-role.mjs';
-export function createSocioApplication({supabaseUrl,publishableKey,origin,qrSigningSecret,authorizeSocioUser,renderQrPng,fetcher=fetch}){
- if(typeof renderQrPng!=='function')throw Error('SOCIO_PRODUCTION_ADAPTERS_REQUIRED');
+export function createSocioApplication({supabaseUrl,publishableKey,origin,qrSigningSecret,authorizeSocioUser,renderQrPng,renderQrSvg,fetcher=fetch}){
+ if(typeof renderQrPng!=='function'&&typeof renderQrSvg!=='function')throw Error('SOCIO_PRODUCTION_ADAPTERS_REQUIRED');
  const checkSocio=typeof authorizeSocioUser==='function'?authorizeSocioUser:createSocioRolePolicy({url:supabaseUrl,publishableKey,fetcher});
  const auth=createSupabaseSocioAuth({url:supabaseUrl,publishableKey,signupRedirectUrl:origin+'/',authorizeSocioUser:checkSocio,fetcher});
  return makeSocioHttpHandler({
-  origin,auth,authenticate:auth.authenticate,renderQrPng,
+  origin,auth,authenticate:auth.authenticate,renderQrPng,renderQrSvg,
   serviceFactory:actor=>{
    if(!actor?.accessToken||!actor?.userId)throw Error('UNVERIFIED_SESSION');
    const repository=createSocioRlsRepository({
