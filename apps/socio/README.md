@@ -1,6 +1,6 @@
 # SNOOP Socio — isolated PWA UI shell
 
-**Not production-ready; no backend is implemented or deployed.** This directory contains a real, navigable, responsive *frontend scaffold* for the future Socio app. It is deliberately isolated from current SNOOP routes, workflows and Supabase production. Do not claim it issues usable QR cards until the Socio API exists and is independently authorized.
+**Not production-ready; no backend is implemented or deployed.** This directory contains a real, navigable, responsive *frontend scaffold* plus tested domain and server service abstractions for the future Socio app. It is deliberately isolated from current SNOOP routes, workflows and Supabase production. Do not claim it issues usable QR cards until the Socio API exists and is independently authorized.
 
 ## Preview locally
 From repo root, serve files statically with an HTTP server that points to `apps/socio/`, e.g. `python3 -m http.server 8765 --directory apps/socio`, then open `http://127.0.0.1:8765`. Browser registration/login will correctly display that the isolated Socio service is not available because no Socio backend has been deployed. Use HTTPS for actual installation.
