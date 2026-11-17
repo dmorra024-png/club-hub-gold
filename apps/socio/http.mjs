@@ -30,7 +30,7 @@ function statusOf(e){const status=e?.status;return Number.isInteger(status)&&[40
  * renderQrPng(token) -> Uint8Array / ArrayBuffer bytes of a QR image.
  * auth.* handlers must set secure, HttpOnly, SameSite cookies themselves.
  */
-export function makeSocioHttpHandler({service,serviceFactory,authenticate,renderQrPng,auth={},origin}){
+export function makeSocioHttpHandler({service,serviceFactory,authenticate,renderQrPng,renderQrSvg,auth={},origin}){
  if((!service&&typeof serviceFactory!=='function')||typeof authenticate!=='function'||typeof origin!=='string'||new URL(origin).origin!==origin)throw Error('SOCIO_HTTP_NOT_CONFIGURED');
  return async function handle(request){
   try{
@@ -70,9 +70,17 @@ export function makeSocioHttpHandler({service,serviceFactory,authenticate,render
    if(resource==='wallet')return json(await scopedService.wallet(actor,clubId));
    if(resource==='wallet/movements')return json(await scopedService.walletMovements(actor,clubId));
    if(resource==='carnet/qr'){
-    if(typeof renderQrPng!=='function')return fail('QR_RENDERER_NOT_CONFIGURED',503);
+    if(typeof renderQrPng!=='function'&&typeof renderQrSvg!=='function')return fail('QR_RENDERER_NOT_CONFIGURED',503);
     // QR issuance is authorized and scoped before any rendering.
     const proposal=await scopedService.qr(actor,clubId);
+    if(typeof renderQrSvg==='function'){
+     const svg=await renderQrSvg(proposal.token);
+     // The SVG encoder is a trusted backend component; still reject active markup.
+     if(typeof svg!=='string'||svg.length>200000||!svg.trimStart().startsWith('<svg')||
+      /<\s*(?:script|foreignObject|iframe|image)\b/i.test(svg)||
+      /\bon[a-z]+\s*=/i.test(svg))throw Error('QR_SVG_INVALID');
+     return new Response(svg,{status:200,headers:{...noStore,'content-type':'image/svg+xml; charset=utf-8'}});
+    }
     const png=await renderQrPng(proposal.token);
     const bytes=png instanceof Uint8Array?png:png instanceof ArrayBuffer?new Uint8Array(png):null;
     if(!bytes||bytes.length<20||bytes.length>500000||
