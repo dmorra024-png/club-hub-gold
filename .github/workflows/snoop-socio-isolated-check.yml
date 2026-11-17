@@ -45,10 +45,11 @@ jobs:
       - name: Package public member assets
         run: node apps/socio/build-public.mjs
       - name: Compile isolated staging Worker without deploying
-        run: bunx wrangler deploy --dry-run --config apps/socio/wrangler.staging.jsonc --outdir .sandbox/socio-worker-dry-run
+        run: bunx wrangler deploy --dry-run --config apps/socio/wrangler.staging.jsonc --outdir "$GITHUB_WORKSPACE/.sandbox/socio-worker-dry-run"
       - name: Scan compiled output for secrets (no credentials supplied)
         run: |
-          test -f .sandbox/socio-worker-dry-run/worker.js || test -n "$(find .sandbox/socio-worker-dry-run -maxdepth 1 -name '*.js' -print -quit)"
+          test -d .sandbox/socio-worker-dry-run
+          test -n "$(find .sandbox/socio-worker-dry-run -type f \( -name '*.js' -o -name '*.mjs' \) -print -quit)"
           if grep -R -E 'sb_secret_|SUPABASE_SERVICE_ROLE_KEY|DEEPGRAM_API_KEY|SOCIO_QR_SIGNING_KEY_BASE64=' .sandbox/socio-worker-dry-run; then
             echo "Unexpected secret marker in isolated Worker bundle"
             exit 1
