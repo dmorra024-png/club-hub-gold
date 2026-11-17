@@ -20,6 +20,11 @@ test('email alone does not link a club; confirmed staff challenge and active mem
 });
 test('QR signature, other-club, inactive membership and expiration rejected',async()=>{
  const qr=await issueCardQr({clubId:a,memberId:m,secret,now,ttl:40});
+ assert.match(qr,/^ssc2\./);
+ assert.equal(qr.includes(a),false);
+ assert.equal(qr.includes(m),false);
+ assert.equal(qr.includes(Buffer.from(m).toString('base64url')),false);
+
  assert.equal((await verifyCardQr(qr,{clubId:a,secret,now:now+1000,memberActive:true})).ok,true);
  assert.equal((await verifyCardQr(qr,{clubId:b,secret,now:now+1000,memberActive:true})).ok,false);
  assert.equal((await verifyCardQr(qr,{clubId:a,secret,now:now+41000,memberActive:true})).ok,false);
