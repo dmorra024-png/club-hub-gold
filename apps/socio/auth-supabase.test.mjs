@@ -14,7 +14,7 @@ function fixture({allow=true,confirmed=true}={}){
   if(url.endsWith('/logout'))return Response.json({});
   return Response.json({}, {status:404});
  };
- const auth=createSupabaseSocioAuth({url:supabase,publishableKey:'sb_publishable_test',fetcher,authorizeSocioUser:async id=>allow&&id===uid});
+ const auth=createSupabaseSocioAuth({url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',fetcher,authorizeSocioUser:async id=>allow&&id===uid});
  return{auth,hits};
 }
 const req=(cookie='')=>new Request(origin+'/api/socio/me',{headers:{cookie}});
@@ -26,7 +26,7 @@ test('signup does not return session or enumerate membership',async()=>{
  const {auth,hits}=fixture();
  const r=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
  assert.equal(r.status,200);assert.equal(r.headers.get('set-cookie'),null);
- assert.equal(hits[0].url,supabase+'/auth/v1/signup');
+ assert.equal(hits[0].url,supabase+'/auth/v1/signup?redirect_to='+encodeURIComponent(origin+'/'));
  assert.equal(hits[0].opts.headers.apikey,'sb_publishable_test');
  assert.equal(JSON.stringify(await r.json()).includes(uid),false);
 });
