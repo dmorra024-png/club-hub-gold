@@ -23,6 +23,6 @@ jobs:
       - name: Validate isolated member app without production secrets or API
         run: node apps/socio/check.mjs
       - name: Verify isolated membership, QR and wallet guards
-        run: node --test apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auto-link.test.mjs apps/socio/http.test.mjs apps/socio/integration.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/bootstrap.test.mjs apps/socio/socio-role.test.mjs
+        run: node --test apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auto-link.test.mjs apps/socio/http.test.mjs apps/socio/integration.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/bootstrap.test.mjs apps/socio/socio-role.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
       - name: No deployment
         run: echo "Static-only checks; no Cloudflare deployment or Supabase mutations"
