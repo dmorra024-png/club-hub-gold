@@ -41,16 +41,16 @@ export function createSupabaseSocioAuth({url,publishableKey,fetcher=fetch,author
   return res.json().catch(()=>null);
  }
  const authUser=async token=>token?call('/user',{accessToken:token}):null;
- const checked=async user=>{
+ const checked=async(user,accessToken)=>{
   if(!userVerified(user))return false;
   // This MUST check server-managed privilege/membership records, not editable metadata.
-  return (await authorizeSocioUser(user.id))===true;
+  return (await authorizeSocioUser(user.id,accessToken))===true;
  };
  const authenticate=async request=>{
   const accessToken=tokenIn(request,ACCESS);
   if(!accessToken)return null;
   const user=await authUser(accessToken);
-  if(!(await checked(user)))return null;
+  if(!(await checked(user,accessToken)))return null;
   return{userId:user.id,email:user.email,emailVerified:true,accountType:'socio',accessToken};
  };
  const signup=async({input})=>{
@@ -67,7 +67,7 @@ export function createSupabaseSocioAuth({url,publishableKey,fetcher=fetch,author
   if(!data?.access_token||!data?.refresh_token)return failed(401,'INVALID_LOGIN');
   // Always re-check current Auth user, not the unsigned/stale token response user.
   const user=await authUser(data.access_token);
-  if(!(await checked(user)))return failed(401,'INVALID_LOGIN');
+  if(!(await checked(user,data.access_token)))return failed(401,'INVALID_LOGIN');
   return response({authenticated:true},200,sessionCookies(data));
  };
  const logout=async({request})=>{
