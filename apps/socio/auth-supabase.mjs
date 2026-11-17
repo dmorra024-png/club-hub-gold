@@ -58,7 +58,19 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   const email=normalize(input?.email),password=input?.password;
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||typeof password!=='string'||password.length<10||password.length>128)return failed(400,'INVALID_CREDENTIALS');
   // Avoid account existence or membership enumeration; no access cookies are issued.
-  try{await call('/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{method:'POST',body:{email,password}});}catch{}
+  // Fail visibly on provider outages instead of pretending a verification email was dispatched.
+  let status=0;
+  try{
+   const result=await fetcher(base+'/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{
+    method:'POST',
+    headers:{apikey:publishableKey,'content-type':'application/json'},
+    body:JSON.stringify({email,password}),
+    redirect:'error',signal:AbortSignal.timeout(8000)
+   });
+   status=result.status;
+  }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
+  if(status>=500||status===429)return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');
+  // A 4xx response can reflect an existing account; return non-enumerating accepted status.
   return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
  };
  const login=async({input})=>{
