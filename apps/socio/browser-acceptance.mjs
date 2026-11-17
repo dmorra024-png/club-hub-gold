@@ -33,6 +33,7 @@ function qrPreview(club){
 }
 async function setupApi(page){
  let loggedIn=false;
+ let secondClubLinked=false;
  const hits=[];
  await page.route('**/api/socio/**',async route=>{
   const request=route.request(),url=new URL(request.url()),path=url.pathname.slice('/api/socio'.length);
@@ -50,10 +51,15 @@ async function setupApi(page){
   if(path==='/auth/signup')return response({message:'Signup de prueba deshabilitado'},503);
   if(!loggedIn)return response({message:'Not authorized'},401);
   if(path==='/me')return response({authenticated:true,email:testEmail,emailVerified:true});
-  if(path==='/memberships/sync')return response({synced:true,linkedCount:2});
+  if(path==='/memberships/sync')return response({synced:true,linkedCount:1});
+  if(path==='/link/claim'&&method==='POST'){
+   let input={};try{input=JSON.parse(request.postData()||'{}')}catch{}
+   if(input.code!=='c'.repeat(48))return response({message:'Código inválido'},403);
+   secondClubLinked=true;return response({linked:true});
+  }
   if(path==='/clubs')return response({clubs:[
    {id:idA,name:'SNOOP Club Demo Palma',status:'active',walletEnabled:true},
-   {id:idB,name:'SNOOP Club Demo Madrid',status:'active',walletEnabled:true}
+   ...(secondClubLinked?[{id:idB,name:'SNOOP Club Demo Madrid',status:'active',walletEnabled:true}]:[])
   ]});
   const match=path.match(/^\/clubs\/([0-9a-f-]+)\/(carnet|carnet\/qr|wallet|wallet\/movements)$/i);
   if(!match)return response({message:'No route'},404);
@@ -107,6 +113,13 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('button',{name:'Volver al carnet'}).click();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('heading',{name:'Mis clubes'}).waitFor();
+  assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0,'Unlinked club must remain hidden');
+  await page.getByRole('button',{name:'Vincular otro club'}).click();
+  await page.getByRole('heading',{name:'Vincula tu carnet'}).waitFor();
+  await page.locator('input[name="code"]').fill('c'.repeat(48));
+  await page.getByRole('button',{name:'Vincular mi carnet'}).click();
+  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
+  await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
   await page.getByRole('heading',{name:'SNOOP Club Demo Madrid'}).waitFor();
   await page.getByText('Socio Nº 00077').waitFor();
@@ -127,6 +140,8 @@ async function runBrowser(browserType,deviceName,options){
   assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0);
   // Every route is intercepted; no live project endpoints can be contacted.
   assert(hits.some(h=>h==='GET /clubs/'+idB+'/wallet'));
+  assert(hits.some(h=>h==='POST /link/claim'));
+  assert(hits.some(h=>h==='GET /clubs/'+idA+'/wallet'));
   assert.equal(errors.length,0,'Browser JS errors: '+errors.join('; '));
   console.log('PASS',deviceName,'login, 2 clubs, QR, wallet, movements, logout; network mocked');
  }finally{await browser.close();}
