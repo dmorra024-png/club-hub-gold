@@ -30,8 +30,9 @@ const userVerified=u=>u&&typeof u.id==='string'&&typeof u.email==='string'&&type
  * deny management/super-admin identities, and permit only socio accounts.
  * Do not use Supabase user_metadata for this check.
  */
-export function createSupabaseSocioAuth({url,publishableKey,fetcher=fetch,authorizeSocioUser}){
+export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fetcher=fetch,authorizeSocioUser}){
  if(typeof url!=='string'||!/^https:\/\/[^/]+$/.test(url)||typeof publishableKey!=='string'||!publishableKey||typeof authorizeSocioUser!=='function')throw Error('SOCIO_AUTH_NOT_CONFIGURED');
+ if(typeof signupRedirectUrl!=='string'||!signupRedirectUrl.startsWith('https://')||new URL(signupRedirectUrl).search||new URL(signupRedirectUrl).hash)throw Error('SOCIO_SIGNUP_REDIRECT_REQUIRED');
  const base=url+'/auth/v1';
  async function call(path,{method='GET',body,accessToken}={}){
   const res=await fetcher(base+path,{method,headers:{
@@ -57,7 +58,7 @@ export function createSupabaseSocioAuth({url,publishableKey,fetcher=fetch,author
   const email=normalize(input?.email),password=input?.password;
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||typeof password!=='string'||password.length<10||password.length>128)return failed(400,'INVALID_CREDENTIALS');
   // Avoid account existence or membership enumeration; no access cookies are issued.
-  try{await call('/signup',{method:'POST',body:{email,password}});}catch{}
+  try{await call('/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{method:'POST',body:{email,password}});}catch{}
   return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
  };
  const login=async({input})=>{
