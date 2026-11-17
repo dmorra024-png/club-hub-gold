@@ -19,6 +19,7 @@ export class VoiceUsageLease {
   private connectedAt: number | null = null;
   private released = false;
   private closing: Promise<void> | null = null;
+  private closeElapsedMs: number | null = null;
   private readonly options: {
     url: string;
     key: string;
@@ -104,27 +105,47 @@ export class VoiceUsageLease {
   }
   async extend() {
     if (this.released) throw Error("VOICE_USAGE_CLOSED");
+    if (this.closeElapsedMs !== null) throw Error("VOICE_USAGE_CLOSING");
     const seq = this.sequence + 1;
     const result = await this.call("extend", seq);
     this.sequence = seq;
     return result;
   }
-  async close() {
-    if (this.released || !this.usage) return;
+  close(): Promise<void> {
+    if (this.released || !this.usage) return Promise.resolve();
     if (this.closing) return this.closing;
-    const elapsed = this.connectedAt === null ? 0 : Math.max(0, this.now() - this.connectedAt);
-    const closing = this.call(
-      "close",
-      this.sequence,
-      Math.min(elapsed, this.usage.reservedSeconds * 1000),
-    ).then(() => {
-      this.released = true;
-    });
-    this.closing = closing;
-    try {
-      await closing;
-    } finally {
-      if (this.closing === closing) this.closing = null;
+    if (this.closeElapsedMs === null) {
+      const elapsed = this.connectedAt === null ? 0 : Math.max(0, this.now() - this.connectedAt);
+      this.closeElapsedMs = Math.min(elapsed, this.usage.reservedSeconds * 1000);
     }
+    const closing = this.call("close", this.sequence, this.closeElapsedMs)
+      .then((result) => {
+        if (result.state !== "closed") throw Error("VOICE_USAGE_INVALID");
+        this.released = true;
+      })
+      .finally(() => {
+        if (this.closing === closing) this.closing = null;
+      });
+    this.closing = closing;
+    return closing;
+  }
+}
+/** One bounded retry; the server RPC is idempotent and the duration stays frozen at stop. */
+export async function settleVoiceUsageClose(lease: Pick<VoiceUsageLease, "close">): Promise<void> {
+  try {
+    await lease.close();
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      [
+        "VOICE_USAGE_INVALID",
+        "VOICE_USAGE_CONFIG_REQUIRED",
+        "VOICE_USAGE_CLOSED",
+        "VOICE_BUDGET_EXHAUSTED",
+      ].includes(error.message)
+    )
+      throw error;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await lease.close();
   }
 }

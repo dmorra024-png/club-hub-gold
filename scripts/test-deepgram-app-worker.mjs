@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { readdir } from "node:fs/promises";
 const compiled = process.argv.includes("--compiled");
+const closeRetryOnly = process.argv.includes("--close-retry");
 const require = createRequire(import.meta.url),
   { Miniflare, convertV4MiniflareOptions } = require(
     require.resolve("miniflare", { paths: [require.resolve("wrangler")] }),
@@ -18,7 +19,7 @@ const bundled = await build({
 });
 const script =
   bundled.outputFiles[0].text +
-  '\nexport default{async fetch(req,env){return await deepgramAppSocket(req,req.headers.get("x-test-wrong-project")?{...env,SUPABASE_URL:"https://other-project.example.invalid"}:env)??new Response("normal app");}}';
+  '\nexport default{async fetch(req,env,ctx){req.waitUntil=ctx.waitUntil.bind(ctx);return await deepgramAppSocket(req,req.headers.get("x-test-wrong-project")?{...env,SUPABASE_URL:"https://other-project.example.invalid"}:env)??new Response("normal app");}}';
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const bindings = {
@@ -31,12 +32,13 @@ const bindings = {
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_synthetic-meter",
   SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
 };
-const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0;export default{async fetch(req){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
- if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools});
+const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[];export default{async fetch(req){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
+ if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools,closeAttempts,closeDurations});
  if(u.hostname==='bnwanxbmprbymbutoths.supabase.co'){
   if(u.pathname==='/rest/v1/rpc/snoop_voice_usage'){
    if(req.headers.get('apikey')!=='sb_secret_synthetic-meter'||req.method!=='POST')throw Error('Meter credential scope');
    const p=await req.json();if(p.p_actor!=='${uid}'||p.p_club!=='${club}')throw Error('Meter identity');
+   if(p.p_operation==='close'){closeAttempts++;closeDurations.push(p.p_connected_ms);if(closeAttempts===1)return Response.json({message:'synthetic transient close failure'},{status:503});}
    return Response.json({session:p.p_id,sequence:p.p_sequence,state:p.p_operation==='close'?'closed':'active',leaseUntil:new Date(Date.now()+30000).toISOString(),reservedSeconds:30*(p.p_sequence+1),remainingSeconds:3500,monthlySeconds:3600,connectedMs:p.p_connected_ms,estimatedMicrousd:null,billedCostVerified:false});
   }
   authCalls++;if(token.includes('revoked'))return new Response('denied',{status:401});
@@ -198,8 +200,8 @@ try {
   assert(concurrent.events.some((e) => e.code === "SESSION_LIMIT"));
   concurrent.ws.close();
   assert.equal((await stats()).providerCalls, 1);
-  for (let turn = 0; turn < 7; turn++) {
-    await new Promise((r) => setTimeout(r, 14000));
+  for (let turn = 0; turn < (closeRetryOnly ? 1 : 7); turn++) {
+    await new Promise((r) => setTimeout(r, closeRetryOnly ? 20 : 14000));
     assert(
       !s.events.some((e) => e.type === "AppClosed"),
       "continuous conversation must survive beyond 90 seconds",
@@ -212,14 +214,24 @@ try {
   s.ws.send("STOP");
   await until(() => s.events.some((e) => e.code === "STOPPED"));
   s.ws.close();
+  const settleDeadline = Date.now() + 5000;
+  while ((await stats()).closeAttempts < 2 && Date.now() < settleDeadline)
+    await new Promise((r) => setTimeout(r, 25));
   const final = await stats();
+  assert.equal(final.closeAttempts, 2, "gateway must retry the failed metering close once");
+  assert.equal(
+    final.closeDurations[0],
+    final.closeDurations[1],
+    "retry must not charge network outage time",
+  );
   assert.equal(final.forbiddenCalls, 0);
-  assert.equal(final.tools, 8);
+  assert.equal(final.tools, closeRetryOnly ? 2 : 8);
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
   console.log(
     (compiled ? "PASS compiled application Worker: " : "PASS isolated Workerd gateway: ") +
-      " JWT verification, wrong user/club/staff/revoked denied, exact names-only RLS requests, binary audio, eight turns beyond 90s with renewed budget leases, one active session, no writes or secret exposure (provider simulated)",
+      (closeRetryOnly ? " two synthetic turns" : " eight turns beyond 90s") +
+      ", authenticated audio, one active session, failed close retried once with frozen duration, no business writes or secret exposure (provider simulated)",
   );
 } finally {
   await mf.dispose();

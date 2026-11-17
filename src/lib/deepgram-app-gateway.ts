@@ -1,6 +1,6 @@
 import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
 import { voiceCashToday } from "./voice/cash-read.server.ts";
-import { VoiceUsageLease } from "./voice/usage.server.ts";
+import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
   openVoiceSnapshot,
@@ -185,7 +185,9 @@ export async function deepgramAppSocket(
     authController.abort();
     connectionController?.abort();
     if (usage) {
-      const released = usage.close().catch(() => undefined);
+      const released = settleVoiceUsageClose(usage).catch(() => {
+        console.warn("SNOOP_VOICE_USAGE_CLOSE_UNCONFIRMED");
+      });
       const wait = (request as Request & { waitUntil?: (promise: Promise<unknown>) => void })
         .waitUntil;
       if (wait) wait(released);
@@ -242,7 +244,9 @@ export async function deepgramAppSocket(
         });
         const initialUsage = await usage.start();
         if (ended) {
-          await usage.close();
+          await settleVoiceUsageClose(usage).catch(() => {
+            console.warn("SNOOP_VOICE_USAGE_CLOSE_UNCONFIRMED");
+          });
           return;
         }
         send({ type: "AppUsage", usage: initialUsage });

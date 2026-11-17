@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
 import { sealVoiceSnapshot, openVoiceSnapshot } from "../src/lib/voice/checkpoint.server.ts";
 import { ActionReceipt, actionOutcome } from "../src/lib/voice/action-protocol.ts";
-import { VoiceUsageLease } from "../src/lib/voice/usage.server.ts";
+import { VoiceUsageLease, settleVoiceUsageClose } from "../src/lib/voice/usage.server.ts";
 test("application ports isolate club/user and stale component disposal", async () => {
   const a = voiceOwner("synthetic-user", "club-a"),
     b = voiceOwner("synthetic-user", "club-b");
@@ -149,10 +149,116 @@ test("usage close network failure can be retried, but successful close is not re
   await assert.rejects(lease.close(), /synthetic temporary network failure/);
   assert.equal(closeAttempts, 1);
   assert(lease.valid(), "a failed close is not acknowledged as remotely closed");
-  await Promise.all([lease.close(), lease.close()]);
+  const retry = lease.close(),
+    simultaneous = lease.close();
+  assert.equal(retry, simultaneous, "concurrent callers share the exact in-flight promise");
+  await Promise.all([retry, simultaneous]);
   assert.equal(closeAttempts, 2, "concurrent close calls share one retry");
   assert.equal(closeSuccess, 1);
   assert(!lease.valid());
   await lease.close();
   assert.equal(closeAttempts, 2, "successful close is idempotent");
+});
+
+test("close retries never charge time after audio has ended", async () => {
+  let clock = 100000;
+  const amounts: number[] = [];
+  const lease = new VoiceUsageLease({
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "sb_secret_synthetic",
+    actor: "synthetic-admin",
+    club: "synthetic-club",
+    now: () => clock,
+    fetch: (async (_url, init) => {
+      const p = JSON.parse(init!.body as string);
+      if (p.p_operation === "close") {
+        amounts.push(p.p_connected_ms);
+        if (amounts.length === 1) throw Error("synthetic connection interruption");
+      }
+      return Response.json({
+        session: p.p_id,
+        sequence: p.p_sequence,
+        state: p.p_operation === "close" ? "closed" : "active",
+        leaseUntil: new Date(clock + 30000).toISOString(),
+        reservedSeconds: 30,
+        remainingSeconds: 60,
+        monthlySeconds: 90,
+        connectedMs: p.p_connected_ms,
+        estimatedMicrousd: null,
+        billedCostVerified: false,
+      });
+    }) as typeof fetch,
+  });
+  await lease.start();
+  lease.markConnected();
+  clock += 1200;
+  await assert.rejects(lease.close());
+  await assert.rejects(lease.extend(), /VOICE_USAGE_CLOSING/);
+  clock += 5000;
+  await lease.close();
+  assert.deepEqual(amounts, [1200, 1200], "network outage after stop is not connected voice time");
+});
+
+test("close requires a confirmed closed state, not merely HTTP 200", async () => {
+  let closes = 0;
+  const lease = new VoiceUsageLease({
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "sb_secret_synthetic",
+    actor: "synthetic-admin",
+    club: "synthetic-club",
+    fetch: (async (_url, init) => {
+      const p = JSON.parse(init!.body as string);
+      if (p.p_operation === "close") closes++;
+      return Response.json({
+        session: p.p_id,
+        sequence: p.p_sequence,
+        state: closes >= 2 ? "closed" : "active",
+        leaseUntil: new Date(Date.now() + 30000).toISOString(),
+        reservedSeconds: 30,
+        remainingSeconds: 60,
+        monthlySeconds: 90,
+        connectedMs: 0,
+        estimatedMicrousd: null,
+        billedCostVerified: false,
+      });
+    }) as typeof fetch,
+  });
+  await lease.start();
+  await assert.rejects(lease.close(), /VOICE_USAGE_INVALID/);
+  assert(lease.valid());
+  await lease.close();
+  assert.equal(closes, 2);
+  assert(!lease.valid());
+});
+
+test("gateway settlement retries once and does not retry permanent validation failures", async () => {
+  let calls = 0;
+  await settleVoiceUsageClose({
+    close: async () => {
+      if (++calls === 1) throw Error("synthetic network error");
+    },
+  });
+  assert.equal(calls, 2);
+  calls = 0;
+  await assert.rejects(
+    settleVoiceUsageClose({
+      close: async () => {
+        calls++;
+        throw Error("VOICE_USAGE_INVALID");
+      },
+    }),
+    /VOICE_USAGE_INVALID/,
+  );
+  assert.equal(calls, 1);
+  calls = 0;
+  await assert.rejects(
+    settleVoiceUsageClose({
+      close: async () => {
+        calls++;
+        throw Error("synthetic permanent outage");
+      },
+    }),
+    /synthetic permanent outage/,
+  );
+  assert.equal(calls, 2);
 });
