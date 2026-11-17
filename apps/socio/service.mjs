@@ -1,4 +1,5 @@
 import {verifiedClubMemberships,verifyMembershipClaim,issueCardQr,verifyCardQr} from './domain.mjs';
+import {planAutomaticLinks,normalizeVerifiedEmail} from './auto-link.mjs';
 
 /**
  * Framework independent server-side Socio business service.
@@ -33,6 +34,20 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
   async clubs(actor){
    const list=await owned(actor);
    return{clubs:list.map(m=>({id:m.clubId,name:m.clubName,status:'active',walletEnabled:m.walletEnabled}))};
+  },
+  async syncClubs(actor){
+   verifiedActor(actor);
+   const verifiedEmail=normalizeVerifiedEmail(actor.email);
+   if(!verifiedEmail)throw error('VERIFIED_EMAIL_REQUIRED',400);
+   // Atomically look up eligible memberships by confirmed email, check uniqueness and
+   // insert verified links. The repository must derive candidates from its private DB,
+   // never from the browser. Member email confirmation at enrollment is mandatory.
+   const result=await repository.autoLinkForVerifiedEmail({
+    authUserId:actor.userId,verifiedEmail,emailConfirmed:true,
+    nowMs:now(),policy:planAutomaticLinks
+   });
+   if(!result||!Number.isSafeInteger(result.linkedCount)||result.linkedCount<0)throw error('SYNC_UNAVAILABLE',503);
+   return{synced:true,linkedCount:result.linkedCount};
   },
   async linkMembership(actor,code){
    verifiedActor(actor);
