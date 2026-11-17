@@ -16,6 +16,9 @@ values
 insert into public.socio_membership_links(auth_user_id,club_id,member_id,status,verified_at) values
 ('9d5d3ca0-de23-467b-8ad4-211fce9003b9','4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc','c319b1ed-9389-4c81-9e7f-42f808d95c34','verified',now()),
 ('9ab51fa6-dff9-4d15-a80a-a32295264c8d','63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4','437f044d-9c4d-4b95-8672-d2b8c9af3851','verified',now());
+insert into public.socio_club_wallet_settings(club_id,enabled) values
+('4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc',true),
+('63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4',true);
 insert into public.socio_wallet_accounts(club_id,member_id,balance_cents) values
 ('4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc','c319b1ed-9389-4c81-9e7f-42f808d95c34',2575),
 ('63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4','437f044d-9c4d-4b95-8672-d2b8c9af3851',6000);
