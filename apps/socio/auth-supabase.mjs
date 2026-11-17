@@ -82,7 +82,7 @@ export function createSupabaseSocioAuth({url,publishableKey,fetcher=fetch,author
   let data;try{data=await call('/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:refreshToken}});}catch{return failed(503,'REFRESH_UNAVAILABLE');}
   if(!data?.access_token||!data.refresh_token)return response({authenticated:false},401,clear());
   const user=await authUser(data.access_token);
-  if(!(await checked(user)))return response({authenticated:false},401,clear());
+  if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
  return{authenticate,signup,login,logout,refresh};
