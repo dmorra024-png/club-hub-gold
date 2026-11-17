@@ -1,0 +1,73 @@
+import {verifiedClubMemberships,verifyMembershipClaim,issueCardQr,verifyCardQr} from './domain.mjs';
+
+/**
+ * Framework independent server-side Socio business service.
+ * All repo methods and actor claims MUST be supplied by authenticated backend adapters.
+ * No prod Auth, SQL, HTTP routes, token exposure, or balance writes in this module.
+ */
+const UUID=/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i;
+const isUuid=x=>typeof x==='string'&&UUID.test(x);
+const error=(code,status=403)=>Object.assign(new Error(code),{code,status});
+const verifiedActor=actor=>{
+ if(!actor||!isUuid(actor.userId)||actor.emailVerified!==true||actor.accountType!=='socio')throw error('SOCIO_UNAUTHORIZED',401);
+ return actor;
+};
+export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
+ if(!repository||!(signingSecret instanceof Uint8Array)||signingSecret.length<32)throw Error('SOCIO_NOT_CONFIGURED');
+ async function owned(actor){
+  verifiedActor(actor);
+  const [links, memberships]=await Promise.all([
+   repository.linksForUser(actor.userId),
+   repository.membershipsForUser(actor.userId)
+  ]);
+  return verifiedClubMemberships(actor.userId,links,memberships);
+ }
+ async function membership(actor,clubId){
+  if(!isUuid(clubId))throw error('CLUB_INVALID',400);
+  const list=await owned(actor);
+  const item=list.find(m=>m.clubId===clubId);
+  if(!item)throw error('MEMBERSHIP_NOT_FOUND',404);
+  return item;
+ }
+ return {
+  async clubs(actor){
+   const list=await owned(actor);
+   return{clubs:list.map(m=>({id:m.clubId,name:m.clubName,status:'active',walletEnabled:m.walletEnabled}))};
+  },
+  async linkMembership(actor,code){
+   verifiedActor(actor);
+   if(typeof code!=='string'||code.length<6||code.length>64||!/^[A-Za-z0-9-]+$/.test(code))throw error('LINK_CODE_INVALID',400);
+   // This repository method must validate staff issuance, expiration, single-use, account identity,
+   // and membership activation, then consume + insert a link in ONE DB transaction.
+   const result=await repository.claimAndConsumeLinkChallenge({code,authUserId:actor.userId,nowMs:now(),policy:verifyMembershipClaim});
+   if(!result?.ok)throw error('LINK_NOT_AUTHORIZED',403);
+   return{linked:true};
+  },
+  async card(actor,clubId){
+   const item=await membership(actor,clubId);
+   return{memberNumber:item.memberNumber,clubId:item.clubId,active:true};
+  },
+  async qr(actor,clubId){
+   const item=await membership(actor,clubId);
+   const token=await issueCardQr({clubId:item.clubId,memberId:item.memberId,now:now(),secret:signingSecret,ttl:40});
+   return{token,expiresIn:40};
+  },
+  async wallet(actor,clubId){
+   const item=await membership(actor,clubId);
+   if(!item.walletEnabled)throw error('WALLET_DISABLED',404);
+   // repository must enforce tenant/user scope independently, no caller-provided balance accepted.
+   const result=await repository.walletForMember(item.clubId,item.memberId);
+   if(!result||!Number.isSafeInteger(result.balanceCents)||result.balanceCents<0)throw error('WALLET_UNAVAILABLE',503);
+   return{balanceCents:result.balanceCents};
+  },
+  async scan(staff,token){
+   if(!staff||staff.accountType!=='staff'||staff.verified!==true||!isUuid(staff.clubId)||staff.canScan!==true)throw error('SCANNER_UNAUTHORIZED');
+   const checked=await verifyCardQr(token,{clubId:staff.clubId,secret:signingSecret,now:now(),memberActive:true});
+   if(!checked.ok)throw error('QR_REJECTED');
+   // Confirm current club membership from server, not token or staff's client flags.
+   const valid=await repository.isMemberActive(checked.clubId,checked.memberId);
+   if(valid!==true)throw error('MEMBERSHIP_REVOKED');
+   return{clubId:checked.clubId,memberId:checked.memberId,valid:true};
+  }
+ };
+}
