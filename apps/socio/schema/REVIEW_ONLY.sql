@@ -6,13 +6,14 @@ create table if not exists public.socio_membership_links (
  id uuid primary key default gen_random_uuid(),
  auth_user_id uuid not null references auth.users(id) on delete cascade,
  club_id uuid not null references public.clubs(id),
- member_id uuid not null references public.members(id),
+ member_id uuid not null,
  status text not null check (status in ('verified','revoked')),
  verified_at timestamptz,
  revoked_at timestamptz,
  created_at timestamptz not null default now(),
  unique (club_id,member_id),
  unique (auth_user_id,club_id,member_id),
+ foreign key (member_id,club_id) references public.members(id,club_id),
  check ((status='verified' and verified_at is not null and revoked_at is null)
    or status='revoked')
 );
@@ -27,14 +28,15 @@ create policy socio_links_read_own on public.socio_membership_links
 -- Reviewed management transactions must keep it in sync with member status/renews.
 create table if not exists public.socio_member_cards (
  club_id uuid not null references public.clubs(id),
- member_id uuid not null references public.members(id),
+ member_id uuid not null,
  club_name text not null,
  member_number text not null,
  active boolean not null default false,
  wallet_enabled boolean not null default false,
  revoked_at timestamptz,
  updated_at timestamptz not null default now(),
- primary key (club_id,member_id)
+ primary key (club_id,member_id),
+ foreign key (member_id,club_id) references public.members(id,club_id)
 );
 alter table public.socio_member_cards enable row level security;
 revoke all on public.socio_member_cards from anon, authenticated;
@@ -51,10 +53,11 @@ create policy socio_cards_read_linked_own on public.socio_member_cards
 -- This read-only structure will remain empty until approved rollout.
 create table if not exists public.socio_wallet_accounts (
  club_id uuid not null references public.clubs(id),
- member_id uuid not null references public.members(id),
+ member_id uuid not null,
  balance_cents bigint not null default 0 check(balance_cents>=0),
  updated_at timestamptz not null default now(),
- primary key(club_id,member_id)
+ primary key(club_id,member_id),
+ foreign key (member_id,club_id) references public.members(id,club_id)
 );
 alter table public.socio_wallet_accounts enable row level security;
 revoke all on public.socio_wallet_accounts from anon, authenticated;
@@ -110,6 +113,59 @@ create policy socio_ledger_read_own on public.socio_wallet_ledger
       and l.member_id=socio_wallet_ledger.member_id and l.status='verified'
       and l.revoked_at is null and c.active and c.wallet_enabled and c.revoked_at is null)
  );
+
+-- ONE option per club; disabled unless an admin and accounting workflow opt in.
+-- No direct edits by Socio PWA users; wallet_enabled projections must stay
+-- synchronized with this setting. Consent and accounting review precede use.
+create table if not exists public.socio_club_wallet_settings (
+ club_id uuid primary key references public.clubs(id),
+ enabled boolean not null default false,
+ changed_by uuid references auth.users(id),
+ changed_at timestamptz not null default now()
+);
+alter table public.socio_club_wallet_settings enable row level security;
+revoke all on public.socio_club_wallet_settings from public,anon,authenticated;
+
+-- Staff-approved, single-use link challenges: only a SHA-256 digest of the
+-- random secret is stored; never the plaintext code. No access from browser.
+create table if not exists public.socio_member_claim_challenges (
+ id uuid primary key default gen_random_uuid(),
+ club_id uuid not null references public.clubs(id),
+ member_id uuid not null,
+ code_sha256 bytea not null unique check(octet_length(code_sha256)=32),
+ issued_by uuid not null references auth.users(id),
+ issued_at timestamptz not null default now(),
+ expires_at timestamptz not null,
+ consumed_at timestamptz,
+ consumed_by uuid references auth.users(id),
+ revoked_at timestamptz,
+ foreign key(member_id,club_id) references public.members(id,club_id),
+ check(expires_at>issued_at),
+ check((consumed_at is null and consumed_by is null)
+   or (consumed_at is not null and consumed_by is not null))
+);
+create index if not exists socio_claim_active_idx
+ on public.socio_member_claim_challenges(club_id,member_id,expires_at)
+ where consumed_at is null and revoked_at is null;
+alter table public.socio_member_claim_challenges enable row level security;
+revoke all on public.socio_member_claim_challenges from public,anon,authenticated;
+
+-- One-use replay store. The QR nonce is stored hashed; atomic insert must
+-- reject duplicates, with server-side TTL and staff authorization validation.
+create table if not exists public.socio_qr_scan_nonces (
+ nonce_sha256 bytea primary key check(octet_length(nonce_sha256)=32),
+ club_id uuid not null references public.clubs(id),
+ member_id uuid not null,
+ scanned_by uuid not null references auth.users(id),
+ scanned_at timestamptz not null default now(),
+ expires_at timestamptz not null,
+ foreign key(member_id,club_id) references public.members(id,club_id),
+ check(expires_at>scanned_at)
+);
+create index if not exists socio_qr_scan_expiry_idx on public.socio_qr_scan_nonces(expires_at);
+alter table public.socio_qr_scan_nonces enable row level security;
+revoke all on public.socio_qr_scan_nonces from public,anon,authenticated;
+
 -- No INSERT/UPDATE/DELETE grants for socio users on any table.
 -- Unique order and reversal constraints are necessary but not sufficient: trusted
 -- transaction must verify order club, member, amount, cancellation state, prior
