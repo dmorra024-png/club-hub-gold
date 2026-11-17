@@ -54,5 +54,26 @@ jobs:
             echo "Unexpected secret marker in isolated Worker bundle"
             exit 1
           fi
+      - name: Package downloadable client preview with instructions
+        run: |
+          mkdir -p .sandbox/snoop-socio-download
+          cp apps/socio/dist/index.html apps/socio/dist/styles.css apps/socio/dist/main.js apps/socio/dist/manifest.webmanifest apps/socio/dist/sw.js apps/socio/dist/icon.svg .sandbox/snoop-socio-download/
+          cat > .sandbox/snoop-socio-download/LEGGIMI.txt <<'INFO'
+          SNOOP SOCIO — PWA CLIENT (ANTEPRIMA TECNICA)
+          Questo pacchetto contiene solo l'interfaccia client originale SNOOP Socio.
+          NON e' un APK, non contiene account demo e non include dati reali dei soci.
+          Per installare la PWA su Android e iPhone, va pubblicata su un dominio HTTPS
+          con il backend /api/socio configurato, verifiche email e database autorizzato.
+          Aprire index.html come file locale NON attiva login, QR, saldo o Monedero.
+          Non usare questo pacchetto per operazioni reali o distribuzione ai soci.
+          NESSUN deposito di credenziali, chiavi API o dati personali nel pacchetto.
+          INFO
+      - name: Upload downloadable SNOOP Socio client preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-socio-client-preview
+          path: .sandbox/snoop-socio-download/
+          if-no-files-found: error
+          retention-days: 30
       - name: No deployment or database connection
         run: echo "Staging packaging only; no network calls to private project"
