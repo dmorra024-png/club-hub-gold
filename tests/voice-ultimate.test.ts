@@ -111,3 +111,48 @@ test("receipt metadata cannot carry arbitrary personal text as field keys", () =
     false,
   );
 });
+
+test("usage close network failure can be retried, but successful close is not repeated", async () => {
+  let clock = 100000;
+  let closeAttempts = 0;
+  let closeSuccess = 0;
+  const lease = new VoiceUsageLease({
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "sb_secret_synthetic",
+    actor: "synthetic-admin",
+    club: "synthetic-club",
+    now: () => clock,
+    fetch: (async (_url, init) => {
+      const p = JSON.parse(init!.body as string);
+      if (p.p_operation === "close") {
+        closeAttempts++;
+        if (closeAttempts === 1) throw Error("synthetic temporary network failure");
+        closeSuccess++;
+      }
+      return Response.json({
+        session: p.p_id,
+        sequence: p.p_sequence,
+        state: p.p_operation === "close" ? "closed" : "active",
+        leaseUntil: new Date(clock + 30000).toISOString(),
+        reservedSeconds: 30,
+        remainingSeconds: 60,
+        monthlySeconds: 90,
+        connectedMs: p.p_connected_ms,
+        estimatedMicrousd: null,
+        billedCostVerified: false,
+      });
+    }) as typeof fetch,
+  });
+  await lease.start();
+  lease.markConnected();
+  clock += 1200;
+  await assert.rejects(lease.close(), /synthetic temporary network failure/);
+  assert.equal(closeAttempts, 1);
+  assert(lease.valid(), "a failed close is not acknowledged as remotely closed");
+  await Promise.all([lease.close(), lease.close()]);
+  assert.equal(closeAttempts, 2, "concurrent close calls share one retry");
+  assert.equal(closeSuccess, 1);
+  assert(!lease.valid());
+  await lease.close();
+  assert.equal(closeAttempts, 2, "successful close is idempotent");
+});
