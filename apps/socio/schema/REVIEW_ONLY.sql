@@ -75,13 +75,30 @@ create table if not exists public.socio_wallet_ledger (
  club_id uuid not null,
  member_id uuid not null,
  operation_id uuid not null unique,
+ kind text not null check(kind in ('topup','spend','refund')),
+ order_id uuid references public.orders(id),
+ cash_session_id uuid references public.cash_sessions(id),
+ reversal_of uuid references public.socio_wallet_ledger(operation_id),
+ actor_id uuid not null references auth.users(id),
  delta_cents bigint not null check(delta_cents<>0),
  balance_after_cents bigint not null check(balance_after_cents>=0),
  label text not null,
  created_at timestamptz not null default now(),
- foreign key(club_id,member_id) references public.socio_wallet_accounts(club_id,member_id)
+ foreign key(club_id,member_id) references public.socio_wallet_accounts(club_id,member_id),
+ check (
+  (kind='topup' and delta_cents>0 and cash_session_id is not null and order_id is null and reversal_of is null)
+  or (kind='spend' and delta_cents<0 and order_id is not null and cash_session_id is null and reversal_of is null)
+  or (kind='refund' and delta_cents>0 and order_id is not null and cash_session_id is null and reversal_of is not null)
+ )
 );
 create index if not exists socio_ledger_history_idx on public.socio_wallet_ledger(club_id,member_id,created_at desc);
+-- A single order can be spent or refunded only once, regardless of request ID.
+create unique index if not exists socio_ledger_one_order_event
+ on public.socio_wallet_ledger(club_id,order_id,kind)
+ where order_id is not null and kind in ('spend','refund');
+-- A spend event may be reversed only once, even if a different order ID is supplied.
+create unique index if not exists socio_ledger_one_reversal
+ on public.socio_wallet_ledger(reversal_of) where reversal_of is not null;
 alter table public.socio_wallet_ledger enable row level security;
 revoke all on public.socio_wallet_ledger from anon, authenticated;
 grant select on public.socio_wallet_ledger to authenticated;
@@ -94,6 +111,9 @@ create policy socio_ledger_read_own on public.socio_wallet_ledger
       and l.revoked_at is null and c.active and c.wallet_enabled and c.revoked_at is null)
  );
 -- No INSERT/UPDATE/DELETE grants for socio users on any table.
+-- Unique order and reversal constraints are necessary but not sufficient: trusted
+-- transaction must verify order club, member, amount, cancellation state, prior
+-- debit kind and amount, cash session club/status, and staff permission.
 -- Staff approval, email claim, card synchronization, wallet credits and reversals
 -- require separate reviewed procedures enforcing RLS, idempotency and audit.
 commit;
