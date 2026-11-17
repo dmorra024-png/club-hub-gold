@@ -73,7 +73,8 @@ async function refreshCarnet(){
   state.member=member;
   const r=await fetch(endpoint+'/clubs/'+enc(id)+'/carnet/qr',{credentials:'include',cache:'no-store',headers:{Accept:'image/png'}});
   if(!current())return;
-  if(!r.ok||!r.headers.get('content-type')?.startsWith('image/png'))throw Error('No se puede generar el QR válido.');
+  const qrContentType=r.headers.get('content-type')||'';
+  if(!r.ok||!(qrContentType.startsWith('image/png')||qrContentType.startsWith('image/svg+xml')))throw Error('No se puede generar el QR válido.');
   const blob=await r.blob();
   if(!blob.size||blob.size>500000)throw Error('QR inválido.');
   if(!current())return;
