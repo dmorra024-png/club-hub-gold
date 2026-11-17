@@ -34,6 +34,8 @@ function qrPreview(club){
 async function setupApi(page){
  let loggedIn=false;
  let secondClubLinked=false;
+ let holdNextClubAWallet=false,releaseHeldWallet=null,heldWalletReached=null;
+ const heldWalletHit=new Promise(resolve=>{heldWalletReached=resolve;});
  const hits=[];
  await page.route('**/api/socio/**',async route=>{
   const request=route.request(),url=new URL(request.url()),path=url.pathname.slice('/api/socio'.length);
@@ -67,7 +69,16 @@ async function setupApi(page){
   if(![idA,idB].includes(club))return response({message:'Not found'},404);
   if(action==='carnet')return response({clubId:club,memberNumber:club===idA?'00124':'00077',active:true});
   if(action==='carnet/qr')return response(qrPreview(club),200,'image/svg+xml');
-  if(action==='wallet')return response({balanceCents:club===idA?2575:6000});
+  if(action==='wallet'){
+   if(club===idA&&holdNextClubAWallet){
+    holdNextClubAWallet=false;
+    heldWalletReached();
+    await new Promise(resolve=>{releaseHeldWallet=resolve;});
+    // Deliberately stale answer: it must never reappear after logout/login.
+    return response({balanceCents:99999});
+   }
+   return response({balanceCents:club===idA?2575:6000});
+  }
   if(action==='wallet/movements')return response({items:[{
    deltaCents:club===idA?-825:6000,
    balanceCents:club===idA?2575:6000,
@@ -76,7 +87,7 @@ async function setupApi(page){
   }]});
   return response({},404);
  });
- return hits;
+ return {hits,heldWalletHit,holdNextWallet:()=>{holdNextClubAWallet=true;},releaseWallet:()=>{releaseHeldWallet?.();}};
 }
 async function runBrowser(browserType,deviceName,options){
  const browser=await browserType.launch({headless:true});
@@ -86,7 +97,7 @@ async function runBrowser(browserType,deviceName,options){
  });
  const page=await context.newPage();
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- const hits=await setupApi(page);
+ const fixture=await setupApi(page),hits=fixture.hits;
  const port=server.address().port;
  try{
   await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded'});
@@ -130,6 +141,10 @@ async function runBrowser(browserType,deviceName,options){
   assert.equal(await page.getByText('Aportación Palma').count(),0);
   await page.screenshot({path:join(screenshotDir,deviceName+'-wallet.png'),fullPage:true});
   await page.getByRole('button',{name:'Volver al carnet'}).click();
+  await page.getByRole('button',{name:'Mis clubes'}).click();
+  fixture.holdNextWallet();
+  await page.getByRole('button',{name:/SNOOP Club Demo Palma/}).click();
+  await fixture.heldWalletHit;
   await page.getByRole('button',{name:'Menú'}).click();
   await page.getByRole('button',{name:'Cerrar sesión'}).click();
   await page.getByRole('heading',{name:'Bienvenido'}).waitFor();
@@ -138,6 +153,17 @@ async function runBrowser(browserType,deviceName,options){
   assert.equal(await page.evaluate(()=>sessionStorage.getItem('snoop-socio-last-club')),null);
   assert.equal(await page.getByText('SNOOP Club Demo Palma').count(),0);
   assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0);
+  // A new login for the same club must not accept a late balance from the
+  // previous authenticated session, even if the club ID happens to match.
+  await page.locator('input[name="email"]').fill(testEmail);
+  await page.locator('input[name="password"]').fill(testPassword);
+  await page.getByRole('button',{name:'Iniciar sesión'}).click();
+  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
+  await page.getByText('25,75 €').waitFor();
+  fixture.releaseWallet();
+  await page.waitForTimeout(250);
+  assert.equal(await page.getByText('999,99 €').count(),0,'Stale wallet response leaked across sign-out');
+  await page.getByText('25,75 €').waitFor();
   // Every route is intercepted; no live project endpoints can be contacted.
   assert(hits.some(h=>h==='GET /clubs/'+idB+'/wallet'));
   assert(hits.some(h=>h==='POST /link/claim'));
