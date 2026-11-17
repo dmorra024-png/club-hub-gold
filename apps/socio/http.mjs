@@ -42,9 +42,9 @@ export function makeSocioHttpHandler({service,authenticate,renderQrPng,auth={},o
    if(method==='POST'&&!isTrustedMutation(request,origin))return fail('CSRF_REJECTED',403);
    if(path.startsWith('/auth/')){
     const name=path.slice('/auth/'.length);
-    const action=name==='signup'?'signup':name==='login'?'login':name==='logout'?'logout':null;
+    const action=name==='signup'?'signup':name==='login'?'login':name==='logout'?'logout':name==='refresh'?'refresh':null;
     if(method!=='POST'||!action||typeof auth[action]!=='function')return fail('AUTH_NOT_IMPLEMENTED',503);
-    const input=name==='logout'?{}:await parseJson(request,3200);
+    const input=(name==='logout'||name==='refresh')?{}:await parseJson(request,3200);
     const response=await auth[action]({request,input});
     if(!(response instanceof Response))throw Error('AUTH_HANDLER_INVALID');
     return response;
