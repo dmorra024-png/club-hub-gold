@@ -2,7 +2,7 @@
 // No demo accounts, fabricated balances or operational QR tokens. No credentials in localStorage.
 const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
-  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,installPrompt:null,qrRefresh:null};
+  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null};
 const endpoint = '/api/socio';
 const enc = (v)=>encodeURIComponent(String(v));
 const safe = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,7 +15,7 @@ async function api(path,{method='GET',body}={}){
   if(!response.ok)throw Error(response.status===404||response.status===503?'Servicio de socios aún no disponible.':(value?.message||'No se pudo completar la solicitud.'));
   return value;
 }
-function stopQr(){if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
+function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
 function resetClub(){stopQr();state.selected=null;state.member=null;state.wallet=null;}
 function brand(){return '<header class="brand"><div><div class="brand-word">SNOOP</div><div class="subbrand">PORTAL SOCIOS</div></div>'+
 (state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
@@ -57,7 +57,31 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
 async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;stopQr();state.selected=c.id;state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
-async function refreshCarnet(){const id=state.selected;if(!id||document.hidden)return;try{const member=await api('/clubs/'+enc(id)+'/carnet');if(state.selected!==id)return;state.member=member;const r=await fetch(endpoint+'/clubs/'+enc(id)+'/carnet/qr',{credentials:'include',cache:'no-store',headers:{Accept:'image/png'}});if(!r.ok||!r.headers.get('content-type')?.startsWith('image/png'))throw Error('No se puede generar el QR válido.');const blob=await r.blob();if(!blob.size||blob.size>500000)throw Error('QR inválido.');const uri=URL.createObjectURL(blob);if(state.selected!==id){URL.revokeObjectURL(uri);return;}if(state.qrUrl)URL.revokeObjectURL(state.qrUrl);state.qrUrl=uri;state.message='';state.error=false;render();if(!state.qrRefresh)state.qrRefresh=setInterval(()=>{if(!document.hidden&&state.page==='carnet'&&!state.pending)refreshCarnet();},20000);}catch(e){if(state.selected!==id)return;stopQr();notify(e.message||'Carnet no disponible.',true);}}
+async function refreshCarnet(){
+ const id=state.selected;
+ if(!id||document.hidden||state.page!=='carnet')return;
+ const requestId=++state.qrRequest;
+ const current=()=>state.selected===id&&state.page==='carnet'&&!document.hidden&&state.qrRequest===requestId;
+ try{
+  const member=await api('/clubs/'+enc(id)+'/carnet');
+  if(!current())return;
+  state.member=member;
+  const r=await fetch(endpoint+'/clubs/'+enc(id)+'/carnet/qr',{credentials:'include',cache:'no-store',headers:{Accept:'image/png'}});
+  if(!current())return;
+  if(!r.ok||!r.headers.get('content-type')?.startsWith('image/png'))throw Error('No se puede generar el QR válido.');
+  const blob=await r.blob();
+  if(!blob.size||blob.size>500000)throw Error('QR inválido.');
+  if(!current())return;
+  const uri=URL.createObjectURL(blob);
+  if(!current()){URL.revokeObjectURL(uri);return;}
+  if(state.qrUrl)URL.revokeObjectURL(state.qrUrl);
+  state.qrUrl=uri;state.message='';state.error=false;render();
+  if(!state.qrRefresh)state.qrRefresh=setInterval(()=>{if(!document.hidden&&state.page==='carnet'&&!state.pending)void refreshCarnet();},20000);
+ }catch(e){
+  if(!current())return;
+  stopQr();notify(e.message||'Carnet no disponible.',true);
+ }
+}
 async function refreshWallet(){const id=state.selected;const c=state.clubs.find(c=>c.id===id);if(!c?.walletEnabled)return;try{const wallet=await api('/clubs/'+enc(id)+'/wallet');if(state.selected===id){state.wallet=wallet;render();}}catch{if(state.selected===id){state.wallet=null;render();}}}
 async function refreshMovements(){
  const id=state.selected;if(!id)return;
