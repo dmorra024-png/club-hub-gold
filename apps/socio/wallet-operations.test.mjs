@@ -61,6 +61,8 @@ test('rejects unconfirmed action, wrong tenant, no permission and invalid amount
  [staff,topup({amountCents:-5})],
  [staff,spend({orderId:undefined})],
  [staff,topup({cashSessionId:undefined})],
+ [staff,spend({cashSessionId:session})],
+ [staff,{clubId:clubA,memberId:member,operationId:opA,kind:'refund',amountCents:2100,orderId:order,reversalOf:opB,cashSessionId:session,confirmed:true}],
  ]){
   await assert.rejects(r.service.commit(who,op));
  }
