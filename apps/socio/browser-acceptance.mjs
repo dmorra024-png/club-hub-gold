@@ -121,6 +121,10 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('button',{name:'Cerrar sesión'}).click();
   await page.getByRole('heading',{name:'Bienvenido'}).waitFor();
   assert.equal(await page.getByText('60,00 €').count(),0);
+  assert.equal(await page.locator('input[name="email"]').inputValue(),'');
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('snoop-socio-last-club')),null);
+  assert.equal(await page.getByText('SNOOP Club Demo Palma').count(),0);
+  assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0);
   // Every route is intercepted; no live project endpoints can be contacted.
   assert(hits.some(h=>h==='GET /clubs/'+idB+'/wallet'));
   assert.equal(errors.length,0,'Browser JS errors: '+errors.join('; '));
