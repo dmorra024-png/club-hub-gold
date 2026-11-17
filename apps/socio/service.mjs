@@ -75,6 +75,13 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
    if(!result||!Number.isSafeInteger(result.balanceCents)||result.balanceCents<0)throw error('WALLET_UNAVAILABLE',503);
    return{balanceCents:result.balanceCents};
   },
+  async walletMovements(actor,clubId){
+   const item=await membership(actor,clubId);
+   if(!item.walletEnabled)throw error('WALLET_DISABLED',404);
+   const records=await repository.walletMovementsForMember(item.clubId,item.memberId);
+   if(!Array.isArray(records))throw error('MOVEMENTS_UNAVAILABLE',503);
+   return{items:records.filter(r=>Number.isSafeInteger(r.deltaCents)&&Number.isSafeInteger(r.balanceCents)&&r.balanceCents>=0&&typeof r.createdAt==='string').slice(0,100).map(r=>({deltaCents:r.deltaCents,balanceCents:r.balanceCents,createdAt:r.createdAt,label:String(r.label||'Movimiento').slice(0,120)}))};
+  },
   async scan(staff,token){
    if(!staff||staff.accountType!=='staff'||staff.verified!==true||!isUuid(staff.clubId)||staff.canScan!==true)throw error('SCANNER_UNAUTHORIZED');
    const checked=await verifyCardQr(token,{clubId:staff.clubId,secret:signingSecret,now:now(),memberActive:true});
