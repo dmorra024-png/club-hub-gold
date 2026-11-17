@@ -162,5 +162,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/CLAIM_RPCS_REVIEW_ONLY.sql
       - name: Verify issuance, verified account claim and one-use protection
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_CLAIM.sql
+      - name: Compile minimal membership card sync procedure in isolated database
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/CARD_SYNC_REVIEW_ONLY.sql
+      - name: Verify member renewal/expiry and optional wallet projection
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_CARD_SYNC.sql
       - name: No Supabase modifications
         run: echo "Only ephemeral local PostgreSQL container; no production database access"
