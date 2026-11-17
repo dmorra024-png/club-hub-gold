@@ -2,7 +2,7 @@
 // No demo accounts, fabricated balances or operational QR tokens. No credentials in localStorage.
 const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
-  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null};
+  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
 const endpoint = '/api/socio';
 const enc = (v)=>encodeURIComponent(String(v));
 const safe = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,7 +21,7 @@ async function api(path,{method='GET',body}={}){
   return value;
 }
 function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
-function resetClub(){stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
+function resetClub(){state.sessionEpoch++;stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
 function brand(){return '<header class="brand"><div><div class="brand-word">SNOOP</div><div class="subbrand">PORTAL SOCIOS</div></div>'+
 (state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
 (state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'')+'</header>';}
@@ -61,7 +61,7 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 }
 function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
-async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;stopQr();state.selected=c.id;state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
+async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
 async function refreshCarnet(){
  const id=state.selected;
  if(!id||document.hidden||state.page!=='carnet')return;
@@ -88,14 +88,24 @@ async function refreshCarnet(){
   stopQr();notify(e.message||'Carnet no disponible.',true);
  }
 }
-async function refreshWallet(){const id=state.selected;const c=state.clubs.find(c=>c.id===id);if(!c?.walletEnabled)return;try{const wallet=await api('/clubs/'+enc(id)+'/wallet');if(state.selected===id){state.wallet=wallet;render();}}catch{if(state.selected===id){state.wallet=null;render();}}}
+async function refreshWallet(){
+ const id=state.selected,epoch=state.sessionEpoch;
+ const c=state.clubs.find(c=>c.id===id);
+ if(!c?.walletEnabled)return;
+ const current=()=>state.sessionEpoch===epoch&&state.selected===id&&state.me?.authenticated===true;
+ try{
+  const wallet=await api('/clubs/'+enc(id)+'/wallet');
+  if(current()){state.wallet=wallet;render();}
+ }catch{if(current()){state.wallet=null;render();}}
+}
 async function refreshMovements(){
- const id=state.selected;if(!id)return;
+ const id=state.selected,epoch=state.sessionEpoch;if(!id)return;
+ const current=()=>state.sessionEpoch===epoch&&state.selected===id&&state.page==='movements'&&state.me?.authenticated===true;
  try{const result=await api('/clubs/'+enc(id)+'/wallet/movements');
- if(state.selected!==id||state.page!=='movements')return;
+ if(!current())return;
  state.movements=Array.isArray(result?.items)?result.items.filter(r=>Number.isSafeInteger(r.deltaCents)&&Number.isSafeInteger(r.balanceCents)&&r.balanceCents>=0&&typeof r.createdAt==='string').slice(0,100):[];
  state.message='';state.error=false;render();
- }catch(e){if(state.selected===id&&state.page==='movements'){state.movements=[];notify(e.message||'No se pudo consultar el historial.',true);}}
+ }catch(e){if(current()){state.movements=[];notify(e.message||'No se pudo consultar el historial.',true);}}
 }
 async function authenticate(){try{state.me=await api('/me');if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}if(state.me.emailVerified===true){try{await api('/memberships/sync',{method:'POST',body:{}});}catch{/* Backend not yet available: show secure manual-link fallback. */}}await refreshClubs();}catch{resetClub();state.me=null;state.clubs=[];state.page='login';render();}}
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
