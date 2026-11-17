@@ -4,6 +4,7 @@ import {webcrypto}from'node:crypto';
 import {makeSocioService}from'./service.mjs';
 globalThis.crypto??=webcrypto;
 const a='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc',b='63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4',m='c319b1ed-9389-4c81-9e7f-42f808d95c34',n='437f044d-9c4d-4b95-8672-d2b8c9af3851',u='9d5d3ca0-de23-467b-8ad4-211fce9003b9',other='9ab51fa6-dff9-4d15-a80a-a32295264c8d',now=1800000000000;
+const usedNonces=new Set();
 const repo={
  linksForUser:async user=>[{authUserId:u,status:'verified',clubId:a,memberId:m},{authUserId:u,status:'verified',clubId:b,memberId:n}].filter(x=>x.authUserId===user),
  membershipsForUser:async user=>user===u?[{clubId:a,memberId:m,active:true,memberNumber:'124',clubName:'Club A',walletEnabled:true},{clubId:b,memberId:n,active:true,memberNumber:'872',clubName:'Club B',walletEnabled:false}]:[],
@@ -11,7 +12,8 @@ const repo={
  autoLinkForVerifiedEmail:async ({verifiedEmail})=>({linkedCount:verifiedEmail==='socio@example.com'?2:0}),
  walletForMember:async clubId=>clubId===a?{balanceCents:2550}:null,
  walletMovementsForMember:async clubId=>clubId===a?[{deltaCents:5000,balanceCents:5000,createdAt:'2026-11-17T12:00:00Z',label:'Recarga'},{deltaCents:-2450,balanceCents:2550,createdAt:'2026-11-17T13:00:00Z',label:'Movimiento'}]:[],
- isMemberActive:async (clubId,memberId)=>clubId===a&&memberId===m
+ isMemberActive:async (clubId,memberId)=>clubId===a&&memberId===m,
+ consumeQrNonce:async({clubId,nonce})=>{const key=clubId+':'+nonce;if(usedNonces.has(key))return false;usedNonces.add(key);return true;}
 };
 const svc=makeSocioService({repository:repo,signingSecret:new Uint8Array(32).fill(21),now:()=>now});
 const actor={userId:u,emailVerified:true,accountType:'socio'};
@@ -33,6 +35,7 @@ test('signed QR rejected across clubs, staff must be authorized',async()=>{
  const {token}=await svc.qr(actor,a);
  const staff={accountType:'staff',verified:true,clubId:a,canScan:true};
  assert.deepEqual(await svc.scan(staff,token),{clubId:a,memberId:m,valid:true});
+ await assert.rejects(svc.scan(staff,token),{code:'QR_ALREADY_SCANNED'});
  await assert.rejects(svc.scan({...staff,clubId:b},token),{code:'QR_REJECTED'});
  await assert.rejects(svc.scan({...staff,canScan:false},token),{code:'SCANNER_UNAUTHORIZED'});
  await assert.rejects(svc.scan({...staff,verified:false},token),{code:'SCANNER_UNAUTHORIZED'});
