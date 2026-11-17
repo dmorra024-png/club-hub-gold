@@ -83,7 +83,7 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
    return{items:records.filter(r=>Number.isSafeInteger(r.deltaCents)&&Number.isSafeInteger(r.balanceCents)&&r.balanceCents>=0&&typeof r.createdAt==='string').slice(0,100).map(r=>({deltaCents:r.deltaCents,balanceCents:r.balanceCents,createdAt:r.createdAt,label:String(r.label||'Movimiento').slice(0,120)}))};
   },
   async scan(staff,token){
-   if(!staff||staff.accountType!=='staff'||staff.verified!==true||!isUuid(staff.clubId)||staff.canScan!==true)throw error('SCANNER_UNAUTHORIZED');
+   if(!staff||staff.accountType!=='staff'||staff.verified!==true||!isUuid(staff.userId)||!isUuid(staff.clubId)||staff.canScan!==true)throw error('SCANNER_UNAUTHORIZED');
    const checked=await verifyCardQr(token,{clubId:staff.clubId,secret:signingSecret,now:now(),memberActive:true});
    if(!checked.ok)throw error('QR_REJECTED');
    // Confirm current club membership from server, not token or staff's client flags.
