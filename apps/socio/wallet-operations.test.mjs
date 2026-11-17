@@ -11,7 +11,7 @@ const topup=(overrides={})=>({clubId:clubA,memberId:member,operationId:opA,kind:
 const spend=(overrides={})=>({clubId:clubA,memberId:member,operationId:opB,kind:'spend',amountCents:2100,orderId:order,confirmed:true,...overrides});
 function rig(initial=0){
  const balances=new Map([[clubA+':'+member,initial],[clubB+':'+member,1000]]);
- const applied=new Map();const calls=[];
+ const applied=new Map();const refundedOrders=new Set();const calls=[];
  const repository={
   async memberWalletEnabled(){return true;},
   async commitWalletOperation(op){
@@ -22,10 +22,13 @@ function rig(initial=0){
    if(prior){if(JSON.stringify(prior.input)!==JSON.stringify(op))throw Error('IDEMPOTENCY_CONFLICT');
     return{status:'duplicate',balanceCents:prior.balance,operationId:op.operationId};}
    const key=op.clubId+':'+op.memberId;
+   const refundKey=op.clubId+':'+op.orderId;
+   if(op.kind==='refund'&&refundedOrders.has(refundKey))throw Error('ORDER_ALREADY_REFUNDED');
    const prev=balances.get(key)||0;
    const delta=op.kind==='spend'?-op.amountCents:op.amountCents;
    if(prev+delta<0)throw Error('INSUFFICIENT_BALANCE');
    balances.set(key,prev+delta);
+   if(op.kind==='refund')refundedOrders.add(refundKey);
    applied.set(op.operationId,{input:op,balance:prev+delta});
    return{status:'applied',balanceCents:prev+delta,operationId:op.operationId};
   }
@@ -40,11 +43,13 @@ test('topup and spend use integer cents and do not touch another club',async()=>
  assert.equal((await r.service.commit(staff,topup())).status,'duplicate');
  assert.equal(r.balances.get(clubA+':'+member),2900);
 });
-test('different idempotency key cannot repeat order refund without independent SQL order invariant',async()=>{
+test('two refund requests for same cancelled order cannot credit twice even with new operation IDs',async()=>{
  const r=rig(2100);
  const refund={clubId:clubA,memberId:member,operationId:opA,kind:'refund',amountCents:2100,orderId:order,reversalOf:opB,confirmed:true};
  assert.equal((await r.service.commit(staff,refund)).balanceCents,4200);
- await assert.rejects(r.service.commit(staff,{...refund,operationId:opB,amountCents:2000}),/IDEMPOTENCY_CONFLICT|./);
+ assert.equal((await r.service.commit(staff,refund)).status,'duplicate');
+ await assert.rejects(r.service.commit(staff,{...refund,operationId:opB}),/ORDER_ALREADY_REFUNDED/);
+ assert.equal(r.balances.get(clubA+':'+member),4200);
 });
 test('rejects unconfirmed action, wrong tenant, no permission and invalid amounts before repository write',async()=>{
  const r=rig(5000);
