@@ -18,6 +18,7 @@ export class VoiceUsageLease {
   private usage: VoiceUsage | null = null;
   private connectedAt: number | null = null;
   private released = false;
+  private closing: Promise<void> | null = null;
   private readonly options: {
     url: string;
     key: string;
@@ -110,8 +111,20 @@ export class VoiceUsageLease {
   }
   async close() {
     if (this.released || !this.usage) return;
-    this.released = true;
+    if (this.closing) return this.closing;
     const elapsed = this.connectedAt === null ? 0 : Math.max(0, this.now() - this.connectedAt);
-    return this.call("close", this.sequence, Math.min(elapsed, this.usage.reservedSeconds * 1000));
+    const closing = this.call(
+      "close",
+      this.sequence,
+      Math.min(elapsed, this.usage.reservedSeconds * 1000),
+    ).then(() => {
+      this.released = true;
+    });
+    this.closing = closing;
+    try {
+      await closing;
+    } finally {
+      if (this.closing === closing) this.closing = null;
+    }
   }
 }
