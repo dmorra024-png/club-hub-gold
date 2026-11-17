@@ -1,6 +1,6 @@
 # SNOOP Socio — progettazione isolata (non pubblicata)
 
-Stato: **design only / nessun deploy, merge o modifica al database**. Ramo `feature/snoop-socio-app-design-20261117` creato separatamente per futura revisione di Codex. Non toccare il lavoro parallelo JARVIS 3.
+Stato: **progettazione + PWA isolata + librerie di dominio e servizio con test automatici; nessun backend pubblico, deploy, merge o modifica al database**. Ramo `feature/snoop-socio-app-design-20261117` creato separatamente per futura revisione di Codex. Non toccare il lavoro parallelo JARVIS 3.
 
 ## Visione approvata
 - Un'unica PWA SNOOP Socio, distribuita ai soci di tutti i club aderenti a SNOOP.
@@ -25,7 +25,7 @@ Stato: **design only / nessun deploy, merge o modifica al database**. Ramo `feat
 - SNOOP Socio: login, QR, Mis clubes, saldo/storico informativo per singolo club, account/uscita.
 
 ## Cosa NON fa questo ramo
-- Non aggiunge schermate o dipendenze al gestionale attuale.
+- Aggiunge schermate esclusivamente nella directory separata `apps/socio/`, senza modificare le schermate o le dipendenze del gestionale attuale.
 - Non crea migrazioni o nuove tabelle nel DB di produzione.
 - Non invia email, non crea QR reali, non pubblica app e non esegue ricariche.
 - Non abilita accesso automatico ai dati per email coincidente.
