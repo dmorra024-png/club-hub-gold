@@ -1,0 +1,1 @@
+UPDATE public.clubs SET name = 'Medusa 23' WHERE id = 'f4b9ae4d-44c6-4b4f-8d78-cf4b3aaf49cc';
