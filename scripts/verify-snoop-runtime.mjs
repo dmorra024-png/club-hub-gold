@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { findServerFunctionId } from "./lib/server-function-id.mjs";
 const account = "0cc8106f8820d22996af3aed9e081e93",
   origin = "https://snoop-pilot.dmorra024.workers.dev";
+let stage = "target";
 try {
   assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
   assert.ok(process.env.CLOUDFLARE_API_TOKEN);
   const config = JSON.parse(await readFile(".output/server/wrangler.json", "utf8"));
   assert.equal(config.name, "snoop-pilot");
+  stage = "runtime-bindings";
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/snoop-pilot/settings`,
     {
@@ -29,12 +32,9 @@ try {
   assert.equal(bindings.get("SNOOP_AI")?.type, "ai");
   assert.equal(bindings.get("ASSETS")?.type, "assets");
   assert.equal(bindings.get("AI_PERSONAL_DATA_PROCESSING_ENABLED")?.text, "false");
-  const files = await readdir(".output/server/_ssr");
-  const code = await readFile(
-    ".output/server/_ssr/" + files.find((n) => /^voice-agent.functions-.*\.mjs$/.test(n)),
-    "utf8",
-  );
-  const id = code.match(/id:`([a-f0-9]+)`,name:`getAdministrativeAiStatus`/)[1];
+  stage = "server-function-manifest";
+  const id = await findServerFunctionId(".output/server/_ssr", "getAdministrativeAiStatus");
+  stage = "unauthenticated-voice-boundary";
   const probe = await fetch(origin + "/_serverFn/" + id, {
     headers: { "x-tsr-serverFn": "true", "Cache-Control": "no-cache" },
     redirect: "error",
@@ -55,7 +55,8 @@ try {
   );
 } catch {
   console.error(
-    "SNOOP_RUNTIME_VERIFICATION_FAILED: no values logged; do not retry deployment automatically.",
+    JSON.stringify({ error: "SNOOP_RUNTIME_VERIFICATION_FAILED", stage, values_logged: false }),
   );
+  console.error("Do not retry deployment automatically.");
   process.exitCode = 1;
 }
