@@ -24,7 +24,7 @@ function sessionCookies(session){
 }
 function tokenIn(request,name){try{const raw=cookies(request)[name];return raw&&raw.length<10000?decodeURIComponent(raw):null;}catch{return null;}}
 const normalize=x=>typeof x==='string'?x.trim().toLowerCase():'';
-const userVerified=u=>u&&typeof u.id==='string'&&typeof u.email==='string'&&(typeof u.email_confirmed_at==='string'||typeof u.confirmed_at==='string');
+const userVerified=u=>u&&typeof u.id==='string'&&typeof u.email==='string'&&typeof u.email_confirmed_at==='string';
 /**
  * Required host-provided authorizeSocioUser(uid) must read trusted DB authorization,
  * deny management/super-admin identities, and permit only socio accounts.
@@ -51,7 +51,7 @@ export function createSupabaseSocioAuth({url,publishableKey,fetcher=fetch,author
   if(!accessToken)return null;
   const user=await authUser(accessToken);
   if(!(await checked(user)))return null;
-  return{userId:user.id,email:user.email,emailVerified:true,accountType:'socio'};
+  return{userId:user.id,email:user.email,emailVerified:true,accountType:'socio',accessToken};
  };
  const signup=async({input})=>{
   const email=normalize(input?.email),password=input?.password;
