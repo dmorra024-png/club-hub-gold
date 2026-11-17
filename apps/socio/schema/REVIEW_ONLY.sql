@@ -42,8 +42,9 @@ grant select on public.socio_member_cards to authenticated;
 create policy socio_cards_read_linked_own on public.socio_member_cards
  for select to authenticated using (
   exists(select 1 from public.socio_membership_links l
-    where l.auth_user_id=(select auth.uid()) and l.club_id=club_id
-      and l.member_id=member_id and l.status='verified' and l.revoked_at is null)
+    where l.auth_user_id=(select auth.uid())
+      and l.club_id=public.socio_member_cards.club_id
+      and l.member_id=public.socio_member_cards.member_id and l.status='verified' and l.revoked_at is null)
  );
 
 -- Wallet is disabled until legal/accounting review and approved financial RPCs.
