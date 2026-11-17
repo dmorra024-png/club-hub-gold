@@ -26,3 +26,32 @@ jobs:
         run: node --test apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auto-link.test.mjs apps/socio/http.test.mjs apps/socio/integration.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/bootstrap.test.mjs apps/socio/socio-role.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs apps/socio/wallet-operations.test.mjs apps/socio/claim-challenges.test.mjs apps/socio/wallet-http.test.mjs
       - name: No deployment
         run: echo "Static-only checks; no Cloudflare deployment or Supabase mutations"
+
+  bundle-staging-dry-run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - name: Install locked dependencies (staging only)
+        run: bun install --frozen-lockfile
+      - name: Package public member assets
+        run: node apps/socio/build-public.mjs
+      - name: Compile isolated staging Worker without deploying
+        run: bunx wrangler deploy --dry-run --config apps/socio/wrangler.staging.jsonc --outdir .sandbox/socio-worker-dry-run
+      - name: Scan compiled output for secrets (no credentials supplied)
+        run: |
+          test -f .sandbox/socio-worker-dry-run/worker.js || test -n "$(find .sandbox/socio-worker-dry-run -maxdepth 1 -name '*.js' -print -quit)"
+          if grep -R -E 'sb_secret_|SUPABASE_SERVICE_ROLE_KEY|DEEPGRAM_API_KEY|SOCIO_QR_SIGNING_KEY_BASE64=' .sandbox/socio-worker-dry-run; then
+            echo "Unexpected secret marker in isolated Worker bundle"
+            exit 1
+          fi
+      - name: No deployment or database connection
+        run: echo "Staging packaging only; no network calls to private project"
