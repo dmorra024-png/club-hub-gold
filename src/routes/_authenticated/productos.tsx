@@ -1,3 +1,4 @@
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { loadAdministrativeCatalog } from "@/lib/administrative-catalog";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
@@ -479,6 +480,16 @@ function ProductosPage() {
     return () => window.removeEventListener("snoop:ai-products", open);
   }, []);
 
+  useVoiceToolPort("products.page", {
+    open: (target, query) => {
+      if (target === "product_create") setTab("nuevo");
+      else if (target === "categories") setTab("categoria");
+      else if (target === "products" || target === "stock") {
+        setTab("stock");
+        if (typeof query === "string") setStockSearch(query);
+      }
+    },
+  });
   // Reacciona a Snoop cuando navega aquí pidiendo un tab y/o un comando
   useEffect(() => {
     if (loading) return;
@@ -1588,6 +1599,19 @@ function NuevoProducto({
     return () => window.removeEventListener("snoop:ai-form", form);
   }, [cats]);
 
+  useVoiceToolPort("product.form", {
+    snapshot: () => aiValues.current,
+    patch: (values) => {
+      const matches =
+        typeof values.category === "string"
+          ? cats.filter((c) => c.name.toLocaleLowerCase() === values.category.toLocaleLowerCase())
+          : [];
+      if (values.category !== undefined && matches.length !== 1)
+        throw Error("SNOOP_UNKNOWN_CATEGORY");
+      if (typeof values.name === "string") setName(values.name);
+      if (matches[0]) setCategoryId(matches[0].id);
+    },
+  });
   const nameDict = useDictation((t) => {
     if (productFormVoice(t, cats)) onVoice(t);
     else if (/\b(crea|crear|creare|categoria|categoría|cantidad|quantità)\b/i.test(t))
@@ -1761,6 +1785,12 @@ function NuevaCategoria({
     setSmokeable(false);
     onCreated();
   }
+  useVoiceToolPort("category.form", {
+    snapshot: () => ({ name }),
+    patch: (values) => {
+      if (typeof values.name === "string") setName(values.name);
+    },
+  });
   async function updateCategory(category: Category, archived: boolean, newName = category.name) {
     if (!newName.trim()) return toast.error("Nombre obligatorio");
     if (

@@ -1,3 +1,4 @@
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { scopedMemberSearch } from "@/lib/administrative-voice";
 import { createPortal } from "react-dom";
 import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
@@ -32,6 +33,7 @@ function GestisciSoci() {
   const [loading, setLoading] = useState(true);
   const [scanOpen, setScanOpen] = useState(false);
   const navigate = useNavigate();
+  useVoiceToolPort("members.search", { search: (query) => runVoiceSearch(query) });
   // This page is reached by the central QR shortcut: open the existing member
   // scanner immediately, rather than the separate entry/exit scanner.
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import {
   memberConversation,
   memberAwaiting,
@@ -574,6 +575,24 @@ function NewSocio() {
     }
   }
 
+  useVoiceToolPort("member.form", {
+    snapshot: () =>
+      Object.fromEntries(
+        ["first_name", "last_name", "birth_date", "city", "phone"].map((k) => [
+          k,
+          (form as any)[k],
+        ]),
+      ),
+    patch: (patch) =>
+      setForm((previous) => ({
+        ...previous,
+        ...Object.fromEntries(
+          Object.entries(patch).filter(([k]) =>
+            ["first_name", "last_name", "birth_date", "city", "phone"].includes(k),
+          ),
+        ),
+      })),
+  });
   return (
     <SnoopLayout title="Nuevo socio" subtitle="Dicta los datos o rellénalos a mano">
       <AdministrativePaymentDialog

@@ -3,7 +3,7 @@ on:
   push:
     branches: [feature/deepgram-admin-pilot-20261116]
   pull_request:
-    branches: [codex/jarvis3-voice]
+    branches: [codex/jarvis3-voice, codex/stabilize-independent-club]
 permissions:
   contents: read
 jobs:

@@ -76,6 +76,7 @@ for (const [label, engine, device] of [
       catalogCalls = 0,
       sockets = 0,
       peer,
+      actionReceipts = [],
       stops = 0;
     const unexpected = [];
     await context.addInitScript(
@@ -228,6 +229,12 @@ for (const [label, engine, device] of [
         }
         if (typeof message !== "string") return;
         const m = JSON.parse(message);
+        if (m.type === "AppActionResult") {
+          assert.equal(typeof m.id, "string");
+          assert.notEqual(m.status, "completed");
+          actionReceipts.push(m);
+          return;
+        }
         assert.equal(m.type, "AppStart");
         assert.equal(m.token, auth.access_token);
         assert.equal(m.consent, true);
@@ -267,7 +274,14 @@ for (const [label, engine, device] of [
     assert.equal(statusCalls, 1);
     const send = async (p) => {
       peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
-      peer.send(JSON.stringify({ type: "AppProposal", result: { ok: true, proposal: p } }));
+      peer.send(JSON.stringify({ type: "AgentThinking" }));
+      peer.send(
+        JSON.stringify({
+          type: "AppProposal",
+          id: "action-" + crypto.randomUUID(),
+          result: { ok: true, proposal: p },
+        }),
+      );
     };
     await send(
       proposal("member", "member_create", {
@@ -326,6 +340,8 @@ for (const [label, engine, device] of [
         document.querySelector('input[placeholder="ej. Flores"]')?.value === "Categoría sintética",
     );
     assert.equal(sockets, 1, "internal navigation must retain the same authenticated socket");
+    assert(actionReceipts.some(r=>r.applied.includes("first_name")),"application must acknowledge the actual patched fields");
+    assert(actionReceipts.some(r=>r.skipped.includes("last_name")),"manual edits must be reported as preserved");
     peer.send(Buffer.alloc(2400));
     await page.waitForFunction(() => window.__audio.played > 0);
     peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));

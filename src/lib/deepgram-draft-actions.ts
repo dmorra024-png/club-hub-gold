@@ -4,7 +4,9 @@ import {
   targetPath,
   type ConversationProposalValue,
 } from "./snoop-conversation.ts";
+import { applicationPorts, type VoicePort } from "./voice/application-ports.ts";
 import type { AccountAccess } from "./access-context.ts";
+const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
   last: Record<string, string>,
@@ -22,6 +24,7 @@ export async function applyDeepgramDraft(
   value: unknown,
   options: {
     access: AccountAccess;
+    owner?: string;
     navigate: (path: string) => Promise<unknown> | void;
     path: () => string;
     current: () => boolean;
@@ -42,76 +45,44 @@ export async function applyDeepgramDraft(
       await new Promise((r) => setTimeout(r, 20));
   }
   const valid = () => options.current() && (!to || options.path() === to);
-  const wait = async <T>(read: () => T | null | undefined): Promise<T> => {
-    const until = performance.now() + 4000;
-    while (valid()) {
-      const v = read();
-      if (v) return v;
-      if (performance.now() > until) break;
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    throw Error("SNOOP_FORM_UNAVAILABLE");
-  };
-  const event = (name: string, detail: unknown) => {
-    if (!valid()) throw Error("SNOOP_STALE_PROPOSAL");
-    window.dispatchEvent(new CustomEvent(name, { detail }));
-  };
-  const snapshot = (kind: string): Record<string, string> | null => {
-    let result: Record<string, string> | null = null;
-    window.dispatchEvent(
-      new CustomEvent("snoop:ai-form", {
-        detail: {
-          kind,
-          respond: (v: Record<string, string>) => {
-            result = v;
-          },
-        },
-      }),
-    );
-    return result;
-  };
+  const port = (name: string) => applicationPorts.wait(options.owner ?? "", name, valid);
   let skipped: string[] = [];
+  let applied: string[] = [];
   if (p.target && ["products", "product_create", "categories", "stock"].includes(p.target)) {
-    await wait(() => document.querySelector("[data-snoop-products-page]"));
-    event("snoop:ai-products", { target: p.target, patch: {}, query: p.query });
+    (await port("products.page")).open?.(p.target, p.query);
   }
-  if (p.intent === "category" && p.product.name) {
-    const input = await wait(() =>
-      document.querySelector<HTMLInputElement>('input[placeholder="ej. Flores"]'),
-    );
-    const next = protectedVoicePatch({ name: input.value }, options.last.category ?? {}, {
-      name: p.product.name,
-    });
-    skipped = next.skipped;
-    if (next.applied.name) {
-      event("snoop:ai-products", { target: "categories", patch: next.applied });
-      options.last.category = { ...options.last.category, ...next.applied };
-    }
-  }
-  const kind = p.intent === "member" ? "member" : p.intent === "product" ? "product" : null;
+  const kind =
+    p.intent === "member"
+      ? "member"
+      : p.intent === "product"
+        ? "product"
+        : p.intent === "category"
+          ? "category"
+          : null;
   if (kind) {
-    const current = await wait<Record<string, string>>(() => snapshot(kind));
+    const form = await port(kind + ".form");
+    if (!valid()) throw Error("SNOOP_STALE_PROPOSAL");
+    let forms = formOwners.get(options.last);
+    if (!forms) {
+      forms = new Map();
+      formOwners.set(options.last, forms);
+    }
+    if (forms.get(kind) !== form) {
+      options.last[kind] = {};
+      forms.set(kind, form);
+    }
     const patch = (kind === "member" ? p.member : p.product) as Record<string, string>;
-    const next = protectedVoicePatch(current, options.last[kind] ?? {}, patch);
+    const next = protectedVoicePatch(form.snapshot?.() ?? {}, options.last[kind] ?? {}, patch);
     skipped = next.skipped;
     if (Object.keys(next.applied).length) {
-      event("snoop:ai-form", { kind, patch: next.applied });
+      if (!form.patch) throw Error("SNOOP_FORM_UNAVAILABLE");
+      form.patch(next.applied);
+      applied = Object.keys(next.applied);
       options.last[kind] = { ...options.last[kind], ...next.applied };
     }
   }
-  if (p.intent === "search" && p.target === "members") {
-    await wait(() => document.querySelector('input[placeholder^="Buscar por nº socio"]'));
-    event("snoop:search-members", { query: p.query ?? "" });
-  }
-  if (p.target === "cash_report") {
-    const tab = await wait(() =>
-      Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find(
-        (t) => t.textContent === "Informe de caja",
-      ),
-    );
-    if (!valid() || tab.disabled) throw Error("SNOOP_REPORT_NOT_AUTHORIZED");
-    tab.focus();
-    tab.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-  }
-  return { proposal: p, skipped };
+  if (p.intent === "search" && p.target === "members")
+    (await port("members.search")).search?.(p.query ?? "");
+  if (p.target === "cash_report") (await port("cash.page")).open?.("report");
+  return { proposal: p, skipped, applied };
 }

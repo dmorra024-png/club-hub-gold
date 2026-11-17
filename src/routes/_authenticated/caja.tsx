@@ -1,3 +1,4 @@
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { useCashRefresh } from "@/hooks/useCashRefresh";
 import { paymentMethodLabel } from "@/lib/administrative-payment";
 import { FinancialRecordStatus } from "@/components/FinancialRecordDialog";
@@ -32,6 +33,7 @@ function Caja() {
     access.status,
     [...access.permissions].sort(),
   ]);
+  const [voiceTab, setVoiceTab] = useState("mia");
   const [refresh, setRefresh] = useCashRefresh();
   const [stored, setStored] = useState<any>(null),
     [error, setError] = useState(""),
@@ -42,6 +44,14 @@ function Caja() {
     [notes, setNotes] = useState(""),
     [busy, setBusy] = useState(false);
   const data = stored?.scope === scope && stored?.requestedDay === day ? stored : null;
+  useVoiceToolPort("cash.page", {
+    open: () => {
+      if (can("view_reports")) {
+        setDay(null);
+        setVoiceTab("informe");
+      }
+    },
+  });
   useEffect(() => {
     if (loading || accessError || !can("use_cash")) return;
     let active = true;
@@ -123,8 +133,9 @@ function Caja() {
             disabled={busy || loading || !!accessError || !data || !!error}
           >
             <Tabs
-              defaultValue="mia"
+              value={voiceTab}
               onValueChange={(value) => {
+                setVoiceTab(value);
                 if (value === "mia") setDay(null);
               }}
             >

@@ -1,16 +1,31 @@
+import { emptyConversation } from "./snoop-conversation.ts";
+import { voiceCashToday } from "./voice/cash-read.server.ts";
+import { VoiceUsageLease } from "./voice/usage.server.ts";
+import {
+  sealVoiceSnapshot,
+  openVoiceSnapshot,
+  type VoiceSnapshot,
+} from "./voice/checkpoint.server.ts";
+import { ActionReceipt, actionOutcome } from "./voice/action-protocol.ts";
 import { parseAccountAccess, type AccountAccess } from "./access-context.ts";
 import { deepgramPilotAllowed, normalizedPilotNames } from "./deepgram-pilot-policy.ts";
-import { agentSettings, authorizeProposal } from "../../lab/deepgram/policy.ts";
-import type { CatalogVocabulary } from "../../lab/deepgram/vocabulary.ts";
+import { agentSettings, authorizeProposal } from "./voice/agent-settings.server.ts";
+import type { CatalogVocabulary } from "./voice/catalog-vocabulary.ts";
 
 const SAFE_FAILURES = new Set([
   "AUTH_CONFIG",
   "AUTH_FAILED",
   "AUTH_FORBIDDEN",
   "CATALOG_UNAVAILABLE",
+  "VOICE_SESSION_BUSY",
+  "VOICE_USAGE_CONFIG_REQUIRED",
+  "VOICE_USAGE_UNAVAILABLE",
+  "VOICE_USAGE_INVALID",
+  "VOICE_BUDGET_EXHAUSTED",
+  "VOICE_RESUME_INVALID",
 ]);
 const active = new Set<string>();
-const recent = new Map<string, { at: number; count: number }>();
+
 const setting = (env: Record<string, unknown>, name: string) =>
   String(env[name] ?? process.env[name] ?? "");
 
@@ -107,17 +122,50 @@ export async function deepgramAppSocket(
   server.binaryType = "arraybuffer";
   (server as any).accept();
   const authController = new AbortController();
+  let verifiedSession: Awaited<ReturnType<typeof verifySession>> | undefined;
+  let verifiedToken = "";
   let connectionController: AbortController | undefined;
   let keepalive: ReturnType<typeof setInterval> | undefined;
+  let usage: VoiceUsageLease | undefined;
+  let checkpointOwner = "",
+    checkpointClub = "",
+    turn = 0,
+    newTurn = false,
+    speech = false;
+  const billingMonth = new Date().toISOString().slice(0, 7);
+  let lastInteraction = Date.now(),
+    maintenanceBusy = false,
+    checkpointSequence = 0;
+  const history: VoiceSnapshot["history"] = [];
+  let memory = emptyConversation();
+  const checkpoint = async () => {
+    if (!checkpointOwner || ended) return;
+    const sequence = ++checkpointSequence;
+    const token = await sealVoiceSnapshot(
+      {
+        owner: checkpointOwner,
+        club: checkpointClub,
+        turn,
+        expires: Date.now() + 43200000,
+        history: history.slice(-10),
+        memory,
+      },
+      key,
+    );
+    if (!ended) send({ type: "AppCheckpoint", token, sequence });
+  };
+  let audioRate = 0,
+    audioCredits = 0,
+    audioRefill = Date.now();
   let providerReady = false,
     lastAudioAt = Date.now();
   let upstream: WebSocket | undefined,
     ended = false,
     handshakeStarted = false;
   let owner: string | undefined,
-    bytes = 0,
     calls = 0;
   const seen = new Set<string>();
+  const pending = new Map<string, { name: string; timer: ReturnType<typeof setTimeout> }>();
   let deadline: ReturnType<typeof setTimeout>;
   const send = (body: unknown) => {
     try {
@@ -129,8 +177,16 @@ export async function deepgramAppSocket(
     ended = true;
     clearTimeout(deadline);
     clearInterval(keepalive);
+    for (const p of pending.values()) clearTimeout(p.timer);
+    pending.clear();
     authController.abort();
     connectionController?.abort();
+    if (usage) {
+      const released = usage.close().catch(() => undefined);
+      const wait = (request as Request & { waitUntil?: (promise: Promise<unknown>) => void })
+        .waitUntil;
+      if (wait) wait(released);
+    }
     if (owner) active.delete(owner);
     send({ type: "AppClosed", code: reason });
     try {
@@ -147,7 +203,7 @@ export async function deepgramAppSocket(
     if (ended) return;
     try {
       if (!handshakeStarted) {
-        if (typeof e.data !== "string" || e.data.length > 7000) return close("AUTH_REQUIRED");
+        if (typeof e.data !== "string" || e.data.length > 31000) return close("AUTH_REQUIRED");
         handshakeStarted = true;
         const a = JSON.parse(e.data);
         if (
@@ -160,38 +216,41 @@ export async function deepgramAppSocket(
         )
           return close("AUTH_INVALID");
         const verified = await verifySession(a.token, env, authController.signal);
+        verifiedSession = verified;
+        verifiedToken = a.token;
         if (ended) return;
-        const now = Date.now();
-        for (const [id, slot] of recent) if (now - slot.at > 3600000) recent.delete(id);
-        const slot = recent.get(verified.user);
-        if (active.has(verified.user) || (slot?.count ?? 0) >= 4 || (!slot && recent.size > 500))
-          return close("SESSION_LIMIT");
-        recent.set(verified.user, { at: slot?.at ?? now, count: (slot?.count ?? 0) + 1 });
+        if (active.has(verified.user)) return close("SESSION_LIMIT");
+        clearTimeout(deadline);
+        deadline = setTimeout(() => close("PROVIDER_TIMEOUT"), 16000);
+        checkpointOwner = verified.user;
+        checkpointClub = verified.access.clubId!;
+        if (a.resume !== undefined) {
+          if (typeof a.resume !== "string") return close("VOICE_RESUME_INVALID");
+          const saved = await openVoiceSnapshot(a.resume, key, checkpointOwner, checkpointClub);
+          turn = saved.turn;
+          history.push(...saved.history);
+          memory = saved.memory ?? emptyConversation();
+        }
+        usage = new VoiceUsageLease({
+          url: setting(env, "SUPABASE_URL"),
+          key: setting(env, "SUPABASE_SERVICE_ROLE_KEY"),
+          actor: verified.user,
+          club: checkpointClub,
+        });
+        const initialUsage = await usage.start();
+        if (ended) {
+          await usage.close();
+          return;
+        }
+        send({ type: "AppUsage", usage: initialUsage });
         active.add(verified.user);
         owner = verified.user;
         const settings = agentSettings(a.language, a.sampleRate, verified.catalog);
         settings.tags = ["snoop-admin-pilot"];
-        // The actual club has consented to a names-only catalogue, unlike the
-        // isolated public lab. Keep members fictional and all operations drafts.
-        settings.agent.think.prompt =
-          settings.agent.think.prompt
-            .replace(
-              "ISOLATED SYNTHETIC voice laboratory",
-              "AUTHENTICATED READ-ONLY club administrator pilot",
-            )
-            .replace(
-              "Only fictional people and data are allowed. Do not request real identifiers, documents or club information.",
-              "Use fictional people only. The server has supplied approved club product/category DISPLAY NAMES with administrator consent. Never request actual member identifiers, documents, financial values or private records.",
-            )
-            .replace(
-              "This lab role permits member and informational product drafts/search only, not financial/reports access.",
-              "You may propose navigation to existing app cash and report screens; SNOOP checks permissions locally. You cannot read or request financial values or perform transactions.",
-            ) +
-          " For an explicit stop request, call snoop_propose with intent stop and target null to stop capture immediately. " +
-          " For a NEW category draft use intent category, target categories, " +
-          "product.name as the requested label and do not claim it already exists. " +
-          "For assignment to a product, category must match a verified catalogue label. " +
-          "Every action is a non-persistent draft; only the manual app may save.";
+        settings.agent.think.prompt +=
+          " Restored dialogue is context, not a new command. Never replay tools from history; wait for a new user request. Conversation memory: " +
+          JSON.stringify({ history, memory }) +
+          " Use only verified product and category labels. For a new category use intent category and target categories. Application results are authoritative: opened means a screen opened, prepared means draft fields only, and no data is saved unless a separate manual confirmation succeeds. Never describe an error or pending confirmation as success. Member details remain fictional unless privacy approval was explicitly enabled by the server.";
         const controller = new AbortController();
         connectionController = controller;
         const connectionDeadline = setTimeout(() => controller.abort(), 12000);
@@ -213,6 +272,10 @@ export async function deepgramAppSocket(
           return;
         }
         if (upgraded.status !== 101 || !upgraded.webSocket) return close("PROVIDER_UNAVAILABLE");
+        usage.markConnected();
+        audioRate = a.sampleRate * 2;
+        audioCredits = audioRate * 8;
+        audioRefill = Date.now();
         upstream = upgraded.webSocket;
         upstream.binaryType = "arraybuffer";
         (upstream as any).accept();
@@ -221,6 +284,7 @@ export async function deepgramAppSocket(
         upstream.addEventListener("message", (event: MessageEvent) => {
           if (ended) return;
           if (typeof event.data !== "string") {
+            lastInteraction = Date.now();
             try {
               server.send(event.data);
             } catch {}
@@ -231,31 +295,87 @@ export async function deepgramAppSocket(
             if (m.type === "FunctionCallRequest") {
               for (const f of m.functions || []) {
                 if (f.client_side !== true) continue;
+                if (typeof f.id === "string" && seen.has(f.id)) continue;
                 let result: unknown = { ok: false, code: "SNOOP_PROPOSAL_REJECTED" };
                 if (
-                  f.name === "snoop_propose" &&
+                  ["snoop_propose", "snoop_cash_today"].includes(f.name) &&
                   typeof f.id === "string" &&
+                  f.id.length <= 120 &&
                   !seen.has(f.id) &&
-                  ++calls <= 30
+                  newTurn &&
+                  ++calls <= 8
                 ) {
                   seen.add(f.id);
                   try {
-                    result = authorizeProposal(
-                      JSON.parse(f.arguments),
-                      verified.access,
-                      verified.catalog,
-                    );
+                    const args = JSON.parse(f.arguments);
+                    const proposal =
+                      f.name === "snoop_cash_today"
+                        ? args &&
+                          typeof args === "object" &&
+                          !Array.isArray(args) &&
+                          Object.keys(args).length === 0
+                          ? {
+                              intent: "navigate",
+                              target: "cash_report",
+                              member: {},
+                              product: {},
+                              query: null,
+                              declined: [],
+                              question: "",
+                              asking: null,
+                            }
+                          : null
+                        : args;
+                    result = authorizeProposal(proposal, verified.access, verified.catalog);
                   } catch {}
                 }
-                send({ type: "AppProposal", result });
-                upstream?.send(
-                  JSON.stringify({
-                    type: "FunctionCallResponse",
-                    id: f.id,
-                    name: f.name,
-                    content: JSON.stringify(result),
-                  }),
-                );
+                if ((result as { ok: boolean }).ok) {
+                  const p = (result as any).proposal;
+                  memory = {
+                    ...memory,
+                    operation: ["member", "product", "category", "search"].includes(p.intent)
+                      ? p.intent
+                      : memory.operation,
+                    member: { ...memory.member, ...p.member },
+                    product: { ...memory.product, ...p.product },
+                    declined:
+                      p.declined.includes("phone") || memory.declined.includes("phone")
+                        ? ["phone"]
+                        : [],
+                    lastQuestion: p.question,
+                  };
+                  const id = f.id;
+                  if (pending.has(id)) continue;
+                  const timer = setTimeout(() => {
+                    pending.delete(id);
+                    try {
+                      upstream?.send(
+                        JSON.stringify({
+                          type: "FunctionCallResponse",
+                          id,
+                          name: f.name,
+                          content: JSON.stringify({
+                            ok: false,
+                            code: "APP_RESULT_TIMEOUT",
+                            persisted: false,
+                          }),
+                        }),
+                      );
+                    } catch {}
+                  }, 10000);
+                  pending.set(id, { name: f.name, timer });
+                  send({ type: "AppProposal", id, result });
+                } else {
+                  send({ type: "AppProposal", id: f.id, result });
+                  upstream?.send(
+                    JSON.stringify({
+                      type: "FunctionCallResponse",
+                      id: f.id,
+                      name: f.name,
+                      content: JSON.stringify(result),
+                    }),
+                  );
+                }
               }
             } else if (m.type === "Error") {
               send({
@@ -268,8 +388,20 @@ export async function deepgramAppSocket(
               close("PROVIDER_REJECTED");
             } else if (m.type === "SettingsApplied") {
               providerReady = true;
+              lastInteraction = Date.now();
               send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length });
             } else if (m.type === "ConversationText" && ["user", "assistant"].includes(m.role)) {
+              lastInteraction = Date.now();
+              if (m.role === "user") {
+                if (!newTurn) {
+                  turn++;
+                  calls = 0;
+                }
+                newTurn = true;
+              }
+              history.push({ role: m.role, content: String(m.content || "").slice(0, 1200) });
+              if (history.length > 10) history.shift();
+              void checkpoint();
               send({
                 type: "ConversationText",
                 role: m.role,
@@ -280,6 +412,16 @@ export async function deepgramAppSocket(
               m.type === "AgentThinking" ||
               m.type === "AgentAudioDone"
             ) {
+              lastInteraction = Date.now();
+              if (m.type === "UserStartedSpeaking") {
+                if (!speech) {
+                  turn++;
+                  calls = 0;
+                }
+                speech = true;
+                newTurn = true;
+              }
+              if (m.type === "AgentThinking") speech = false;
               send({ type: m.type });
             }
           } catch {
@@ -287,27 +429,102 @@ export async function deepgramAppSocket(
           }
         });
         clearTimeout(deadline);
-        deadline = setTimeout(() => close("SESSION_LIMIT_90S"), 90000);
+        deadline = setTimeout(() => {
+          if (!providerReady) close("PROVIDER_SETTINGS_TIMEOUT");
+        }, 10000);
         upstream.send(JSON.stringify(settings));
-        keepalive = setInterval(() => {
-          if (Date.now() - lastAudioAt > 6000) {
-            try {
-              upstream?.send(JSON.stringify({ type: "KeepAlive" }));
-            } catch {
-              close("PROVIDER_ERROR");
+        keepalive = setInterval(async () => {
+          if (ended || maintenanceBusy) return;
+          maintenanceBusy = true;
+          try {
+            if (new Date().toISOString().slice(0, 7) !== billingMonth) {
+              await checkpoint();
+              return close("MONTH_ROLLOVER");
             }
+            if (!usage?.valid()) return close("VOICE_LEASE_EXPIRED");
+            if (Date.parse(usage.leaseUntil) - Date.now() < 8000)
+              send({ type: "AppUsage", usage: await usage.extend() });
+            if (!speech && Date.now() - lastInteraction > 45000) {
+              await checkpoint();
+              return close("IDLE_PAUSED");
+            }
+            if (Date.now() - lastAudioAt > 6000)
+              upstream?.send(JSON.stringify({ type: "KeepAlive" }));
+          } catch (error) {
+            close(
+              error instanceof Error && SAFE_FAILURES.has(error.message)
+                ? error.message
+                : "VOICE_USAGE_UNAVAILABLE",
+            );
+          } finally {
+            maintenanceBusy = false;
           }
-        }, 8000);
+        }, 3000);
         return;
       }
       if (typeof e.data === "string") {
         if (e.data === "STOP") return close("STOPPED");
-        return close("INVALID_SEQUENCE");
+        if (e.data.length > 3000) return close("INVALID_SEQUENCE");
+        const receipt = ActionReceipt.safeParse(JSON.parse(e.data));
+        if (!receipt.success) return close("INVALID_SEQUENCE");
+        const item = pending.get(receipt.data.id);
+        if (!item) {
+          if (seen.has(receipt.data.id)) return;
+          return close("UNEXPECTED_ACTION_RESULT");
+        }
+        // The current provider tools prepare drafts only; a browser cannot promote them to saves.
+        if (receipt.data.status === "completed") return close("INVALID_ACTION_RESULT");
+        clearTimeout(item.timer);
+        pending.delete(receipt.data.id);
+        let outcome: unknown = actionOutcome(receipt.data);
+        if (item.name === "snoop_cash_today" && receipt.data.status !== "rejected") {
+          try {
+            const verified = await verifySession(verifiedToken, env, authController.signal);
+            if (
+              !verifiedSession ||
+              verified.user !== verifiedSession.user ||
+              verified.access.clubId !== verifiedSession.access.clubId ||
+              !verified.access.permissions.includes("view_reports")
+            )
+              throw Error("AUTH_FORBIDDEN");
+            const summary = await voiceCashToday(
+              setting(env, "SUPABASE_URL"),
+              setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+              verifiedToken,
+              verified.user,
+              verified.access.clubId!,
+            );
+            outcome = { ok: true, status: "read", persisted: false, summary };
+            send({ type: "AppCashResult", summary });
+          } catch {
+            outcome = { ok: false, code: "CASH_UNAVAILABLE", persisted: false };
+          }
+        }
+        history.push({
+          role: "assistant",
+          content: "Application result: " + JSON.stringify(outcome),
+        });
+        if (history.length > 10) history.shift();
+        void checkpoint();
+        upstream?.send(
+          JSON.stringify({
+            type: "FunctionCallResponse",
+            id: receipt.data.id,
+            name: item.name,
+            content: JSON.stringify(outcome),
+          }),
+        );
+        return;
       }
+      if (!usage?.valid()) return close("VOICE_LEASE_EXPIRED");
       if (!(e.data instanceof ArrayBuffer) || !upstream || !providerReady)
         return close("INVALID_AUDIO");
-      bytes += e.data.byteLength;
-      if (e.data.byteLength > 32768 || bytes > 10_000_000) return close("AUDIO_LIMIT");
+      if (e.data.byteLength > 32768) return close("AUDIO_LIMIT");
+      const elapsed = Math.max(0, Date.now() - audioRefill);
+      audioRefill = Date.now();
+      audioCredits =
+        Math.min(audioRate * 8, audioCredits + (elapsed * audioRate) / 1000) - e.data.byteLength;
+      if (audioCredits < 0) return close("AUDIO_RATE_LIMIT");
       if (upstream.readyState !== 1) return close("PROVIDER_CLOSED");
       lastAudioAt = Date.now();
       upstream.send(e.data);

@@ -1,3 +1,4 @@
+import { VoiceTransport } from "@/lib/voice/transport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -7,6 +8,7 @@ import { type ConversationProposalValue } from "@/lib/snoop-conversation";
 import type { DictationPhase } from "@/hooks/useWhisperDictation";
 
 import { applyDeepgramDraft } from "@/lib/deepgram-draft-actions";
+import { voiceOwner } from "@/lib/voice/application-ports";
 import type { AccountAccess } from "@/lib/access-context";
 
 type Language = "it" | "es" | "en";
@@ -15,7 +17,7 @@ type ProposalResult = { ok: boolean; proposal?: ConversationProposalValue; code?
 type AudioState = {
   ctx: AudioContext;
   stream: MediaStream;
-  socket: WebSocket;
+  transport: VoiceTransport;
   node: AudioWorkletNode;
   source: MediaStreamAudioSourceNode;
   sink: GainNode;
@@ -42,6 +44,11 @@ export function DeepgramPilotVoice({
   const voiceValues = useRef<Record<string, Record<string, string>>>({});
   const utterancePath = useRef(path);
   const applying = useRef(false);
+  const resumeRef = useRef<string | undefined>(undefined);
+  const [usage, setUsage] = useState<{
+    remainingSeconds: number;
+    estimatedMicrousd: number | null;
+  } | null>(null);
   const catalog = useServerFn(deepgramPilotCatalog);
   const audio = useRef<AudioState | null>(null);
   const generation = useRef(0);
@@ -69,21 +76,20 @@ export function DeepgramPilotVoice({
   }, []);
 
   const stop = useCallback(
-    (reason = "Microfono spento") => {
+    (reason = "Microfono spento", preserveContext = false) => {
       generation.current++;
       starting.current = false;
-      voiceValues.current = {};
+      if (!preserveContext) {
+        voiceValues.current = {};
+        resumeRef.current = undefined;
+      }
       setLines([]);
       setProposal(null);
       const state = audio.current;
       audio.current = null;
       if (state) {
-        try {
-          if (state.socket.readyState === WebSocket.OPEN) state.socket.send("STOP");
-        } catch {}
-        try {
-          state.socket.close();
-        } catch {}
+        resumeRef.current = preserveContext ? state.transport.checkpoint : undefined;
+        state.transport.stop();
         for (const sound of state.sounds) {
           try {
             sound.stop();
@@ -115,9 +121,9 @@ export function DeepgramPilotVoice({
   }, []);
   useEffect(() => {
     const onHidden = () => {
-      if (document.hidden) stop();
+      if (document.hidden) stop("Micrófono pausado en segundo plano", true);
     };
-    const onPageHide = () => stop();
+    const onPageHide = () => stop("Micrófono pausado", true);
     document.addEventListener("visibilitychange", onHidden);
     window.addEventListener("pagehide", onPageHide);
     return () => {
@@ -158,7 +164,7 @@ export function DeepgramPilotVoice({
     const current = ++generation.current;
     let ctx: AudioContext | undefined;
     let stream: MediaStream | undefined;
-    let socket: WebSocket | undefined;
+    let transport: VoiceTransport | undefined;
     try {
       // Audio activation stays in the click event for mobile Safari.
       ctx = new AudioContext({ sampleRate: 48000 });
@@ -214,12 +220,10 @@ export function DeepgramPilotVoice({
         (location.protocol === "https:" ? "wss://" : "ws://") +
         location.host +
         "/api/snoop-deepgram/socket";
-      socket = new WebSocket(target);
-      socket.binaryType = "arraybuffer";
       const state: AudioState = {
         ctx,
         stream,
-        socket,
+        transport: null as unknown as VoiceTransport,
         node,
         source,
         sink,
@@ -238,50 +242,36 @@ export function DeepgramPilotVoice({
       setProposal(null);
       setRunning(true);
       onPhaseChange?.("starting");
-      socket.onopen = () => {
-        if (generation.current !== current) return;
-        socket?.send(
-          JSON.stringify({
-            type: "AppStart",
-            token: auth.session?.access_token,
-            consent: true,
-            synthetic: true,
-            language,
-            sampleRate: ctx?.sampleRate,
-          }),
-        );
-      };
       const supportsEchoCancellation =
         stream.getAudioTracks()[0]?.getSettings?.().echoCancellation === true;
       node.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-        if (
-          generation.current !== current ||
-          audio.current !== state ||
-          !state.ready ||
-          socket?.readyState !== WebSocket.OPEN ||
-          socket.bufferedAmount > 128000
-        )
-          return;
+        if (generation.current !== current || audio.current !== state) return;
         // Native acoustic echo cancellation permits provider-side spoken interruption.
         // On devices that do not confirm AEC support, retain the safe manual fallback.
         if (!supportsEchoCancellation && state.ctx.currentTime < state.playEnd + 0.12) return;
-        state.socket.send(event.data);
+        state.transport.capture(event.data);
       };
-      socket.onmessage = async (event: MessageEvent) => {
+      let actionQueue = Promise.resolve();
+      const receive = async (message: any) => {
         if (generation.current !== current) return;
-        if (event.data instanceof ArrayBuffer) {
-          play(event.data);
-          return;
-        }
         try {
-          const message = JSON.parse(event.data);
-          if (message.type === "AppReady") {
+          if (message.type === "AppUsage") {
+            const u = message.usage;
+            if (Number.isFinite(u?.remainingSeconds) && u.remainingSeconds >= 0)
+              setUsage({
+                remainingSeconds: u.remainingSeconds,
+                estimatedMicrousd: Number.isFinite(u.estimatedMicrousd)
+                  ? u.estimatedMicrousd
+                  : null,
+              });
+          } else if (message.type === "AppReady") {
             state.ready = true;
+            state.suppressed = false;
             onPhaseChange?.("recording");
             setStatus(
               supportsEchoCancellation
-                ? "SNOOP ti ascolta · interruzione vocale attiva · massimo 90 secondi"
-                : "SNOOP ti ascolta · per interrompere usa Interrompi · massimo 90 secondi",
+                ? "SNOOP ti ascolta · interruzione vocale attiva"
+                : "SNOOP ti ascolta · per interrompere usa Interrompi",
             );
           } else if (
             message.type === "ConversationText" &&
@@ -298,10 +288,11 @@ export function DeepgramPilotVoice({
             );
           } else if (message.type === "UserStartedSpeaking") {
             utterancePath.current = pathRef.current;
-            state.suppressed = false;
             interrupt();
-            state.suppressed = false;
             setStatus("Ti ascolto…");
+          } else if (message.type === "AgentThinking") {
+            state.suppressed = false;
+            setStatus("SNOOP sta elaborando…");
           } else if (message.type === "AppProposal") {
             const result = message.result as ProposalResult;
             if (!result.ok || !result.proposal) {
@@ -314,6 +305,15 @@ export function DeepgramPilotVoice({
               return;
             }
             if (applying.current || pathRef.current !== utterancePath.current) {
+              if (message.id)
+                state.transport.send({
+                  type: "AppActionResult",
+                  id: message.id,
+                  status: "rejected",
+                  code: "STALE",
+                  applied: [],
+                  skipped: [],
+                });
               setStatus("Pagina cambiata. Ripeti il comando.");
               return;
             }
@@ -321,6 +321,7 @@ export function DeepgramPilotVoice({
             try {
               const applied = await applyDeepgramDraft(result.proposal, {
                 access: accessRef.current,
+                owner: voiceOwner(auth.session!.user.id, accessRef.current.clubId!),
                 path: () => pathRef.current,
                 current: () => generation.current === current && audio.current === state,
                 navigate: async (to) => {
@@ -329,6 +330,18 @@ export function DeepgramPilotVoice({
                 },
                 last: voiceValues.current,
               });
+              if (message.id)
+                state.transport.send({
+                  type: "AppActionResult",
+                  id: message.id,
+                  status:
+                    applied.proposal.intent === "navigate" || applied.proposal.intent === "search"
+                      ? "opened"
+                      : "prepared",
+                  applied: applied.applied,
+                  skipped: applied.skipped,
+                  code: applied.skipped.length ? "MANUAL_EDIT_PRESERVED" : "OK",
+                });
               setProposal(applied.proposal);
               setStatus(
                 applied.skipped.length
@@ -336,10 +349,24 @@ export function DeepgramPilotVoice({
                   : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
               );
             } catch {
+              if (message.id)
+                state.transport.send({
+                  type: "AppActionResult",
+                  id: message.id,
+                  status: "rejected",
+                  applied: [],
+                  skipped: [],
+                  code: "FORM_UNAVAILABLE",
+                });
               setStatus("Impossibile preparare il modulo. Nessun dato salvato.");
             } finally {
               applying.current = false;
             }
+          } else if (message.type === "AppCashResult") {
+            if (Number.isSafeInteger(message.summary?.cents))
+              setStatus(
+                `${message.summary.day}: ${(message.summary.cents / 100).toFixed(2)} € · ${message.summary.scope === "club" ? "club" : "tu actividad"}`,
+              );
           } else if (message.type === "AppError") {
             stop("Deepgram: " + String(message.code || "PROVIDER_ERROR").slice(0, 80));
           } else if (message.type === "AppClosed") {
@@ -349,17 +376,49 @@ export function DeepgramPilotVoice({
           stop("Risposta vocale non valida");
         }
       };
-      socket.onerror = () => {
-        if (generation.current === current) stop("Connessione Deepgram non disponibile");
-      };
-      socket.onclose = () => {
-        if (generation.current === current) stop("Connessione chiusa, microfono spento");
-      };
+      transport = new VoiceTransport({
+        url: target,
+        sampleRate: ctx.sampleRate,
+        resume: resumeRef.current,
+        foreground: () => !document.hidden && generation.current === current,
+        payload: async () => {
+          const { data } = await supabase.auth.getSession();
+          if (!data.session || data.session.user.id !== auth.session!.user.id)
+            throw Error("SESSION_EXPIRED");
+          return {
+            type: "AppStart",
+            token: data.session.access_token,
+            consent: true,
+            synthetic: true,
+            language,
+            sampleRate: state.ctx.sampleRate,
+          };
+        },
+        binary: play,
+        message: (m) => {
+          if ((m as any)?.type === "AppProposal")
+            actionQueue = actionQueue
+              .then(() => receive(m))
+              .catch(() => stop("Azione vocale interrotta"));
+          else void receive(m);
+        },
+        phase: (phase) => {
+          if (generation.current !== current) return;
+          if (phase === "paused") {
+            interrupt();
+            setStatus("SNOOP en espera · micrófono local · sin conexión de pago");
+          }
+          if (phase === "reconnecting") setStatus("Reconectando SNOOP · conservo la conversación");
+        },
+        fatal: (code) => stop("SNOOP: " + code),
+      });
+      state.transport = transport;
+      await transport.start();
     } catch (error) {
       if (!audio.current) {
         stream?.getTracks().forEach((track) => track.stop());
         void ctx?.close();
-        socket?.close();
+        transport?.stop();
       }
       if (generation.current === current)
         stop(error instanceof Error ? error.message : "Impossibile attivare SNOOP");
@@ -423,9 +482,8 @@ export function DeepgramPilotVoice({
           </select>
         </label>
         <p style={{ fontSize: 12 }}>
-          Prova riservata all'amministratore. Invii audio di prova e solo nomi di categorie/prodotti
-          a Deepgram. Non pronunciare dati personali reali. Sessione massima 90 s; servizio a
-          consumo.
+          Deepgram procesa tu voz. No dictes datos personales reales sin la aprobación de
+          privacidad. Los cambios se revisan antes de guardar.
         </p>
         <label style={{ display: "flex", gap: 8 }}>
           <input
@@ -434,12 +492,12 @@ export function DeepgramPilotVoice({
             disabled={running}
             onChange={(e) => setConsent(e.target.checked)}
           />
-          Acconsento al test vocale con dati fittizi.
+          Acepto el procesamiento de voz; uso datos ficticios al tratar datos de personas.
         </label>
       </div>
       {running && (
         <p style={{ fontSize: 11, margin: "4px 0" }}>
-          Solo dati sintetici · massimo 90 s · nessun salvataggio automatico
+          Revisión antes de guardar · pausa automática cuando no se utiliza
         </p>
       )}
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
@@ -455,6 +513,14 @@ export function DeepgramPilotVoice({
           Interrompi
         </button>
       </div>
+      {usage && (
+        <p style={{ fontSize: 11 }}>
+          Voz disponible: {(usage.remainingSeconds / 60).toFixed(1)} min ·{" "}
+          {usage.estimatedMicrousd === null
+            ? "coste pendiente de tarifa verificada"
+            : `estimación ${(usage.estimatedMicrousd / 1000000).toFixed(2)} USD`}
+        </p>
+      )}
       {!running && verifiedCount !== null && <p>Categorie verificate: {verifiedCount}</p>}
       <div aria-live="polite" style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}>
         {(running ? lines.slice(-1) : lines).map((line, i) => (
