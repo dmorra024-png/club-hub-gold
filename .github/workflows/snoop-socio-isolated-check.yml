@@ -106,8 +106,10 @@ jobs:
           bun-version: '1.3.12'
       - name: Install pinned dependencies
         run: bun install --frozen-lockfile
+      - name: Install pinned browser runner in isolated Socio directory
+        run: npm install --prefix apps/socio --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright-core@1.57.0
       - name: Install Chromium and WebKit browser engines
-        run: npx playwright-core install --with-deps chromium webkit
+        run: apps/socio/node_modules/.bin/playwright-core install --with-deps chromium webkit
       - name: Real member frontend on Android-sized Chromium and iPhone-sized WebKit
         run: node apps/socio/browser-acceptance.mjs
       - name: Save synthetic mobile screenshots
