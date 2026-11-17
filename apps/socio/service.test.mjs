@@ -33,12 +33,13 @@ test('unverified email and staff account cannot read wallet or memberships',asyn
 });
 test('signed QR rejected across clubs, staff must be authorized',async()=>{
  const {token}=await svc.qr(actor,a);
- const staff={accountType:'staff',verified:true,clubId:a,canScan:true};
+ const staff={accountType:'staff',verified:true,userId:u,clubId:a,canScan:true};
  assert.deepEqual(await svc.scan(staff,token),{clubId:a,memberId:m,valid:true});
  await assert.rejects(svc.scan(staff,token),{code:'QR_ALREADY_SCANNED'});
  await assert.rejects(svc.scan({...staff,clubId:b},token),{code:'QR_REJECTED'});
  await assert.rejects(svc.scan({...staff,canScan:false},token),{code:'SCANNER_UNAUTHORIZED'});
  await assert.rejects(svc.scan({...staff,verified:false},token),{code:'SCANNER_UNAUTHORIZED'});
+ await assert.rejects(svc.scan({...staff,userId:undefined},token),{code:'SCANNER_UNAUTHORIZED'});
 });
 test('challenge cannot be claimed by simply knowing email or arbitrary code',async()=>{
  await assert.rejects(svc.linkMembership(actor,'abcdef12'),{code:'LINK_NOT_AUTHORIZED'});
