@@ -42,7 +42,27 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
    const rows=await select('/socio_wallet_ledger?select=delta_cents,balance_after_cents,created_at,label&club_id='+byId(clubId)+'&member_id='+byId(memberId)+'&order=created_at.desc&limit=100');
    return rows.map(x=>({deltaCents:x.delta_cents,balanceCents:x.balance_after_cents,createdAt:x.created_at,label:x.label}));
   },
-  async claimAndConsumeLinkChallenge(){throw fail('SOCIO_LINK_WRITE_DISABLED');},
+  async claimAndConsumeLinkChallenge({code,authUserId}={}){
+   if(authUserId!==actorId)throw fail('SOCIO_IDENTITY_SCOPE',403);
+   if(typeof code!=='string'||!/^[a-f0-9]{48}$/.test(code))throw fail('SOCIO_LINK_CODE_INVALID',400);
+   // The RPC alone owns the transaction and performs fresh user, staff,
+   // membership and challenge verification in the database. The browser
+   // cannot supply clubId/memberId/userId or control a verified link.
+   let res;
+   try{
+    res=await fetcher(root+'/rpc/socio_claim_member',{
+     method:'POST',headers:{
+      apikey:publishableKey,authorization:'Bearer '+accessToken,
+      accept:'application/json','content-type':'application/json'
+     },body:JSON.stringify({p_code:code}),redirect:'error',signal:AbortSignal.timeout(8000)
+    });
+   }catch{throw fail('SOCIO_LINK_PROVIDER_UNAVAILABLE');}
+   if(res.status===400||res.status===401||res.status===403||res.status===409)return{ok:false};
+   if(!res.ok)throw fail('SOCIO_LINK_PROVIDER_UNAVAILABLE');
+   let value;try{value=await res.json();}catch{throw fail('SOCIO_LINK_PROVIDER_UNAVAILABLE');}
+   if(typeof value!=='boolean')throw fail('SOCIO_LINK_BAD_DATA');
+   return{ok:value};
+  },
   async autoLinkForVerifiedEmail(){throw fail('SOCIO_AUTOLINK_WRITE_DISABLED');},
   async isMemberActive(){throw fail('STAFF_SCANNER_ADAPTER_REQUIRED');},
   async consumeQrNonce(){throw fail('STAFF_SCANNER_REPLAY_STORE_REQUIRED');}
