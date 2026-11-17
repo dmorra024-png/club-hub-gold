@@ -27,6 +27,34 @@ begin
  end if;
 end
 $assert$;
+-- Opening a wallet does not invent an income or credit.
+do $assert$
+declare bal bigint; n integer;
+begin
+ select balance_cents into bal from public.socio_wallet_accounts where
+ member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if bal is distinct from 0 then raise exception 'NEW_WALLET_MUST_START_AT_ZERO'; end if;
+ select count(*) into n from public.socio_wallet_ledger where
+ member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if n<>0 then raise exception 'CARD_SYNC_MUST_NOT_CREATE_LEDGER'; end if;
+end
+$assert$;
+-- Repeated synchronization must NEVER reset a funded wallet.
+update public.socio_wallet_accounts set balance_cents=1234
+ where member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '7dbe4ead-c904-4c52-9fc1-51a9018aeb22',false);
+select public.socio_sync_member_card('935b7336-4bc9-4ba3-88e0-98b04f53ec51');
+reset role;
+do $assert$
+declare b bigint;
+begin
+ select balance_cents into b from public.socio_wallet_accounts where
+ member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if b<>1234 then raise exception 'REPEATED_CARD_SYNC_RESET_FUNDS'; end if;
+end
+$assert$;
 -- Non-admin accounts must not update other people's membership projections.
 set role authenticated;
 select set_config('request.jwt.claim.sub',
