@@ -13,7 +13,8 @@ create table public.clubs(id uuid primary key, name text not null,active boolean
 create table public.members(
  id uuid primary key,
  club_id uuid not null references public.clubs(id),
- expires_at date not null default (current_date + interval '30 days')
+ member_number text not null default '000',
+expires_at date not null default (current_date + interval '30 days')
 );
 create table public.user_roles(user_id uuid not null references auth.users(id),club_id uuid references public.clubs(id),role text not null,permissions text[] not null default '{}');
 create table public.orders(id uuid primary key, club_id uuid not null, member_id uuid not null);
