@@ -122,3 +122,41 @@ jobs:
           retention-days: 14
       - name: Never deploy
         run: echo "Local browser test with intercepted fake API; no staging or production deployment"
+
+  sql-schema-isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: snoop_socio_sql
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: only_synthetic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d snoop_socio_sql"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: only_synthetic_ci
+      PGDATABASE: snoop_socio_sql
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client if unavailable
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client)
+      - name: Create minimal sandbox schema (never live production)
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_BOOTSTRAP.sql
+      - name: Compile standalone Socio proposal on PostgreSQL 16
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/REVIEW_ONLY.sql
+      - name: Assert tenant isolation, RLS, restricted writes and no cross-club links
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_ASSERTIONS.sql
+      - name: No Supabase modifications
+        run: echo "Only ephemeral local PostgreSQL container; no production database access"
