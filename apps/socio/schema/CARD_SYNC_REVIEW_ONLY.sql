@@ -45,6 +45,14 @@ begin
   club_name=excluded.club_name,member_number=excluded.member_number,
   active=excluded.active,wallet_enabled=excluded.wallet_enabled,
   revoked_at=excluded.revoked_at,updated_at=now();
+ -- An enabled club may present a zero-balance wallet to an active member
+ -- immediately. This creates NO ledger entry and NO cash income.
+ -- Re-running synchronization must never modify an existing balance.
+ if v_active and v_wallet_enabled then
+  insert into public.socio_wallet_accounts(club_id,member_id,balance_cents)
+  values (v_member.club_id,v_member.id,0)
+  on conflict (club_id,member_id) do nothing;
+ end if;
  return true;
 end;
 $socio_card_sync$;
