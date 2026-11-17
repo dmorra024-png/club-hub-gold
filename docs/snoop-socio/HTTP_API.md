@@ -11,7 +11,7 @@
 | POST | /api/socio/memberships/sync | Server-side auto-link eligibility and atomic repository sync (pending) |
 | POST | /api/socio/link/claim | Consume staff-issued challenge; no client trust |
 | GET | /api/socio/clubs/:id/carnet | Current member number and state |
-| GET | /api/socio/clubs/:id/carnet/qr | PNG of a short-lived signed token |
+| GET | /api/socio/clubs/:id/carnet/qr | PNG of a short-lived encrypted AES-256-GCM token |
 | GET | /api/socio/clubs/:id/wallet | Read-only saldo (if enabled) |
 | GET | /api/socio/clubs/:id/wallet/movements | Read-only club-scoped movement history |
 | POST | /api/socio/auth/signup | Supabase adapter pending |
