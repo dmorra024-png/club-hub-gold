@@ -10,7 +10,7 @@ returns trigger
 language plpgsql
 security invoker
 set search_path = ''
-as $
+as $socioscope$
 begin
  if not exists (
   select 1 from public.members m
@@ -20,7 +20,7 @@ begin
  end if;
  return new;
 end;
-$;
+$socioscope$;
 revoke all on function public.socio_enforce_member_club() from public, anon, authenticated;
 
 create table if not exists public.socio_membership_links (
