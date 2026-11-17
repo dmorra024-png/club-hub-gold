@@ -18,9 +18,37 @@ test('wallet uses club and member scope, with no mutation paths',async()=>{
  assert.deepEqual(await r.walletMovementsForMember(club,member),[]);
  await assert.rejects(r.walletForMember('wrong',member),{code:'SOCIO_WALLET_SCOPE'});
  await assert.rejects(r.autoLinkForVerifiedEmail({}),{code:'SOCIO_AUTOLINK_WRITE_DISABLED'});
- await assert.rejects(r.claimAndConsumeLinkChallenge({}),{code:'SOCIO_LINK_WRITE_DISABLED'});
+ await assert.rejects(r.claimAndConsumeLinkChallenge({}),{code:'SOCIO_IDENTITY_SCOPE'});
 });
 test('query errors are failures, not fake empty membership',async()=>{
  const r=make(async()=>Response.json({message:'permission denied'},{status:403}));
  await assert.rejects(r.membershipsForUser(uid),{code:'SOCIO_READ_UNAVAILABLE'});
+});
+
+test('server-side claim RPC uses own verified JWT and only a temporary secret',async()=>{
+ const events=[];
+ const r=make(async(url,opts)=>{
+  events.push({url,opts});
+  if(url.endsWith('/rpc/socio_claim_member'))return Response.json(true);
+  return Response.json([]);
+ });
+ const code='a'.repeat(48);
+ assert.deepEqual(await r.claimAndConsumeLinkChallenge({code,authUserId:uid}),{ok:true});
+ assert.equal(events.length,1);
+ assert.match(events[0].url,/\/rpc\/socio_claim_member$/);
+ assert.equal(events[0].opts.headers.authorization,'Bearer verified-user-jwt');
+ assert.deepEqual(JSON.parse(events[0].opts.body),{p_code:code});
+ assert.equal(JSON.stringify(events[0]).includes(member),false);
+ await assert.rejects(r.claimAndConsumeLinkChallenge({code,authUserId:other}),{code:'SOCIO_IDENTITY_SCOPE'});
+ await assert.rejects(r.claimAndConsumeLinkChallenge({code:'short',authUserId:uid}),{code:'SOCIO_LINK_CODE_INVALID'});
+ assert.equal(events.length,1);
+});
+test('claim RPC rejects spent tokens, fails closed on missing RPC or corrupt reply',async()=>{
+ const code='b'.repeat(48);
+ const spent=make(async()=>Response.json(false));
+ assert.deepEqual(await spent.claimAndConsumeLinkChallenge({code,authUserId:uid}),{ok:false});
+ const unavailable=make(async()=>Response.json({message:'RPC missing'},{status:404}));
+ await assert.rejects(unavailable.claimAndConsumeLinkChallenge({code,authUserId:uid}),{code:'SOCIO_LINK_PROVIDER_UNAVAILABLE'});
+ const corrupt=make(async()=>Response.json({ok:true}));
+ await assert.rejects(corrupt.claimAndConsumeLinkChallenge({code,authUserId:uid}),{code:'SOCIO_LINK_BAD_DATA'});
 });
