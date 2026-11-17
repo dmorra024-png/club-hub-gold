@@ -1,0 +1,26 @@
+name: SNOOP Socio isolated scaffold checks
+on:
+  push:
+    branches: [feature/snoop-socio-app-design-20261117]
+    paths:
+      - apps/socio/**
+      - .github/workflows/snoop-socio-isolated-check.yml
+  pull_request:
+    paths:
+      - apps/socio/**
+      - .github/workflows/snoop-socio-isolated-check.yml
+permissions:
+  contents: read
+jobs:
+  static-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate isolated member app without production secrets or API
+        run: node apps/socio/check.mjs
+      - name: No deployment
+        run: echo "Static-only checks; no Cloudflare deployment or Supabase mutations"
