@@ -63,3 +63,26 @@ test('refresh rotates both HttpOnly tokens; logout clears cookies',async()=>{
  assert.match(out.headers.get('set-cookie'),/Max-Age=0/);
  assert.equal((await auth.refresh({request:req()})).status,401);
 });
+
+test('signup reports mail-provider outage and refuses to fake a successful invitation',async()=>{
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async()=>Response.json({error:'SMTP unavailable'},{status:503}),
+  authorizeSocioUser:async()=>true
+ });
+ const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+ assert.equal(result.status,503);
+ assert.equal(result.headers.get('set-cookie'),null);
+});
+test('existing-email response cannot be used to enumerate member accounts',async()=>{
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async()=>Response.json({error:'already registered'},{status:422}),
+  authorizeSocioUser:async()=>true
+ });
+ const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+ assert.equal(result.status,200);
+ const body=await result.json();
+ assert.equal(body.accepted,true);
+ assert.equal(JSON.stringify(body).includes('already registered'),false);
+});
