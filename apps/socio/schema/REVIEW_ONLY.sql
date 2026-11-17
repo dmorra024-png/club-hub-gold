@@ -68,6 +68,30 @@ create policy socio_cards_read_linked_own on public.socio_member_cards
       and l.member_id=public.socio_member_cards.member_id and l.status='verified' and l.revoked_at is null)
  );
 
+-- ONE option per club; disabled unless an admin and accounting workflow opt in.
+-- No direct edits by Socio PWA users; wallet_enabled projections must stay
+-- synchronized with this setting. Consent and accounting review precede use.
+create table if not exists public.socio_club_wallet_settings (
+ club_id uuid primary key references public.clubs(id),
+ enabled boolean not null default false,
+ changed_by uuid references auth.users(id),
+ changed_at timestamptz not null default now()
+);
+alter table public.socio_club_wallet_settings enable row level security;
+revoke all on public.socio_club_wallet_settings from public,anon,authenticated;
+-- Members can see ONLY the enablement setting for clubs with a verified link.
+-- This avoids granting write access and makes wallet shutdown immediate under RLS.
+grant select on public.socio_club_wallet_settings to authenticated;
+create policy socio_wallet_settings_read_linked on public.socio_club_wallet_settings
+ for select to authenticated using (
+  exists (
+   select 1 from public.socio_membership_links l
+   where l.auth_user_id=(select auth.uid())
+    and l.club_id=socio_club_wallet_settings.club_id
+    and l.status='verified' and l.revoked_at is null
+  )
+);
+
 -- Wallet is disabled until legal/accounting review and approved financial RPCs.
 -- This read-only structure will remain empty until approved rollout.
 create table if not exists public.socio_wallet_accounts (
@@ -88,7 +112,9 @@ create policy socio_wallet_read_own on public.socio_wallet_accounts
       and l.club_id=socio_wallet_accounts.club_id
       and l.member_id=socio_wallet_accounts.member_id
       and l.status='verified' and l.revoked_at is null
-      and c.active and c.wallet_enabled and c.revoked_at is null)
+      and c.active and c.wallet_enabled and c.revoked_at is null
+      and exists(select 1 from public.socio_club_wallet_settings ws
+       where ws.club_id=socio_wallet_accounts.club_id and ws.enabled))
  );
 
 create table if not exists public.socio_wallet_ledger (
@@ -129,20 +155,10 @@ create policy socio_ledger_read_own on public.socio_wallet_ledger
     join public.socio_member_cards c on c.club_id=l.club_id and c.member_id=l.member_id
     where l.auth_user_id=(select auth.uid()) and l.club_id=socio_wallet_ledger.club_id
       and l.member_id=socio_wallet_ledger.member_id and l.status='verified'
-      and l.revoked_at is null and c.active and c.wallet_enabled and c.revoked_at is null)
+      and l.revoked_at is null and c.active and c.wallet_enabled and c.revoked_at is null
+      and exists(select 1 from public.socio_club_wallet_settings ws
+       where ws.club_id=socio_wallet_ledger.club_id and ws.enabled))
  );
-
--- ONE option per club; disabled unless an admin and accounting workflow opt in.
--- No direct edits by Socio PWA users; wallet_enabled projections must stay
--- synchronized with this setting. Consent and accounting review precede use.
-create table if not exists public.socio_club_wallet_settings (
- club_id uuid primary key references public.clubs(id),
- enabled boolean not null default false,
- changed_by uuid references auth.users(id),
- changed_at timestamptz not null default now()
-);
-alter table public.socio_club_wallet_settings enable row level security;
-revoke all on public.socio_club_wallet_settings from public,anon,authenticated;
 
 -- Staff-approved, single-use link challenges: only a SHA-256 digest of the
 -- random secret is stored; never the plaintext code. No access from browser.
