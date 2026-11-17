@@ -44,6 +44,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
   },
   async claimAndConsumeLinkChallenge(){throw fail('SOCIO_LINK_WRITE_DISABLED');},
   async autoLinkForVerifiedEmail(){throw fail('SOCIO_AUTOLINK_WRITE_DISABLED');},
-  async isMemberActive(){throw fail('STAFF_SCANNER_ADAPTER_REQUIRED');}
+  async isMemberActive(){throw fail('STAFF_SCANNER_ADAPTER_REQUIRED');},
+  async consumeQrNonce(){throw fail('STAFF_SCANNER_REPLAY_STORE_REQUIRED');}
  };
 }
