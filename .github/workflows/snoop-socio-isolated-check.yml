@@ -22,5 +22,7 @@ jobs:
           node-version: '24'
       - name: Validate isolated member app without production secrets or API
         run: node apps/socio/check.mjs
+      - name: Verify isolated membership, QR and wallet guards
+        run: node --test apps/socio/domain.test.mjs
       - name: No deployment
         run: echo "Static-only checks; no Cloudflare deployment or Supabase mutations"
