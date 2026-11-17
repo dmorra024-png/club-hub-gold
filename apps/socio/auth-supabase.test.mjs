@@ -7,7 +7,7 @@ function fixture({allow=true,confirmed=true}={}){
  const hits=[];
  const fetcher=async(url,opts)=>{
   hits.push({url,opts});
-  if(url.endsWith('/signup'))return Response.json({id:uid});
+  if(url.includes('/signup?redirect_to='))return Response.json({id:uid});
   if(url.includes('grant_type=password'))return Response.json({access_token:'session-access',refresh_token:'session-refresh',expires_in:1800});
   if(url.includes('grant_type=refresh_token'))return Response.json({access_token:'new-access',refresh_token:'new-refresh',expires_in:1800});
   if(url.endsWith('/user'))return Response.json({id:uid,email:'socio@example.com',email_confirmed_at:confirmed?'2026-11-17T00:00:00Z':null});
