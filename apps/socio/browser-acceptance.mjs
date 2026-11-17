@@ -8,7 +8,7 @@ import {resolve,extname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {chromium,webkit} from 'playwright-core';
 import assert from 'node:assert/strict';
-const dir=resolve(fileURLToPath(new URL('../apps/socio/',import.meta.url)));
+const dir=resolve(fileURLToPath(new URL('./',import.meta.url)));
 const screenshotDir=resolve('.sandbox/socio-browser');
 const idA='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc',idB='63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4';
 const testEmail='socio@example.test', testPassword='SyntheticPassword123!';
