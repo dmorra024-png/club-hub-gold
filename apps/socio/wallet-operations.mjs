@@ -25,9 +25,9 @@ function validatedOperation(op){
  if(!Number.isSafeInteger(op.amountCents)||op.amountCents<=0||op.amountCents>10_000_000)
   throw error('WALLET_AMOUNT_INVALID',400);
  if(op.confirmed!==true)throw error('WALLET_CONFIRMATION_REQUIRED',409);
- if(op.kind==='spend'&&(!validId(op.orderId)||op.reversalOf!==undefined))
+ if(op.kind==='spend'&&(!validId(op.orderId)||op.reversalOf!==undefined||op.cashSessionId!==undefined))
   throw error('WALLET_ORDER_REQUIRED',400);
- if(op.kind==='refund'&&(!validId(op.orderId)||!validId(op.reversalOf)))
+ if(op.kind==='refund'&&(!validId(op.orderId)||!validId(op.reversalOf)||op.cashSessionId!==undefined))
   throw error('WALLET_REFUND_REFERENCE_REQUIRED',400);
  if(op.kind==='topup'&&(!validId(op.cashSessionId)||op.orderId!==undefined||op.reversalOf!==undefined))
   throw error('WALLET_TOPUP_CASH_SESSION_REQUIRED',400);
