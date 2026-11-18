@@ -1,4 +1,5 @@
 import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
@@ -51,6 +52,7 @@ export function SnoopLayout({
 }) {
   const voicePhase = useVoicePhase();
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
+  useClubTheme(access.clubId);
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
