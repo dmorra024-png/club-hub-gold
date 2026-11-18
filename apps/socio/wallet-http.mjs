@@ -10,10 +10,9 @@ const json=(body,status=200)=>new Response(JSON.stringify(body),{
 });
 const reject=(code,status)=>json({code},status);
 const routes=new Map([['topup','topup'],['spend','spend'],['refund','refund']]);
-export function createStaffWalletHttp({origin,authenticateStaff,repository}){
+export function createStaffWalletHttp({origin,authenticateStaff,repository,repositoryFactory}){
  if(typeof origin!=='string'||new URL(origin).origin!==origin||
-    typeof authenticateStaff!=='function')throw Error('WALLET_HTTP_CONFIG_REQUIRED');
- const commands=createWalletCommands({repository});
+    typeof authenticateStaff!=='function'||(!repository&&typeof repositoryFactory!=='function'))throw Error('WALLET_HTTP_CONFIG_REQUIRED');
  return async function walletHttp(request){
   try{
    const url=new URL(request.url),path=url.pathname;
@@ -36,6 +35,10 @@ export function createStaffWalletHttp({origin,authenticateStaff,repository}){
    // No extra fields and no client-provided role/actor/permissions.
    const allowed=new Set(['clubId','memberId','operationId','amountCents','confirmed','orderId','reversalOf','cashSessionId']);
    if(Object.keys(body).some(k=>!allowed.has(k)))return reject('WALLET_UNEXPECTED_INPUT',400);
+   // Fresh verified staff identity must bind each repository to the actor's
+   // own access JWT. Never reuse a privileged repository across staff sessions.
+   const scopedRepository=repositoryFactory?await repositoryFactory(staff):repository;
+   const commands=createWalletCommands({repository:scopedRepository});
    const result=await commands.commit(staff,{...body,kind:action});
    return json(result);
   }catch(e){
