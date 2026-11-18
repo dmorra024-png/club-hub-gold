@@ -180,7 +180,7 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="newPassword"]').fill('A-Strong-New-Password123!');
   await page.locator('input[name="confirmPassword"]').fill('A-Strong-New-Password123!');
   await page.getByRole('button',{name:'Cambiar contraseña'}).click();
-  await page.getByText('Credenciales incorrectas.').waitFor();
+  await page.getByText('Contraseña actual incorrecta o sesión caducada.').waitFor();
   assert.equal(await page.getByRole('heading',{name:'Mi cuenta'}).isVisible(),true);
   await page.locator('input[name="currentPassword"]').fill(testPassword);
   await page.locator('input[name="newPassword"]').fill('A-Strong-New-Password123!');
