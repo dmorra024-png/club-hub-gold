@@ -1,6 +1,17 @@
-# SNOOP Socio — isolated PWA UI shell
+# SNOOP Socio — app client premium blu/oro
 
-**Not production-ready; backend adapters are implemented on this branch but are NOT deployed, and no database migration was executed.** This directory contains a real, navigable, responsive *frontend scaffold* plus tested domain and server service abstractions for the future Socio app. It is deliberately isolated from current SNOOP routes, workflows and Supabase production. Do not claim it issues usable QR cards until the Socio API exists and is independently authorized.
+## Pilota online · 18 novembre 2026
+
+- **Indirizzo separato dal gestionale:** https://snoop-socio-pilot.dmorra024.workers.dev
+- **Logo:** le stesse cinque lettere vettoriali argento di `src/components/SnoopWordmark.tsx`, icona S quadrata coordinata, colori da `src/styles.css`.
+- **Cloudflare:** Worker `snoop-socio-pilot` con propri asset e propria origine. Segreti Pubblicabile Supabase e QR cifrati in binding `secret_text`; la stessa chiave privata è presente nello scanner autorizzato del Worker gestionale `snoop-pilot`.
+- **Supabase:** tabelle `socio_*`, RPC `socio_issue_member_claim`, `socio_claim_member` e `socio_staff_consume_qr` installate; nuovi soci ricevono una tessera indipendente dal Monedero.
+- **Invito:** scheda socio nel gestionale → codice monouso valido 10 minuti → account SNOOP Socio verificato → tessera/QR temporaneo. I saldi sono personali e visibili solo con collegamento verificato.
+- **Scanner:** nella gestione soci il QR `ssc2` passa per verifica AES-GCM sul server, autorizzazione club e consumo nonce; non si interpreta il token nel browser.
+- **Collaudi completati:** SQL sintetico, controlli statici, browser Chromium/WebKit simulati, Cloudflare HTTPS 200, QR/logo asset e API 401 senza sessione.
+- **Collaudi ancora necessari prima della distribuzione pubblica:** test di registrazione e email confermata con un socio consenziente, verifica URL redirect del progetto Supabase, scansione fisica Android/iOS, verifica QR dopo expiry/revoca, saldi e movimento reale con autorizzazione, installazione PWA su dispositivi effettivi. Non sono stati usati account reali di soci nei test automatici.
+
+Questo pilota **non deve essere dichiarato pronto per un lancio pubblico** prima di tali prove end-to-end.
 
 ## Preview locally
 From repo root, serve files statically with an HTTP server that points to `apps/socio/`, e.g. `python3 -m http.server 8765 --directory apps/socio`, then open `http://127.0.0.1:8765`. Browser registration/login will correctly display that the isolated Socio service is not available because no Socio backend has been deployed. Use HTTPS for actual installation.

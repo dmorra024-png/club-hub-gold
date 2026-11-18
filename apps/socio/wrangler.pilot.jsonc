@@ -1,0 +1,18 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "snoop-socio-pilot",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-11-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/socio/*"]
+  },
+  "vars": {
+    "SOCIO_SUPABASE_URL": "https://bnwanxbmprbymbutoths.supabase.co",
+    "SOCIO_ORIGIN": "https://snoop-socio-pilot.dmorra024.workers.dev"
+  }
+}

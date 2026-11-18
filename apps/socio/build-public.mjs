@@ -8,7 +8,7 @@ import {dirname,join}from'node:path';
 import{fileURLToPath}from'node:url';
 const root=dirname(fileURLToPath(import.meta.url));
 const dist=join(root,'dist');
-const names=['index.html','styles.css','main.js','manifest.webmanifest','sw.js','icon.svg'];
+const names=['index.html','styles.css','main.js','manifest.webmanifest','sw.js','icon.svg','snoop-wordmark.svg'];
 await rm(dist,{recursive:true,force:true});await mkdir(dist,{recursive:true});
 for(const name of names){
  const source=join(root,name);const content=await readFile(source,'utf8');
