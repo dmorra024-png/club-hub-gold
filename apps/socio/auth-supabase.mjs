@@ -71,7 +71,9 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
   if(status>=500||status===429||status===401||status===403||status===404||status===0)
    return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');
-  // 400/409/422 may indicate an existing account or a policy rejection.
+  if(status===400)return failed(400,'SIGNUP_REJECTED');
+  // 409/422 can indicate an existing account; reply generically to avoid enumeration.
+  // A rejected validation/weak-password 400 must never be shown as email sent.
   // Keep the response generic to avoid account enumeration; do not conceal
   // provider authorization/configuration errors as successful email dispatch.
   return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
