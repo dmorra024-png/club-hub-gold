@@ -184,5 +184,11 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql
       - name: Verify single-transaction order/debit and cancellation/refund rollback
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ATOMIC.sql
+      - name: Compile staff-only wallet status and verified cash evidence
+        run: |
+          psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_STAFF_STATUS_REVIEW_ONLY.sql
+          psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_CASH_EVIDENCE_REVIEW_ONLY.sql
+      - name: Verify staff wallet read, topup accounting and tenant denial
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_MANAGER_READS.sql
       - name: No Supabase modifications
         run: echo "Only ephemeral local PostgreSQL container; no production database access"
