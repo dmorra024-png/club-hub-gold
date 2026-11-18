@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'release(snoop-wallet): activate approved club pilot')) }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'activate-snoop-wallet-approved')) }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
@@ -56,7 +56,7 @@ jobs:
             test -n "${!name:-}" || { echo "Missing protected secret: $name"; exit 1; }
           done
           [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
-          # Explicitly fail if any deployment-time wallet activation is requested.
+          # Explicit pilot activation authorized for this club; fail unless both flags agree.
           test "${SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" && test "${VITE_SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" || { echo "Wallet activation flags missing"; exit 1; }
           test "$GITHUB_REF_NAME" = "main" || exit 1
           test -f "apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql" || exit 1
