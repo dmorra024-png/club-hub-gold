@@ -1,10 +1,10 @@
-name: SNOOP pilot — deploy manually (no Security PSG)
+name: SNOOP integrated pilot — deploy manually (NO REAL / NO MONEDERO)
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type DEPLOY-SNOOP-PILOT to authorize deployment"
+        description: "Type DEPLOY-SNOOP-PILOT to authorize isolated pilot deployment"
         required: true
         type: string
 
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   deploy-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/stabilize-independent-club' && inputs.confirm == 'DEPLOY-SNOOP-PILOT' }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/integration/snoop-monederosocio-management-20261118' && inputs.confirm == 'DEPLOY-SNOOP-PILOT' }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
@@ -36,18 +36,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Guard target and required secrets (do not print values)
+      - name: Guard integrated target and required secrets (do not print values)
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "dmorra024-png/club-hub-gold"
-          test "$GITHUB_REF_NAME" = "codex/stabilize-independent-club"
+          test "$GITHUB_REF_NAME" = "integration/snoop-monederosocio-management-20261118"
           node -e 'const c=require("./wrangler.json"); if(c.name!=="snoop-pilot" || c.workers_dev!==true || !c.ai || c.ai.binding!=="SNOOP_AI")process.exit(1)'
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SNOOP_PUBLISHABLE_KEY; do
             test -n "${!name:-}" || { echo "Missing protected secret: $name"; exit 1; }
           done
           [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
-          echo "Target validated: SNOOP pilot (no Security PSG resources)"
+          # Explicitly fail if any deployment-time wallet activation is requested.
+          test "${SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "false" || { echo "Wallet must remain disabled"; exit 1; }
+          test "$GITHUB_REF_NAME" = "integration/snoop-monederosocio-management-20261118" || exit 1
+          test -f "apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql" || exit 1
+          test -f "src/lib/wallet-management.functions.ts" || exit 1
+          echo "Target validated: isolated integrated SNOOP pilot; Monedero disabled; no DB migration"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -81,7 +86,7 @@ jobs:
             assert.ok(process.env.CLOUDFLARE_API_TOKEN);
             assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, '0cc8106f8820d22996af3aed9e081e93');
             assert.equal(process.env.GITHUB_REPOSITORY, 'dmorra024-png/club-hub-gold');
-            assert.equal(process.env.GITHUB_REF_NAME, 'codex/stabilize-independent-club');
+            assert.equal(process.env.GITHUB_REF_NAME, 'integration/snoop-monederosocio-management-20261118');
             stage = 'worker-config';
             const checkOnly = process.env.SNOOP_BINDINGS_CHECK_ONLY === 'true';
             const file = checkOnly ? 'wrangler.json' : '.output/server/wrangler.json';
@@ -204,7 +209,7 @@ jobs:
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
 
   diagnose-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/codex/stabilize-independent-club' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/integration/snoop-monederosocio-management-20261118' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 5
