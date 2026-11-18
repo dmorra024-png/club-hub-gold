@@ -13,7 +13,7 @@ create or replace function public.socio_create_wallet_order(
  p_items jsonb,
  p_operation_id uuid
 ) returns jsonb
-language plpgsql security invoker set search_path=''
+language plpgsql security definer set search_path=''
 as $wallet_order$
 declare
  v_club uuid := public.current_club_id();
@@ -64,8 +64,9 @@ begin
 end;
 $wallet_order$;
 
--- Executing this function as invoker requires explicitly reviewed table
--- privileges. Do NOT grant broad INSERT/UPDATE on settlement proofs.
+-- SECURITY DEFINER is narrowly scoped by auth.uid(), current club, member,
+-- permissions, and the existing spend RPC. Proof writes remain DB-only.
+-- Review owner/search_path and all EXECUTE grants before activation.
 revoke all on function public.socio_create_wallet_order(uuid,text,jsonb,uuid)
  from public,anon,authenticated;
 -- Grant EXECUTE only after privilege and account/cash review.
