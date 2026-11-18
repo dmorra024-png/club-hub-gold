@@ -10,14 +10,20 @@ function notify(message,error=false){state.message=message;state.error=error;ren
 async function api(path,{method='GET',body}={}){
   const options={method,credentials:'include',cache:'no-store',headers:{'Accept':'application/json'}};
   if(body!==undefined){options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}
-  let response=await fetch(endpoint+path,options);
+  let response;
+  try{response=await fetch(endpoint+path,options);}
+  catch{const error=Error('Sin conexión con SNOOP Socio. Comprueba internet y vuelve a intentarlo.');error.status=503;throw error;}
   // Refresh session exactly once on stale authentication; credentials remain in HttpOnly cookies.
   if(response.status===401&&!path.startsWith('/auth/')){
     const refreshed=await fetch(endpoint+'/auth/refresh',{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json'},body:'{}'});
     if(refreshed.ok)response=await fetch(endpoint+path,options);
   }
   let value=null;try{value=await response.json();}catch{}
-  if(!response.ok)throw Error(response.status===404||response.status===503?'Servicio de socios aún no disponible.':(value?.message||'No se pudo completar la solicitud.'));
+  if(!response.ok){
+    const err=Error(response.status===404||response.status===503?'Servicio de socios aún no disponible.':(value?.message||'No se pudo completar la solicitud.'));
+    err.status=response.status;
+    throw err;
+  }
   return value;
 }
 function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
@@ -107,7 +113,22 @@ async function refreshMovements(){
  state.message='';state.error=false;render();
  }catch(e){if(current()){state.movements=[];notify(e.message||'No se pudo consultar el historial.',true);}}
 }
-async function authenticate(){try{state.me=await api('/me');if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}if(state.me.emailVerified===true){try{await api('/memberships/sync',{method:'POST',body:{}});}catch{/* Backend not yet available: show secure manual-link fallback. */}}await refreshClubs();}catch{resetClub();state.me=null;state.clubs=[];state.page='login';render();}}
+async function authenticate(){
+ try{
+  state.me=await api('/me');
+  if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}
+  if(state.me.emailVerified===true){
+   try{await api('/memberships/sync',{method:'POST',body:{}});}
+   catch{/* Manual one-use staff link is the secure fallback when auto-link is unavailable. */}
+  }
+  await refreshClubs();
+ }catch(e){
+  resetClub();state.me=null;state.clubs=[];state.page='login';
+  state.message=e?.status===401?'':(e?.message||'No se puede conectar con el servicio de socios.');
+  state.error=Boolean(state.message);
+  render();
+ }
+}
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
 async function submitLink(form){state.pending=true;render();try{await api('/link/claim',{method:'POST',body:{code:String(new FormData(form).get('code')||'').trim()}});state.pending=false;state.message='';await refreshClubs();}catch(e){state.pending=false;notify(e.message||'No se pudo vincular el carnet.',true);}}
 document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}});
