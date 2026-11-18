@@ -58,3 +58,23 @@ test('wallet history returns scoped integer-cent movements for member club A onl
  assert.deepEqual(result.items.map(r=>r.deltaCents),[5000,-2450]);
  await assert.rejects(svc.walletMovements(actor,b),{code:'WALLET_DISABLED'});
 });
+
+test('atomic scanner repository verifies member and consumes nonce in one step',async()=>{
+ const {verifyCardQr}=await import('./domain.mjs');
+ const secret=new Uint8Array(32).fill(32);
+ let calls=0;
+ const atomicRepo={
+  verifyAndConsumeQr:async ({clubId,memberId,nonce,scannerUserId})=>{
+   calls++;
+   assert.equal(clubId,a);assert.equal(memberId,m);assert.equal(scannerUserId,u);
+   assert.match(nonce,/^[A-Za-z0-9_-]{20,30}$/);
+   return calls===1;
+  }
+ };
+ const local=makeSocioService({repository:atomicRepo,signingSecret:secret,now:()=>now});
+ const token=await (await import('./domain.mjs')).issueCardQr({clubId:a,memberId:m,secret,now});
+ const staff={accountType:'staff',verified:true,userId:u,clubId:a,canScan:true};
+ assert.deepEqual(await local.scan(staff,token),{clubId:a,memberId:m,valid:true});
+ await assert.rejects(local.scan(staff,token),{code:'QR_REJECTED_OR_REPLAY'});
+ assert.equal(calls,2);
+});
