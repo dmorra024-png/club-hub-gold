@@ -52,8 +52,8 @@ test("provider schema and application share one real navigation registry, no sav
   }
 });
 test("admin destinations reject collaborators and suspended or cross-scope sessions", () => {
+  assert(conversationAllowed({ ...admin, role: "collaborator" }, proposal("settings")));
   for (const target of [
-    "settings",
     "collaborators",
     "membership_settings",
     "membership_fees",

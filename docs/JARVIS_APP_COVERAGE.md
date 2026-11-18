@@ -1,7 +1,11 @@
 # JARVIS application coverage — release candidate, not production parity
 
-Base: `7c701cd`. This branch changes voice integration only. It does not enable REAL,
-change credentials/RLS/schema, or publish the application. PR #25 and Monedero are excluded.
+Original base: `7c701cd`. Reconciled against the application actually deployed by
+workflow 44333581830: `1aa5c77388a08d89fa63a4c0204ece8b54c00e79` (the `main`
+workflow pins this application commit; `main` itself is not the application tree).
+Commit 78ea3fb imports those released dependencies unchanged, without production merge
+or deployment. `apps/socio` and the wallet transaction/configuration services remain
+byte-identical to that released commit. No REAL, credentials, schema or RLS changes.
 
 ## Demonstrated defects addressed
 
@@ -45,17 +49,17 @@ server uses the authenticated user's existing query, not a service-role bypass.
 | Home (`/`)                                           | Navigation                                                                                                     | Home widgets remain manual                                                                                                           |
 | Socios list / management (`/soci`, `/soci/gestisci`) | Navigation + local authorized search                                                                           | Selecting a particular member by ambiguous name needs explicit resolution                                                            |
 | New member (`/soci/nuovo`)                           | Progressive name, surname, birth date, city, phone drafts; corrections; refused phone remembered               | Other fields and final registration manual; synthetic personal data only                                                             |
-| Member details (`/soci/$id`)                         | Not newly automated                                                                                            | Renewals, membership history, discounts, QR/email/signature need typed context-specific ports; no guessed IDs                        |
+| Member details (`/soci/$id`)                         | Selected-member field corrections; open QR, history, discounts and renewal sections through scoped ports              | No guessed IDs, automatic renewals, outgoing email or signature fabrication                        |
 | Member import (`/soci/importar`)                     | Navigation, existing manage-members gate                                                                       | File selection, validation and import manual                                                                                         |
 | Products (`/productos`)                              | Navigation, existing search, on-demand authorized name lookup beyond the initial snapshot, name/category draft | Pricing, inventory and final writes not exposed by this voice schema                                                                 |
 | Categories (existing Productos tab)                  | Open tab, on-demand verified category lookup, prepare category-name draft                                      | Rename/archive/delete manual                                                                                                         |
 | Stock (existing Productos tab)                       | Open tab and search                                                                                            | No voice inventory mutation or distribution automation                                                                               |
 | Member order (`/soci/$id/pedido`)                    | Not newly automated                                                                                            | No guessed member, automatic payment, fulfillment or stock change                                                                    |
-| Caja (`/caja`)                                       | Navigation                                                                                                     | Opening/closing, cash-count and notes remain manual                                                                                  |
+| Caja (`/caja`)                                       | Navigation; prepare explicitly dictated opening fund, counted closing cash and notes in existing forms                | Saving/opening/closing remains explicit manual confirmation; no inferred cash counts                                                                                  |
 | Caja report (same page)                              | Today's aggregate or explicit valid Madrid calendar day, real authenticated source                             | Voice period receipts now supported (inclusive Madrid dates, up to 366 days); individual session drill-down and writes remain manual |
 | Activities (`/actividades`)                          | Navigation                                                                                                     | Audit detail and cancellations remain manual; original audit preserved                                                               |
 | Reports (`/ajustes/informes`)                        | Navigation, same view-reports gate                                                                             | Report filters/exports manual                                                                                                        |
-| Settings (`/ajustes`)                                | Navigation, admin-only                                                                                         | Settings changes manual                                                                                                              |
+| Settings (`/ajustes`)                                | Navigation, active staff landing; admin-only children                                                           | Settings changes manual                                                                                                              |
 | Collaborators (`/ajustes/colaboradores`)             | Navigation, admin-only                                                                                         | Invitations and permission changes manual                                                                                            |
 | Member settings/discounts (`/ajustes/socios`)        | Navigation, admin-only                                                                                         | Assignments and settings writes manual                                                                                               |
 | Fees (`/ajustes/cuotas`)                             | Navigation, admin-only                                                                                         | Existing fees unchanged; no new automatic discounts                                                                                  |
@@ -66,7 +70,7 @@ server uses the authenticated user's existing query, not a service-role bypass.
 | `/snoop-admin`                                       | Not available to club-admin pilot                                                                              | Separate Super Admin access preserved                                                                                                |
 | `/club-status`, authenticated route guard            | No operational voice access                                                                                    | Suspension and recovery policies unchanged                                                                                           |
 | `/snoop-demo`                                        | No production voice tool                                                                                       | No new demo path introduced                                                                                                          |
-| SNOOP Socio / Monedero (PR #25)                      | Excluded                                                                                                       | Separate development untouched                                                                                                       |
+| SNOOP Socio / Monedero (PR #25)                      | Released dependencies preserved; wallet-aware receipt reads                                                                                                       | Separate development untouched                                                                                                       |
 
 ## Verification and release boundaries
 
@@ -118,13 +122,45 @@ had no verified exact match. Public-source request time was about 4.9–7.3 seco
 query. These numbers measure source retrieval, not Deepgram speech or physical-phone
 latency. The machine-readable evidence is `/workspace/shared/jarvis-genetics-live.jsonl`.
 
-Monedero integration has an actual dependency: PR #25 remains open and its adapter
-`apps/socio/supabase-wallet-operations.mjs` says SQL RPCs are REVIEW_ONLY and online
-enablement is blocked until atomic settlement proofs and cash integration exist.
-Those files/RPCs are absent from this base. No duplicate wallet implementation or
-call to an unapproved production wallet RPC has been introduced.
+The released management application now includes the approved Monedero integration.
+The earlier statement that the wallet services were absent was obsolete. Voice period
+reports now reuse its authenticated cash-evidence reader, count topups once and exclude
+wallet-funded consumption from a second receipts count. Other collaborators' topups
+are excluded in own-scope reports. Evidence failure fails the request, never a false zero.
+Wallet transaction services and `apps/socio` have not been modified relative to release.
+
+The released settings landing was visible to collaborators but its parent route guard
+redirected them home. A reproducing unit test failed before the fix. Only `/ajustes`
+and `/ajustes/` now open for active staff; privileged children remain admin-only, and
+reports still require their permission. Browser tests exercise the actual menu link.
+
+Selected-member correction uses `member_edit`, never the creation route. The existing
+member editor receives only explicitly requested fields. It compares against the loaded
+record and last voice patch, preserving intervening manual edits. The capability is
+scoped to the mounted member, account and club. It does not submit or send current
+member values back to Deepgram. Saving remains the existing explicit manual operation.
 
 There is no connected physical Android/iPhone or authenticated Ddr browser session
 in this workspace. New code is not deployed. Therefore real-device/positive live
 Deepgram acceptance cannot be declared or replaced by WebKit simulation. Full
 manual/voice parity remains unaccepted; no merge or release is performed.
+
+## Reconciliation regression evidence
+
+- Unit suite: 407/407 on the reconciled tree, including synthetic PostgreSQL tests.
+- Selected-member corrections preserve source fields and manual overrides; account/club
+  scope, readiness and forbidden document/role/money fields are covered.
+- Member-section commands reveal the existing QR, discount, renewal or history area;
+  history additionally requires the same economic/report permission as its component.
+- Cash drafts accept explicit decimal euro strings only. Opening funds and closing counts
+  cannot be mixed. The existing session state determines which form can be prepared.
+- A new browser regression initially failed while changing from a historical report to
+  the current cash form. Route ports now expose readiness; the command waits for the
+  verified current report instead of applying against a pending reload. No write RPC
+  is invoked by this preparation. Manual edits still win.
+- Chromium Galaxy S9+ / WebKit iPhone 13 exercise the actual mounted pages with synthetic
+  audio, authentication, data and provider. These are not physical-device or live-Deepgram
+  measurements. Screenshots are generated in `.sandbox/deepgram`.
+
+This evidence does not certify complete manual/voice parity or authorize a release.
+The PR remains a draft and no production merge, deployment or REAL activation occurred.

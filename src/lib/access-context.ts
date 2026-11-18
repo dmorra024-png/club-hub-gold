@@ -63,6 +63,8 @@ export function accessRedirect(access: AccountAccess, path: string): string | nu
   if (path === "/snoop-admin" || path === "/club-status") return "/";
   if (
     path.startsWith("/ajustes") &&
+    path !== "/ajustes" &&
+    path !== "/ajustes/" &&
     !path.startsWith("/ajustes/informes") &&
     access.role !== "admin"
   )

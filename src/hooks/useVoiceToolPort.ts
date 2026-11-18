@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "./useAuth";
 import { applicationPorts, voiceOwner, type VoicePort } from "@/lib/voice/application-ports";
 /** Route-owned capabilities, not selectors or synthetic button clicks. */
-export function useVoiceToolPort(name: string, handlers: VoicePort) {
+export function useVoiceToolPort(name: string, handlers: VoicePort, registrationKey = name) {
   const { user, access, accessError } = useAuth();
   const latest = useRef(handlers);
   latest.current = handlers;
@@ -13,6 +13,8 @@ export function useVoiceToolPort(name: string, handlers: VoicePort) {
   useEffect(() => {
     if (!owner) return;
     const port: VoicePort = {
+      ready: () => latest.current.ready?.() ?? true,
+      baseline: handlers.baseline ? () => latest.current.baseline!() : undefined,
       snapshot: () => {
         if (!latest.current.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");
         return latest.current.snapshot();
@@ -31,5 +33,5 @@ export function useVoiceToolPort(name: string, handlers: VoicePort) {
       },
     };
     return applicationPorts.register(owner, name, port);
-  }, [owner, name]);
+  }, [owner, name, registrationKey]);
 }

@@ -167,3 +167,73 @@ test("citation links reject commerce, credentials, tracking and unrelated Strain
     assert.equal(voiceGeneticsSource(source, "Amnesia Haze"), null);
   assert(voiceGeneticsSource("https://www.strainpedia.com/amnesia-haze/", "Amnesia Haze"));
 });
+test("voice period matches released wallet accounting and never converts evidence errors into zero", async () => {
+  const previous = process.env.SNOOP_WALLET_OPERATIONS_ENABLED;
+  process.env.SNOOP_WALLET_OPERATIONS_ENABLED = "true";
+  const actor = "11111111-1111-4111-8111-111111111111";
+  const order = "22222222-2222-4222-8222-222222222222";
+  const topup = "33333333-3333-4333-8333-333333333333";
+  const session = "44444444-4444-4444-8444-444444444444";
+  let fail = false;
+  const fetcher: typeof fetch = async (input, init) => {
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer synthetic-jwt");
+    const table = new URL(String(input)).pathname.split("/").at(-1);
+    if (table === "is_current_user_club_admin") return Response.json(false);
+    if (table === "socio_wallet_cash_evidence") {
+      if (fail) return Response.json({ message: "synthetic outage" }, { status: 503 });
+      return Response.json({
+        walletOrders: [{ orderId: order, amountCents: 1200, paymentMethod: "wallet" }],
+        topups: [
+          {
+            id: topup,
+            amountCents: 3000,
+            cashSessionId: session,
+            actorId: actor,
+            at: "2026-11-18T12:00:00Z",
+          },
+          {
+            id: session,
+            amountCents: 9900,
+            cashSessionId: session,
+            actorId: order,
+            at: "2026-11-18T12:00:00Z",
+          },
+        ],
+      });
+    }
+    if (table === "orders")
+      return Response.json([
+        {
+          id: order,
+          total_cents: 1200,
+          created_by: actor,
+          created_at: "2026-11-18T12:00:00Z",
+          status: "completed",
+          cash_session_id: session,
+        },
+      ]);
+    if (table === "membership_receipts") return Response.json([]);
+    throw Error("Unexpected request");
+  };
+  const read = () =>
+    voiceCashPeriod(
+      "https://bnwanxbmprbymbutoths.supabase.co",
+      "synthetic-key",
+      "synthetic-jwt",
+      actor,
+      access,
+      { from: "2026-11-18", to: "2026-11-18" },
+      fetcher,
+    );
+  try {
+    const result = await read();
+    assert.equal(result.cents, 3000);
+    assert.equal(result.orderCents, 1200);
+    assert.equal(result.scope, "own");
+    fail = true;
+    await assert.rejects(read(), /Monedero/);
+  } finally {
+    if (previous === undefined) delete process.env.SNOOP_WALLET_OPERATIONS_ENABLED;
+    else process.env.SNOOP_WALLET_OPERATIONS_ENABLED = previous;
+  }
+});

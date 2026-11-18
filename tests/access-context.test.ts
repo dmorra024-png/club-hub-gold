@@ -39,3 +39,21 @@ test("suspended, expired and unassigned users retain account status but no opera
     assert.equal(accessRedirect(a, "/club-status"), null);
   }
 });
+
+test("collaborators retain the released settings landing without gaining administration", () => {
+  const a = parseAccountAccess({
+    role: "collaborator",
+    clubId: "a",
+    status: "active",
+    permissions: [],
+  });
+  for (const path of ["/ajustes", "/ajustes/"]) assert.equal(accessRedirect(a, path), null);
+  for (const path of [
+    "/ajustes/colaboradores",
+    "/ajustes/socios",
+    "/ajustes/cuotas",
+    "/ajustes/dispositivos",
+    "/ajustes/informes",
+  ])
+    assert.equal(accessRedirect(a, path), "/");
+});

@@ -27,6 +27,13 @@ const cashFile = (await readdir(".output/server/_ssr")).find((n) =>
   n.startsWith("cash-sessions.functions-"),
 );
 const cashId = id("getCashReport", await readFile(".output/server/_ssr/" + cashFile, "utf8"));
+const historyFile = (await readdir(".output/server/_ssr")).find((n) =>
+  n.startsWith("member-order-history.functions-"),
+);
+const historyId = id(
+  "getMemberOrderHistory",
+  await readFile(".output/server/_ssr/" + historyFile, "utf8"),
+);
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -216,6 +223,24 @@ for (const [label, engine, device] of [
             clubName: "Club sintético",
             permissions: ["manage_members", "manage_products", "use_cash", "view_reports"],
           };
+        if (u.pathname.endsWith("/members")) {
+          const member = {
+            id: club,
+            club_id: club,
+            member_number: "1042",
+            first_name: "Marco",
+            last_name: "Rossi",
+            birth_date: "1995-03-12",
+            city: "Palma",
+            phone: null,
+            email: null,
+            dni_number: "SYNTHETIC",
+            joined_at: "2026-01-01",
+            expires_at: "2030-01-01",
+            plan_id: null,
+          };
+          data = u.searchParams.get("id") ? member : [member];
+        }
         if (u.pathname.endsWith("/product_categories"))
           data = [
             {
@@ -242,6 +267,8 @@ for (const [label, engine, device] of [
           ];
         return json(data);
       }
+      if (u.pathname.includes(historyId))
+        return json({ result: { orders: [], ownOnly: false, hasMore: false }, context: {} });
       if (u.pathname.includes("_serverFn")) {
         unexpected.push(u.pathname);
         return json({ result: { available: false }, context: {} });
@@ -355,6 +382,31 @@ for (const [label, engine, device] of [
       timeout: 60000,
       animations: "disabled",
     });
+
+    await send(proposal("navigate", "members"));
+    await page.getByRole("link", { name: /Marco Rossi/ }).click();
+    await page.getByRole("heading", { name: "Marco Rossi", exact: true }).waitFor();
+    await send(proposal("member_edit", null, { member: { last_name: "Bianchi", city: "Inca" } }));
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((i) => i.value === "Bianchi"),
+    );
+    assert.equal(await page.getByLabel("Nombre", { exact: true }).inputValue(), "Marco");
+    assert.equal(await page.getByLabel("Ciudad", { exact: true }).inputValue(), "Inca");
+    await page.getByLabel("Apellido", { exact: true }).fill("Manual");
+    await send(proposal("member_edit", null, { member: { last_name: "Modelo", city: "Madrid" } }));
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((i) => i.value === "Madrid"),
+    );
+    assert.equal(await page.getByLabel("Apellido", { exact: true }).inputValue(), "Manual");
+    assert.equal(writes, 0, "member correction is a draft, never a hidden update");
+    for (const section of ["qr", "discounts", "renewal", "history"])
+      await send(proposal("member_section", null, { query: section }));
+    await page.getByText("Sin registros visibles.", { exact: true }).waitFor();
+    assert.equal(writes, 0, "opening renewal/history never charges or writes");
+    await page.screenshot({
+      path: ".sandbox/deepgram/" + label + "-member-edit.png",
+      fullPage: true,
+    });
     await send(proposal("navigate", "profile"));
     await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
     assert.equal(sockets, 1, "profile navigation must preserve the voice session");
@@ -363,6 +415,17 @@ for (const [label, engine, device] of [
       () => document.querySelector('input[aria-label="Fecha del informe"]')?.value === "2026-10-25",
     );
     assert.equal(sockets, 1, "dated report must retain the same voice session");
+    await send(proposal("cash_draft", "cash", { cash: { opening_cash: "50,25" } }));
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Dinero inicial (€)"]')?.value === "50,25",
+    );
+    await page.getByLabel("Dinero inicial (€)", { exact: true }).fill("75");
+    await send(proposal("cash_draft", "cash", { cash: { opening_cash: "60" } }));
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Conservo le modifiche manuali"),
+    );
+    assert.equal(await page.getByLabel("Dinero inicial (€)", { exact: true }).inputValue(), "75");
+    assert.equal(writes, 0, "cash draft must never open a session automatically");
     peer.send(
       JSON.stringify({
         type: "AppCashPeriodResult",
@@ -496,6 +559,14 @@ for (const [label, engine, device] of [
       "collaborators retain legacy without querying the admin gate",
     );
     assert.equal(sockets, 1);
+    await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
+    await page.getByLabel("Sesión de voz", { exact: true }).waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
+    await page.getByRole("link", { name: "Ajustes", exact: true }).first().click();
+    await page.getByRole("heading", { name: "Ajustes", exact: true }).waitFor();
+    await page.getByRole("link", { name: /Mi perfil/ }).waitFor();
+    assert.equal(await page.getByRole("link", { name: /Colaboradores/ }).count(), 0);
+    assert.equal(await page.getByRole("link", { name: /Cuotas/ }).count(), 0);
     assert.equal(writes, 0);
     assert.deepEqual(errors, []);
     console.log(

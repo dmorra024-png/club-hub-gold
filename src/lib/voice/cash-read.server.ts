@@ -3,6 +3,7 @@ import { loadCash } from "../cash-sessions.server.ts";
 import { cashDaySummary } from "../cash-sessions.ts";
 import { calendarDate, madridToday } from "../member-administration.ts";
 import { z } from "zod";
+import { readWalletCashEvidence } from "../cash-wallet-evidence.server.ts";
 import { readCashLedger } from "../cash-ledger.ts";
 import { cashMovements } from "../cash-sessions.ts";
 import { clubDayRange } from "../cash-summary.ts";
@@ -110,7 +111,22 @@ export async function voiceCashPeriod(
     end,
     true,
   );
-  const summary = cashDaySummary(cashMovements(orders, fees, []), [], start, end);
+  // Keep parity with the released manual report: topups are cash receipts;
+  // wallet-funded orders must not count those same funds a second time.
+  const evidence = await readWalletCashEvidence(client, start, end);
+  const scopedTopups = admin
+    ? evidence.topups
+    : evidence.topups.filter((row) => row.actorId === userId);
+  const verifiedOrders = orders.map((order: any) => ({
+    ...order,
+    payment_method: evidence.walletOrderIds.has(order.id) ? "wallet" : null,
+  }));
+  const summary = cashDaySummary(
+    cashMovements(verifiedOrders, fees, [], scopedTopups),
+    [],
+    start,
+    end,
+  );
   return {
     ...period,
     cents: summary.totalCents,

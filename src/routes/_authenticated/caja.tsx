@@ -3,7 +3,7 @@ import { useCashRefresh } from "@/hooks/useCashRefresh";
 import { paymentMethodLabel } from "@/lib/administrative-payment";
 import { FinancialRecordStatus } from "@/components/FinancialRecordDialog";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { getCashReport, openCash, closeCash } from "@/lib/cash-sessions.functions";
@@ -33,6 +33,7 @@ function Caja() {
     access.status,
     [...access.permissions].sort(),
   ]);
+  const cashVoicePending = useRef(false);
   const [voiceTab, setVoiceTab] = useState("mia");
   const [refresh, setRefresh] = useCashRefresh();
   const [stored, setStored] = useState<any>(null),
@@ -45,7 +46,13 @@ function Caja() {
     [busy, setBusy] = useState(false);
   const data = stored?.scope === scope && stored?.requestedDay === day ? stored : null;
   useVoiceToolPort("cash.page", {
-    open: (_target, requestedDay) => {
+    open: (target, requestedDay) => {
+      if (target === "mine") {
+        if (day !== null) cashVoicePending.current = true;
+        setDay(null);
+        setVoiceTab("mia");
+        return;
+      }
       if (can("view_reports")) {
         if (requestedDay && !calendarDate(requestedDay)) return;
         setDay(requestedDay ?? null);
@@ -89,6 +96,45 @@ function Caja() {
     (s: CashSession) => s.user_id === user?.id && s.status === "open",
   );
   const daily = data?.daily ?? null;
+  useEffect(() => {
+    if (data && !updating) cashVoicePending.current = false;
+  }, [data, updating]);
+  useVoiceToolPort(
+    "cash.form",
+    {
+      ready: () =>
+        !cashVoicePending.current &&
+        !!data &&
+        !updating &&
+        !busy &&
+        !accessError &&
+        can("use_cash"),
+      baseline: () => ({ opening_cash: "0", closing_cash: "", notes: "" }),
+      snapshot: () => ({ opening_cash: opening, closing_cash: closing, notes }),
+      patch: (values) => {
+        if (!data || updating || busy || accessError || !can("use_cash"))
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        for (const [key, value] of Object.entries(values)) {
+          if (!["opening_cash", "closing_cash", "notes"].includes(key))
+            throw Error("SNOOP_FORM_UNAVAILABLE");
+          if (key !== "notes") {
+            const amount = parseCashCents(value);
+            if (amount === null || amount > 2147483647) throw Error("SNOOP_INVALID_AMOUNT");
+          } else if (value.length > 2000) throw Error("SNOOP_FORM_UNAVAILABLE");
+        }
+        if (
+          (values.opening_cash !== undefined && session) ||
+          ((values.closing_cash !== undefined || values.notes !== undefined) && !session)
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (values.opening_cash !== undefined) setOpening(values.opening_cash);
+        if (values.closing_cash !== undefined) setClosing(values.closing_cash);
+        if (values.notes !== undefined) setNotes(values.notes);
+      },
+    },
+    `${scope}:${session?.id ?? "no-session"}`,
+  );
+
   const reconciliation = session && data ? reconcileCash(session, data.movements) : null;
   async function submit(kind: "open" | "close") {
     if (busy || !can("use_cash") || !navigator.onLine) return;
@@ -330,8 +376,14 @@ function Caja() {
                                   key={`${m.source}:${m.id}`}
                                   className="border-b border-border py-2 text-sm"
                                 >
-                                  {m.source === "fee" ? "Cuota asociativa" : m.source === "topup" ? "Recarga Monedero" : m.payment_method === "wallet" ? "Pedido pagado con Monedero" : "Pedido"} ·{" "}
-                                  {money(m.cents)} · {name(m.by)} · {time(m.at)}
+                                  {m.source === "fee"
+                                    ? "Cuota asociativa"
+                                    : m.source === "topup"
+                                      ? "Recarga Monedero"
+                                      : m.payment_method === "wallet"
+                                        ? "Pedido pagado con Monedero"
+                                        : "Pedido"}{" "}
+                                  · {money(m.cents)} · {name(m.by)} · {time(m.at)}
                                 </p>
                               ))}
                           </details>
@@ -348,8 +400,14 @@ function Caja() {
                             className="border-b border-border py-2 text-sm"
                           >
                             <p>
-                              {m.source === "order" ? (m.payment_method === "wallet" ? "Pedido · Monedero" : "Pedido") : m.source === "topup" ? "Recarga Monedero · efectivo" : "Cuota asociativa"} ·{" "}
-                              {money(m.cents)}
+                              {m.source === "order"
+                                ? m.payment_method === "wallet"
+                                  ? "Pedido · Monedero"
+                                  : "Pedido"
+                                : m.source === "topup"
+                                  ? "Recarga Monedero · efectivo"
+                                  : "Cuota asociativa"}{" "}
+                              · {money(m.cents)}
                             </p>
                             <p>
                               {name(m.by)} · {time(m.at)}
