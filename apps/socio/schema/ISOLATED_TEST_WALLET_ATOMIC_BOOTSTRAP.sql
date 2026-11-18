@@ -10,6 +10,15 @@ values('deafbeef-1111-4222-8333-444444444444',
  '4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc','Synthetic',8.00,true);
 create table public.wallet_test_stock(product_id uuid primary key, remaining integer not null check(remaining>=0));
 insert into public.wallet_test_stock values('deafbeef-1111-4222-8333-444444444444',10);
+-- The production cash evidence function reads these existing order fields.
+alter table public.orders add column created_at timestamptz not null default now();
+alter table public.orders add column created_by uuid;
+create function public.is_current_user_club_admin(p_club uuid)
+returns boolean language sql stable security definer set search_path=''
+as $
+ select exists(select 1 from public.user_roles r
+ where r.user_id=auth.uid() and r.club_id=p_club and r.role='admin')
+$;
 create function public.current_club_id()
 returns uuid language sql stable security definer set search_path=''
 as $$
