@@ -514,10 +514,14 @@ function PedidoPage() {
 
   async function confirmar() {
     if (!cart.length) return toast.error("Carrito vacío");
-    if (!walletState || walletStatusError || walletUncertain) {
-      return toast.error("No se ha verificado el método de pago. Consulta el estado antes de reintentar.");
+    // Efectivo is the existing, independent order workflow. An outage or
+    // permission failure in wallet status MUST NOT block a cash order.
+    // Wallet requests still fail closed and require a verified balance.
+    const payingWallet=paymentChoice==="wallet";
+    if(payingWallet && (!walletState || walletStatusError || walletUncertain ||
+       !walletState.clubEnabled)){
+      return toast.error("No se puede verificar Monedero. Elige Efectivo o reintenta más tarde.");
     }
-    const payingWallet=walletState.clubEnabled && paymentChoice==="wallet";
     if(payingWallet && !walletState.enabled)
       return toast.error("El Monedero de este socio no está disponible.");
     if (payingWallet && (!walletConfirmed || (walletState.balanceCents??0)<total))
@@ -906,8 +910,8 @@ function PedidoPage() {
           />
 
           {walletStatusError && (
-            <p role="alert" className="text-red-400 text-sm">
-              No se ha podido verificar el método de pago. Pedido bloqueado por seguridad.
+            <p role="status" className="text-amber-300 text-sm">
+              Monedero temporalmente no disponible. Los pedidos en efectivo siguen funcionando.
             </p>
           )}
           {walletState?.clubEnabled && (
@@ -955,8 +959,9 @@ function PedidoPage() {
           )}
           <button
             onClick={confirmar}
-            disabled={!cart.length || busy || !walletState || walletStatusError || walletUncertain ||
-              (walletState.clubEnabled && paymentChoice==="wallet" && (!walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
+            disabled={!cart.length || busy || (paymentChoice==="wallet" &&
+              (!walletState || walletStatusError || walletUncertain || !walletState.clubEnabled ||
+               !walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
           >
             {busy ? "Guardando…" : "Confirmar pedido"}
