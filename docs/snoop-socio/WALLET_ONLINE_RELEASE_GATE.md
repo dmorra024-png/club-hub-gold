@@ -42,3 +42,36 @@ payment method on all historic orders.
 
 Until these gates pass: **keep all real wallets disabled, do not enable
 topups or publish an app that suggests its balance is real.**
+
+## Progress — 18 November 2026
+
+The isolated branch now contains an additional **review-only**
+`WALLET_ORDER_SETTLEMENT_REVIEW_ONLY.sql` with server-guarded
+`socio_wallet_order_spend` and `socio_wallet_order_refund` RPC drafts.
+PostgreSQL 16 CI verifies that a previously completed legacy order
+cannot be debited without an explicit trusted wallet payment record,
+the first authorized debit decreases the balance only once, and
+refunds only restore the original debit after a matching completed
+cancellation and reversal audit. A second debit/refund is rejected.
+
+`supabase-wallet-operations.mjs` and `staff-wallet-operations-app.mjs`
+are isolated JWT-scoped adapters. Staff roles come from an external
+verified auth resolver; neither adapter is mounted in the live
+management Worker. The member PWA stays read-only.
+
+**Critical integration boundary:** the actual SNOOP order completion,
+payment attribution, stock reservation and wallet debit must be
+committed by **one authoritative transaction**, not four independent
+HTTP calls. The proof-row schema deliberately has NO client-writable
+INSERT grant. Existing legacy `completed` orders must never be
+backfilled as wallet-paid from guesswork. Until the SNOOP order
+write path is integrated and independently verified, the draft spend
+RPC must not be enabled for real clubs.
+
+The cash reconciliation helper preserves a *signed* period cash
+result; legitimate refunds of prior-shift orders can exceed the cash
+collected in the current shift. It does not substitute for the
+active application's own accounting views.
+
+**Current deployment:** no live `socio_*` tables, no live wallet
+credits, no worker deployment, no management or Codex modification.
