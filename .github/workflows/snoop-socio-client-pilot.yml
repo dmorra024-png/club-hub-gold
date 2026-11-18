@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-socio:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-SOCIO') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-snoop-socio-approved')) }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-SOCIO') || (github.event_name == 'push' && github.event.head_commit.message == 'verify-snoop-socio-release')) }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
@@ -109,14 +109,35 @@ jobs:
         run: |
           set -euo pipefail
           npx wrangler deploy --config apps/socio/wrangler.pilot.jsonc --keep-vars
-      - name: Verify separate HTTPS app and fail-closed API boundary
+      - name: Verify dedicated client secret names without reading secret values
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS --max-time 30 "$SOCIO_ORIGIN/" -o /tmp/snoop-socio.html
-          grep -q "SNOOP · Socio" /tmp/snoop-socio.html
+          node --input-type=module <<'NODE'
+          const worker='snoop-socio-pilot';
+          const r=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/'+worker+'/settings',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000)});
+          const j=await r.json();
+          if(!r.ok||j.success!==true||!Array.isArray(j.result?.bindings))throw Error('Could not verify Socio Worker');
+          const found=j.result.bindings.map(b=>({name:b.name,type:b.type}));
+          console.log(JSON.stringify({worker,bindings:found}));
+          for(const name of ['SOCIO_SUPABASE_PUBLISHABLE_KEY','SOCIO_QR_SIGNING_KEY_BASE64']){
+           if(!found.some(b=>b.name===name&&b.type==='secret_text'))throw Error('Missing Socio Worker secret binding '+name);
+          }
+          NODE
+      - name: Verify HTTPS app and fail-closed API after propagation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ATTEMPT in 1 2 3 4 5 6 7 8; do
+            STATUS="$(curl -sS --max-time 15 -o /tmp/snoop-socio.html -w '%{http_code}' "$SOCIO_ORIGIN/" || true)"
+            echo "Client origin HTTP status: $STATUS"
+            if [ "$STATUS" = "200" ] && grep -q "SNOOP · Socio" /tmp/snoop-socio.html; then break; fi
+            sleep 3
+          done
+          test "$STATUS" = "200"
           curl -fsS --max-time 30 "$SOCIO_ORIGIN/snoop-wordmark.svg" -o /tmp/snoop-socio-logo.svg
           grep -q 'viewBox="0 0 470 60"' /tmp/snoop-socio-logo.svg
           CODE="$(curl -sS --max-time 30 -o /tmp/socio-response -w '%{http_code}' "$SOCIO_ORIGIN/api/socio/me")"
+          echo "Unauthenticated Socio API status: $CODE"
           test "$CODE" = 401
           echo "SNOOP_SOCIO_PILOT_CLIENT_DEPLOYED"
