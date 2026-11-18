@@ -7,7 +7,7 @@ const ajustes=readFileSync(new URL('../src/routes/_authenticated/ajustes.index.t
 test('cash orders do not require wallet status or wallet permission',()=>{
  assert.match(order,/const payingWallet=paymentChoice==="wallet"/);
  assert.doesNotMatch(order,/if \(!walletState \|\| walletStatusError \|\| walletUncertain\)/);
- assert.match(order,/disabled=\{!cart\.length \|\| busy \|\| \(paymentChoice==="wallet"/);
+ assert.match(order,/disabled=\{!cart\.length \|\| busy \|\| walletUncertain \|\| \(paymentChoice==="wallet"/);
  assert.match(order,/if\(payingWallet && \(!walletState \|\| walletStatusError/);
 });
 test('Ajustes visible to club collaborator while restricted tiles stay admin-only',()=>{
