@@ -9,10 +9,11 @@ select set_config('request.jwt.claim.sub','7dbe4ead-c904-4c52-9fc1-51a9018aeb22'
 select public.socio_wallet_set_club_enabled(false,true);
 select public.socio_wallet_set_club_enabled(true,true) as enabled_state \gset
 reset role;
+create temporary table wallet_club_enabled_result as select :'enabled_state'::jsonb as result;
 do $assert$
 declare b bigint; cards integer; expired integer; bad_balance integer;
 begin
- if (:'enabled_state'::jsonb->>'clubEnabled')::boolean is distinct from true then
+ if (select (result->>'clubEnabled')::boolean from wallet_club_enabled_result) is distinct from true then
   raise exception 'CLUB_WALLET_WAS_NOT_ENABLED';end if;
  select balance_cents into b from public.socio_wallet_accounts
   where member_id='a3141dd0-60ad-4a13-a9c1-115e647bd02d';
