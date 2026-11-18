@@ -45,12 +45,12 @@ begin
     p_amount_cents is null or p_amount_cents<=0 or p_amount_cents>10000000
  then raise exception 'WALLET_SPEND_INVALID' using errcode='22023';end if;
  if not exists(select 1 from public.user_roles r
-  join public.socio_wallet_staff_permissions p
+  left join public.socio_wallet_staff_permissions p
   on p.club_id=r.club_id and p.user_id=r.user_id
   where r.user_id=v_staff and r.club_id=p_club_id
    and r.role::text in ('admin','collaborator') and
    (r.role::text='admin' or 'use_cash'=any(r.permissions))
-   and p.can_spend) then
+   and (r.role::text='admin' or p.can_spend)) then
   raise exception 'WALLET_SPEND_FORBIDDEN' using errcode='42501';end if;
  perform 1 from public.socio_club_wallet_settings s
   join public.clubs c on c.id=s.club_id
@@ -72,7 +72,7 @@ begin
   on card.member_id=m.id and card.club_id=m.club_id
   where m.id=p_member_id and m.club_id=p_club_id
    and m.expires_at>=current_date and card.active and card.revoked_at is null
-   and card.wallet_enabled for share of m,card;
+   for share of m,card;
  if not found then raise exception 'WALLET_MEMBER_INACTIVE' using errcode='23514';end if;
  select balance_cents into v_before from public.socio_wallet_accounts
   where club_id=p_club_id and member_id=p_member_id for update;
@@ -122,12 +122,12 @@ begin
   or p_amount_cents<=0 or p_amount_cents>10000000
  then raise exception 'WALLET_REFUND_INVALID' using errcode='22023';end if;
  if not exists(select 1 from public.user_roles r
-  join public.socio_wallet_staff_permissions p
+  left join public.socio_wallet_staff_permissions p
     on p.club_id=r.club_id and p.user_id=r.user_id
   where r.user_id=v_staff and r.club_id=p_club_id
    and r.role::text in ('admin','collaborator')
    and (r.role::text='admin' or 'use_cash'=any(r.permissions))
-   and p.can_refund) then
+   and (r.role::text='admin' or p.can_refund)) then
   raise exception 'WALLET_REFUND_FORBIDDEN' using errcode='42501';end if;
  -- Cancellation must have been completed by SNOOP's own protected order
  -- transaction, including inventory reversal and historical audit. This RPC
