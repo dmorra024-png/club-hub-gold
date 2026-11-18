@@ -174,5 +174,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_TOPUP_REVIEW_ONLY.sql
       - name: Verify transactional topup, replay, cash closure and authorization
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_TOPUP.sql
+      - name: Compile wallet settlement spend and audited refund RPC drafts
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_ORDER_SETTLEMENT_REVIEW_ONLY.sql
+      - name: Verify proven wallet spend and single audited cancellation refund
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ORDERS.sql
       - name: No Supabase modifications
         run: echo "Only ephemeral local PostgreSQL container; no production database access"
