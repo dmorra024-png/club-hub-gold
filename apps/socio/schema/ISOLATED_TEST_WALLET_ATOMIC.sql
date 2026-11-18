@@ -58,6 +58,23 @@ begin
 end
 $check$;
 
+-- Forged price must fail before any financial or inventory mutation.
+set role authenticated;
+select set_config('request.jwt.claim.sub','7dbe4ead-c904-4c52-9fc1-51a9018aeb22',false);
+do $check$
+begin
+ begin
+  perform public.socio_create_wallet_order(
+    'c319b1ed-9389-4c81-9e7f-42f808d95c34',
+    'tampered price synthetic',
+    '[{"product_id":"deafbeef-1111-4222-8333-444444444444","product_name":"Synthetic","unit_type":"gr","quantity":1,"unit_price_cents":1,"line_total_cents":1}]'::jsonb,
+    '15151515-1111-4222-8333-444444444444');
+  raise exception 'FORGED_WALLET_PRICE_ACCEPTED';
+ exception when check_violation then null;
+ end;
+end
+$check$;
+reset role;
 -- Insufficient funds must roll back the already created SNOOP order,
 -- synthetic stock movement and the trusted proof.
 create temporary table wallet_atomic_snapshot as
