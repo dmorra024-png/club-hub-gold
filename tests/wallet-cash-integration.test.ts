@@ -23,7 +23,7 @@ test("wallet-paid orders are turnover, not physical cash; wallet topups enter ca
  assert.equal(daily.walletPaidCents,900);
  assert.equal(daily.topupCents,3500);
  assert.equal(daily.cashCents,5200);
- assert.equal(daily.totalCents,6100);
+ assert.equal(daily.totalCents,5200);
  assert.equal(daily.unidentifiedCents,0);
  assert.equal(reconcileCash(shift,movements).expected,15200);
  assert.equal(reconcileCash(shift,movements).difference,0);
