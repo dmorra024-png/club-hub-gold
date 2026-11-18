@@ -103,6 +103,10 @@ jobs:
             stage = 'binding-names';
             const bindings = new Map(result.bindings.map(b => [b.name,b.type]));
             assert.equal(bindings.size, result.bindings.length);
+            // Wallet remains disabled even if a prior runtime binding exists.
+            const walletFlag = result.bindings.find(b=>b.name==='SNOOP_WALLET_OPERATIONS_ENABLED');
+            assert.ok(!walletFlag || (walletFlag.type==='plain_text' && walletFlag.text==='false'),
+              'Live wallet activation is not authorized');
             stage = 'runtime-variables';
             const required = {SUPABASE_SERVICE_ROLE_KEY:['secret_text'], SUPABASE_URL:['plain_text','secret_text'], SUPABASE_PUBLISHABLE_KEY:['plain_text','secret_text'], APP_URL:['plain_text','secret_text'], SNOOP_AI:['ai'], ASSETS:['assets']};
             const glmActivation = {
