@@ -34,10 +34,11 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  if(typeof url!=='string'||!/^https:\/\/[^/]+$/.test(url)||typeof publishableKey!=='string'||!publishableKey||typeof authorizeSocioUser!=='function')throw Error('SOCIO_AUTH_NOT_CONFIGURED');
  if(typeof signupRedirectUrl!=='string'||!signupRedirectUrl.startsWith('https://')||new URL(signupRedirectUrl).search||new URL(signupRedirectUrl).hash)throw Error('SOCIO_SIGNUP_REDIRECT_REQUIRED');
  const base=url+'/auth/v1';
+ const safeFetch=async(input,init)=>{const r=await fetcher(input,{...init,redirect:'manual'});if(r.status>=300&&r.status<400)throw Error('SUPABASE_REDIRECT_REJECTED');return r;};
  async function call(path,{method='GET',body,accessToken}={}){
-  const res=await fetcher(base+path,{method,headers:{
+  const res=await safeFetch(base+path,{method,headers:{
    apikey:publishableKey,'content-type':'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{})
-  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'error',signal:AbortSignal.timeout(8000)});
+  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'manual',signal:AbortSignal.timeout(8000)});
   if(!res.ok)return null;
   return res.json().catch(()=>null);
  }
@@ -61,11 +62,11 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   // Fail visibly on provider outages instead of pretending a verification email was dispatched.
   let status=0;
   try{
-   const result=await fetcher(base+'/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{
+   const result=await safeFetch(base+'/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{
     method:'POST',
     headers:{apikey:publishableKey,'content-type':'application/json'},
     body:JSON.stringify({email,password}),
-    redirect:'error',signal:AbortSignal.timeout(8000)
+    redirect:'manual',signal:AbortSignal.timeout(8000)
    });
    status=result.status;
   }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
@@ -96,10 +97,10 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    return failed(400,'INVALID_EMAIL');
   let result;
   try{
-   result=await fetcher(base+'/resend',{method:'POST',
+   result=await safeFetch(base+'/resend',{method:'POST',
     headers:{apikey:publishableKey,'content-type':'application/json'},
     body:JSON.stringify({type:'signup',email}),
-    redirect:'error',signal:AbortSignal.timeout(8000)});
+    redirect:'manual',signal:AbortSignal.timeout(8000)});
   }catch{return failed(503,'RESEND_UNAVAILABLE');}
   if(!result.ok)return failed(result.status===429?429:503,'RESEND_UNAVAILABLE');
   return response({accepted:true,message:'Si la cuenta está pendiente, recibirás otro enlace.'});
@@ -109,9 +110,9 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return failed(400,'INVALID_EMAIL');
   let result;
   try{
-   result=await fetcher(base+'/recover?redirect_to='+encodeURIComponent(signupRedirectUrl+'?snoop_recovery=1'),{
+   result=await safeFetch(base+'/recover?redirect_to='+encodeURIComponent(signupRedirectUrl+'?snoop_recovery=1'),{
     method:'POST',headers:{apikey:publishableKey,'content-type':'application/json'},
-    body:JSON.stringify({email}),redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({email}),redirect:'manual',signal:AbortSignal.timeout(8000)
    });
   }catch{return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');}
   if(!result.ok)return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');
@@ -127,10 +128,10 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    return failed(401,'RECOVERY_INVALID');
   let result;
   try{
-   result=await fetcher(base+'/user',{
+   result=await safeFetch(base+'/user',{
     method:'PUT',headers:{apikey:publishableKey,authorization:'Bearer '+token,
      'content-type':'application/json'},
-    body:JSON.stringify({password}),redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({password}),redirect:'manual',signal:AbortSignal.timeout(8000)
    });
   }catch{return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');}
   if(!result.ok)return failed(403,'RECOVERY_REJECTED');
@@ -151,10 +152,10 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(reauthenticated?.id!==user.id)return failed(403,'MISMATCHED_ACCOUNT');
   let result;
   try{
-   result=await fetcher(base+'/user',{
+   result=await safeFetch(base+'/user',{
     method:'PUT',headers:{apikey:publishableKey,authorization:'Bearer '+login.access_token,
      'content-type':'application/json'},
-    body:JSON.stringify({password:newPassword}),redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({password:newPassword}),redirect:'manual',signal:AbortSignal.timeout(8000)
    });
   }catch{return failed(503,'PROVIDER_UNAVAILABLE');}
   if(!result.ok)return failed(403,'PASSWORD_REJECTED');
@@ -163,7 +164,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  const logout=async({request})=>{
   const token=tokenIn(request,ACCESS);
   // Best effort remote revocation, but browser cookies are ALWAYS revoked locally.
-  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(4000)});}catch{}}
+  if(token){try{await safeFetch(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(4000)});}catch{}}
   return response({signedOut:true},200,clear());
  };
  const refresh=async({request})=>{
