@@ -45,11 +45,11 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 '<div class="auth-extras"><button class="btn small ghost" data-action="forgot">¿Olvidaste tu contraseña?</button><button class="btn small ghost" data-action="install">Instalar SNOOP Socio</button></div>');}
 function verifyPage(){
  const signup=state.verification==='signup';
- shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">'+(signup?'Confirma tu dirección':'Recuperar acceso')+'</h1>'+
- '<p class="lede">'+(signup?'Si el registro es válido, recibirás instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.':
- 'Si existe una cuenta con ese correo, recibirás un enlace para crear una nueva contraseña.')+'</p></section>'+
- (signup?'<button class="btn ghost" data-action="resend-verification" '+(state.pending?'disabled':'')+'>Reenviar correo de confirmación</button>':'')+
- '<button class="btn primary" data-action="login">Ir al inicio de sesión</button>');
+ shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">'+(signup?'Introduce tu código':'Recuperar acceso')+'</h1>'+
+ '<p class="lede">'+(signup?'Escribe el código de 6 cifras que hemos enviado a '+safe(state.email)+'. No necesitas abrir ningún enlace.':
+ 'Si existe una cuenta con ese correo, recibirás un mensaje para recuperar el acceso.')+'</p></section>'+
+ (signup?'<section class="panel"><form id="verify-form" class="stack"><label class="field">Código de confirmación<input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" minlength="6" placeholder="000000" required/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Confirmar mi cuenta</button></form></section><button class="btn ghost" data-action="resend-verification" '+(state.pending?'disabled':'')+'>Reenviar código</button>':'')+
+ '<button class="btn ghost" data-action="login">Volver al inicio de sesión</button>');
 }
 function linkPage(){shell('<section><div class="kicker">Vinculación segura</div><h1 class="title">Vincula tu carnet</h1><p class="lede">Tu cuenta está lista. Para acceder a la tarjeta de un club necesitamos comprobar que eres realmente su socio. Pide al personal un código de vinculación temporal.</p></section>'+
 '<section class="panel"><form id="link-form" class="stack"><label class="field">Código de vinculación<input name="code" autocomplete="off" spellcheck="false" minlength="6" maxlength="64" required placeholder="Código facilitado en el club"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Vincular mi carnet</button></form></section>'+
@@ -181,6 +181,18 @@ async function submitRecovery(form){const password=String(new FormData(form).get
  state.recoveryToken=null;resetClub();sessionStorage.removeItem('snoop-socio-last-club');state.me=null;state.clubs=[];state.email='';state.pending=false;state.page='login';notify('Contraseña restablecida. Inicia sesión.');
  }catch(e){state.pending=false;notify(e.message||'No se pudo recuperar el acceso.',true);}
 }
+async function submitVerify(form){
+ const code=String(new FormData(form).get('code')||'').trim();
+ if(!/^[0-9]{6}$/.test(code))return notify('Introduce las 6 cifras del correo.',true);
+ if(!state.email)return notify('Introduce primero tu correo de registro.',true);
+ state.pending=true;render();
+ try{
+  const result=await api('/auth/verify-code',{method:'POST',body:{email:state.email,code}});
+  if(result?.verified!==true)throw Error('No se ha podido confirmar el código.');
+  state.pending=false;state.page='login';
+  notify('Correo confirmado. Ya puedes entrar con tu contraseña.');
+ }catch(e){state.pending=false;notify(e.message||'Código inválido o caducado. Solicita uno nuevo.',true);}
+}
 async function resendVerification(){
  if(!state.email||state.pending)return notify('Introduce primero tu correo de registro.',true);
  state.pending=true;render();try{
@@ -204,7 +216,7 @@ async function submitLink(form){
    e.message||'No se pudo vincular el carnet.',true);
  }
 }
-document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}if(e.target.id==='password-form'){e.preventDefault();void submitPassword(e.target);}if(e.target.id==='forgot-form'){e.preventDefault();void submitForgot(e.target);}if(e.target.id==='recovery-form'){e.preventDefault();void submitRecovery(e.target);}});
+document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='verify-form'){e.preventDefault();void submitVerify(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}if(e.target.id==='password-form'){e.preventDefault();void submitPassword(e.target);}if(e.target.id==='forgot-form'){e.preventDefault();void submitForgot(e.target);}if(e.target.id==='recovery-form'){e.preventDefault();void submitRecovery(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
 switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'forgot':state.page='forgot';break;case'resend-verification':void resendVerification();break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';stopQr();break;case'profile':state.page='profile';stopQr();break;case'link':state.page='link';stopQr();break;case'home':state.page='carnet';void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;stopQr();void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
