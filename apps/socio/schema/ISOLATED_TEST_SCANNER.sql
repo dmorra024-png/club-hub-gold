@@ -13,11 +13,19 @@ select public.socio_staff_consume_qr(
  'c319b1ed-9389-4c81-9e7f-42f808d95c34',
  'abcDef0123456789_-AbCdEf') as replay \gset
 select 1/(case when :'replay'='f' then 1 else 0 end) as repeated_scan_rejected;
-select public.socio_staff_consume_qr(
- '63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4',
- 'c319b1ed-9389-4c81-9e7f-42f808d95c34',
- 'another012345678901234') as foreign_scan \gset
--- Staff cannot scan a foreign club, RPC must reject it.
+-- Staff cannot scan a foreign club, RPC must deny it.
+do $assert$
+begin
+ begin
+  perform public.socio_staff_consume_qr(
+   '63d9ce2d-6e6c-4d1f-8979-98f2c54d1cb4',
+   'c319b1ed-9389-4c81-9e7f-42f808d95c34',
+   'another012345678901234');
+  raise exception 'FOREIGN_QR_SCAN_ALLOWED';
+ exception when insufficient_privilege then null;
+ end;
+end
+$assert$;
 reset role;
 do $assert$
 declare n integer;
