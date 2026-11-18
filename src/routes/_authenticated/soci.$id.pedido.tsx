@@ -93,7 +93,7 @@ function PedidoPage() {
   const [cart, setCart] = useState<Cart[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [walletState, setWalletState] = useState<{enabled:boolean;balanceCents:number|null}|null>(null);
+  const [walletState, setWalletState] = useState<{enabled:boolean;clubEnabled:boolean;balanceCents:number|null}|null>(null);
   const [walletStatusError, setWalletStatusError] = useState(false);
   const [walletConfirmed, setWalletConfirmed] = useState(false);
   const [walletUncertain, setWalletUncertain] = useState(false);
@@ -512,6 +512,8 @@ function PedidoPage() {
     if (!walletState || walletStatusError || walletUncertain) {
       return toast.error("No se ha verificado el método de pago. Consulta el estado antes de reintentar.");
     }
+    if(walletState.clubEnabled && !walletState.enabled)
+      return toast.error("El Monedero del club está activo, pero este socio no está habilitado.");
     if (walletState.enabled && (!walletConfirmed || (walletState.balanceCents??0)<total))
       return toast.error("Confirma el pago y comprueba el saldo del monedero.");
     setBusy(true);
@@ -902,6 +904,11 @@ function PedidoPage() {
               No se ha podido verificar el método de pago. Pedido bloqueado por seguridad.
             </p>
           )}
+          {walletState?.clubEnabled && !walletState.enabled && (
+            <p role="alert" className="text-red-400 text-sm">
+              El Monedero del club está activo, pero este socio no está habilitado. No se permite cambiar a efectivo automáticamente.
+            </p>
+          )}
           {walletState?.enabled && (
             <div className="rounded-xl border border-neon/30 p-3 space-y-2">
               <strong>Pago con Monedero</strong>
@@ -927,6 +934,7 @@ function PedidoPage() {
           <button
             onClick={confirmar}
             disabled={!cart.length || busy || !walletState || walletStatusError || walletUncertain ||
+              (walletState.clubEnabled && !walletState.enabled) ||
               (walletState.enabled && (!walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
           >
