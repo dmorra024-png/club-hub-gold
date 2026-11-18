@@ -41,3 +41,14 @@ test('cash refund must be linked to a known original event',()=>{
   {...fixed.cashRefunds[0],originalOperationId:null}
  ]}),{code:'CASH_REFUND_METHOD_UNVERIFIED'});
 });
+
+test('cash refunds from earlier shifts may make this period net negative without inventing revenue',()=>{
+ const result=reconcileCashWithWallet({
+  orders:[],membershipFees:[],walletTopups:[],
+  cashRefunds:[{id:'ref-from-yesterday',amountCents:2500,
+    paymentMethod:'cash',originalOperationId:'yesterday-order'}]
+ });
+ assert.equal(result.cashRefundsCents,2500);
+ assert.equal(result.netCashCents,-2500);
+ assert.equal(result.walletOrderTransfersCents,0);
+});
