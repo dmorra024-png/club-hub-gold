@@ -21,6 +21,10 @@ change credentials/RLS/schema, or publish the application. PR #25 and Monedero a
   allow one character error only for a unique label of at least six characters. Ambiguous,
   unknown and short labels still require clarification. No category is created or selected
   from pronunciation hints alone. Product-search correction uses the same bounded rule.
+- Both catalog sanitizers discarded otherwise valid labels such as `Gelato #41`,
+  `Gorilla Glue #4`, `Flores / CBD` and `CBD 10%`. The new regression fails before the
+  fix and passes after preserving ordinary catalog punctuation. Control characters,
+  markup, duplicates and oversized values remain excluded; names remain data, not tools.
 - Missing route methods could silently return via optional calls and produce successful
   receipts. Require actual snapshot/patch/open/search capabilities and recheck stale scope
   after waits. No simulated button clicks or fallback saves.

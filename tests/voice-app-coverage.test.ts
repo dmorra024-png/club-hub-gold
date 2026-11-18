@@ -8,6 +8,8 @@ import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports
 import { applyDeepgramDraft } from "../src/lib/deepgram-draft-actions.ts";
 import { VoiceCashDay, voiceCashDay } from "../src/lib/voice/cash-read.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
+import { normalizedPilotNames } from "../src/lib/deepgram-pilot-policy.ts";
+import { catalogVocabulary } from "../src/lib/voice/catalog-vocabulary.ts";
 const admin: AccountAccess = {
   role: "admin",
   clubId: "synthetic-club",
@@ -230,4 +232,20 @@ test("cash voice reader rejects redirects without forwarding the user JWT", asyn
   );
   assert.equal(requests.length, 1);
   assert.equal(new URL(requests[0]).hostname, "bnwanxbmprbymbutoths.supabase.co");
+});
+test("realistic catalog punctuation survives both server and speech vocabulary filters", () => {
+  const labels = ["Gelato #41", "Gorilla Glue #4", "Flores / CBD", "CBD 10%", "Índica, Sativa"];
+  const rows = [
+    ...labels.map((name) => ({ name })),
+    { name: "<script>" },
+    { name: "unsafe\nlabel" },
+    { name: "a".repeat(61) },
+  ];
+  assert.deepEqual(normalizedPilotNames(rows), labels);
+  const vocabulary = catalogVocabulary({
+    products: rows.map((r) => r.name),
+    categories: rows.map((r) => r.name),
+  });
+  assert.deepEqual(vocabulary.products, labels);
+  assert.deepEqual(vocabulary.categories, labels);
 });

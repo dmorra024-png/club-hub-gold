@@ -52,7 +52,9 @@ function names(input: readonly string[]) {
       input
         .filter((n) => typeof n === "string")
         .map((n) => n.trim())
-        .filter((n) => n.length >= 2 && n.length <= 60 && /^[\p{L}\p{N} .&'’()+-]+$/u.test(n)),
+        .filter(
+          (n) => n.length >= 2 && n.length <= 60 && /^[\p{L}\p{N} .&'’()+,:%_\/#-]+$/u.test(n),
+        ),
     ),
   ].slice(0, 35);
 }
