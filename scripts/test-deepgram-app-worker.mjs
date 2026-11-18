@@ -15,6 +15,8 @@ const bundled = await build({
   write: false,
   format: "esm",
   platform: "browser",
+  // Production already uses nodejs_compat; resolve built-ins in Workerd itself.
+  external: ["node:*"],
   target: "es2022",
 });
 const script =
@@ -53,6 +55,13 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
   }
   forbiddenCalls++;return new Response('unexpected data request',{status:403});
  }
+ if(['www.wikidata.org','commons.wikimedia.org','html.duckduckgo.com','www.leafly.com','www.strainpedia.com','seedfinder.eu','www.allbud.com','www.wikileaf.com'].includes(u.hostname)){
+  if(token||req.headers.get('apikey'))throw Error('Credentials leaked to public source');
+  if(u.hostname==='www.wikidata.org')return Response.json({search:[{id:'Q123',label:'Amnesia Haze',description:'cannabis strain'}]});
+  if(u.hostname==='commons.wikimedia.org')return Response.json({});
+  if(u.pathname==='/robots.txt')return new Response('User-agent: *'+String.fromCharCode(10)+'Disallow: /');
+  return new Response('');
+ }
  if(u.hostname==='agent.deepgram.com'&&u.pathname==='/v1/agent/converse'){
   providerCalls++;if(token!=='Token test-provider-only')return new Response('bad key',{status:401});
   const p=new WebSocketPair();p[1].binaryType='arraybuffer';p[1].accept();let count=0;
@@ -64,9 +73,10 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
    }
    if(m.type==='FunctionCallResponse'){const r=JSON.parse(m.content);
     if(m.name==='snoop_catalog_search'){if(!r.ok||r.persisted!==false||r.matches.length!==1||r.matches[0]!=='Flores Especial')throw Error('Catalog lookup result');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'product',target:'product_create',member:{},product:{name:'Synthetic',category:'Flores Especial'},query:null,declined:[],question:'',asking:null})}]}));return;}
-if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
+if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
   }else{
    if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
+   if([3,4].includes(new Uint8Array(e.data)[0])){const period=new Uint8Array(e.data)[0]===3;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'read-'+count,name:period?'snoop_cash_period':'snoop_genetics_information',client_side:true,arguments:JSON.stringify(period?{from:'2026-10-24',to:'2026-10-25'}:{name:'Amnesia Haze'})}]}));return;}
    if(new Uint8Array(e.data)[0]===2){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-'+count,name:'snoop_catalog_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Flores Especial'})}]}));return;}
    if(new Uint8Array(e.data)[0]===1){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cash-'+count,name:'snoop_cash_day',client_side:true,arguments:JSON.stringify({day:'2026-10-25'})}]}));return;}
    p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:'Synthetic administrative draft'}));p[1].send(JSON.stringify({type:'AgentThinking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null})}]}));
@@ -257,6 +267,21 @@ try {
         e.result.proposal.product?.category === "Flores Especial",
     ),
   );
+  const periodAudio = new Uint8Array(4800);
+  periodAudio[0] = 3;
+  s.ws.send(periodAudio.buffer);
+  await until(() =>
+    s.events.some((e) => e.type === "AppCashPeriodResult" && e.summary.to === "2026-10-25"),
+  );
+  const beforeBotanical = (await stats()).tools;
+  const botanicalAudio = new Uint8Array(4800);
+  botanicalAudio[0] = 4;
+  s.ws.send(botanicalAudio.buffer);
+  await until(() => s.events.filter((e) => e.type === "Audio").length >= (closeRetryOnly ? 6 : 12));
+  assert(
+    (await stats()).tools > beforeBotanical,
+    "provider must receive the actual sourced botanical result",
+  );
   s.ws.send("STOP");
   await until(() => s.events.some((e) => e.code === "STOPPED"));
   s.ws.close();
@@ -271,13 +296,13 @@ try {
     "retry must not charge network outage time",
   );
   assert.equal(final.forbiddenCalls, 0);
-  assert.equal(final.tools, closeRetryOnly ? 5 : 11);
+  assert.equal(final.tools, closeRetryOnly ? 7 : 13);
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
   console.log(
     (compiled ? "PASS compiled application Worker: " : "PASS isolated Workerd gateway: ") +
       (closeRetryOnly ? " two synthetic turns" : " eight turns beyond 90s") +
-      ", explicit dated cash read, on-demand catalog lookup beyond initial snapshot, authenticated audio, one active session, failed close retried once with frozen duration, no business writes or secret exposure (provider simulated)",
+      ", explicit day/period cash reads and sourced botanical information, on-demand catalog lookup beyond initial snapshot, authenticated audio, one active session, failed close retried once with frozen duration, no business writes or secret exposure (provider simulated)",
   );
 } finally {
   await mf.dispose();

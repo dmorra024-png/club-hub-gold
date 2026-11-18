@@ -363,6 +363,39 @@ for (const [label, engine, device] of [
       () => document.querySelector('input[aria-label="Fecha del informe"]')?.value === "2026-10-25",
     );
     assert.equal(sockets, 1, "dated report must retain the same voice session");
+    peer.send(
+      JSON.stringify({
+        type: "AppCashPeriodResult",
+        summary: { from: "2026-10-24", to: "2026-10-25", cents: 1750, scope: "club" },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("2026-10-24 – 2026-10-25: 17.50 €"),
+    );
+    peer.send(
+      JSON.stringify({
+        type: "AppGeneticsResult",
+        name: "Amnesia Haze",
+        verified: true,
+        sources: [
+          "https://www.leafly.com/strains/amnesia-haze",
+          "javascript:alert(1)",
+          "https://untrusted.invalid/steal",
+          "https://www.leafly.com/shop/amnesia-haze",
+        ],
+      }),
+    );
+    await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
+    assert.equal(
+      await panel.locator("a").count(),
+      1,
+      "only verified informational citations may be linked",
+    );
+    assert.equal(
+      await panel.locator("a").getAttribute("href"),
+      "https://www.leafly.com/strains/amnesia-haze",
+    );
+    await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
     await send(
       proposal("product", "product_create", {
         product: { name: "Amnesia Haze", category: "Flores" },

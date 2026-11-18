@@ -1,5 +1,11 @@
 import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
-import { voiceCashToday, voiceCashDay, VoiceCashDay } from "./voice/cash-read.server.ts";
+import {
+  voiceCashToday,
+  voiceCashDay,
+  VoiceCashDay,
+  voiceCashPeriod,
+} from "./voice/cash-read.server.ts";
+import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -309,7 +315,13 @@ export async function deepgramAppSocket(
               for (const f of m.functions || []) {
                 if (f.client_side !== true) continue;
                 if (typeof f.id === "string" && seen.has(f.id)) continue;
-                if (f.name === "snoop_catalog_search") {
+                if (
+                  [
+                    "snoop_catalog_search",
+                    "snoop_cash_period",
+                    "snoop_genetics_information",
+                  ].includes(f.name)
+                ) {
                   const id = f.id;
                   if (typeof id !== "string" || !id.length || id.length > 120) {
                     close("PROVIDER_INVALID");
@@ -332,13 +344,19 @@ export async function deepgramAppSocket(
                   }
                   seen.add(id);
                   void (async () => {
+                    const unavailable =
+                      f.name === "snoop_cash_period"
+                        ? "CASH_UNAVAILABLE"
+                        : f.name === "snoop_genetics_information"
+                          ? "GENETICS_SOURCES_UNAVAILABLE"
+                          : "CATALOG_UNAVAILABLE";
                     let outcome: unknown = {
                       ok: false,
-                      code: "CATALOG_UNAVAILABLE",
+                      code: unavailable,
                       persisted: false,
                     };
                     try {
-                      const args = VoiceCatalogQuery.parse(JSON.parse(f.arguments));
+                      const args = JSON.parse(f.arguments);
                       const current = await verifySession(
                         verifiedToken,
                         env,
@@ -349,26 +367,58 @@ export async function deepgramAppSocket(
                         current.access.clubId !== verified.access.clubId
                       )
                         throw Error("AUTH_FORBIDDEN");
-                      const result = await voiceCatalogSearch(
-                        setting(env, "SUPABASE_URL"),
-                        setting(env, "SUPABASE_PUBLISHABLE_KEY"),
-                        verifiedToken,
-                        current.access,
-                        args,
-                        fetch,
-                        authController.signal,
-                      );
-                      if (ended) return;
-                      verified.catalog = {
-                        ...verified.catalog,
-                        [args.kind]: [
-                          ...new Set([...result.matches, ...verified.catalog[args.kind]]),
-                        ].slice(0, 35),
-                      };
-                      outcome = { ok: true, ...result };
+                      if (f.name === "snoop_catalog_search") {
+                        const query = VoiceCatalogQuery.parse(args);
+                        const result = await voiceCatalogSearch(
+                          setting(env, "SUPABASE_URL"),
+                          setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                          verifiedToken,
+                          current.access,
+                          query,
+                          fetch,
+                          authController.signal,
+                        );
+                        if (ended) return;
+                        verified.catalog = {
+                          ...verified.catalog,
+                          [query.kind]: [
+                            ...new Set([...result.matches, ...verified.catalog[query.kind]]),
+                          ].slice(0, 35),
+                        };
+                        outcome = { ok: true, ...result };
+                      } else if (f.name === "snoop_cash_period") {
+                        const summary = await voiceCashPeriod(
+                          setting(env, "SUPABASE_URL"),
+                          setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                          verifiedToken,
+                          current.user,
+                          current.access,
+                          args,
+                        );
+                        if (ended) return;
+                        outcome = { ok: true, ...summary };
+                        send({ type: "AppCashPeriodResult", summary });
+                      } else {
+                        const information = await voiceGeneticsInformation(
+                          args,
+                          fetch,
+                          authController.signal,
+                        );
+                        if (ended) return;
+                        outcome = { ok: true, ...information };
+                        send({
+                          type: "AppGeneticsResult",
+                          name: information.name,
+                          verified: information.verified,
+                          sources: information.sources,
+                        });
+                      }
                       history.push({
                         role: "assistant",
-                        content: "Authorized catalog result: " + JSON.stringify(result),
+                        content: ("Authorized read result: " + JSON.stringify(outcome)).slice(
+                          0,
+                          1200,
+                        ),
                       });
                       if (history.length > 10) history.shift();
                       void checkpoint();
@@ -379,7 +429,7 @@ export async function deepgramAppSocket(
                         code:
                           error instanceof Error && SAFE_FAILURES.has(error.message)
                             ? error.message
-                            : "CATALOG_UNAVAILABLE",
+                            : unavailable,
                       };
                     }
                     if (!ended)

@@ -40,33 +40,33 @@ Navigation means a real route/tab opens, NOT that all actions on that page are a
 Draft means fields change in the existing form; saves remain manual. Read means the
 server uses the authenticated user's existing query, not a service-role bypass.
 
-| Existing screen / function                           | Voice capability in this branch                                                                                | Remaining limitation                                                                                          |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Home (`/`)                                           | Navigation                                                                                                     | Home widgets remain manual                                                                                    |
-| Socios list / management (`/soci`, `/soci/gestisci`) | Navigation + local authorized search                                                                           | Selecting a particular member by ambiguous name needs explicit resolution                                     |
-| New member (`/soci/nuovo`)                           | Progressive name, surname, birth date, city, phone drafts; corrections; refused phone remembered               | Other fields and final registration manual; synthetic personal data only                                      |
-| Member details (`/soci/$id`)                         | Not newly automated                                                                                            | Renewals, membership history, discounts, QR/email/signature need typed context-specific ports; no guessed IDs |
-| Member import (`/soci/importar`)                     | Navigation, existing manage-members gate                                                                       | File selection, validation and import manual                                                                  |
-| Products (`/productos`)                              | Navigation, existing search, on-demand authorized name lookup beyond the initial snapshot, name/category draft | Pricing, inventory and final writes not exposed by this voice schema                                          |
-| Categories (existing Productos tab)                  | Open tab, on-demand verified category lookup, prepare category-name draft                                      | Rename/archive/delete manual                                                                                  |
-| Stock (existing Productos tab)                       | Open tab and search                                                                                            | No voice inventory mutation or distribution automation                                                        |
-| Member order (`/soci/$id/pedido`)                    | Not newly automated                                                                                            | No guessed member, automatic payment, fulfillment or stock change                                             |
-| Caja (`/caja`)                                       | Navigation                                                                                                     | Opening/closing, cash-count and notes remain manual                                                           |
-| Caja report (same page)                              | Today's aggregate or explicit valid Madrid calendar day, real authenticated source                             | Multi-day aggregation, individual session drill-down and economic writes not yet exposed                      |
-| Activities (`/actividades`)                          | Navigation                                                                                                     | Audit detail and cancellations remain manual; original audit preserved                                        |
-| Reports (`/ajustes/informes`)                        | Navigation, same view-reports gate                                                                             | Report filters/exports manual                                                                                 |
-| Settings (`/ajustes`)                                | Navigation, admin-only                                                                                         | Settings changes manual                                                                                       |
-| Collaborators (`/ajustes/colaboradores`)             | Navigation, admin-only                                                                                         | Invitations and permission changes manual                                                                     |
-| Member settings/discounts (`/ajustes/socios`)        | Navigation, admin-only                                                                                         | Assignments and settings writes manual                                                                        |
-| Fees (`/ajustes/cuotas`)                             | Navigation, admin-only                                                                                         | Existing fees unchanged; no new automatic discounts                                                           |
-| Devices (`/ajustes/dispositivos`)                    | Navigation, admin-only                                                                                         | Device configuration manual                                                                                   |
-| Access control (`/control-acceso`)                   | Navigation, same manage-members gate                                                                           | Camera/access decisions use existing manual flow                                                              |
-| Profile (`/perfil`)                                  | Navigation, preserves active voice session                                                                     | Password and logout remain secure manual operations; never dictate credentials                                |
-| Legacy `/cuotas`, `/geneticas`                       | Deliberately no new destination/menu                                                                           | Existing hidden/legacy data preserved; no parallel archive                                                    |
-| `/snoop-admin`                                       | Not available to club-admin pilot                                                                              | Separate Super Admin access preserved                                                                         |
-| `/club-status`, authenticated route guard            | No operational voice access                                                                                    | Suspension and recovery policies unchanged                                                                    |
-| `/snoop-demo`                                        | No production voice tool                                                                                       | No new demo path introduced                                                                                   |
-| SNOOP Socio / Monedero (PR #25)                      | Excluded                                                                                                       | Separate development untouched                                                                                |
+| Existing screen / function                           | Voice capability in this branch                                                                                | Remaining limitation                                                                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Home (`/`)                                           | Navigation                                                                                                     | Home widgets remain manual                                                                                                           |
+| Socios list / management (`/soci`, `/soci/gestisci`) | Navigation + local authorized search                                                                           | Selecting a particular member by ambiguous name needs explicit resolution                                                            |
+| New member (`/soci/nuovo`)                           | Progressive name, surname, birth date, city, phone drafts; corrections; refused phone remembered               | Other fields and final registration manual; synthetic personal data only                                                             |
+| Member details (`/soci/$id`)                         | Not newly automated                                                                                            | Renewals, membership history, discounts, QR/email/signature need typed context-specific ports; no guessed IDs                        |
+| Member import (`/soci/importar`)                     | Navigation, existing manage-members gate                                                                       | File selection, validation and import manual                                                                                         |
+| Products (`/productos`)                              | Navigation, existing search, on-demand authorized name lookup beyond the initial snapshot, name/category draft | Pricing, inventory and final writes not exposed by this voice schema                                                                 |
+| Categories (existing Productos tab)                  | Open tab, on-demand verified category lookup, prepare category-name draft                                      | Rename/archive/delete manual                                                                                                         |
+| Stock (existing Productos tab)                       | Open tab and search                                                                                            | No voice inventory mutation or distribution automation                                                                               |
+| Member order (`/soci/$id/pedido`)                    | Not newly automated                                                                                            | No guessed member, automatic payment, fulfillment or stock change                                                                    |
+| Caja (`/caja`)                                       | Navigation                                                                                                     | Opening/closing, cash-count and notes remain manual                                                                                  |
+| Caja report (same page)                              | Today's aggregate or explicit valid Madrid calendar day, real authenticated source                             | Voice period receipts now supported (inclusive Madrid dates, up to 366 days); individual session drill-down and writes remain manual |
+| Activities (`/actividades`)                          | Navigation                                                                                                     | Audit detail and cancellations remain manual; original audit preserved                                                               |
+| Reports (`/ajustes/informes`)                        | Navigation, same view-reports gate                                                                             | Report filters/exports manual                                                                                                        |
+| Settings (`/ajustes`)                                | Navigation, admin-only                                                                                         | Settings changes manual                                                                                                              |
+| Collaborators (`/ajustes/colaboradores`)             | Navigation, admin-only                                                                                         | Invitations and permission changes manual                                                                                            |
+| Member settings/discounts (`/ajustes/socios`)        | Navigation, admin-only                                                                                         | Assignments and settings writes manual                                                                                               |
+| Fees (`/ajustes/cuotas`)                             | Navigation, admin-only                                                                                         | Existing fees unchanged; no new automatic discounts                                                                                  |
+| Devices (`/ajustes/dispositivos`)                    | Navigation, admin-only                                                                                         | Device configuration manual                                                                                                          |
+| Access control (`/control-acceso`)                   | Navigation, same manage-members gate                                                                           | Camera/access decisions use existing manual flow                                                                                     |
+| Profile (`/perfil`)                                  | Navigation, preserves active voice session                                                                     | Password and logout remain secure manual operations; never dictate credentials                                                       |
+| Legacy `/cuotas`, `/geneticas`                       | Deliberately no new destination/menu                                                                           | Existing hidden/legacy data preserved; no parallel archive                                                                           |
+| `/snoop-admin`                                       | Not available to club-admin pilot                                                                              | Separate Super Admin access preserved                                                                                                |
+| `/club-status`, authenticated route guard            | No operational voice access                                                                                    | Suspension and recovery policies unchanged                                                                                           |
+| `/snoop-demo`                                        | No production voice tool                                                                                       | No new demo path introduced                                                                                                          |
+| SNOOP Socio / Monedero (PR #25)                      | Excluded                                                                                                       | Separate development untouched                                                                                                       |
 
 ## Verification and release boundaries
 
@@ -96,3 +96,35 @@ dictate/correct names and decline phone; navigate to profile/products; search an
 label; request the cash report for an explicit date; interrupt an answer; let a response
 finish; continue past 90 seconds; background/return. Check the visible fields/date against
 the spoken request. Do not confirm any real registration or economic operation.
+
+## Follow-up: period reports and sourced information
+
+The voice gateway now exposes `snoop_cash_period` using the existing ledger reader
+and receipt calculations. It validates inclusive ISO dates, at most 366 calendar days,
+checks cash/report permissions, uses the current user JWT, and returns receipt totals
+only. Opening balances, counted money and refunds are not misrepresented as receipts.
+The same source deduplicates records and excludes cancelled orders. No accounting
+records or calculations were rewritten. Browser status shows the actual requested range.
+
+`snoop_genetics_information` reuses existing source research without changing the image
+engine or creating an archive. Public requests are hostname-restricted, bounded,
+redirect-blocked and contain no user JWT/API key. Results carry source URLs; the
+existing voice panel exposes safe informational citation links. Unavailable evidence
+is reported as unverified, not replaced by invented facts. No photographs are copied.
+
+A real Internet check on 18 November 2026 found attributed information for Amnesia Haze,
+Gelato 41, Runtz, Wedding Cake, Northern Lights, White Widow and Zkittlez. Gorilla Glue
+had no verified exact match. Public-source request time was about 4.9–7.3 seconds per
+query. These numbers measure source retrieval, not Deepgram speech or physical-phone
+latency. The machine-readable evidence is `/workspace/shared/jarvis-genetics-live.jsonl`.
+
+Monedero integration has an actual dependency: PR #25 remains open and its adapter
+`apps/socio/supabase-wallet-operations.mjs` says SQL RPCs are REVIEW_ONLY and online
+enablement is blocked until atomic settlement proofs and cash integration exist.
+Those files/RPCs are absent from this base. No duplicate wallet implementation or
+call to an unapproved production wallet RPC has been introduced.
+
+There is no connected physical Android/iPhone or authenticated Ddr browser session
+in this workspace. New code is not deployed. Therefore real-device/positive live
+Deepgram acceptance cannot be declared or replaced by WebKit simulation. Full
+manual/voice parity remains unaccepted; no merge or release is performed.

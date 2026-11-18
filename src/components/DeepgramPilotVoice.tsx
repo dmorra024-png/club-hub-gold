@@ -10,6 +10,7 @@ import type { DictationPhase } from "@/hooks/useWhisperDictation";
 import { applyDeepgramDraft } from "@/lib/deepgram-draft-actions";
 import { voiceOwner } from "@/lib/voice/application-ports";
 import type { AccountAccess } from "@/lib/access-context";
+import { voiceGeneticsSource } from "@/lib/voice/source-links";
 
 type Language = "it" | "es" | "en";
 type Entry = { role: "user" | "assistant"; content: string };
@@ -60,6 +61,7 @@ export function DeepgramPilotVoice({
   const [consent, setConsent] = useState(false);
   const [lines, setLines] = useState<Entry[]>([]);
   const [proposal, setProposal] = useState<ConversationProposalValue | null>(null);
+  const [citations, setCitations] = useState<{ name: string; sources: string[] } | null>(null);
   const [verifiedCount, setVerifiedCount] = useState<number | null>(null);
 
   const interrupt = useCallback(() => {
@@ -86,6 +88,7 @@ export function DeepgramPilotVoice({
       }
       setLines([]);
       setProposal(null);
+      setCitations(null);
       const state = audio.current;
       audio.current = null;
       if (state) {
@@ -383,6 +386,29 @@ export function DeepgramPilotVoice({
               setStatus(
                 `${message.summary.day}: ${(message.summary.cents / 100).toFixed(2)} € · ${message.summary.scope === "club" ? "club" : "tu actividad"}`,
               );
+          } else if (message.type === "AppCashPeriodResult") {
+            const summary = message.summary;
+            if (
+              Number.isSafeInteger(summary?.cents) &&
+              typeof summary.from === "string" &&
+              typeof summary.to === "string"
+            )
+              setStatus(
+                `${summary.from} – ${summary.to}: ${(summary.cents / 100).toFixed(2)} € · ${summary.scope === "club" ? "club" : "tu actividad"}`,
+              );
+          } else if (
+            message.type === "AppGeneticsResult" &&
+            typeof message.name === "string" &&
+            Array.isArray(message.sources)
+          ) {
+            setCitations({
+              name: message.name.slice(0, 100),
+              sources: message.sources
+                .filter(
+                  (s: unknown) => typeof s === "string" && voiceGeneticsSource(s, message.name),
+                )
+                .slice(0, 9),
+            });
           } else if (message.type === "AppError") {
             stop("Deepgram: " + String(message.code || "PROVIDER_ERROR").slice(0, 80));
           } else if (message.type === "AppClosed") {
@@ -552,6 +578,26 @@ export function DeepgramPilotVoice({
             ? "coste pendiente de tarifa verificada"
             : `estimación ${(usage.estimatedMicrousd / 1000000).toFixed(2)} USD`}
         </p>
+      )}
+      {citations && (
+        <details style={{ fontSize: 11, marginTop: 4 }}>
+          <summary>Fuentes · {citations.name}</summary>
+          {citations.sources.length ? (
+            citations.sources.map((source) => (
+              <a
+                key={source}
+                href={source}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "block", overflowWrap: "anywhere" }}
+              >
+                {new URL(source).hostname}
+              </a>
+            ))
+          ) : (
+            <p>No hay fuentes verificadas disponibles.</p>
+          )}
+        </details>
       )}
       {!running && verifiedCount !== null && <p>Categorie verificate: {verifiedCount}</p>}
       <div aria-live="polite" style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}>

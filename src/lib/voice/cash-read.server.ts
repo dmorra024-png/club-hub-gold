@@ -3,6 +3,10 @@ import { loadCash } from "../cash-sessions.server.ts";
 import { cashDaySummary } from "../cash-sessions.ts";
 import { calendarDate, madridToday } from "../member-administration.ts";
 import { z } from "zod";
+import { readCashLedger } from "../cash-ledger.ts";
+import { cashMovements } from "../cash-sessions.ts";
+import { clubDayRange } from "../cash-summary.ts";
+import type { AccountAccess } from "../access-context.ts";
 export const VoiceCashDay = z
   .object({
     day: z
@@ -11,6 +15,15 @@ export const VoiceCashDay = z
       .refine((value) => calendarDate(value) === value),
   })
   .strict();
+export const VoiceCashPeriod = z
+  .object({ from: VoiceCashDay.shape.day, to: VoiceCashDay.shape.day })
+  .strict()
+  .refine(
+    (v) =>
+      v.from <= v.to &&
+      (Date.parse(v.to + "T00:00:00Z") - Date.parse(v.from + "T00:00:00Z")) / 86400000 < 366,
+    "Invalid or oversized period",
+  );
 /** Same report source and user JWT as the manual screen; only the aggregate leaves the server. */
 export async function voiceCashToday(
   url: string,
@@ -32,6 +45,18 @@ export async function voiceCashDay(
   fetcher?: typeof fetch,
 ) {
   VoiceCashDay.parse({ day });
+  const client = voiceCashClient(url, key, token, fetcher);
+  const report = await loadCash(client, { userId, clubId }, day);
+  const summary = cashDaySummary(report.movements, report.sessions, report.start, report.end);
+  if (!Number.isSafeInteger(summary.totalCents)) throw Error("CASH_UNAVAILABLE");
+  return {
+    day: report.day,
+    cents: summary.totalCents,
+    currency: "EUR",
+    scope: report.admin ? "club" : "own",
+  };
+}
+function voiceCashClient(url: string, key: string, token: string, fetcher?: typeof fetch) {
   if (url !== "https://bnwanxbmprbymbutoths.supabase.co") throw Error("AUTH_CONFIG");
   const deadline = AbortSignal.timeout(6000);
   const boundedFetch: typeof fetch = async (input, init) => {
@@ -45,20 +70,55 @@ export async function voiceCashDay(
     if (response.status >= 300 && response.status < 400) throw Error("CASH_REDIRECT_REJECTED");
     return response;
   };
-  const client = createClient(url, key, {
+  return createClient(url, key, {
     global: {
       headers: { Authorization: "Bearer " + token },
       fetch: boundedFetch,
     },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  const report = await loadCash(client, { userId, clubId }, day);
-  const summary = cashDaySummary(report.movements, report.sessions, report.start, report.end);
-  if (!Number.isSafeInteger(summary.totalCents)) throw Error("CASH_UNAVAILABLE");
+}
+/** Same ledger reader and exact calculations as the manual report; openings never receipts. */
+export async function voiceCashPeriod(
+  url: string,
+  key: string,
+  token: string,
+  userId: string,
+  access: AccountAccess,
+  args: unknown,
+  fetcher?: typeof fetch,
+) {
+  const period = VoiceCashPeriod.parse(args);
+  if (
+    access.status !== "active" ||
+    !access.clubId ||
+    !access.permissions.includes("use_cash") ||
+    !access.permissions.includes("view_reports")
+  )
+    throw Error("AUTH_FORBIDDEN");
+  const client = voiceCashClient(url, key, token, fetcher);
+  const { data: admin, error } = await client.rpc("is_current_user_club_admin", {
+    _club_id: access.clubId,
+  });
+  if (error || typeof admin !== "boolean") throw Error("CASH_UNAVAILABLE");
+  const start = clubDayRange(period.from).start,
+    end = clubDayRange(period.to).end;
+  const { orders, fees } = await readCashLedger(
+    client,
+    { userId, clubId: access.clubId, admin },
+    start,
+    end,
+    true,
+  );
+  const summary = cashDaySummary(cashMovements(orders, fees, []), [], start, end);
   return {
-    day: report.day,
+    ...period,
     cents: summary.totalCents,
+    orderCents: summary.orderCents,
+    feeCents: summary.feeCents,
     currency: "EUR",
-    scope: report.admin ? "club" : "own",
+    scope: admin ? "club" : "own",
+    measurement: "recorded_receipts",
+    persisted: false,
   };
 }
