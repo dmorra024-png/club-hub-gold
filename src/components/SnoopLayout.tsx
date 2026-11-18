@@ -33,7 +33,7 @@ const NAV: {
   { to: "/caja", label: "Caja", icon: Banknote, permission: "use_cash" },
   { to: "/control-acceso", label: "Control acceso", icon: ScanLine, permission: "manage_members" },
   { to: "/ajustes/informes", label: "Informes", icon: Banknote, permission: "view_reports" },
-  { to: "/ajustes", label: "Ajustes", icon: Settings, admin: true },
+  { to: "/ajustes", label: "Ajustes", icon: Settings },
   { to: "/perfil", label: "Perfil", icon: UserRound },
 ];
 export function SnoopLayout({
