@@ -1,6 +1,13 @@
 -- Disposable CI only: minimal stand-ins for production SNOOP's transaction RPCs.
 -- These mimic the order/stock/cancellation contract, NOT its full security model.
 \set ON_ERROR_STOP on
+create table public.products(
+ id uuid primary key,club_id uuid not null,name text not null,
+ sell_price numeric not null,active boolean not null default true
+);
+insert into public.products(id,club_id,name,sell_price,active)
+values('deafbeef-1111-4222-8333-444444444444',
+ '4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc','Synthetic',8.00,true);
 create table public.wallet_test_stock(product_id uuid primary key, remaining integer not null check(remaining>=0));
 insert into public.wallet_test_stock values('deafbeef-1111-4222-8333-444444444444',10);
 create function public.current_club_id()
