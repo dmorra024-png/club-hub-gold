@@ -80,6 +80,18 @@ export const walletCheckout=createServerFn({method:"POST"})
      !uuid.safeParse(result.orderId).success)fail();
   return result as {status:"applied";orderId:string;balanceCents:number;amountCents:number};
  });
+export const walletOrderPaymentState=createServerFn({method:"POST"})
+ .middleware([requireClubCashAuth])
+ .inputValidator((input:unknown)=>z.object({orderId:uuid}).strict().parse(input))
+ .handler(async ({context,data})=>{
+  setResponseHeader("Cache-Control","private, no-store");
+  if(!available())return {wallet:false};
+  await requireOperationalClub(context,"manage_members");
+  const {data:result,error}=await (context.supabase as any).rpc(
+   "socio_wallet_order_payment_state",{p_order_id:data.orderId});
+  if(error||!result||typeof result.wallet!=="boolean")fail();
+  return {wallet:result.wallet};
+ });
 export const walletCancel=createServerFn({method:"POST"})
  .middleware([requireClubCashAuth])
  .inputValidator((input:unknown)=>z.object({
