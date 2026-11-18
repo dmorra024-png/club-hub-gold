@@ -48,6 +48,13 @@ async function setupApi(page){
    loggedIn=input.email===testEmail&&input.password===testPassword;
    return response(loggedIn?{authenticated:true}:{message:'Credenciales incorrectas.'},loggedIn?200:401);
   }
+  if(path==='/auth/change-password'&&method==='POST'){
+   let input={};try{input=JSON.parse(request.postData()||'{}')}catch{}
+   const valid=loggedIn&&input.currentPassword===testPassword&&
+    typeof input.newPassword==='string'&&input.newPassword.length>=10;
+   if(!valid)return response({message:'Credenciales incorrectas.'},401);
+   loggedIn=false;return response({changed:true,reloginRequired:true});
+  }
   if(path==='/auth/logout'){loggedIn=false;return response({signedOut:true});}
   if(path==='/auth/refresh')return response({authenticated:false},401);
   if(path==='/auth/signup')return response({message:'Signup de prueba deshabilitado'},503);
@@ -127,7 +134,7 @@ async function runBrowser(browserType,deviceName,options){
   assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0,'Unlinked club must remain hidden');
   await page.getByRole('button',{name:'Vincular otro club'}).click();
   await page.getByRole('heading',{name:'Vincula tu carnet'}).waitFor();
-  await page.locator('input[name="code"]').fill('c'.repeat(48));
+  await page.locator('input[name="code"]').fill('c'.repeat(24)+' '+'c'.repeat(24));
   await page.getByRole('button',{name:'Vincular mi carnet'}).click();
   await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
   await page.getByRole('button',{name:'Mis clubes'}).click();
@@ -164,12 +171,32 @@ async function runBrowser(browserType,deviceName,options){
   await page.waitForTimeout(250);
   assert.equal(await page.getByText('999,99 €').count(),0,'Stale wallet response leaked across sign-out');
   await page.getByText('25,75 €').waitFor();
+  // Account settings must remain available to the member. Requiring the old
+  // password prevents an already unlocked browser from silently changing it.
+  await page.getByRole('button',{name:'Menú'}).click();
+  await page.getByRole('button',{name:'Mi perfil'}).click();
+  await page.getByRole('heading',{name:'Mi cuenta'}).waitFor();
+  await page.locator('input[name="currentPassword"]').fill('wrong-old-password');
+  await page.locator('input[name="newPassword"]').fill('A-Strong-New-Password123!');
+  await page.locator('input[name="confirmPassword"]').fill('A-Strong-New-Password123!');
+  await page.getByRole('button',{name:'Cambiar contraseña'}).click();
+  await page.getByText('Contraseña actual incorrecta o sesión caducada.').waitFor();
+  assert.equal(await page.getByRole('heading',{name:'Mi cuenta'}).isVisible(),true);
+  await page.locator('input[name="currentPassword"]').fill(testPassword);
+  await page.locator('input[name="newPassword"]').fill('A-Strong-New-Password123!');
+  await page.locator('input[name="confirmPassword"]').fill('A-Strong-New-Password123!');
+  await page.getByRole('button',{name:'Cambiar contraseña'}).click();
+  await page.getByRole('heading',{name:'Bienvenido'}).waitFor();
+  await page.getByText('Contraseña actualizada. Inicia sesión con tu nueva contraseña.').waitFor();
+  assert.equal(await page.getByText('SNOOP Club Demo Palma').count(),0);
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('snoop-socio-last-club')),null);
   // Every route is intercepted; no live project endpoints can be contacted.
   assert(hits.some(h=>h==='GET /clubs/'+idB+'/wallet'));
   assert(hits.some(h=>h==='POST /link/claim'));
   assert(hits.some(h=>h==='GET /clubs/'+idA+'/wallet'));
+  assert(hits.some(h=>h==='POST /auth/change-password'));
   assert.equal(errors.length,0,'Browser JS errors: '+errors.join('; '));
-  console.log('PASS',deviceName,'login, 2 clubs, QR, wallet, movements, logout; network mocked');
+  console.log('PASS',deviceName,'login, 2 clubs, QR, wallet, movements, logout, password change; network mocked');
  }finally{await browser.close();}
 }
 async function testUnavailableBackend(browserType,deviceName){
