@@ -67,7 +67,7 @@ export function cashMovements(orders: any[], fees: any[], sessions: CashSession[
 }
 export function sessionRevenue(session: CashSession, movements: CashMovement[]) {
   return movements
-    .filter((m) => m.session_id === session.id && m.by === session.user_id)
+    .filter((m) => m.session_id === session.id && m.by === session.user_id && m.payment_method !== "wallet")
     .reduce((sum, m) => sum + m.cents, 0);
 }
 export function dayRevenue(movements: CashMovement[], start: string, end: string) {
@@ -151,14 +151,14 @@ export function cashDaySummary(
     ...amounts,
     topupCents,
     walletPaidCents,
-    totalCents: amounts.totalCents + topupCents,
+    totalCents: sum([amounts.totalCents, topupCents, -walletPaidCents]),
     cashCents: sum(day.filter((m) => m.payment_method === "cash").map((m) => m.cents)),
     unidentifiedCents: sum(
       day
         .filter((m) => !["cash", "card", "transfer", "wallet"].includes(m.payment_method ?? ""))
         .map((m) => m.cents),
     ),
-    outsideSessionCents: sum(day.filter((m) => !m.session_id).map((m) => m.cents)),
+    outsideSessionCents: sum(day.filter((m) => !m.session_id && m.payment_method !== "wallet").map((m) => m.cents)),
     countedCents: sum(
       closed.filter((s) => s.closing_cash_cents !== null).map((s) => s.closing_cash_cents!),
     ),
