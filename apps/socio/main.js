@@ -186,7 +186,20 @@ async function resendVerification(){
   state.pending=false;notify('Si la cuenta está pendiente, recibirás un nuevo enlace.');
  }catch(e){state.pending=false;notify(e.message||'No se pudo reenviar el correo.',true);}
 }
-async function submitLink(form){state.pending=true;render();try{await api('/link/claim',{method:'POST',body:{code:String(new FormData(form).get('code')||'').trim()}});state.pending=false;state.message='';await refreshClubs();}catch(e){state.pending=false;notify(e.message||'No se pudo vincular el carnet.',true);}}
+async function submitLink(form){
+ const code=String(new FormData(form).get('code')||'').trim().toLowerCase().replace(/\s+/g,'');
+ if(!/^[a-f0-9]{48}$/.test(code))
+  return notify('El código debe contener 48 caracteres. Puedes pegarlo directamente.',true);
+ state.pending=true;render();
+ try{
+  await api('/link/claim',{method:'POST',body:{code}});
+  state.pending=false;state.message='';await refreshClubs();
+ }catch(e){
+  state.pending=false;
+  notify(e?.status===403?'Código caducado, ya utilizado o no autorizado. Solicita uno nuevo.':
+   e.message||'No se pudo vincular el carnet.',true);
+ }
+}
 document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}if(e.target.id==='password-form'){e.preventDefault();void submitPassword(e.target);}if(e.target.id==='forgot-form'){e.preventDefault();void submitForgot(e.target);}if(e.target.id==='recovery-form'){e.preventDefault();void submitRecovery(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
 switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'forgot':state.page='forgot';break;case'resend-verification':void resendVerification();break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';stopQr();break;case'profile':state.page='profile';stopQr();break;case'link':state.page='link';stopQr();break;case'home':state.page='carnet';void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;stopQr();void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
