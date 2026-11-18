@@ -20,6 +20,7 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
  const inFlight=useRef(false);
  const scope=JSON.stringify([user?.id,access.clubId,access.status,memberId]);
  useEffect(()=>{
+  if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true")return;
   if(accessError||!can("use_cash")||!can("manage_members"))return;
   let active=true;
   setStatus(null);setProblem("");setConfirmed(false);setAmount("");
