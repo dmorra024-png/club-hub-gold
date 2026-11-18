@@ -104,7 +104,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler deploy --config apps/socio/wrangler.pilot.jsonc --keep-secrets
+          npx wrangler deploy --config apps/socio/wrangler.pilot.jsonc --keep-vars
       - name: Verify separate HTTPS app and fail-closed API boundary
         shell: bash
         run: |
