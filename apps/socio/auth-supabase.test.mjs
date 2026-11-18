@@ -111,3 +111,29 @@ test('rejected registration cannot masquerade as verification email',async()=>{
  assert.equal(result.headers.get('set-cookie'),null);
  assert.equal(JSON.stringify(await result.json()).includes('Password rejected'),false);
 });
+
+test('six digit signup code verifies through GoTrue without granting session',async()=>{
+ const calls=[];
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async (url,opts)=>{calls.push({url,opts});return Response.json({user:{id:uid},access_token:'ignored-secret'});},
+  authorizeSocioUser:async()=>true
+ });
+ const response=await auth.verifySignupCode({input:{email:'SoCiO@example.com',code:'123456'}});
+ assert.equal(response.status,200);
+ assert.equal((await response.json()).verified,true);
+ assert.equal(response.headers.get('set-cookie'),null);
+ assert.equal(calls[0].url,supabase+'/auth/v1/verify');
+ assert.deepEqual(JSON.parse(calls[0].opts.body),{type:'signup',email:'socio@example.com',token:'123456'});
+});
+test('signup code rejects invalid digits and provider errors',async()=>{
+ let count=0;
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async()=>{count++;return Response.json({error:'expired'},{status:403});},
+  authorizeSocioUser:async()=>true
+ });
+ assert.equal((await auth.verifySignupCode({input:{email:'socio@example.com',code:'12345'}})).status,400);
+ assert.equal(count,0);
+ assert.equal((await auth.verifySignupCode({input:{email:'socio@example.com',code:'123456'}})).status,400);
+});
