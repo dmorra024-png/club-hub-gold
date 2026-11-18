@@ -25,6 +25,7 @@ import {
 import { parseOrderItems, transcribeAudio } from "@/lib/voice-agent.functions";
 import { formatPrice } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
+import { walletMemberStatus, walletCheckout } from "@/lib/wallet-management.functions";
 import {
   readOnlyCatalog,
   filterReadOnlyCatalog,
@@ -92,6 +93,12 @@ function PedidoPage() {
   const [cart, setCart] = useState<Cart[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [walletState, setWalletState] = useState<{enabled:boolean;clubEnabled:boolean;balanceCents:number|null}|null>(null);
+  const [walletStatusError, setWalletStatusError] = useState(false);
+  const [walletConfirmed, setWalletConfirmed] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState<"cash"|"wallet">("cash");
+  const [walletUncertain, setWalletUncertain] = useState(false);
+  const walletOperation = useRef<string|null>(null);
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [notes, setNotes] = useState("");
@@ -156,6 +163,20 @@ function PedidoPage() {
       active = false;
     };
   }, [catalogScope, authLoading, catalogRetry]);
+
+  useEffect(() => {
+    if (authLoading || accessError || !access.clubId || !can("use_cash")) return;
+    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
+      setWalletState({enabled:false,clubEnabled:false,balanceCents:null});
+      setWalletStatusError(false);setWalletUncertain(false);return;
+    }
+    let active=true;
+    setWalletState(null);setWalletStatusError(false);setWalletConfirmed(false);setWalletUncertain(false);
+    walletMemberStatus({data:{memberId:id}})
+      .then(result=>{if(active)setWalletState(result);})
+      .catch(()=>{if(active)setWalletStatusError(true);});
+    return()=>{active=false;};
+  },[id,catalogScope,authLoading,accessError]);
 
   // Listen to the floating assistant mic when we're on this page
   useEffect(() => {
@@ -493,21 +514,43 @@ function PedidoPage() {
 
   async function confirmar() {
     if (!cart.length) return toast.error("Carrito vacío");
+    // Efectivo is the existing, independent order workflow. An outage or
+    // permission failure in wallet status MUST NOT block a cash order.
+    // Wallet requests still fail closed and require a verified balance.
+    if(walletUncertain) return toast.error("Hay un pago anterior sin confirmar. Consulta el historial antes de otro pedido.");
+    const payingWallet=paymentChoice==="wallet";
+    if(payingWallet && (!walletState || walletStatusError || walletUncertain ||
+       !walletState.clubEnabled)){
+      return toast.error("No se puede verificar Monedero. Elige Efectivo o reintenta más tarde.");
+    }
+    if(payingWallet && !walletState?.enabled)
+      return toast.error("El Monedero de este socio no está disponible.");
+    if (payingWallet && (!walletConfirmed || (walletState?.balanceCents??0)<total))
+      return toast.error("Confirma el pago y comprueba el saldo del monedero.");
     setBusy(true);
     try {
-      const { error } = await (supabase.rpc as any)("create_order_with_items", {
-        _member_id: id,
-        _notes: notes || null,
-        _items: cart,
-      });
-      if (error) throw error;
-      toast.success(`Pedido cerrado · ${formatPrice(total)}`);
-      nav({ to: "/soci/$id", params: { id } });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Error al guardar");
-    } finally {
-      setBusy(false);
-    }
+      if (payingWallet) {
+        walletOperation.current??=crypto.randomUUID();
+        const result=await walletCheckout({data:{
+          memberId:id,notes:notes||"",items:cart,
+          operationId:walletOperation.current,confirmed:true
+        }});
+        walletOperation.current=null;
+        toast.success(`Pedido pagado con monedero · ${formatPrice(result.amountCents)}`);
+      } else {
+        const {error}=await (supabase.rpc as any)("create_order_with_items",{
+          _member_id:id,_notes:notes||null,_items:cart
+        });
+        if(error)throw error;
+        toast.success(`Pedido cerrado · ${formatPrice(total)}`);
+      }
+      nav({to:"/soci/$id",params:{id}});
+    } catch(e:any){
+      if(payingWallet){
+        setWalletUncertain(true);
+        toast.error("Resultado del pago no confirmado. Consulta el historial antes de otro pedido.");
+      }else toast.error(e?.message??"Error al guardar");
+    }finally{setBusy(false);}
   }
 
   return (
@@ -867,9 +910,59 @@ function PedidoPage() {
             className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs focus:border-neon outline-none resize-none"
           />
 
+          {walletStatusError && (
+            <p role="status" className="text-amber-300 text-sm">
+              Monedero temporalmente no disponible. Los pedidos en efectivo siguen funcionando.
+            </p>
+          )}
+          {walletState?.clubEnabled && (
+            <div className="rounded-xl border border-neon/30 p-3 space-y-3" aria-label="Forma de pago">
+              <strong>Forma de pago</strong>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="order-payment-method" value="cash"
+                    checked={paymentChoice==="cash"} disabled={busy||walletUncertain}
+                    onChange={()=>{setPaymentChoice("cash");setWalletConfirmed(false);}}/>
+                  Efectivo
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="order-payment-method" value="wallet"
+                    checked={paymentChoice==="wallet"} disabled={busy||walletUncertain||!walletState.enabled}
+                    onChange={()=>{setPaymentChoice("wallet");setWalletConfirmed(false);}}/>
+                  Monedero
+                </label>
+              </div>
+              {paymentChoice==="wallet" && (
+                <div className="space-y-2">
+                  <p className="text-sm">Saldo verificado: {formatPrice(walletState.balanceCents??0)}</p>
+                  {!walletState.enabled && <p role="alert" className="text-red-400 text-sm">
+                    Monedero no disponible para este socio. Puedes elegir efectivo.
+                  </p>}
+                  {(walletState.balanceCents??0)<total && (
+                    <p role="alert" className="text-red-400 text-sm">
+                      Saldo insuficiente. Recarga desde la ficha del socio.
+                    </p>
+                  )}
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" disabled={busy||walletUncertain||!walletState.enabled}
+                      checked={walletConfirmed}
+                      onChange={e=>setWalletConfirmed(e.target.checked)}/>
+                    Confirmo el cargo de {formatPrice(total)} al Monedero de este socio.
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
+          {walletUncertain && (
+            <p role="alert" className="text-red-400 text-sm">
+              Operación pendiente de comprobación. No vuelvas a confirmar: consulta el historial.
+            </p>
+          )}
           <button
             onClick={confirmar}
-            disabled={!cart.length || busy}
+            disabled={!cart.length || busy || walletUncertain || (paymentChoice==="wallet" &&
+              (!walletState || walletStatusError || walletUncertain || !walletState.clubEnabled ||
+               !walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
           >
             {busy ? "Guardando…" : "Confirmar pedido"}

@@ -10,6 +10,7 @@ import { Search, Mic, QrCode, X } from "lucide-react";
 import { toast } from "sonner";
 import { expiryBadge } from "@/lib/snoop";
 import { Html5Qrcode } from "html5-qrcode";
+import { verifySnoopSocioScan } from "@/lib/socio-qr-scanner.functions";
 
 export const Route = createFileRoute("/_authenticated/soci/gestisci")({
   component: GestisciSoci,
@@ -218,6 +219,14 @@ function GestisciSoci() {
           onClose={() => setScanOpen(false)}
           onResult={(text) => {
             setScanOpen(false);
+            if(text.startsWith("ssc2.")){
+              // Opaque SNOOP Socio codes require server-side AES validation and
+              // atomic one-use nonce consumption. Never parse in the browser.
+              void verifySnoopSocioScan({data:{token:text}})
+                .then(({memberId})=>navigate({to:"/soci/$id/pedido",params:{id:memberId}}))
+                .catch(()=>toast.error("QR SNOOP Socio no autorizado, caducado o ya utilizado."));
+              return;
+            }
             const num = extractMemberNumber(text);
             if (num) {
               const member = rowsRef.current.find((r) => r.member_number === num);

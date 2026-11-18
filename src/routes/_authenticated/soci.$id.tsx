@@ -1,6 +1,8 @@
 import { MemberDiscounts } from "@/components/MemberDiscounts";
 import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
 import { MemberOrderHistory } from "@/components/MemberOrderHistory";
+import { WalletTopupPanel } from "@/components/WalletTopupPanel";
+import { SocioClientLinkPanel } from "@/components/SocioClientLinkPanel";
 import { madridToday, addCalendarDays, isAdult } from "@/lib/member-administration";
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -593,6 +595,8 @@ function SocioDetail() {
         </div>
       </div>
       <MemberDiscounts memberId={id} />
+      <SocioClientLinkPanel memberId={id} />
+      <WalletTopupPanel memberId={id} />
       <MemberOrderHistory memberId={id} />
     </SnoopLayout>
   );
