@@ -8,7 +8,7 @@ const member='c319b1ed-9389-4c81-9e7f-42f808d95c34';
 const operation='12121212-1111-4222-8333-444444444444';
 const order='56565656-1111-4222-8333-444444444444';
 const item={product_id:'deafbeef-1111-4222-8333-444444444444',product_name:'Synthetic',
- unit_type:'g',quantity:1,merma:0.1,unit_price_cents:800,line_total_cents:800};
+ unit_type:'gr',quantity:1,merma:0.1,unit_price_cents:800,line_total_cents:800};
 const staff={accountType:'staff',verified:true,userId:user,clubId:club,
  accessToken:'synthetic-JWT',permissions:['use_cash','manage_members','wallet_spend','wallet_refund']};
 const request={memberId:member,operationId:operation,notes:'',items:[item]};
