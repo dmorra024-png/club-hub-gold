@@ -11,19 +11,19 @@ begin
   raise exception 'WALLET_STAFF_NOT_AUTHORIZED' using errcode='42501';
  end if;
  select r.club_id into strict v_club from public.user_roles r
-  join public.socio_wallet_staff_permissions p
+  left join public.socio_wallet_staff_permissions p
    on p.club_id=r.club_id and p.user_id=r.user_id
   join public.members m on m.club_id=r.club_id and m.id=p_member_id
   where r.user_id=v_actor and r.role::text in ('admin','collaborator')
    and (r.role::text='admin' or 'use_cash'=any(r.permissions))
-   and (p.can_topup or p.can_spend or p.can_refund);
+   and (r.role::text='admin' or p.can_topup or p.can_spend or p.can_refund);
  select s.enabled into v_enabled from public.socio_club_wallet_settings s
   join public.clubs c on c.id=s.club_id and c.active
   where s.club_id=v_club;
  if v_enabled is distinct from true then
   return jsonb_build_object('enabled',false,'clubEnabled',false,'balanceCents',null);
  end if;
- select (m.expires_at>=current_date and card.active and card.wallet_enabled
+ select (m.expires_at>=current_date and card.active
          and card.revoked_at is null) into v_active
   from public.members m join public.socio_member_cards card
    on card.club_id=m.club_id and card.member_id=m.id
