@@ -48,13 +48,16 @@ export function reconcileCashWithWallet({
   refundedCash=addition(refundedCash,row.amountCents);
  }
  const collectedCash=addition(addition(cashOrders,cashFees),cashTopups);
- if(refundedCash>collectedCash)throw bad('CASH_REFUNDS_EXCEED_COLLECTIONS');
+ // A valid period may have more cash refunded than collected (e.g. a
+ // previous-day order refunded during a new shift). Net flow may be negative.
+ const netCash=collectedCash-refundedCash;
+ if(!Number.isSafeInteger(netCash))throw bad('CASH_TOTAL_OVERFLOW');
  return {
   cashOrdersCents:cashOrders,
   walletOrderTransfersCents:walletOrders,
   cashMembershipFeesCents:cashFees,
   cashWalletTopupsCents:cashTopups,
   cashRefundsCents:refundedCash,
-  netCashCents:collectedCash-refundedCash
+  netCashCents:netCash
  };
 }
