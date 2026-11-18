@@ -54,7 +54,8 @@ function brand(){return '<header class="brand"><div class="brand-identity"><img 
 (state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
 (state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'')+'</header>';}
 function shell(body){
- const nav=state.me?.authenticated?'<nav class="socio-dock" aria-label="Navegación del socio"><button type="button" data-action="home" '+(!state.selected?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon">▣</span><span>Carnet</span></button><button type="button" data-action="clubs" aria-current="'+(state.page==='clubs')+'"><span class="dock-icon">▦</span><span>Clubes</span></button><button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon">♙</span><span>Perfil</span></button></nav>':'';
+ const activeClub=state.clubs.find(c=>c.id===state.selected);
+ const nav=state.me?.authenticated?'<nav class="socio-dock" aria-label="Navegación del socio"><button type="button" data-action="home" '+(!state.selected?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon">▣</span><span>Carnet</span></button><button type="button" data-action="clubs" aria-current="'+(state.page==='clubs')+'"><span class="dock-icon">▦</span><span>Clubes</span></button><button type="button" data-action="movements" '+(!activeClub?.walletEnabled?'disabled':'')+' aria-current="'+(state.page==='movements')+'"><span class="dock-icon">◈</span><span>Monedero</span></button><button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon">♙</span><span>Perfil</span></button></nav>':'';
  app.innerHTML='<main class="shell">'+brand()+(state.message?'<div class="status '+(state.error?'error':'')+'" role="status">'+safe(state.message)+'</div>':'')+body+'<div class="footer">SNOOP SOCIO · Acceso personal y privado</div>'+nav+'</main>';
 }
 function authPage(mode){const reg=mode==='register';shell('<section><div class="kicker">Tu carnet digital</div><h1 class="title">'+(reg?'Crea tu cuenta':'Bienvenido')+'</h1><p class="lede">Una cuenta para todos tus clubes SNOOP. Tus códigos son privados.</p></section>'+
@@ -79,15 +80,19 @@ function linkPage(){shell('<section><div class="kicker">Vinculación segura</div
 function clubsPage(){shell('<section><div class="kicker">Tu cuenta, tus clubes</div><h1 class="title">Mis clubes</h1><p class="lede">Cada club tiene su propio carnet, número de socio y saldo independiente.</p></section>'+
 '<div class="list">'+state.clubs.map(c=>'<button class="club-option '+(c.id===state.selected?'selected':'')+'" data-action="select-club" data-id="'+safe(c.id)+'"><div><strong>'+safe(c.name)+'</strong><span>'+safe(c.status||'')+'</span></div><span>Ver carnet →</span></button>').join('')+'</div>'+
 '<button class="btn ghost" data-action="link">Vincular otro club</button>');}
-function carnetPage(){const c=state.clubs.find(c=>c.id===state.selected);if(!c){state.page='clubs';return render();}const unavailable='No disponible: conecta y verifica el carnet.';shell(
-'<section><div class="kicker">Mi carnet digital</div><h1 class="club-heading">'+safe(c.name)+'</h1></section>'+
-'<section class="carnet"><div class="kicker">SNOOP · Socio</div><div class="qr-frame">'+
-(state.qrUrl?'<img alt="QR temporal de socio" src="'+state.qrUrl+'"/>':'<div class="qr-empty">'+unavailable+'</div>')+'</div>'+
-'<div class="number">'+(state.member?.memberNumber?'Socio Nº '+safe(state.member.memberNumber):'Carnet pendiente')+'</div>'+
-'<p class="muted">'+(state.qrUrl?'Muestra este código al personal':'El QR solo aparece con una vinculación válida y conexión activa.')+'</p>'+
-'<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Actualizar QR</button></section>'+
-(c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">Saldo monedero</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Movimientos</button></section>':'')+
-'<button class="btn ghost end" data-action="clubs">Mis clubes</button>');}
+function carnetPage(){
+ const c=state.clubs.find(c=>c.id===state.selected);
+ if(!c){state.page='clubs';return render();}
+ const unavailable='No disponible: conecta y verifica el carnet.';
+ shell('<section class="socio-welcome"><div class="kicker">MI CLUB</div><h1 class="club-heading">'+safe(c.name)+'</h1><p class="muted">Tu acceso privado SNOOP</p></section>'+
+ '<section class="carnet" aria-label="Tarjeta digital del socio"><div class="carnet-topline"><span>SNOOP · SOCIO</span><span class="carnet-active">● Activo</span></div>'+
+ '<div class="carnet-member-number">'+(state.member?.memberNumber?'SOCIO Nº '+safe(state.member.memberNumber):'CARNET PENDIENTE')+'</div>'+
+ '<div class="qr-frame">'+(state.qrUrl?'<img alt="QR temporal de socio" src="'+state.qrUrl+'"/>':'<div class="qr-empty">'+unavailable+'</div>')+'</div>'+
+ '<p class="muted">'+(state.qrUrl?'Muestra este código al personal':'El QR solo aparece con una vinculación válida y conexión activa.')+'</p>'+
+ '<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Actualizar QR</button></section>'+
+ (c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">MONEDERO · SALDO DISPONIBLE</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Ver movimientos</button></section>':'')+
+ '<button class="btn ghost end" data-action="clubs">Mis clubes</button>');
+}
 function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section>'+
 '<section class="panel"><h2 class="section-heading">Cambiar contraseña</h2><form id="password-form" class="stack">'+
 '<label class="field">Contraseña actual<input name="currentPassword" type="password" autocomplete="current-password" required maxlength="128"/></label>'+
