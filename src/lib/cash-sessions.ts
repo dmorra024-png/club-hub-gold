@@ -15,14 +15,14 @@ export type CashSession = {
 };
 export type CashMovement = {
   id: string;
-  source: "order" | "fee";
+  source: "order" | "fee" | "topup";
   at: string;
   by: string | null;
   cents: number;
   session_id: string | null;
   payment_method: string | null;
 };
-export function cashMovements(orders: any[], fees: any[], sessions: CashSession[]): CashMovement[] {
+export function cashMovements(orders: any[], fees: any[], sessions: CashSession[], topups: any[] = []): CashMovement[] {
   const completed = orders.filter((o) => o.status === "completed");
   const amounts = cashAmounts(completed, fees);
   void amounts;
@@ -34,7 +34,16 @@ export function cashMovements(orders: any[], fees: any[], sessions: CashSession[
       by: o.created_by ?? null,
       cents: o.total_cents,
       session_id: o.cash_session_id ?? null,
-      payment_method: null,
+      payment_method: o.payment_method ?? null,
+    })),
+    ...uniqueLedgerRows(topups).map((t: any) => ({
+      id: t.id,
+      source: "topup" as const,
+      at: t.at,
+      by: t.actorId,
+      cents: t.amountCents,
+      session_id: t.cashSessionId,
+      payment_method: "cash",
     })),
     ...uniqueLedgerRows(fees).map((r: any) => {
       const at = cashInstant(r.recorded_at);
@@ -77,7 +86,7 @@ export function reconcileCash(session: CashSession, movements: CashMovement[]) {
   const cash = entries.filter((m) => m.payment_method === "cash").reduce((n, m) => n + m.cents, 0);
   const unknown =
     !!session.unverified_cancelled_cash ||
-    entries.some((m) => !["cash", "card", "transfer"].includes(m.payment_method ?? ""));
+    entries.some((m) => !["cash", "card", "transfer", "wallet"].includes(m.payment_method ?? ""));
   const expected = unknown
     ? null
     : session.opening_cash_cents + cash - (session.refund_cash_cents ?? 0);
@@ -125,6 +134,8 @@ export function cashDaySummary(
         throw new Error("Importe contable no válido");
       return total + value;
     }, 0);
+  const topupCents = sum(day.filter((m) => m.source === "topup").map((m) => m.cents));
+  const walletPaidCents = sum(day.filter((m) => m.source === "order" && m.payment_method === "wallet").map((m) => m.cents));
   const closed = uniqueLedgerRows(sessions).filter(
     (s) =>
       s.status === "closed" &&
@@ -138,10 +149,13 @@ export function cashDaySummary(
   );
   return {
     ...amounts,
+    topupCents,
+    walletPaidCents,
+    totalCents: amounts.totalCents + topupCents,
     cashCents: sum(day.filter((m) => m.payment_method === "cash").map((m) => m.cents)),
     unidentifiedCents: sum(
       day
-        .filter((m) => !["cash", "card", "transfer"].includes(m.payment_method ?? ""))
+        .filter((m) => !["cash", "card", "transfer", "wallet"].includes(m.payment_method ?? ""))
         .map((m) => m.cents),
     ),
     outsideSessionCents: sum(day.filter((m) => !m.session_id).map((m) => m.cents)),
