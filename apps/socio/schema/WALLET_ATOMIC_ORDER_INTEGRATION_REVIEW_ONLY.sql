@@ -151,4 +151,60 @@ revoke all on function public.socio_cancel_wallet_order(uuid,uuid,text,uuid)
 -- BEFORE release: existing direct annul_financial_order MUST be protected
 -- against bypassing wallet refund, and cash reports must be payment-aware.
 
+-- Staff-only way to identify the *recorded* payment method before cancelling.
+-- Existing historical orders have no trusted payment attribution and remain legacy.
+create or replace function public.socio_wallet_order_payment_state(p_order_id uuid)
+returns jsonb language plpgsql security definer set search_path=''
+as $payment_state$
+declare v_club uuid:=public.current_club_id();v_member uuid;v_wallet boolean;
+begin
+ if auth.uid() is null or v_club is null or p_order_id is null
+  or not public.can_operate_club(v_club,'use_cash')
+  or not public.can_operate_club(v_club,'manage_members') then
+  raise exception 'WALLET_ORDER_STATUS_FORBIDDEN' using errcode='42501';
+ end if;
+ select member_id into v_member from public.orders
+  where id=p_order_id and club_id=v_club;
+ if not found then raise exception 'WALLET_ORDER_NOT_FOUND' using errcode='42501';end if;
+ select exists(select 1 from public.socio_order_settlements proof
+   where proof.order_id=p_order_id and proof.club_id=v_club
+     and proof.member_id=v_member and proof.payment_method='wallet') into v_wallet;
+ return jsonb_build_object('wallet',v_wallet,'memberId',v_member);
+end;
+$payment_state$;
+revoke all on function public.socio_wallet_order_payment_state(uuid)
+ from public,anon,authenticated;
+grant execute on function public.socio_wallet_order_payment_state(uuid) to authenticated;
+
+-- DEFERRED COMMIT GUARD. A legacy SNOOP cancellation attempt must NOT
+-- bypass the Monedero credit refund on a wallet-paid order. Both mutations
+-- must exist by transaction end or the whole cancellation rolls back.
+create or replace function public.socio_wallet_cancel_commit_guard()
+returns trigger language plpgsql security definer set search_path=''
+as $cancel_guard$
+begin
+ if exists(select 1 from public.socio_order_settlements proof
+    where proof.order_id=new.id and proof.club_id=new.club_id
+      and proof.payment_method='wallet')
+   and not exists(select 1 from public.socio_wallet_ledger l
+    where l.club_id=new.club_id and l.member_id=new.member_id
+      and l.order_id=new.id and l.kind='refund'
+      and exists(select 1 from public.socio_wallet_ledger original
+        where original.operation_id=l.reversal_of and original.kind='spend'
+          and original.order_id=new.id and original.club_id=new.club_id))
+ then
+  raise exception 'WALLET_CANCEL_REQUIRES_ATOMIC_REFUND' using errcode='23514';
+ end if;
+ return null;
+end;
+$cancel_guard$;
+revoke all on function public.socio_wallet_cancel_commit_guard()
+ from public,anon,authenticated;
+create constraint trigger socio_wallet_cancel_commit_guard
+after update of status on public.orders
+deferrable initially deferred
+for each row when (old.status='completed' and new.status='cancelled')
+execute function public.socio_wallet_cancel_commit_guard();
+
+
 commit;
