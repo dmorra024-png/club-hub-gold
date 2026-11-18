@@ -117,14 +117,24 @@ jobs:
           set -euo pipefail
           node --input-type=module <<'NODE'
           const worker='snoop-socio-pilot';
-          const r=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/'+worker+'/settings',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000)});
-          const j=await r.json();
-          if(!r.ok||j.success!==true||!Array.isArray(j.result?.bindings))throw Error('Could not verify Socio Worker');
-          const found=j.result.bindings.map(b=>({name:b.name,type:b.type}));
-          console.log(JSON.stringify({worker,bindings:found}));
-          for(const name of ['SOCIO_SUPABASE_PUBLISHABLE_KEY','SOCIO_QR_SIGNING_KEY_BASE64']){
-           if(!found.some(b=>b.name===name&&b.type==='secret_text'))throw Error('Missing Socio Worker secret binding '+name);
+          // Cloudflare's settings metadata may lag a newly deployed version.
+          // Verify with bounded retries; never rotate secrets on a transient read.
+          const required=['SOCIO_SUPABASE_PUBLISHABLE_KEY','SOCIO_QR_SIGNING_KEY_BASE64'];
+          let found=[],verified=false;
+          for(let attempt=1;attempt<=12;attempt++){
+           const r=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/'+worker+'/settings',{
+            headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},
+            signal:AbortSignal.timeout(20000)
+           });
+           const j=await r.json();
+           if(!r.ok||j.success!==true||!Array.isArray(j.result?.bindings))throw Error('Could not verify Socio Worker');
+           found=j.result.bindings.map(b=>({name:b.name,type:b.type}));
+           verified=required.every(name=>found.some(b=>b.name===name&&b.type==='secret_text'));
+           if(verified)break;
+           if(attempt<12)await new Promise(resolve=>setTimeout(resolve,5000));
           }
+          console.log(JSON.stringify({worker,secretNames:found.filter(b=>b.type==='secret_text').map(b=>b.name),verified}));
+          if(!verified)throw Error('Socio Worker secrets not visible after 60 seconds of metadata propagation');
           NODE
       - name: Verify HTTPS app and fail-closed API after propagation
         shell: bash
