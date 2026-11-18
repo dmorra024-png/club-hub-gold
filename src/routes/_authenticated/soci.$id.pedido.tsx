@@ -517,6 +517,7 @@ function PedidoPage() {
     // Efectivo is the existing, independent order workflow. An outage or
     // permission failure in wallet status MUST NOT block a cash order.
     // Wallet requests still fail closed and require a verified balance.
+    if(walletUncertain) return toast.error("Hay un pago anterior sin confirmar. Consulta el historial antes de otro pedido.");
     const payingWallet=paymentChoice==="wallet";
     if(payingWallet && (!walletState || walletStatusError || walletUncertain ||
        !walletState.clubEnabled)){
@@ -959,7 +960,7 @@ function PedidoPage() {
           )}
           <button
             onClick={confirmar}
-            disabled={!cart.length || busy || (paymentChoice==="wallet" &&
+            disabled={!cart.length || busy || walletUncertain || (paymentChoice==="wallet" &&
               (!walletState || walletStatusError || walletUncertain || !walletState.clubEnabled ||
                !walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
