@@ -75,3 +75,14 @@ active application's own accounting views.
 
 **Current deployment:** no live `socio_*` tables, no live wallet
 credits, no worker deployment, no management or Codex modification.
+
+## Integration work — 18 November 2026 (read-only production inspection)
+
+Verified the real Supabase schema and existing RPC contracts without changes:
+- `create_order_with_items(_member_id,_notes,_items)` already creates the completed order, reserves stock and writes movements in one PostgreSQL transaction.
+- `annul_financial_order(p_member_id,p_order_id,p_reason)` calls protected cancellation hooks that record the financial reversal and restore delivered stock.
+- `orders` currently has no authoritative payment-method column. The existing `snoop_cash_shift_report` labels completed orders without distinguishing wallet payments. Therefore integrating new Monedero debits without changing cash reporting would **double-count physical cash**.
+
+Added `WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql` with DB transaction wrappers: `socio_create_wallet_order` (order + stock + trusted wallet proof + debit), and `socio_cancel_wallet_order` (existing SNOOP cancellation + audit/stock reversal + credit refund). They are **review-only** and all runtime EXECUTE grants are revoked. This is an implementation draft, not a tested or activated production feature.
+
+**Still blocking activation:** test both wrappers against a disposable copy of the exact production function contracts, integrate payment attribution into all reports and cash closing, prevent the existing manual cancellation path from bypassing wallet refund, wire staff UI to these *combined* operations (never independent spend/refund calls), run high-concurrency tests and verify per-club roles. No changes were made to the connected Supabase project.
