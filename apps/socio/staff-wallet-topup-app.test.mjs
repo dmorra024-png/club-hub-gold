@@ -34,7 +34,7 @@ test('topup staff gateway calls one verified Postgres transaction and returns co
  });
  const orderId='d628e96e-368a-4d9a-bef8-d470181d0d01';
  assert.equal((await handler(financialRequest('spend',{orderId}))).status,403);
- assert.equal((await handler(financialRequest('refund',
+ assert.equal((await handler(financialRequest('refund',{
   orderId,reversalOf:'9ab51fa6-dff9-4d15-a80a-a32295264c8d'
  }))).status,403);
  assert.equal(seen.length,1,'unsupported financial action must never call RPC');
