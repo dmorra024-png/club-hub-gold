@@ -1,3 +1,4 @@
+import { isMemberCardPath } from "@/lib/voice/application-ports";
 import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { MemberDiscounts } from "@/components/MemberDiscounts";
 import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
@@ -60,6 +61,7 @@ function SocioDetail() {
   const { id } = Route.useParams();
   const nav = useNavigate();
   const location = useLocation();
+  const memberCardVisible = isMemberCardPath(location.pathname);
   const { isAdmin } = useAuth();
   const [member, setMember] = useState<Member | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -81,9 +83,10 @@ function SocioDetail() {
   useVoiceToolPort(
     "member.sections",
     {
-      ready: () => !!member && member.id === id,
+      ready: () => memberCardVisible && !!member && member.id === id,
       open: (section) => {
         if (
+          !memberCardVisible ||
           !member ||
           member.id !== id ||
           !["qr", "history", "discounts", "renewal"].includes(section)
@@ -109,17 +112,20 @@ function SocioDetail() {
   useVoiceToolPort(
     "member.edit",
     {
-      ready: () => !!member && member.id === id && !savingEdit,
+      ready: () => memberCardVisible && !!member && member.id === id && !savingEdit,
       baseline: () => {
-        if (!member || member.id !== id) throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (!memberCardVisible || !member || member.id !== id)
+          throw Error("SNOOP_FORM_UNAVAILABLE");
         return memberVoiceValues(member);
       },
       snapshot: () => {
-        if (!member || member.id !== id) throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (!memberCardVisible || !member || member.id !== id)
+          throw Error("SNOOP_FORM_UNAVAILABLE");
         return memberVoiceValues(editing ? form : member);
       },
       patch: (values) => {
-        if (!member || member.id !== id || savingEdit) throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (!memberCardVisible || !member || member.id !== id || savingEdit)
+          throw Error("SNOOP_FORM_UNAVAILABLE");
         const allowed = new Set(["first_name", "last_name", "birth_date", "city", "phone"]);
         if (Object.keys(values).some((key) => !allowed.has(key)))
           throw Error("SNOOP_FORM_UNAVAILABLE");

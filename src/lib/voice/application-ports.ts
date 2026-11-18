@@ -1,3 +1,8 @@
+/** Parent member routes also render order children; their hidden editor is not a capability. */
+export function isMemberCardPath(path: string) {
+  const match = /^\/soci\/([^/]+)\/?$/.exec(path);
+  return !!match && !["nuovo", "gestisci", "importar"].includes(match[1]);
+}
 export type VoicePort = {
   ready?: () => boolean;
   snapshot?: () => Record<string, string>;

@@ -4,7 +4,7 @@ import {
   targetPath,
   type ConversationProposalValue,
 } from "./snoop-conversation.ts";
-import { applicationPorts, type VoicePort } from "./voice/application-ports.ts";
+import { applicationPorts, isMemberCardPath, type VoicePort } from "./voice/application-ports.ts";
 import type { AccountAccess } from "./access-context.ts";
 import { parseCashCents, calendarDate } from "./member-administration.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
@@ -46,6 +46,12 @@ export async function applyDeepgramDraft(
     while (options.current() && options.path() === from && performance.now() < until)
       await new Promise((r) => setTimeout(r, 20));
   }
+  const needsMemberCard =
+    ["member_edit", "member_section"].includes(p.intent) ||
+    (p.intent === "administrative_draft" &&
+      ["member_discount", "wallet_topup"].includes(p.form!.kind));
+  if (needsMemberCard && !isMemberCardPath(options.path()))
+    throw Error("SNOOP_FORM_UNAVAILABLE_MEMBER_CARD");
   const valid = () => options.current() && options.path() === (to ?? from);
   const port = async (name: string) => {
     const found = await applicationPorts.wait(options.owner ?? "", name, valid);

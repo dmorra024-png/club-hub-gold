@@ -147,7 +147,7 @@ manual/voice parity remains unaccepted; no merge or release is performed.
 
 ## Reconciliation regression evidence
 
-- Unit suite: 410/410 on the reconciled tree, including synthetic PostgreSQL tests.
+- Unit suite: 411/411 on the reconciled tree, including synthetic PostgreSQL tests.
 - Selected-member corrections preserve source fields and manual overrides; account/club
   scope, readiness and forbidden document/role/money fields are covered.
 - Member-section commands reveal the existing QR, discount, renewal or history area;
@@ -207,3 +207,18 @@ an element-exists assertion. Updated screenshots show the unobstructed footer.
 The browser harness also now resolves unique compiled server-function IDs across
 both TanStack SSR wrappers and implementations; choosing the first hashed filename
 was nondeterministic. It still fails if the real ID is missing or ambiguous.
+
+## Nested member-route regression
+
+TanStack retains the parent member component when its order child renders an Outlet.
+Its hidden editor previously remained callable: a reproducing application-port test
+failed because a member edit from `/soci/:id/pedido` was acknowledged and patched.
+Member-only proposals now require the actual member-card route before looking up
+a capability, and the route-owned ports also recheck visibility. The same boundary
+protects member sections, discount assignment and wallet preparation.
+
+Chromium/WebKit navigate to the existing child without selecting products or creating
+an order, attempt the forbidden hidden edit, return through the existing cancel link,
+and verify that the original unsaved manual surname remains intact. No order, stock,
+accounting or wallet mutation runs. The UI identifies the missing member card instead
+of silently applying the patch to a hidden form.

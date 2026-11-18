@@ -379,7 +379,7 @@ export function DeepgramPilotVoice({
                       ? "Sezione aperta. Nessun dato salvato."
                       : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
               );
-            } catch {
+            } catch (error) {
               if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
@@ -389,7 +389,11 @@ export function DeepgramPilotVoice({
                   skipped: [],
                   code: "FORM_UNAVAILABLE",
                 });
-              setStatus("Impossibile preparare il modulo. Nessun dato salvato.");
+              setStatus(
+                error instanceof Error && error.message === "SNOOP_FORM_UNAVAILABLE_MEMBER_CARD"
+                  ? "Apri la scheda del socio prima di modificarla. Nessun dato salvato."
+                  : "Impossibile preparare il modulo. Nessun dato salvato.",
+              );
             } finally {
               applying.current = false;
             }

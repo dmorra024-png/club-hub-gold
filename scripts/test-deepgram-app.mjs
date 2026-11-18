@@ -417,6 +417,16 @@ for (const [label, engine, device] of [
     );
     assert.equal(await page.getByLabel("Apellido", { exact: true }).inputValue(), "Manual");
     assert.equal(writes, 0, "member correction is a draft, never a hidden update");
+    await page.getByRole("button", { name: "Hacer pedido", exact: true }).click();
+    await page.getByRole("heading", { name: "Nuevo pedido", exact: true }).waitFor();
+    await send(proposal("member_edit", null, { member: { last_name: "Hidden" } }));
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Apri la scheda del socio prima di modificarla"),
+    );
+    assert.equal(writes, 0, "hidden parent editor cannot write from the nested order route");
+    await page.getByRole("link", { name: "Cancelar borrador", exact: true }).click();
+    await page.getByRole("heading", { name: "Marco Rossi", exact: true }).waitFor();
+    assert.equal(await page.getByLabel("Apellido", { exact: true }).inputValue(), "Manual");
     for (const section of ["qr", "discounts", "renewal", "history"])
       await send(proposal("member_section", null, { query: section }));
     await page.getByText("Sin registros visibles.", { exact: true }).waitFor();

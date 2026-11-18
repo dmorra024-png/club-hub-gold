@@ -241,3 +241,30 @@ test("navigation acknowledgements never demand a second user confirmation", asyn
   assert.equal(result.requiresConfirmation, false);
   assert.equal(result.requiresManualSave, false);
 });
+test("member editor capability retained by a parent route cannot patch a hidden form from its order child", async () => {
+  let patches = 0;
+  const remove = applicationPorts.register("nested-card", "member.edit", {
+    ready: () => true,
+    baseline: () => ({ last_name: "Rossi" }),
+    snapshot: () => ({ last_name: "Rossi" }),
+    patch: () => {
+      patches++;
+    },
+  });
+  try {
+    await assert.rejects(
+      applyDeepgramDraft(proposal({ last_name: "Hidden" }), {
+        access: { ...access, permissions: ["manage_members"] } as any,
+        owner: "nested-card",
+        path: () => "/soci/synthetic-member/pedido",
+        current: () => true,
+        navigate: () => {},
+        last: {},
+      }),
+      /FORM_UNAVAILABLE/,
+    );
+    assert.equal(patches, 0);
+  } finally {
+    remove();
+  }
+});
