@@ -1,3 +1,4 @@
+import { useCommittedEffect } from "@/hooks/useCommittedEffect";
 import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { parseCashCents } from "@/lib/member-administration";
 import { createFileRoute } from "@tanstack/react-router";
@@ -27,7 +28,7 @@ function PianiPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [editing, setEditing] = useState<Plan | null>(null);
   const newVoicePlan = useRef<Plan | null>(null);
-  useEffect(() => {
+  useCommittedEffect(() => {
     if (!editing) newVoicePlan.current = null;
   }, [editing]);
   const planValues = (plan: Plan | null) => ({

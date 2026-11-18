@@ -1,16 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useCommittedEffect } from "./useCommittedEffect";
+import { useRef } from "react";
 import { useAuth } from "./useAuth";
 import { applicationPorts, voiceOwner, type VoicePort } from "@/lib/voice/application-ports";
 /** Route-owned capabilities, not selectors or synthetic button clicks. */
 export function useVoiceToolPort(name: string, handlers: VoicePort, registrationKey = name) {
   const { user, access, accessError } = useAuth();
   const latest = useRef(handlers);
-  latest.current = handlers;
+  useCommittedEffect(() => {
+    latest.current = handlers;
+  });
   const owner =
     user && access.clubId && access.status === "active" && !accessError
       ? voiceOwner(user.id, access.clubId)
       : null;
-  useEffect(() => {
+  useCommittedEffect(() => {
     if (!owner) return;
     const port: VoicePort = {
       ready: () => latest.current.ready?.() ?? true,

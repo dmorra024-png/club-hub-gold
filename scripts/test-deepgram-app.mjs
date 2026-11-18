@@ -576,42 +576,71 @@ for (const [label, engine, device] of [
       document.body.innerText.includes("Conservo le modifiche manuali"),
     );
     assert.equal(await page.getByLabel("Apellidos", { exact: true }).inputValue(), "Manual");
-    await send(
-      proposal("administrative_draft", "membership_fees", {
-        form: {
-          kind: "membership_fee",
-          fields: { name: "Cuota sintética", duration_days: "180", price: "30,25" },
-        },
-      }),
-    );
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("input")].some((input) => input.value === "30.25"),
-    );
-    await send(
-      proposal("administrative_draft", "membership_fees", {
-        form: { kind: "membership_fee", fields: { price: "32,50" } },
-      }),
-    );
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("input")].some((input) => input.value === "32.5"),
-    );
-    await send(
-      proposal("administrative_draft", "membership_fees", {
-        form: { kind: "membership_fee", fields: { price: "33,50" } },
-      }),
-    );
-    await page.waitForFunction(() =>
-      [...document.querySelectorAll("input")].some((input) => input.value === "33.5"),
-    );
-    await page.getByRole("button", { name: "Guardar", exact: true }).click({ trial: true });
-    assert(
-      (await panel.boundingBox()).height <= 120,
-      "active voice must stay compact above the form",
-    );
+    for (let round = 0; round < 4; round++) {
+      await send(
+        proposal("administrative_draft", "membership_fees", {
+          form: {
+            kind: "membership_fee",
+            fields: { name: "Cuota sintética", duration_days: "180", price: "30,25" },
+          },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "30.25"),
+      );
+      await send(
+        proposal("administrative_draft", "membership_fees", {
+          form: { kind: "membership_fee", fields: { price: "32,50" } },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "32.5"),
+      );
+      await send(
+        proposal("administrative_draft", "membership_fees", {
+          form: { kind: "membership_fee", fields: { price: "33,50" } },
+        }),
+      );
+      await page
+        .waitForFunction(() =>
+          [...document.querySelectorAll("input")].some((input) => input.value === "33.5"),
+        )
+        .catch(async (error) => {
+          console.error(
+            "Fee correction metadata",
+            JSON.stringify({
+              browser: label,
+              round,
+              receipts: actionReceipts
+                .slice(-4)
+                .map(({ status, code, applied, skipped }) => ({ status, code, applied, skipped })),
+            }),
+          );
+          await page.screenshot({ path: ".sandbox/deepgram/" + label + "-fee-failure.png" });
+          throw error;
+        });
+      await page.getByRole("button", { name: "Guardar", exact: true }).click({ trial: true });
+      assert(
+        (await panel.boundingBox()).height <= 120,
+        "active voice must stay compact above the form",
+      );
+      if (round < 3) await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+    }
     await page.screenshot({
       path: ".sandbox/deepgram/" + label + "-fee-draft.png",
       fullPage: false,
     });
+    await page.getByLabel("Precio (€)", { exact: true }).fill("45.75");
+    await send(
+      proposal("administrative_draft", "membership_fees", {
+        form: { kind: "membership_fee", fields: { price: "40,50" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Conservo le modifiche manuali"),
+    );
+    assert.equal(await page.getByLabel("Precio (€)", { exact: true }).inputValue(), "45.75");
+    assert.equal(writes, 0, "consecutive corrections must never save a fee");
     await send(
       proposal("administrative_draft", "membership_settings", {
         form: {

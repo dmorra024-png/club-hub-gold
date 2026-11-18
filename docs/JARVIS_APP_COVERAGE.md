@@ -147,7 +147,7 @@ manual/voice parity remains unaccepted; no merge or release is performed.
 
 ## Reconciliation regression evidence
 
-- Unit suite: 413/413 on the reconciled tree, including synthetic PostgreSQL tests.
+- Unit suite: 414/414 on the reconciled tree, including synthetic PostgreSQL tests.
 - Selected-member corrections preserve source fields and manual overrides; account/club
   scope, readiness and forbidden document/role/money fields are covered.
 - Member-section commands reveal the existing QR, discount, renewal or history area;
@@ -234,3 +234,19 @@ It runs only as root on the Ubuntu 24.04 GitHub runner, and refuses local execut
 Fixture tests cover exact transformation, idempotence and preservation of unrelated
 URLs/signature settings. No application code, credentials or production settings
 are affected by this CI correction.
+
+## Consecutive quota corrections: React commit boundary
+
+Account-security run 44397309027 passed the general browser suite but failed
+in the additional mounted administrative-drafts scenario: iPhone WebKit did not
+apply the third quota-price correction (33.50). The route capability was registered
+in a passive effect, after the editor was already visible. A subsequent command
+could use the previous capability before its replacement, resetting the voice
+baseline and misclassifying the preceding voice change as a manual edit.
+
+Route capabilities and their handlers now publish during the committed layout
+phase, including the quota editor's new-draft reset. Server renders use a passive
+effect and never register request-specific capabilities. No save function changes.
+The browser regression repeats opening, three consecutive price patches and
+cancelling four times per engine, then verifies that an actual manual price edit
+is preserved. Assertions and security guards remain intact.
