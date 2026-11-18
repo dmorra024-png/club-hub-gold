@@ -190,5 +190,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_CASH_EVIDENCE_REVIEW_ONLY.sql
       - name: Verify staff wallet read, topup accounting and tenant denial
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_MANAGER_READS.sql
+      - name: Compile club-wide admin settings with no member toggles
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_CLUB_CONFIGURATION_REVIEW_ONLY.sql
+      - name: Validate all active members share club setting and preserve existing balances
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_CLUB_CONFIGURATION.sql
       - name: No Supabase modifications
         run: echo "Only ephemeral local PostgreSQL container; no production database access"
