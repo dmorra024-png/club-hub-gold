@@ -1,0 +1,99 @@
+name: SNOOP Socio — one-time secret binding repair
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/snoop-socio-repair-bindings.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snoop-socio-pilot-deploy
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'repair-snoop-socio-bindings-once' }}
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+      SOCIO_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      SOCIO_ORIGIN: https://snoop-socio-pilot.dmorra024.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7a441d3ec84e7e39c25f1a55bf9dcf580c04f598
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - run: bun install --frozen-lockfile
+      - name: Check safe repair scope and existing admin bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "7a441d3ec84e7e39c25f1a55bf9dcf580c04f598"
+          [[ "$SOCIO_PUBLISHABLE_KEY" == sb_publishable_* ]]
+          node --input-type=module <<'NODE'
+          for (const name of ['snoop-pilot','snoop-socio-pilot']){
+           const r=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/'+name+'/settings',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000)});
+           const j=await r.json();if(!r.ok||!j.success||!Array.isArray(j.result?.bindings))throw Error('Unable to read binding metadata: '+name);
+           const bindings=j.result.bindings.map(b=>({name:b.name,type:b.type}));
+           if(name==='snoop-pilot'){
+            if(!bindings.some(b=>b.name==='SUPABASE_SERVICE_ROLE_KEY'&&b.type==='secret_text')||
+             !bindings.some(b=>b.name==='SOCIO_QR_SIGNING_KEY_BASE64'&&b.type==='secret_text'))throw Error('Management Worker not in expected safe baseline; abort');
+           } else {
+            if(bindings.some(b=>b.name==='SOCIO_QR_SIGNING_KEY_BASE64'))throw Error('Socio Worker QR key already recovered; abort unexpected rotation');
+           }
+           console.log(JSON.stringify({name,secretNames:bindings.filter(b=>b.type==='secret_text').map(b=>b.name)}));
+          }
+          NODE
+      - name: Restore public Supabase key to independent client Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$SOCIO_PUBLISHABLE_KEY" | npx wrangler secret put SOCIO_SUPABASE_PUBLISHABLE_KEY --name snoop-socio-pilot >/dev/null
+          echo "SNOOP_SOCIO_PUBLISHABLE_BINDING_RESTORED"
+      - name: Rotate only the shared Socio QR key in both workers
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The old Socio key is not retrievable from Cloudflare and the DB has
+          # zero linked Socio accounts. Both sides must share the same new key.
+          KEY="$(openssl rand -base64 32 | tr -d '\n')"
+          printf '%s' "$KEY" | npx wrangler secret put SOCIO_QR_SIGNING_KEY_BASE64 --name snoop-pilot >/dev/null
+          printf '%s' "$KEY" | npx wrangler secret put SOCIO_QR_SIGNING_KEY_BASE64 --name snoop-socio-pilot >/dev/null
+          unset KEY
+          echo "SNOOP_SOCIO_SHARED_QR_KEY_RESTORED"
+      - name: Verify both workers and real HTTP auth negative paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const names=['snoop-pilot','snoop-socio-pilot'];
+          for (const name of names){
+           const r=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/'+name+'/settings',{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000)});
+           const j=await r.json();if(!r.ok||!j.success||!Array.isArray(j.result?.bindings))throw Error('Binding verification failed');
+           const list=j.result.bindings;
+           const required=name==='snoop-pilot'?['SUPABASE_SERVICE_ROLE_KEY','SOCIO_QR_SIGNING_KEY_BASE64']:['SOCIO_SUPABASE_PUBLISHABLE_KEY','SOCIO_QR_SIGNING_KEY_BASE64'];
+           for(const key of required)if(!list.some(b=>b.name===key&&b.type==='secret_text'))throw Error('Missing '+name+' binding '+key);
+           console.log(JSON.stringify({worker:name,requiredSecretNamesPresent:true,secretCount:list.filter(b=>b.type==='secret_text').length}));
+          }
+          NODE
+          for RETRY in 1 2 3 4 5; do
+            STATUS="$(curl -sS --max-time 20 -o /tmp/socio-me -w '%{http_code}' "$SOCIO_ORIGIN/api/socio/me" || true)"
+            if [ "$STATUS" = "401" ]; then break; fi
+            sleep 2
+          done
+          test "$STATUS" = 401
+          STATUS="$(curl -sS --max-time 20 -o /tmp/socio-bad -w '%{http_code}' -X POST "$SOCIO_ORIGIN/api/socio/auth/signup" -H "Origin: $SOCIO_ORIGIN" -H 'Content-Type: application/json' -d '{"email":"invalid","password":"short"}')"
+          test "$STATUS" = 400
+          STATUS="$(curl -sS --max-time 20 -o /tmp/socio-login -w '%{http_code}' -X POST "$SOCIO_ORIGIN/api/socio/auth/login" -H "Origin: $SOCIO_ORIGIN" -H 'Content-Type: application/json' -d '{"email":"nonexistent-snoop-repair@example.invalid","password":"invalid-probe"}')"
+          test "$STATUS" = 401
+          STATUS="$(curl -sS --max-time 20 -o /tmp/snoop-management -w '%{http_code}' https://snoop-pilot.dmorra024.workers.dev/)"
+          test "$STATUS" = 200
+          echo "SNOOP_SOCIO_AUTH_BINDINGS_REPAIRED_AND_VERIFIED"
