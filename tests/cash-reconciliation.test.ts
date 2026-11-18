@@ -87,6 +87,8 @@ test("daily summary separates associative receipts, existing operations, outside
   assert.deepEqual(result, {
     orderCents: 0,
     feeCents: 55700,
+    topupCents: 0,
+    walletPaidCents: 0,
     totalCents: 55700,
     cashCents: 35700,
     unidentifiedCents: 0,
