@@ -96,6 +96,7 @@ function PedidoPage() {
   const [walletState, setWalletState] = useState<{enabled:boolean;clubEnabled:boolean;balanceCents:number|null}|null>(null);
   const [walletStatusError, setWalletStatusError] = useState(false);
   const [walletConfirmed, setWalletConfirmed] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState<"cash"|"wallet">("cash");
   const [walletUncertain, setWalletUncertain] = useState(false);
   const walletOperation = useRef<string|null>(null);
   const [recording, setRecording] = useState(false);
@@ -516,13 +517,14 @@ function PedidoPage() {
     if (!walletState || walletStatusError || walletUncertain) {
       return toast.error("No se ha verificado el método de pago. Consulta el estado antes de reintentar.");
     }
-    if(walletState.clubEnabled && !walletState.enabled)
-      return toast.error("El Monedero del club está activo, pero este socio no está habilitado.");
-    if (walletState.enabled && (!walletConfirmed || (walletState.balanceCents??0)<total))
+    const payingWallet=walletState.clubEnabled && paymentChoice==="wallet";
+    if(payingWallet && !walletState.enabled)
+      return toast.error("El Monedero de este socio no está disponible.");
+    if (payingWallet && (!walletConfirmed || (walletState.balanceCents??0)<total))
       return toast.error("Confirma el pago y comprueba el saldo del monedero.");
     setBusy(true);
     try {
-      if (walletState.enabled) {
+      if (payingWallet) {
         walletOperation.current??=crypto.randomUUID();
         const result=await walletCheckout({data:{
           memberId:id,notes:notes||"",items:cart,
@@ -539,7 +541,7 @@ function PedidoPage() {
       }
       nav({to:"/soci/$id",params:{id}});
     } catch(e:any){
-      if(walletState.enabled){
+      if(payingWallet){
         setWalletUncertain(true);
         toast.error("Resultado del pago no confirmado. Consulta el historial antes de otro pedido.");
       }else toast.error(e?.message??"Error al guardar");
@@ -908,26 +910,42 @@ function PedidoPage() {
               No se ha podido verificar el método de pago. Pedido bloqueado por seguridad.
             </p>
           )}
-          {walletState?.clubEnabled && !walletState.enabled && (
-            <p role="alert" className="text-red-400 text-sm">
-              El Monedero del club está activo, pero este socio no está habilitado. No se permite cambiar a efectivo automáticamente.
-            </p>
-          )}
-          {walletState?.enabled && (
-            <div className="rounded-xl border border-neon/30 p-3 space-y-2">
-              <strong>Pago con Monedero</strong>
-              <p className="text-sm">Saldo verificado: {formatPrice(walletState.balanceCents??0)}</p>
-              {(walletState.balanceCents??0)<total && (
-                <p role="alert" className="text-red-400 text-sm">
-                  Saldo insuficiente. Recarga desde la ficha del socio.
-                </p>
+          {walletState?.clubEnabled && (
+            <div className="rounded-xl border border-neon/30 p-3 space-y-3" aria-label="Forma de pago">
+              <strong>Forma de pago</strong>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="order-payment-method" value="cash"
+                    checked={paymentChoice==="cash"} disabled={busy||walletUncertain}
+                    onChange={()=>{setPaymentChoice("cash");setWalletConfirmed(false);}}/>
+                  Efectivo
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="order-payment-method" value="wallet"
+                    checked={paymentChoice==="wallet"} disabled={busy||walletUncertain||!walletState.enabled}
+                    onChange={()=>{setPaymentChoice("wallet");setWalletConfirmed(false);}}/>
+                  Monedero
+                </label>
+              </div>
+              {paymentChoice==="wallet" && (
+                <div className="space-y-2">
+                  <p className="text-sm">Saldo verificado: {formatPrice(walletState.balanceCents??0)}</p>
+                  {!walletState.enabled && <p role="alert" className="text-red-400 text-sm">
+                    Monedero no disponible para este socio. Puedes elegir efectivo.
+                  </p>}
+                  {(walletState.balanceCents??0)<total && (
+                    <p role="alert" className="text-red-400 text-sm">
+                      Saldo insuficiente. Recarga desde la ficha del socio.
+                    </p>
+                  )}
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" disabled={busy||walletUncertain||!walletState.enabled}
+                      checked={walletConfirmed}
+                      onChange={e=>setWalletConfirmed(e.target.checked)}/>
+                    Confirmo el cargo de {formatPrice(total)} al Monedero de este socio.
+                  </label>
+                </div>
               )}
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" disabled={busy||walletUncertain}
-                  checked={walletConfirmed}
-                  onChange={e=>setWalletConfirmed(e.target.checked)}/>
-                Confirmo el cargo de {formatPrice(total)} al Monedero de este socio.
-              </label>
             </div>
           )}
           {walletUncertain && (
@@ -938,8 +956,7 @@ function PedidoPage() {
           <button
             onClick={confirmar}
             disabled={!cart.length || busy || !walletState || walletStatusError || walletUncertain ||
-              (walletState.clubEnabled && !walletState.enabled) ||
-              (walletState.enabled && (!walletConfirmed || (walletState.balanceCents??0)<total))}
+              (walletState.clubEnabled && paymentChoice==="wallet" && (!walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
           >
             {busy ? "Guardando…" : "Confirmar pedido"}

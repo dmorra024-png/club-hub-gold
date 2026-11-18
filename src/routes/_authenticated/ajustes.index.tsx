@@ -3,6 +3,7 @@ import { SnoopLayout } from "@/components/SnoopLayout";
 import { BadgeEuro, Users, ShieldCheck, Cable, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
+import { ClubWalletSettingsPanel } from "@/components/ClubWalletSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/ajustes/")({
   component: AjustesIndex,
@@ -33,6 +34,7 @@ function AjustesIndex() {
     <SnoopLayout title="Ajustes" subtitle="Configuración exclusiva del administrador del club">
       <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
         <Tile to="/ajustes/cuotas" icon={BadgeEuro} title="Cuotas" text="Modalidades de inscripción, duración y precio." />
+        <ClubWalletSettingsPanel />
         <Tile to="/ajustes/socios" icon={Users} title="Socios" text="Descuentos y campos de inscripción de los socios." />
         <Tile to="/ajustes/colaboradores" icon={ShieldCheck} title="Colaboradores" text="Crea cuentas con permisos específicos para tu equipo." />
         <Tile to="/ajustes/dispositivos" icon={Cable} title="Dispositivos" text="Conecta báscula, lector QR y tableta de firma." />
