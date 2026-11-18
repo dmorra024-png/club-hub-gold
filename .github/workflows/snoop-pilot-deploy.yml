@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'style-snoop-wallet-tile')) }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-snoop-socio-integration')) }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
@@ -31,7 +31,7 @@ jobs:
       SNOOP_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
       SNOOP_RESOURCE_NAMESPACE: snoop-pilot
-      EXPECTED_INTEGRATED_SHA: 75a388f1851285e97377fa13ae88eac77fb4fc87
+      EXPECTED_INTEGRATED_SHA: 7a32992fddbba5a8d6cf6a36c296d879db76f1b4
       SNOOP_WALLET_OPERATIONS_ENABLED: "true"
       VITE_SNOOP_WALLET_OPERATIONS_ENABLED: "true"
       VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
@@ -43,7 +43,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: 75a388f1851285e97377fa13ae88eac77fb4fc87
+          ref: 7a32992fddbba5a8d6cf6a36c296d879db76f1b4
       - name: Guard integrated target and required secrets (do not print values)
         shell: bash
         run: |
