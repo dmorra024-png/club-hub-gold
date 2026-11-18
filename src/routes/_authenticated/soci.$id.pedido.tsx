@@ -523,9 +523,9 @@ function PedidoPage() {
        !walletState.clubEnabled)){
       return toast.error("No se puede verificar Monedero. Elige Efectivo o reintenta más tarde.");
     }
-    if(payingWallet && !walletState.enabled)
+    if(payingWallet && !walletState?.enabled)
       return toast.error("El Monedero de este socio no está disponible.");
-    if (payingWallet && (!walletConfirmed || (walletState.balanceCents??0)<total))
+    if (payingWallet && (!walletConfirmed || (walletState?.balanceCents??0)<total))
       return toast.error("Confirma el pago y comprueba el saldo del monedero.");
     setBusy(true);
     try {
