@@ -31,6 +31,12 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
    const rows=await select('/socio_member_cards?select=club_id,member_id,club_name,member_number,active,wallet_enabled,revoked_at');
    return rows.map(x=>({clubId:x.club_id,memberId:x.member_id,clubName:x.club_name,memberNumber:x.member_number,active:x.active,walletEnabled:x.wallet_enabled,revokedAt:x.revoked_at}));
   },
+  async themeForClub(clubId){
+   if(!uuid(clubId))throw fail('SOCIO_THEME_SCOPE',403);
+   // RLS permits reading only a verified member's club and relevant staff accounts.
+   const rows=await select('/snoop_club_themes?select=theme_id&club_id='+byId(clubId)+'&limit=1');
+   return rows.length===1?rows[0].theme_id:'navy-gold';
+  },
   async walletForMember(clubId,memberId){
    if(!uuid(clubId)||!uuid(memberId))throw fail('SOCIO_WALLET_SCOPE',403);
    const rows=await select('/socio_wallet_accounts?select=balance_cents&club_id='+byId(clubId)+'&member_id='+byId(memberId)+'&limit=1');
