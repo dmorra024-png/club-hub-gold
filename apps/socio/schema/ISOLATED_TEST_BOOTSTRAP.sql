@@ -18,4 +18,4 @@ expires_at date not null default (current_date + interval '30 days')
 );
 create table public.user_roles(user_id uuid not null references auth.users(id),club_id uuid references public.clubs(id),role text not null,permissions text[] not null default '{}');
 create table public.orders(id uuid primary key, club_id uuid not null, member_id uuid not null);
-create table public.cash_sessions(id uuid primary key, club_id uuid not null, user_id uuid not null);
+create table public.cash_sessions(id uuid primary key, club_id uuid not null, user_id uuid not null, status text not null default 'open',closed_at timestamptz);
