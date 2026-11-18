@@ -99,3 +99,66 @@ test('signup never claims verification mail was sent on missing or unauthorized 
   assert.equal(result.headers.get('set-cookie'),null);
  }
 });
+
+test('member password change requires authenticated Socio identity and current password',async()=>{
+ const requests=[];
+ const fetcher=async(url,opts)=>{
+  requests.push({url,method:opts.method,body:opts.body});
+  if(url.includes('grant_type=password')){
+   const payload=JSON.parse(opts.body||'{}');
+   return payload.password==='OldValidPassword123!'?
+    Response.json({access_token:'reauth-access',refresh_token:'reauth-refresh',expires_in:1800}):
+    Response.json({error:'invalid_grant'},{status:400});
+  }
+  if(url.endsWith('/user')&&opts.method==='PUT'){
+   assert.equal(opts.headers.authorization,'Bearer current-access');
+   assert.deepEqual(JSON.parse(opts.body),{password:'NewSecurePassword123!'});
+   return Response.json({id:uid});
+  }
+  if(url.endsWith('/user'))return Response.json({
+   id:uid,email:'socio@example.com',email_confirmed_at:'2026-11-17T00:00:00Z'
+  });
+  return Response.json({}, {status:404});
+ };
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher,authorizeSocioUser:async id=>id===uid
+ });
+ const cookie='__Host-snoop_socio_at=current-access';
+ const request=req(cookie);
+ const wrong=await auth.changePassword({request,input:{
+  currentPassword:'wrong',newPassword:'NewSecurePassword123!'
+ }});
+ assert.equal(wrong.status,401);
+ assert.equal(requests.filter(x=>x.method==='PUT').length,0);
+ const same=await auth.changePassword({request,input:{
+  currentPassword:'OldValidPassword123!',newPassword:'OldValidPassword123!'
+ }});
+ assert.equal(same.status,400);
+ assert.equal(requests.filter(x=>x.method==='PUT').length,0);
+ const ok=await auth.changePassword({request,input:{
+  currentPassword:'OldValidPassword123!',newPassword:'NewSecurePassword123!'
+ }});
+ assert.equal(ok.status,200);
+ assert.deepEqual(await ok.json(),{changed:true,reloginRequired:true});
+ assert.match(ok.headers.get('set-cookie'),/Max-Age=0/);
+ assert.equal(requests.filter(x=>x.method==='PUT').length,1);
+ const unauthorized=await auth.changePassword({request:req(),input:{
+  currentPassword:'OldValidPassword123!',newPassword:'NewSecurePassword123!'
+ }});
+ assert.equal(unauthorized.status,401);
+ assert.equal(requests.filter(x=>x.method==='PUT').length,1);
+});
+
+test('rejected signup is not misreported as a verification email sent',async()=>{
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async()=>Response.json({error:'password policy rejected'},{status:400}),
+  authorizeSocioUser:async()=>true
+ });
+ const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+ assert.equal(result.status,400);
+ assert.equal(result.headers.get('set-cookie'),null);
+ const body=await result.json();
+ assert.equal(JSON.stringify(body).includes('password policy rejected'),false);
+});

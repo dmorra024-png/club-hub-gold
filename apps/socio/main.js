@@ -59,7 +59,14 @@ function carnetPage(){const c=state.clubs.find(c=>c.id===state.selected);if(!c){
 '<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Actualizar QR</button></section>'+
 (c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">Saldo monedero</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Movimientos</button></section>':'')+
 '<button class="btn ghost end" data-action="clubs">Mis clubes</button>');}
-function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section><button class="btn ghost" data-action="clubs">Mis clubes</button><button class="btn" data-action="logout">Cerrar sesión</button>');}
+function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section>'+
+'<section class="panel"><h2 class="section-heading">Cambiar contraseña</h2><form id="password-form" class="stack">'+
+'<label class="field">Contraseña actual<input name="currentPassword" type="password" autocomplete="current-password" required maxlength="128"/></label>'+
+'<label class="field">Nueva contraseña<input name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required/></label>'+
+'<label class="field">Repite la nueva contraseña<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required/></label>'+
+'<button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Actualizando…':'Cambiar contraseña')+'</button></form>'+
+'<p class="muted">Al guardar tendrás que iniciar sesión de nuevo.</p></section>'+
+'<button class="btn ghost" data-action="clubs">Mis clubes</button><button class="btn" data-action="logout">Cerrar sesión</button>');}
 function movementsPage(){
 const rows=Array.isArray(state.movements)?state.movements:[];
 const format=n=>(n/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
@@ -133,8 +140,36 @@ async function authenticate(){
  }
 }
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
-async function submitLink(form){state.pending=true;render();try{await api('/link/claim',{method:'POST',body:{code:String(new FormData(form).get('code')||'').trim()}});state.pending=false;state.message='';await refreshClubs();}catch(e){state.pending=false;notify(e.message||'No se pudo vincular el carnet.',true);}}
-document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}});
+async function submitLink(form){
+ const code=String(new FormData(form).get('code')||'').trim().toLowerCase().replace(/\s+/g,'');
+ if(!/^[a-f0-9]{48}$/.test(code))return notify('El código debe contener 48 caracteres. Puedes pegarlo directamente.',true);
+ state.pending=true;render();
+ try{
+  await api('/link/claim',{method:'POST',body:{code}});
+  state.pending=false;state.message='';await refreshClubs();
+ }catch(e){
+  state.pending=false;notify(e?.status===403?'Código caducado, ya utilizado o no autorizado. Solicita uno nuevo.':e.message||'No se pudo vincular el carnet.',true);
+ }
+}
+async function submitPassword(form){
+ const values=new FormData(form);
+ const currentPassword=String(values.get('currentPassword')||'');
+ const newPassword=String(values.get('newPassword')||'');
+ const confirmation=String(values.get('confirmPassword')||'');
+ if(newPassword!==confirmation)return notify('Las nuevas contraseñas no coinciden.',true);
+ if(newPassword===currentPassword)return notify('Elige una contraseña diferente a la actual.',true);
+ if(newPassword.length<10||newPassword.length>128)return notify('La contraseña nueva debe tener entre 10 y 128 caracteres.',true);
+ state.pending=true;render();
+ try{
+  const result=await api('/auth/change-password',{method:'POST',body:{currentPassword,newPassword}});
+  if(result.changed!==true)throw Error('No se confirmó el cambio de contraseña.');
+  resetClub();state.clubs=[];state.me=null;state.email='';state.page='login';
+  state.pending=false;notify('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
+ }catch(e){
+  state.pending=false;notify(e?.status===401?'Contraseña actual incorrecta o sesión caducada.':e?.message||'No se pudo cambiar la contraseña.',true);
+ }
+}
+document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}if(e.target.id==='password-form'){e.preventDefault();void submitPassword(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
 switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';stopQr();break;case'profile':state.page='profile';stopQr();break;case'link':state.page='link';stopQr();break;case'home':state.page='carnet';void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;stopQr();void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
