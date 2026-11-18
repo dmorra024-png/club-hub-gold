@@ -15,10 +15,10 @@ alter table public.orders add column created_at timestamptz not null default now
 alter table public.orders add column created_by uuid;
 create function public.is_current_user_club_admin(p_club uuid)
 returns boolean language sql stable security definer set search_path=''
-as $
+as $admin_check$
  select exists(select 1 from public.user_roles r
  where r.user_id=auth.uid() and r.club_id=p_club and r.role='admin')
-$;
+$admin_check$;
 create function public.current_club_id()
 returns uuid language sql stable security definer set search_path=''
 as $$
