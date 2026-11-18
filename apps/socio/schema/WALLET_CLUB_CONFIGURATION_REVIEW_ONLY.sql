@@ -56,13 +56,15 @@ begin
     from public.members m where m.club_id=v_club
       and m.expires_at>=current_date
    on conflict(club_id,member_id) do update
-    set wallet_enabled=true,updated_at=now();
+    set wallet_enabled=(public.socio_member_cards.active
+       and public.socio_member_cards.revoked_at is null),updated_at=now();
    insert into public.socio_wallet_accounts(club_id,member_id,balance_cents)
     select m.club_id,m.id,0 from public.members m
     where m.club_id=v_club and m.expires_at>=current_date
    on conflict(club_id,member_id) do nothing;
   end if;
-  update public.socio_member_cards set wallet_enabled=p_enabled,updated_at=now()
+  update public.socio_member_cards
+   set wallet_enabled=(p_enabled and active and revoked_at is null),updated_at=now()
    where club_id=v_club;
   update public.socio_club_wallet_settings
    set enabled=p_enabled,changed_by=v_actor,changed_at=now()
