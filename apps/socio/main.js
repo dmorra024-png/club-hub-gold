@@ -162,27 +162,30 @@ async function submitPassword(form){
  const fd=new FormData(form),old=String(fd.get('currentPassword')||''),password=String(fd.get('newPassword')||'');
  if(password!==fd.get('confirm'))return notify('Las contraseñas no coinciden.',true);
  state.pending=true;render();try{
- await api('/auth/change-password',{method:'POST',body:{currentPassword:old,newPassword:password}});
+ const changed=await api('/auth/change-password',{method:'POST',body:{currentPassword:old,newPassword:password}});
+ if(changed?.updated!==true)throw Error('El servidor no confirmó el cambio.');
  resetClub();state.me=null;state.clubs=[];state.pending=false;state.page='login';
  notify('Contraseña actualizada. Inicia sesión de nuevo.');
- }catch(e){state.pending=false;notify(e.message||'No se ha podido cambiar la contraseña.',true);}
+ }catch(e){state.pending=false;notify(e?.status===401?'Contraseña actual incorrecta o sesión caducada.':e.message||'No se ha podido cambiar la contraseña.',true);}
 }
 async function submitForgot(form){const email=String(new FormData(form).get('email')||'').trim().toLowerCase();state.email=email;state.pending=true;render();
- try{await api('/auth/recover',{method:'POST',body:{email}});state.pending=false;state.verification='recover';state.page='verify';notify('Si existe una cuenta, recibirás un correo para recuperar el acceso.');}
+ try{const result=await api('/auth/recover',{method:'POST',body:{email}});if(result?.accepted!==true)throw Error('La solicitud no fue confirmada.');state.pending=false;state.verification='recover';state.page='verify';notify('Si existe una cuenta, recibirás un correo para recuperar el acceso.');}
  catch(e){state.pending=false;notify(e.message||'No se ha podido solicitar el enlace.',true);}
 }
 async function submitRecovery(form){const password=String(new FormData(form).get('newPassword')||'');const confirm=String(new FormData(form).get('confirm')||'');
  if(password!==confirm)return notify('Las contraseñas no coinciden.',true);
  const token=state.recoveryToken;if(!token)return notify('El enlace ha caducado. Solicita otro.',true);
  state.pending=true;render();try{
- await api('/auth/complete-recovery',{method:'POST',body:{accessToken:token,password}});
+ const recovered=await api('/auth/complete-recovery',{method:'POST',body:{accessToken:token,password}});
+ if(recovered?.updated!==true)throw Error('El servidor no confirmó el cambio.');
  state.recoveryToken=null;state.pending=false;state.page='login';notify('Contraseña restablecida. Inicia sesión.');
  }catch(e){state.pending=false;notify(e.message||'No se pudo recuperar el acceso.',true);}
 }
 async function resendVerification(){
  if(!state.email||state.pending)return notify('Introduce primero tu correo de registro.',true);
  state.pending=true;render();try{
-  await api('/auth/resend',{method:'POST',body:{email:state.email}});
+  const response=await api('/auth/resend',{method:'POST',body:{email:state.email}});
+  if(response?.accepted!==true)throw Error('El servidor no confirmó el reenvío.');
   state.pending=false;notify('Si la cuenta está pendiente, recibirás un nuevo enlace.');
  }catch(e){state.pending=false;notify(e.message||'No se pudo reenviar el correo.',true);}
 }
@@ -192,7 +195,8 @@ async function submitLink(form){
   return notify('El código debe contener 48 caracteres. Puedes pegarlo directamente.',true);
  state.pending=true;render();
  try{
-  await api('/link/claim',{method:'POST',body:{code}});
+  const linked=await api('/link/claim',{method:'POST',body:{code}});
+  if(linked?.linked!==true)throw Error('El servidor no confirmó la vinculación.');
   state.pending=false;state.message='';await refreshClubs();
  }catch(e){
   state.pending=false;
