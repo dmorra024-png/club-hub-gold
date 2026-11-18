@@ -4,6 +4,28 @@ const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
   pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0,recoveryToken:null,verification:'signup'};
 const endpoint = '/api/socio';
+const themeIds=['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'];
+const themes={
+ 'navy-gold':['#050C17','#0B1827','#13263B','#E5BC78','#F3F4F7','#A7B3C2','#41516A','#091321'],
+ 'graphite-copper':['#101114','#1B1E23','#292D34','#C98A5D','#F7F5F3','#B0B4BC','#5A5353','#151113'],
+ 'aubergine-amethyst':['#160B20','#261433','#39204D','#C292F0','#F8F2FC','#C4B4D0','#644878','#190E21'],
+ 'petrol-titanium':['#041C20','#0B3035','#13434B','#71D5D2','#F1F9FA','#B1C8CB','#37696D','#041F24'],
+ 'ivory-champagne':['#F7F2EA','#FFFCF8','#E9DED0','#93612D','#30251F','#675D57','#CDBDA8','#FFFFFF'],
+ 'ruby-gold':['#30050E','#4A0C1B','#720D20','#D4AF67','#FFF5EE','#D3B5B6','#9A5960','#310610'],
+ 'emerald-gold':['#03261F','#08392E','#10513F','#D4AF77','#F4F8F1','#B9CDBF','#477A65','#08271C']
+};
+function applySocioTheme(id){
+ const theme=themeIds.includes(id)?id:'navy-gold';
+ const [canvas,panel,elevated,accent,foreground,muted,border,ink]=themes[theme];
+ const style=document.documentElement.style;
+ Object.entries({'--navy':canvas,'--navy2':elevated,'--panel':panel,'--gold':accent,
+  '--white':foreground,'--muted':muted,'--border':border,
+  '--snoop-accent-ink':ink}).forEach(([key,value])=>style.setProperty(key,value));
+ document.documentElement.dataset.snoopTheme=theme;
+ document.documentElement.style.colorScheme=theme==='ivory-champagne'?'light':'dark';
+ document.querySelector('meta[name="theme-color"]')?.setAttribute('content',canvas);
+}
+
 const enc = (v)=>encodeURIComponent(String(v));
 const safe = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(message,error=false){state.message=message;state.error=error;render();}
@@ -27,7 +49,7 @@ async function api(path,{method='GET',body}={}){
   return value;
 }
 function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
-function resetClub(){state.sessionEpoch++;stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
+function resetClub(){applySocioTheme('navy-gold');state.sessionEpoch++;stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
 function brand(){return '<header class="brand"><div class="brand-identity"><img class="brand-wordmark" src="./snoop-wordmark.svg" alt="SNOOP" width="172" height="24"/><div class="subbrand">SOCIO · CARNET DIGITAL</div></div>'+
 (state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
 (state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'')+'</header>';}
@@ -95,7 +117,7 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 }
 function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'forgot':forgotPage();break;case'recovery':recoveryPage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
-async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
+async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;applySocioTheme(c.themeId);state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
 async function refreshCarnet(){
  const id=state.selected;
  if(!id||document.hidden||state.page!=='carnet')return;
