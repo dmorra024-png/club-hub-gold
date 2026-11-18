@@ -41,7 +41,7 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 (reg?'<label class="field">Repite la contraseña<input name="confirm" type="password" autocomplete="new-password" minlength="10" required maxlength="128"/></label>':'')+
 '<button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Comprobando…':(reg?'Registrarme':'Iniciar sesión'))+'</button></form>'+
 '<div class="divider"></div><button class="btn ghost" style="width:100%" data-action="'+(reg?'login':'register')+'">'+(reg?'Ya tengo cuenta':'Crear una cuenta')+'</button></section>'+
-'<p class="muted align-center">La dirección debe coincidir con la facilitada al club. La vinculación se verificará antes de mostrar cualquier carnet.</p>'+
+'<p class="muted align-center">SNOOP Socio es exclusivamente para socios. La cuenta de colaboradores y administradores pertenece al gestor SNOOP y no se registra aquí. Usa el correo facilitado al club para tu carnet; si ya tienes una cuenta del personal con ese correo, solicita ayuda al club antes de registrarte.</p>'+
 '<div class="auth-extras"><button class="btn small ghost" data-action="forgot">¿Olvidaste tu contraseña?</button><button class="btn small ghost" data-action="install">Instalar SNOOP Socio</button></div>');}
 function verifyPage(){
  const signup=state.verification==='signup';
