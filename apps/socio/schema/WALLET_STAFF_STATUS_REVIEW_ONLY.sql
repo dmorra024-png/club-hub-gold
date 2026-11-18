@@ -21,7 +21,7 @@ begin
   join public.clubs c on c.id=s.club_id and c.active
   where s.club_id=v_club;
  if v_enabled is distinct from true then
-  return jsonb_build_object('enabled',false,'balanceCents',null);
+  return jsonb_build_object('enabled',false,'clubEnabled',false,'balanceCents',null);
  end if;
  select (m.expires_at>=current_date and card.active and card.wallet_enabled
          and card.revoked_at is null) into v_active
@@ -29,14 +29,14 @@ begin
    on card.club_id=m.club_id and card.member_id=m.id
   where m.id=p_member_id and m.club_id=v_club;
  if v_active is distinct from true then
-  return jsonb_build_object('enabled',false,'balanceCents',null);
+  return jsonb_build_object('enabled',false,'clubEnabled',true,'balanceCents',null);
  end if;
  select balance_cents into v_balance from public.socio_wallet_accounts
  where club_id=v_club and member_id=p_member_id;
  if v_balance is null then
-  return jsonb_build_object('enabled',false,'balanceCents',null);
+  return jsonb_build_object('enabled',false,'clubEnabled',true,'balanceCents',null);
  end if;
- return jsonb_build_object('enabled',true,'balanceCents',v_balance);
+ return jsonb_build_object('enabled',true,'clubEnabled',true,'balanceCents',v_balance);
 exception when no_data_found or too_many_rows then
  raise exception 'WALLET_STAFF_NOT_AUTHORIZED' using errcode='42501';
 end;
