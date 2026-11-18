@@ -81,3 +81,70 @@ revoke all on function public.socio_create_wallet_order(uuid,text,jsonb,uuid)
 --    confirmation, real Postgres concurrency tests and client UI.
 -- 4. Validate with disposable PostgreSQL before granting EXECUTE.
 -- Until then, this function remains review-only and unmounted.
+
+-- One transaction: existing SNOOP annulment (audit + stock restoration)
+-- and wallet credit restoration. Failure of either rolls back both.
+create or replace function public.socio_cancel_wallet_order(
+ p_member_id uuid,
+ p_order_id uuid,
+ p_reason text,
+ p_refund_operation_id uuid
+) returns jsonb
+language plpgsql security definer set search_path=''
+as $wallet_cancel$
+declare
+ v_club uuid := public.current_club_id();
+ v_total bigint;
+ v_debit_id uuid;
+ v_result jsonb;
+ v_order uuid;
+begin
+ if auth.uid() is null or v_club is null or p_member_id is null or
+    p_order_id is null or p_refund_operation_id is null then
+   raise exception 'WALLET_CANCEL_INVALID' using errcode='22023';
+ end if;
+ if not public.can_operate_club(v_club,'manage_members') or
+    not public.can_operate_club(v_club,'use_cash') then
+   raise exception 'WALLET_CANCEL_FORBIDDEN' using errcode='42501';
+ end if;
+ -- Lock the exact order and original debit before invoking cancellation.
+ select o.total_cents into v_total
+ from public.orders o join public.socio_order_settlements proof
+ on proof.order_id=o.id and proof.club_id=o.club_id
+ where o.id=p_order_id and o.member_id=p_member_id and o.club_id=v_club
+   and o.status='completed' and proof.payment_method='wallet'
+   and proof.member_id=p_member_id and proof.amount_cents=o.total_cents
+ for update of o;
+ if not found then
+   raise exception 'WALLET_ORDER_CANNOT_CANCEL' using errcode='23514';
+ end if;
+ select operation_id into v_debit_id
+ from public.socio_wallet_ledger
+ where club_id=v_club and member_id=p_member_id and order_id=p_order_id
+   and kind='spend' and delta_cents=-v_total;
+ if not found then
+   raise exception 'WALLET_ORIGINAL_DEBIT_MISSING' using errcode='23514';
+ end if;
+ -- Existing SNOOP cancellation checks authorship/roles and executes its
+ -- financial audit and stock reversal triggers inside this transaction.
+ v_order:=public.annul_financial_order(p_member_id,p_order_id,p_reason);
+ if v_order is distinct from p_order_id then
+   raise exception 'WALLET_CANCEL_UNVERIFIED' using errcode='23514';
+ end if;
+ -- Refund RPC checks its own role, original spend and cancellation audit.
+ v_result:=public.socio_wallet_order_refund(
+  v_club,p_member_id,p_order_id,v_debit_id,p_refund_operation_id,v_total);
+ if v_result->>'status'<>'applied' then
+   raise exception 'WALLET_CANCEL_REFUND_UNVERIFIED' using errcode='23514';
+ end if;
+ return jsonb_build_object('orderId',p_order_id,'refundOperationId',
+  p_refund_operation_id,'refundCents',v_total,
+  'balanceCents',(v_result->>'balanceCents')::bigint,'status','applied');
+end;
+$wallet_cancel$;
+revoke all on function public.socio_cancel_wallet_order(uuid,uuid,text,uuid)
+ from public,anon,authenticated;
+
+-- No grant, trigger, or data migration is applied by this review file.
+-- BEFORE release: existing direct annul_financial_order MUST be protected
+-- against bypassing wallet refund, and cash reports must be payment-aware.
