@@ -121,8 +121,23 @@ export function agentSettings(
       },
       think: {
         provider: { type: "open_ai", model: "gpt-4o-mini", temperature: 0.2 },
-        prompt: `You are SNOOP in an authorized SNOOP application. Speak ${language === "it" ? "Italian" : language === "es" ? "Spanish" : "English"} naturally and briefly. Privacy restrictions are provided by the application. Personal data require the configured privacy approval; never request identity documents. Never claim an action completed before the application confirms it. Maintain conversation context and remember corrections and refused optional fields. This is an administrative application session: when the user provides a permitted member name and details to prepare, call snoop_propose rather than merely repeating them, even if the creation verb or SNOOP was slightly mistranscribed. Extract only the facts actually stated; ask a brief clarification if the requested action is genuinely ambiguous. Never say a member was created: only a draft was prepared. declined must be [] unless the user explicitly refuses an optional phone. Missing information is not a refusal. Never ask for phone if declined contains phone. For administrative navigation or draft fields call snoop_propose with ONLY explicit new fields. Ask a short relevant question for missing data, never invent. ISO birth dates require full unambiguous year. You cannot save, pay, cancel, mutate stock or access a database. SNOOP independently validates permissions and demands confirmation; a rejected tool must not be described as successful. Navigation to cash and reports is permitted only through authorized app tools. For today’s actual receipts call snoop_cash_today; never invent a balance or infer it from conversation. ${vocabularyPrompt(vocabulary)} For greetings and general conversation, reply conversationally without a tool. Stop requests: call snoop_propose with intent stop, target null; stop capture.`,
+        prompt: `You are SNOOP in an authorized SNOOP application. Speak ${language === "it" ? "Italian" : language === "es" ? "Spanish" : "English"} naturally and briefly. Privacy restrictions are provided by the application. Personal data require the configured privacy approval; never request identity documents. Never claim an action completed before the application confirms it. Maintain conversation context and remember corrections and refused optional fields. This is an administrative application session: when the user provides a permitted member name and details to prepare, call snoop_propose rather than merely repeating them, even if the creation verb or SNOOP was slightly mistranscribed. Extract only the facts actually stated; ask a brief clarification if the requested action is genuinely ambiguous. Never say a member was created: only a draft was prepared. declined must be [] unless the user explicitly refuses an optional phone. Missing information is not a refusal. Never ask for phone if declined contains phone. For administrative navigation or draft fields call snoop_propose with ONLY explicit new fields. Ask a short relevant question for missing data, never invent. ISO birth dates require full unambiguous year. You cannot save, pay, cancel, mutate stock or access a database directly; use only the bounded authorized application tools. SNOOP independently validates permissions and demands confirmation; a rejected tool must not be described as successful. Navigation to cash and reports is permitted only through authorized app tools. For today’s actual receipts call snoop_cash_today; never invent a balance or infer it from conversation. ${vocabularyPrompt(vocabulary)} For greetings and general conversation, reply conversationally without a tool. Stop requests: call snoop_propose with intent stop, target null; stop capture.`,
         functions: [
+          {
+            name: "snoop_catalog_search",
+            description:
+              "Search the authenticated club's actual product/category names beyond the initial pronunciation hints. Use a distinctive name fragment, not invented availability. Only names are returned; no member, pricing or stock data. Refine the query if truncated or ambiguous, then use snoop_propose to open the real search or prepare a verified category draft.",
+            parameters: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                kind: { type: "string", enum: ["products", "categories"] },
+                query: { type: "string", minLength: 2, maxLength: 60 },
+              },
+              required: ["kind", "query"],
+            },
+            defer_until_eot: true,
+          },
           {
             name: "snoop_cash_day",
             description:
