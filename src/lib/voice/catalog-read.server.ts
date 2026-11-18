@@ -61,9 +61,12 @@ export async function voiceCatalogSearch(
   const rows = await response.json();
   if (!Array.isArray(rows) || rows.length > 7 || rows.some((r) => !r || typeof r.name !== "string"))
     throw Error("CATALOG_UNAVAILABLE");
+  const matches = normalizedPilotNames(rows, 6);
+  // Existing rows rejected by the safe-name filter are not an empty database.
+  if (rows.length && !matches.length) throw Error("CATALOG_UNAVAILABLE");
   return {
     kind: input.kind,
-    matches: normalizedPilotNames(rows, 6),
+    matches,
     truncated: rows.length > 6,
     source: "authorized-club-catalog",
     persisted: false,

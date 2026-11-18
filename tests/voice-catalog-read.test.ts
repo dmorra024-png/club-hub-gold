@@ -98,6 +98,7 @@ test("catalog errors and redirects cannot masquerade as an empty catalog or forw
     Response.json({ error: "no" }, { status: 500 }),
     Response.json({ name: "bad shape" }),
     Response.json([{ id: 1 }]),
+    Response.json([{ name: "<unsupported markup>" }]),
   ]) {
     let calls = 0;
     await assert.rejects(
