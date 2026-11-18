@@ -22,6 +22,11 @@ declare
  v_order uuid;
  v_total bigint;
  v_result jsonb;
+ v_line jsonb;
+ v_product record;
+ v_quantity numeric;
+ v_price_cents bigint;
+ v_line_cents bigint;
 begin
  if auth.uid() is null or v_club is null or p_member_id is null or
     p_operation_id is null or p_items is null or jsonb_typeof(p_items)<>'array'
@@ -41,6 +46,36 @@ begin
            where operation_id=p_operation_id) then
    raise exception 'WALLET_ORDER_OPERATION_ALREADY_USED' using errcode='23505';
  end if;
+ -- Never accept browser-authored financial prices at face value.
+ -- Lock products in stable ID order to avoid concurrent price/stock drift
+ -- and two-cart lock inversion. The protected SNOOP order RPC reuses locks.
+ for v_line in select value from jsonb_array_elements(p_items)
+              order by value->>'product_id' loop
+   if jsonb_typeof(v_line)<>'object' or
+      nullif(v_line->>'product_id','') is null or
+      nullif(v_line->>'quantity','') is null then
+     raise exception 'WALLET_ORDER_LINE_INVALID' using errcode='22023';
+   end if;
+   select p.id,p.name,p.sell_price into v_product
+   from public.products p
+   where p.id=(v_line->>'product_id')::uuid and p.club_id=v_club
+     and p.active is distinct from false
+   for update;
+   if not found then
+     raise exception 'WALLET_PRODUCT_UNAVAILABLE' using errcode='23514';
+   end if;
+   v_quantity:=(v_line->>'quantity')::numeric;
+   v_price_cents:=round(v_product.sell_price*100)::bigint;
+   v_line_cents:=round(v_price_cents*v_quantity)::bigint;
+   if v_quantity<=0 or v_quantity>100000 or
+      v_price_cents<=0 or v_price_cents>10000000 or
+      v_line_cents<=0 or v_line_cents>10000000 or
+      v_product.name is distinct from v_line->>'product_name' or
+      (v_line->>'unit_price_cents')::bigint is distinct from v_price_cents or
+      (v_line->>'line_total_cents')::bigint is distinct from v_line_cents then
+     raise exception 'WALLET_ORDER_PRICE_MISMATCH' using errcode='23514';
+   end if;
+ end loop;
  -- This existing RPC performs stock reservation and creates order/items.
  -- A subsequent error in this wrapper rolls back that RPC as well.
  v_order:=public.create_order_with_items(p_member_id,p_notes,p_items);
