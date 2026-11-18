@@ -27,16 +27,16 @@ test('topup staff gateway calls one verified Postgres transaction and returns co
  assert.equal(seen.length,1);
  assert.match(seen[0].url,/\/rpc\/socio_wallet_topup$/);
  assert.equal(seen[0].options.headers.authorization,'Bearer synthetic-jwt');
- // Valid-looking but unsupported commands must fail before any DB request.
+ // Without explicit spend/refund permissions, those routes are denied before any DB request.
  const financialRequest=(action,extra)=>new Request(origin+'/api/snoop-wallet/'+action,{
   method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},
   body:JSON.stringify({...body,cashSessionId:undefined,...extra})
  });
  const orderId='d628e96e-368a-4d9a-bef8-d470181d0d01';
- assert.equal((await handler(financialRequest('spend',{orderId}))).status,503);
- assert.equal((await handler(financialRequest('refund',{
+ assert.equal((await handler(financialRequest('spend',{orderId}))).status,403);
+ assert.equal((await handler(financialRequest('refund',
   orderId,reversalOf:'9ab51fa6-dff9-4d15-a80a-a32295264c8d'
- }))).status,503);
+ }))).status,403);
  assert.equal(seen.length,1,'unsupported financial action must never call RPC');
 });
 test('untrusted operator or unconfirmed recharge cannot write to server',async()=>{
