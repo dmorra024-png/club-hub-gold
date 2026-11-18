@@ -2,6 +2,11 @@ import { z } from "zod";
 import { calendarDate, isAdult } from "./member-administration.ts";
 import { accessRedirect, type AccountAccess } from "./access-context.ts";
 import { voiceDestinations, voiceDestinationNames } from "./voice/destinations.ts";
+import {
+  AdministrativeDraft,
+  administrativeDraftAllowed,
+  administrativeFormTargets,
+} from "./voice/administrative-forms.ts";
 export const ConversationMode = z.enum(["pilot", "real", "demo"]);
 export const ConversationTarget = z.enum(voiceDestinationNames);
 export const memberFields = z
@@ -71,6 +76,7 @@ export const ConversationProposal = z
       "member_edit",
       "member_section",
       "cash_draft",
+      "administrative_draft",
       "product",
       "category",
       "search",
@@ -83,6 +89,7 @@ export const ConversationProposal = z
     product: productFields,
     query: z.string().max(120).nullable(),
     cash: cashDraftFields.optional(),
+    form: AdministrativeDraft.optional(),
     declined: z.array(z.literal("phone")).max(1),
     question: z.string().max(180),
     asking: z.enum(["first_name", "last_name", "birth_date", "city", "phone", "other"]).nullable(),
@@ -97,6 +104,12 @@ export const ConversationProposal = z
     for (const value of Object.values(v.product))
       if (!value.trim()) ctx.addIssue({ code: "custom", message: "Empty product patch" });
 
+    if (
+      (v.form && v.intent !== "administrative_draft") ||
+      (v.intent === "administrative_draft" &&
+        (!v.form || v.target !== administrativeFormTargets[v.form.kind]))
+    )
+      ctx.addIssue({ code: "custom", message: "Invalid administrative draft target" });
     if (Object.keys(v.cash ?? {}).length && v.intent !== "cash_draft")
       ctx.addIssue({ code: "custom", message: "Wrong cash draft intent" });
     if (
@@ -149,6 +162,8 @@ export function conversationAllowed(access: AccountAccess, p: ConversationPropos
   return (
     access.status === "active" &&
     !!access.clubId &&
+    (p.intent !== "administrative_draft" ||
+      (!!p.form && administrativeDraftAllowed(access, p.form))) &&
     (!["member_edit", "member_section"].includes(p.intent) ||
       access.permissions.includes("manage_members")) &&
     (p.intent !== "member_section" ||

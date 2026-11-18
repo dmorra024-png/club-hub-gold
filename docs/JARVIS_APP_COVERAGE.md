@@ -60,9 +60,9 @@ server uses the authenticated user's existing query, not a service-role bypass.
 | Activities (`/actividades`)                          | Navigation                                                                                                     | Audit detail and cancellations remain manual; original audit preserved                                                               |
 | Reports (`/ajustes/informes`)                        | Navigation, same view-reports gate                                                                             | Report filters/exports manual                                                                                                        |
 | Settings (`/ajustes`)                                | Navigation, active staff landing; admin-only children                                                           | Settings changes manual                                                                                                              |
-| Collaborators (`/ajustes/colaboradores`)             | Navigation, admin-only                                                                                         | Invitations and permission changes manual                                                                                            |
-| Member settings/discounts (`/ajustes/socios`)        | Navigation, admin-only                                                                                         | Assignments and settings writes manual                                                                                               |
-| Fees (`/ajustes/cuotas`)                             | Navigation, admin-only                                                                                         | Existing fees unchanged; no new automatic discounts                                                                                  |
+| Collaborators (`/ajustes/colaboradores`)             | Navigation + first name, surname and email in existing invitation form                                         | Invitation and permissions remain explicit manual actions                                                                                            |
+| Member settings/discounts (`/ajustes/socios`)        | Navigation + discount name, percentage, optional validity; prepare a verified existing discount assignment     | Saving, activation and member-field configuration remain manual                                                                                               |
+| Fees (`/ajustes/cuotas`)                             | Navigation + existing fee editor drafts (name, duration, explicit amount)                                      | No approved fee or historical receipt changed automatically                                                                                  |
 | Devices (`/ajustes/dispositivos`)                    | Navigation, admin-only                                                                                         | Device configuration manual                                                                                                          |
 | Access control (`/control-acceso`)                   | Navigation, same manage-members gate                                                                           | Camera/access decisions use existing manual flow                                                                                     |
 | Profile (`/perfil`)                                  | Navigation, preserves active voice session                                                                     | Password and logout remain secure manual operations; never dictate credentials                                                       |
@@ -70,7 +70,7 @@ server uses the authenticated user's existing query, not a service-role bypass.
 | `/snoop-admin`                                       | Not available to club-admin pilot                                                                              | Separate Super Admin access preserved                                                                                                |
 | `/club-status`, authenticated route guard            | No operational voice access                                                                                    | Suspension and recovery policies unchanged                                                                                           |
 | `/snoop-demo`                                        | No production voice tool                                                                                       | No new demo path introduced                                                                                                          |
-| SNOOP Socio / Monedero (PR #25)                      | Released dependencies preserved; wallet-aware receipt reads                                                                                                       | Separate development untouched                                                                                                       |
+| SNOOP Socio / Monedero (PR #25)                      | Released transaction services preserved; wallet-aware receipts and existing topup form draft                                                                                                       | Separate development untouched                                                                                                       |
 
 ## Verification and release boundaries
 
@@ -147,7 +147,7 @@ manual/voice parity remains unaccepted; no merge or release is performed.
 
 ## Reconciliation regression evidence
 
-- Unit suite: 407/407 on the reconciled tree, including synthetic PostgreSQL tests.
+- Unit suite: 410/410 on the reconciled tree, including synthetic PostgreSQL tests.
 - Selected-member corrections preserve source fields and manual overrides; account/club
   scope, readiness and forbidden document/role/money fields are covered.
 - Member-section commands reveal the existing QR, discount, renewal or history area;
@@ -164,3 +164,32 @@ manual/voice parity remains unaccepted; no merge or release is performed.
 
 This evidence does not certify complete manual/voice parity or authorize a release.
 The PR remains a draft and no production merge, deployment or REAL activation occurred.
+
+## Additional existing administrative forms
+
+`administrative_draft` uses one typed form registry. It cannot carry arbitrary roles,
+IDs, credentials, permissions or confirmation flags. Server validation enforces the
+existing admin-only forms; wallet preparation additionally requires both member and
+cash permissions. The route owns its capability and rechecks availability.
+
+- Collaborator invitation: prepare first name, surname and email only. Permissions
+  and the actual invitation remain manual. No email or account is created by voice.
+- Membership fee: prepare name, duration and an explicitly stated euro amount in
+  the existing editor. Decimal values are normalized to that editor's representation
+  before ownership checks, allowing consecutive corrections without false manual-edit
+  detection. No quota or historical accounting mutation is invoked.
+- Discounts: prepare the existing editor's fields and optional dates; select a unique
+  existing active/nonexpired discount on the selected member. Unknown names are
+  rejected. New items/currently open editors are supported; no guessed record ID.
+- Monedero: prepare the existing topup amount, only for an enabled club with an open
+  authorized session. The confirmation checkbox is cleared when voice changes the
+  amount. A pending uncertain operation blocks voice changes. Activation, settlement,
+  idempotency keys, wallet RPCs and the independent Socio application remain untouched.
+- Navigation/read acknowledgements no longer request a second confirmation. Drafts
+  still require manual confirmation; review emits `confirmation_required`, never
+  a claim that data were saved.
+
+Chromium/WebKit tests mount each real form, test corrections and unknown discounts,
+assert zero automatic writes, and run with synthetic wallet status as a separate CI
+build. `.sandbox/deepgram/administrative-results.json` explicitly identifies fake
+provider/audio/auth and whether the wallet-enabled scenario was run.

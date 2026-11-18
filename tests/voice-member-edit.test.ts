@@ -221,3 +221,23 @@ test("mounted but still loading capabilities are not acknowledged as ready", asy
     remove();
   }
 });
+test("navigation acknowledgements never demand a second user confirmation", async () => {
+  const { actionOutcome } = await import("../src/lib/voice/action-protocol.ts");
+  assert.equal(
+    actionOutcome({ type: "AppActionResult", id: "navigation", status: "opened" })
+      .requiresConfirmation,
+    false,
+  );
+  assert.equal(
+    actionOutcome({ type: "AppActionResult", id: "draft", status: "prepared" })
+      .requiresConfirmation,
+    true,
+  );
+  const result = authorizeProposal({ ...proposal({}), intent: "navigate", target: "members" }, {
+    ...access,
+    permissions: ["manage_members"],
+  } as any);
+  assert(result.ok);
+  assert.equal(result.requiresConfirmation, false);
+  assert.equal(result.requiresManualSave, false);
+});

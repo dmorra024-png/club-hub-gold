@@ -6,7 +6,7 @@ import {
 } from "./snoop-conversation.ts";
 import { applicationPorts, type VoicePort } from "./voice/application-ports.ts";
 import type { AccountAccess } from "./access-context.ts";
-import { calendarDate } from "./member-administration.ts";
+import { parseCashCents, calendarDate } from "./member-administration.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
@@ -65,19 +65,23 @@ export async function applyDeepgramDraft(
     page.open("mine");
   }
   const kind =
-    p.intent === "cash_draft"
-      ? "cash"
-      : p.intent === "member_edit"
-        ? "member_edit"
-        : p.intent === "member"
-          ? "member"
-          : p.intent === "product"
-            ? "product"
-            : p.intent === "category"
-              ? "category"
-              : null;
+    p.intent === "administrative_draft"
+      ? "admin." + p.form!.kind
+      : p.intent === "cash_draft"
+        ? "cash"
+        : p.intent === "member_edit"
+          ? "member_edit"
+          : p.intent === "member"
+            ? "member"
+            : p.intent === "product"
+              ? "product"
+              : p.intent === "category"
+                ? "category"
+                : null;
   if (kind) {
-    const form = await port(kind === "member_edit" ? "member.edit" : kind + ".form");
+    const form = await port(
+      kind.startsWith("admin.") ? kind : kind === "member_edit" ? "member.edit" : kind + ".form",
+    );
     if (!valid()) throw Error("SNOOP_STALE_PROPOSAL");
     let forms = formOwners.get(options.last);
     if (!forms) {
@@ -85,16 +89,26 @@ export async function applyDeepgramDraft(
       formOwners.set(options.last, forms);
     }
     if (forms.get(kind) !== form) {
-      options.last[kind] = ["member_edit", "cash"].includes(kind) ? (form.baseline?.() ?? {}) : {};
+      options.last[kind] =
+        kind.startsWith("admin.") || ["member_edit", "cash"].includes(kind)
+          ? (form.baseline?.() ?? {})
+          : {};
       forms.set(kind, form);
     }
-    const patch = (
-      kind === "cash"
-        ? (p.cash ?? {})
-        : ["member", "member_edit"].includes(kind)
-          ? p.member
-          : p.product
-    ) as Record<string, string>;
+    const patch = {
+      ...(kind.startsWith("admin.")
+        ? p.form!.fields
+        : kind === "cash"
+          ? (p.cash ?? {})
+          : ["member", "member_edit"].includes(kind)
+            ? p.member
+            : p.product),
+    } as Record<string, string>;
+    if (kind === "admin.membership_fee" && patch.price !== undefined) {
+      const cents = parseCashCents(patch.price);
+      if (cents === null) throw Error("SNOOP_INVALID_AMOUNT");
+      patch.price = String(cents / 100);
+    }
     if (!form.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");
     const next = protectedVoicePatch(form.snapshot(), options.last[kind] ?? {}, patch);
     skipped = next.skipped;

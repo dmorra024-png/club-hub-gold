@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, mkdir } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
@@ -34,6 +34,20 @@ const historyId = id(
   "getMemberOrderHistory",
   await readFile(".output/server/_ssr/" + historyFile, "utf8"),
 );
+const platformFile = (await readdir(".output/server/_ssr")).find((n) =>
+  n.startsWith("platform.functions-"),
+);
+const collaboratorListId = id(
+  "listCollaborators",
+  await readFile(".output/server/_ssr/" + platformFile, "utf8"),
+);
+const walletFile = (await readdir(".output/server/_ssr")).find((n) =>
+  n.startsWith("wallet-management.functions-"),
+);
+const walletStatusId = id(
+  "walletMemberStatus",
+  await readFile(".output/server/_ssr/" + walletFile, "utf8"),
+);
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -66,6 +80,7 @@ const proposal = (intent, target, fields = {}) => ({
   ...fields,
 });
 await mkdir(".sandbox/deepgram", { recursive: true });
+const browserResults = [];
 for (const [label, engine, device] of [
   ["samsung", chromium, devices["Galaxy S9+"]],
   ["iphone-webkit", webkit, devices["iPhone 13"]],
@@ -223,6 +238,18 @@ for (const [label, engine, device] of [
             clubName: "Club sintético",
             permissions: ["manage_members", "manage_products", "use_cash", "view_reports"],
           };
+        if (u.pathname.endsWith("/member_discounts"))
+          data = [
+            {
+              id: "50000000-0000-4000-8000-000000000001",
+              name: "Descuento sintético",
+              percentage_basis_points: 1000,
+              active: true,
+              valid_from: null,
+              valid_until: null,
+            },
+          ];
+        if (u.pathname.endsWith("/member_discount_assignments")) data = { discount_id: null };
         if (u.pathname.endsWith("/members")) {
           const member = {
             id: club,
@@ -267,6 +294,12 @@ for (const [label, engine, device] of [
           ];
         return json(data);
       }
+      if (u.pathname.includes(collaboratorListId)) return json({ result: [], context: {} });
+      if (u.pathname.includes(walletStatusId))
+        return json({
+          result: { enabled: true, clubEnabled: true, balanceCents: 12345, cashSessionId: club },
+          context: {},
+        });
       if (u.pathname.includes(historyId))
         return json({ result: { orders: [], ownOnly: false, hasMore: false }, context: {} });
       if (u.pathname.includes("_serverFn")) {
@@ -403,6 +436,58 @@ for (const [label, engine, device] of [
       await send(proposal("member_section", null, { query: section }));
     await page.getByText("Sin registros visibles.", { exact: true }).waitFor();
     assert.equal(writes, 0, "opening renewal/history never charges or writes");
+    await send(
+      proposal("administrative_draft", null, {
+        form: { kind: "member_discount", fields: { discount_name: "Descuento inexistente" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Impossibile preparare il modulo"),
+    );
+    assert.equal(await page.getByLabel("Descuento asignado", { exact: true }).inputValue(), "");
+    await send(
+      proposal("administrative_draft", null, {
+        form: { kind: "member_discount", fields: { discount_name: "Descuento sintético" } },
+      }),
+    );
+    await page.waitForFunction(
+      () =>
+        document.querySelector('select[aria-label="Descuento asignado"]')?.value ===
+        "50000000-0000-4000-8000-000000000001",
+    );
+    if (process.env.TEST_WALLET_ENABLED === "true") {
+      const wallet = page.getByLabel("Monedero del socio", { exact: true });
+      await wallet.waitFor();
+      await send(
+        proposal("administrative_draft", null, {
+          form: { kind: "wallet_topup", fields: { amount: "25,50" } },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "25,50"),
+      );
+      assert.equal(await wallet.getByRole("checkbox").isChecked(), false);
+      await wallet.getByRole("checkbox").check();
+      await send(
+        proposal("administrative_draft", null, {
+          form: { kind: "wallet_topup", fields: { amount: "30,25" } },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "30,25"),
+      );
+      assert.equal(
+        await wallet.getByRole("checkbox").isChecked(),
+        false,
+        "changed voice amount must revoke prior confirmation",
+      );
+      assert.equal(writes, 0, "wallet preparation never calls topup or activation");
+      await page.screenshot({
+        path: ".sandbox/deepgram/" + label + "-wallet-draft.png",
+        fullPage: false,
+      });
+    }
+
     await page.screenshot({
       path: ".sandbox/deepgram/" + label + "-member-edit.png",
       fullPage: true,
@@ -426,6 +511,17 @@ for (const [label, engine, device] of [
     );
     assert.equal(await page.getByLabel("Dinero inicial (€)", { exact: true }).inputValue(), "75");
     assert.equal(writes, 0, "cash draft must never open a session automatically");
+    await send(proposal("review", null));
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Rivedi i dati e conferma dal modulo"),
+    );
+    assert(
+      actionReceipts.some(
+        (receipt) =>
+          receipt.status === "confirmation_required" && receipt.code === "CONFIRMATION_REQUIRED",
+      ),
+    );
+    assert.equal(writes, 0, "review requires explicit manual confirmation and never saves");
     peer.send(
       JSON.stringify({
         type: "AppCashPeriodResult",
@@ -459,6 +555,95 @@ for (const [label, engine, device] of [
       "https://www.leafly.com/strains/amnesia-haze",
     );
     await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
+    await send(
+      proposal("administrative_draft", "collaborators", {
+        form: {
+          kind: "collaborator_invite",
+          fields: { first_name: "Ana", last_name: "Prueba", email: "synthetic@example.test" },
+        },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some(
+        (input) => input.value === "synthetic@example.test",
+      ),
+    );
+    await page.getByLabel("Apellidos", { exact: true }).fill("Manual");
+    await send(
+      proposal("administrative_draft", "collaborators", {
+        form: { kind: "collaborator_invite", fields: { last_name: "Modelo" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Conservo le modifiche manuali"),
+    );
+    assert.equal(await page.getByLabel("Apellidos", { exact: true }).inputValue(), "Manual");
+    await send(
+      proposal("administrative_draft", "membership_fees", {
+        form: {
+          kind: "membership_fee",
+          fields: { name: "Cuota sintética", duration_days: "180", price: "30,25" },
+        },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((input) => input.value === "30.25"),
+    );
+    await send(
+      proposal("administrative_draft", "membership_fees", {
+        form: { kind: "membership_fee", fields: { price: "32,50" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((input) => input.value === "32.5"),
+    );
+    await send(
+      proposal("administrative_draft", "membership_fees", {
+        form: { kind: "membership_fee", fields: { price: "33,50" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((input) => input.value === "33.5"),
+    );
+    await page.screenshot({
+      path: ".sandbox/deepgram/" + label + "-fee-draft.png",
+      fullPage: false,
+    });
+    await send(
+      proposal("administrative_draft", "membership_settings", {
+        form: {
+          kind: "discount",
+          fields: {
+            name: "Descuento de prueba",
+            percentage: "12,50",
+            valid_from: "2026-11-18",
+            valid_until: "2026-12-31",
+          },
+        },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some(
+        (input) => input.value === "Descuento de prueba",
+      ),
+    );
+    await send(
+      proposal("administrative_draft", "membership_settings", {
+        form: { kind: "discount", fields: { percentage: "15,25" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((input) => input.value === "15,25"),
+    );
+    assert.equal(
+      writes,
+      0,
+      "administrative drafts must not invite, save fees, assign discounts or top up",
+    );
+    await page.screenshot({
+      path: ".sandbox/deepgram/" + label + "-discount-draft.png",
+      fullPage: false,
+    });
     await send(
       proposal("product", "product_create", {
         product: { name: "Amnesia Haze", category: "Flores" },
@@ -574,8 +759,22 @@ for (const [label, engine, device] of [
         label +
         ": Deepgram dock, consent, one persistent socket, real member/product/category forms, search, protected manual edits, streamed playback/interruption, stop, no automatic writes (audio/provider simulated)",
     );
+    browserResults.push({
+      browser: label,
+      syntheticAuth: true,
+      syntheticAudio: true,
+      syntheticProvider: true,
+      automaticWrites: writes,
+      walletDraft: process.env.TEST_WALLET_ENABLED === "true",
+      result: "PASS",
+    });
     await context.close();
   } finally {
     await browser.close();
   }
 }
+
+await writeFile(
+  ".sandbox/deepgram/administrative-results.json",
+  JSON.stringify(browserResults, null, 2),
+);

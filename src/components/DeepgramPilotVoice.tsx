@@ -353,20 +353,29 @@ export function DeepgramPilotVoice({
                 state.transport.send({
                   type: "AppActionResult",
                   id: message.id,
-                  status: ["navigate", "search", "member_section"].includes(applied.proposal.intent)
-                    ? "opened"
-                    : "prepared",
+                  status:
+                    applied.proposal.intent === "review"
+                      ? "confirmation_required"
+                      : ["navigate", "search", "member_section"].includes(applied.proposal.intent)
+                        ? "opened"
+                        : "prepared",
                   applied: applied.applied,
                   skipped: applied.skipped,
-                  code: applied.skipped.length ? "MANUAL_EDIT_PRESERVED" : "OK",
+                  code: applied.skipped.length
+                    ? "MANUAL_EDIT_PRESERVED"
+                    : applied.proposal.intent === "review"
+                      ? "CONFIRMATION_REQUIRED"
+                      : "OK",
                 });
               setProposal(applied.proposal);
               setStatus(
                 applied.skipped.length
                   ? "Conservo le modifiche manuali. Verifica la bozza."
-                  : ["navigate", "search", "member_section"].includes(applied.proposal.intent)
-                    ? "Sezione aperta. Nessun dato salvato."
-                    : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
+                  : applied.proposal.intent === "review"
+                    ? "Rivedi i dati e conferma dal modulo. Nessun dato salvato."
+                    : ["navigate", "search", "member_section"].includes(applied.proposal.intent)
+                      ? "Sezione aperta. Nessun dato salvato."
+                      : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
               );
             } catch {
               if (message.id)

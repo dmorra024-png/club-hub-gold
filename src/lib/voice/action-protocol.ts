@@ -11,6 +11,14 @@ const FieldKey = z.enum([
   "opening_cash",
   "closing_cash",
   "notes",
+  "email",
+  "duration_days",
+  "price",
+  "percentage",
+  "valid_from",
+  "valid_until",
+  "discount_name",
+  "amount",
 ]);
 export const ActionReceipt = z
   .object({
@@ -37,6 +45,7 @@ export const actionDefinitions = Object.freeze({
   member_edit: { effect: "draft", confirmation: true },
   member_section: { effect: "navigation", confirmation: false },
   cash_draft: { effect: "draft", confirmation: true },
+  administrative_draft: { effect: "draft", confirmation: true },
   product: { effect: "informational-draft", confirmation: false },
   category: { effect: "draft", confirmation: false },
   search: { effect: "read", confirmation: false },
@@ -54,7 +63,7 @@ export function actionOutcome(value: unknown) {
     skipped: receipt.skipped,
     code: receipt.code,
     persisted: receipt.status === "completed",
-    requiresConfirmation: receipt.status !== "completed",
+    requiresConfirmation: ["prepared", "confirmation_required"].includes(receipt.status),
   };
 }
 
