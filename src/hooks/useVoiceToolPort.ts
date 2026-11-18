@@ -13,10 +13,22 @@ export function useVoiceToolPort(name: string, handlers: VoicePort) {
   useEffect(() => {
     if (!owner) return;
     const port: VoicePort = {
-      snapshot: () => latest.current.snapshot?.() ?? {},
-      patch: (value) => latest.current.patch?.(value),
-      open: (target, query) => latest.current.open?.(target, query),
-      search: (query) => latest.current.search?.(query),
+      snapshot: () => {
+        if (!latest.current.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");
+        return latest.current.snapshot();
+      },
+      patch: (value) => {
+        if (!latest.current.patch) throw Error("SNOOP_FORM_UNAVAILABLE");
+        latest.current.patch(value);
+      },
+      open: (target, query) => {
+        if (!latest.current.open) throw Error("SNOOP_FORM_UNAVAILABLE");
+        latest.current.open(target, query);
+      },
+      search: (query) => {
+        if (!latest.current.search) throw Error("SNOOP_FORM_UNAVAILABLE");
+        latest.current.search(query);
+      },
     };
     return applicationPorts.register(owner, name, port);
   }, [owner, name]);

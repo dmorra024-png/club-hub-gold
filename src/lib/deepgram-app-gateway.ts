@@ -1,5 +1,5 @@
 import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
-import { voiceCashToday } from "./voice/cash-read.server.ts";
+import { voiceCashToday, voiceCashDay, VoiceCashDay } from "./voice/cash-read.server.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -167,7 +167,12 @@ export async function deepgramAppSocket(
   const seen = new Set<string>();
   const pending = new Map<
     string,
-    { name: string; timer: ReturnType<typeof setTimeout>; proposal: ConversationProposalValue }
+    {
+      name: string;
+      timer: ReturnType<typeof setTimeout>;
+      proposal: ConversationProposalValue;
+      cashDay?: string;
+    }
   >();
   let deadline: ReturnType<typeof setTimeout>;
   const send = (body: unknown) => {
@@ -305,7 +310,7 @@ export async function deepgramAppSocket(
                 if (typeof f.id === "string" && seen.has(f.id)) continue;
                 let result: unknown = { ok: false, code: "SNOOP_PROPOSAL_REJECTED" };
                 if (
-                  ["snoop_propose", "snoop_cash_today"].includes(f.name) &&
+                  ["snoop_propose", "snoop_cash_today", "snoop_cash_day"].includes(f.name) &&
                   typeof f.id === "string" &&
                   f.id.length <= 120 &&
                   !seen.has(f.id) &&
@@ -316,11 +321,15 @@ export async function deepgramAppSocket(
                   try {
                     const args = JSON.parse(f.arguments);
                     const proposal =
-                      f.name === "snoop_cash_today"
-                        ? args &&
-                          typeof args === "object" &&
-                          !Array.isArray(args) &&
-                          Object.keys(args).length === 0
+                      f.name === "snoop_cash_today" || f.name === "snoop_cash_day"
+                        ? (
+                            f.name === "snoop_cash_day"
+                              ? VoiceCashDay.safeParse(args).success
+                              : args &&
+                                typeof args === "object" &&
+                                !Array.isArray(args) &&
+                                Object.keys(args).length === 0
+                          )
                           ? {
                               intent: "navigate",
                               target: "cash_report",
@@ -365,8 +374,16 @@ export async function deepgramAppSocket(
                     name: f.name,
                     timer,
                     proposal: (result as { proposal: ConversationProposalValue }).proposal,
+                    ...(f.name === "snoop_cash_day"
+                      ? { cashDay: VoiceCashDay.parse(JSON.parse(f.arguments)).day }
+                      : {}),
                   });
-                  send({ type: "AppProposal", id, result });
+                  send({
+                    type: "AppProposal",
+                    id,
+                    result,
+                    ...(pending.get(id)?.cashDay ? { cashDay: pending.get(id)!.cashDay } : {}),
+                  });
                 } else {
                   send({ type: "AppProposal", id: f.id, result });
                   upstream?.send(
@@ -411,6 +428,7 @@ export async function deepgramAppSocket(
               });
             } else if (
               m.type === "UserStartedSpeaking" ||
+              m.type === "AgentStartedSpeaking" ||
               m.type === "AgentThinking" ||
               m.type === "AgentAudioDone"
             ) {
@@ -480,7 +498,10 @@ export async function deepgramAppSocket(
         pending.delete(receipt.data.id);
         memory = acknowledgedMemory(memory, item.proposal, receipt.data);
         let outcome: unknown = actionOutcome(receipt.data);
-        if (item.name === "snoop_cash_today" && receipt.data.status !== "rejected") {
+        if (
+          ["snoop_cash_today", "snoop_cash_day"].includes(item.name) &&
+          receipt.data.status !== "rejected"
+        ) {
           try {
             const verified = await verifySession(verifiedToken, env, authController.signal);
             if (
@@ -490,13 +511,16 @@ export async function deepgramAppSocket(
               !verified.access.permissions.includes("view_reports")
             )
               throw Error("AUTH_FORBIDDEN");
-            const summary = await voiceCashToday(
+            const baseArgs = [
               setting(env, "SUPABASE_URL"),
               setting(env, "SUPABASE_PUBLISHABLE_KEY"),
               verifiedToken,
               verified.user,
               verified.access.clubId!,
-            );
+            ] as const;
+            const summary = item.cashDay
+              ? await voiceCashDay(...baseArgs, item.cashDay)
+              : await voiceCashToday(...baseArgs);
             outcome = { ok: true, status: "read", persisted: false, summary };
             send({ type: "AppCashResult", summary });
           } catch {

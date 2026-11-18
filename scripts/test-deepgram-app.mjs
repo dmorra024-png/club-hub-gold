@@ -6,22 +6,27 @@ import { fromJSON } from "seroval";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3074";
 assert(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL ||
+    (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
 const file = (await readdir(".output/server/_ssr")).find((n) =>
   n.startsWith("deepgram-pilot.functions-"),
 );
 const source = await readFile(".output/server/_ssr/" + file, "utf8");
-const id = (name) => {
+const id = (name, code = source) => {
   const value = new RegExp(
     "id:\\s*[\"'`]([a-f0-9]+)[\"'`],\\s*name:\\s*[\"'`]" + name + "[\"'`]",
-  ).exec(source)?.[1];
+  ).exec(code)?.[1];
   assert(value, name);
   return value;
 };
 const statusId = id("deepgramPilotStatus"),
   catalogId = id("deepgramPilotCatalog");
+const cashFile = (await readdir(".output/server/_ssr")).find((n) =>
+  n.startsWith("cash-sessions.functions-"),
+);
+const cashId = id("getCashReport", await readFile(".output/server/_ssr/" + cashFile, "utf8"));
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -65,7 +70,9 @@ for (const [label, engine, device] of [
           executablePath: existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined,
           args: ["--no-sandbox"],
         }
-      : {}),
+      : process.env.TEST_WEBKIT_EXECUTABLE_PATH
+        ? { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }
+        : {}),
   });
   try {
     const context = await browser.newContext({ ...device, serviceWorkers: "block" });
@@ -111,12 +118,17 @@ for (const [label, engine, device] of [
         }
         window.AudioContext = class {
           constructor() {
+            window.__audio.context = this;
+            this.state = "running";
             this.sampleRate = 48000;
             this.currentTime = 1;
             this.destination = new Node();
             this.audioWorklet = { addModule: async () => {} };
           }
-          async resume() {}
+          async resume() {
+            this.state = "running";
+            this.onstatechange?.();
+          }
           async close() {}
           createMediaStreamSource() {
             return new Node();
@@ -164,6 +176,24 @@ for (const [label, engine, device] of [
         catalogCalls++;
         return json({
           result: { categories: ["Flores"], products: ["Amnesia Haze"] },
+          context: {},
+        });
+      }
+      if (u.pathname.endsWith("/" + cashId)) {
+        const data = fromJSON(JSON.parse(req.postData())).data;
+        const day = data.day ?? "2026-10-25";
+        return json({
+          result: {
+            day,
+            admin: true,
+            start: "2026-10-24T22:00:00.000Z",
+            end: "2026-10-25T23:00:00.000Z",
+            movements: [],
+            sessions: [],
+            profiles: [],
+            refunds: [],
+            auditRecords: [],
+          },
           context: {},
         });
       }
@@ -272,7 +302,19 @@ for (const [label, engine, device] of [
     assert.equal(sockets, 1);
     assert.equal(catalogCalls, 1);
     assert.equal(statusCalls, 1);
-    const send = async (p) => {
+    // A valid next response need not include AgentThinking. Interrupting an old
+    // answer must not permanently mute future Deepgram audio.
+    peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
+    peer.send(JSON.stringify({ type: "AgentStartedSpeaking" }));
+    peer.send(Buffer.alloc(4800));
+    await page.waitForFunction(() => window.__audio.played > 0);
+    await page.evaluate(() => {
+      window.__audio.context.state = "suspended";
+      window.__audio.context.onstatechange?.();
+    });
+    await panel.getByRole("button", { name: "Riattiva audio", exact: true }).click();
+    await page.waitForFunction(() => window.__audio.context.state === "running");
+    const send = async (p, extra = {}) => {
       peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
       peer.send(JSON.stringify({ type: "AgentThinking" }));
       peer.send(
@@ -280,6 +322,7 @@ for (const [label, engine, device] of [
           type: "AppProposal",
           id: "action-" + crypto.randomUUID(),
           result: { ok: true, proposal: p },
+          ...extra,
         }),
       );
     };
@@ -312,6 +355,14 @@ for (const [label, engine, device] of [
       timeout: 60000,
       animations: "disabled",
     });
+    await send(proposal("navigate", "profile"));
+    await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
+    assert.equal(sockets, 1, "profile navigation must preserve the voice session");
+    await send(proposal("navigate", "cash_report"), { cashDay: "2026-10-25" });
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Fecha del informe"]')?.value === "2026-10-25",
+    );
+    assert.equal(sockets, 1, "dated report must retain the same voice session");
     await send(
       proposal("product", "product_create", {
         product: { name: "Amnesia Haze", category: "Flores" },
@@ -340,8 +391,14 @@ for (const [label, engine, device] of [
         document.querySelector('input[placeholder="ej. Flores"]')?.value === "Categoría sintética",
     );
     assert.equal(sockets, 1, "internal navigation must retain the same authenticated socket");
-    assert(actionReceipts.some(r=>r.applied.includes("first_name")),"application must acknowledge the actual patched fields");
-    assert(actionReceipts.some(r=>r.skipped.includes("last_name")),"manual edits must be reported as preserved");
+    assert(
+      actionReceipts.some((r) => r.applied.includes("first_name")),
+      "application must acknowledge the actual patched fields",
+    );
+    assert(
+      actionReceipts.some((r) => r.skipped.includes("last_name")),
+      "manual edits must be reported as preserved",
+    );
     peer.send(Buffer.alloc(2400));
     await page.waitForFunction(() => window.__audio.played > 0);
     peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));

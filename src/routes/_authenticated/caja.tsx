@@ -14,7 +14,7 @@ import {
   cashDaySummary,
   type CashSession,
 } from "@/lib/cash-sessions";
-import { parseCashCents } from "@/lib/member-administration";
+import { calendarDate, parseCashCents } from "@/lib/member-administration";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,9 +45,10 @@ function Caja() {
     [busy, setBusy] = useState(false);
   const data = stored?.scope === scope && stored?.requestedDay === day ? stored : null;
   useVoiceToolPort("cash.page", {
-    open: () => {
+    open: (_target, requestedDay) => {
       if (can("view_reports")) {
-        setDay(null);
+        if (requestedDay && !calendarDate(requestedDay)) return;
+        setDay(requestedDay ?? null);
         setVoiceTab("informe");
       }
     },

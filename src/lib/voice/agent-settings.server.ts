@@ -4,11 +4,14 @@ import {
   canonicalCategory,
   speechKeyterms,
   vocabularyPrompt,
+  vocabularyMatch,
   EMPTY_CATALOG,
   type CatalogVocabulary,
 } from "./catalog-vocabulary.ts";
 import { ConversationProposal, conversationAllowed } from "../snoop-conversation.ts";
 import type { AccountAccess } from "../access-context.ts";
+import { voiceDestinationNames } from "./destinations.ts";
+import { madridToday } from "../member-administration.ts";
 export function authorizeProposal(
   value: unknown,
   access: AccountAccess,
@@ -38,7 +41,9 @@ export function authorizeProposal(
   if (parsed.data.intent === "product" && parsed.data.product.name)
     parsed.data.product.name = canonicalGeneticOrProduct(parsed.data.product.name, vocabulary);
   if (parsed.data.intent === "search" && parsed.data.target === "products" && parsed.data.query)
-    parsed.data.query = canonicalGeneticOrProduct(parsed.data.query, vocabulary);
+    parsed.data.query =
+      vocabularyMatch(parsed.data.query, catalogVocabulary(vocabulary).products) ??
+      canonicalGeneticOrProduct(parsed.data.query, vocabulary);
   return {
     ok: true as const,
     proposal: parsed.data,
@@ -58,20 +63,7 @@ export const proposalSchema = {
     },
     target: {
       type: ["string", "null"],
-      enum: [
-        "home",
-        "member_create",
-        "members",
-        "products",
-        "product_create",
-        "categories",
-        "stock",
-        "cash",
-        "cash_report",
-        "reports",
-        "activity",
-        null,
-      ],
+      enum: [...voiceDestinationNames, null],
     },
     member: {
       type: "object",
@@ -102,7 +94,7 @@ export function agentSettings(
   sampleRate: number,
   vocabulary: CatalogVocabulary = EMPTY_CATALOG,
 ) {
-  return {
+  const settings = {
     type: "Settings",
     mip_opt_out: true,
     tags: ["snoop-application"],
@@ -131,6 +123,18 @@ export function agentSettings(
         provider: { type: "open_ai", model: "gpt-4o-mini", temperature: 0.2 },
         prompt: `You are SNOOP in an authorized SNOOP application. Speak ${language === "it" ? "Italian" : language === "es" ? "Spanish" : "English"} naturally and briefly. Privacy restrictions are provided by the application. Personal data require the configured privacy approval; never request identity documents. Never claim an action completed before the application confirms it. Maintain conversation context and remember corrections and refused optional fields. This is an administrative application session: when the user provides a permitted member name and details to prepare, call snoop_propose rather than merely repeating them, even if the creation verb or SNOOP was slightly mistranscribed. Extract only the facts actually stated; ask a brief clarification if the requested action is genuinely ambiguous. Never say a member was created: only a draft was prepared. declined must be [] unless the user explicitly refuses an optional phone. Missing information is not a refusal. Never ask for phone if declined contains phone. For administrative navigation or draft fields call snoop_propose with ONLY explicit new fields. Ask a short relevant question for missing data, never invent. ISO birth dates require full unambiguous year. You cannot save, pay, cancel, mutate stock or access a database. SNOOP independently validates permissions and demands confirmation; a rejected tool must not be described as successful. Navigation to cash and reports is permitted only through authorized app tools. For today’s actual receipts call snoop_cash_today; never invent a balance or infer it from conversation. ${vocabularyPrompt(vocabulary)} For greetings and general conversation, reply conversationally without a tool. Stop requests: call snoop_propose with intent stop, target null; stop capture.`,
         functions: [
+          {
+            name: "snoop_cash_day",
+            description:
+              "Read authorized receipts for one explicit Europe/Madrid calendar day. Resolve dates to YYYY-MM-DD; ask if ambiguous. Same user permissions and source as the manual report; no writes.",
+            parameters: {
+              type: "object",
+              additionalProperties: false,
+              properties: { day: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" } },
+              required: ["day"],
+            },
+            defer_until_eot: true,
+          },
           {
             name: "snoop_cash_today",
             description:
@@ -166,4 +170,8 @@ export function agentSettings(
       },
     },
   };
+  settings.agent.think.prompt =
+    `Current Europe/Madrid calendar date: ${madridToday()}. For any day other than today use snoop_cash_day with an explicit ISO calendar day; ask for clarification for ambiguous dates. Available navigation targets: ${voiceDestinationNames.join(", ")}. These targets only open existing screens and never imply that their forms were saved. ` +
+    settings.agent.think.prompt;
+  return settings;
 }

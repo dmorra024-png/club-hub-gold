@@ -54,6 +54,7 @@ export function DeepgramPilotVoice({
   const generation = useRef(0);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [audioSuspended, setAudioSuspended] = useState(false);
   const [status, setStatus] = useState("Pronto");
   const [language, setLanguage] = useState<Language>("es");
   const [consent, setConsent] = useState(false);
@@ -109,6 +110,7 @@ export function DeepgramPilotVoice({
       }
       setStatus(reason);
       setRunning(false);
+      setAudioSuspended(false);
       onPhaseChange?.("idle");
     },
     [onPhaseChange],
@@ -152,6 +154,8 @@ export function DeepgramPilotVoice({
     state.sounds.push(sound);
     sound.onended = () => {
       state.sounds = state.sounds.filter((s) => s !== sound);
+      if (audio.current === state && state.sounds.length === 0 && state.ready)
+        setStatus("SNOOP ti ascolta");
     };
     sound.start(at);
     setStatus("SNOOP sta parlando");
@@ -169,6 +173,12 @@ export function DeepgramPilotVoice({
       // Audio activation stays in the click event for mobile Safari.
       ctx = new AudioContext({ sampleRate: 48000 });
       await ctx.resume();
+      ctx.onstatechange = () => {
+        if (audio.current?.ctx !== ctx) return;
+        const paused = ctx?.state === "suspended" || (ctx?.state as string) === "interrupted";
+        setAudioSuspended(paused);
+        if (paused) setStatus("Audio sospeso dal dispositivo. Tocca Riattiva audio.");
+      };
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: false,
@@ -290,6 +300,11 @@ export function DeepgramPilotVoice({
             utterancePath.current = pathRef.current;
             interrupt();
             setStatus("Ti ascolto…");
+          } else if (message.type === "AgentStartedSpeaking") {
+            // Deepgram can begin the next audio response without an AgentThinking event.
+            // A previous interruption must suppress the old response, not all future speech.
+            state.suppressed = false;
+            setStatus("SNOOP sta parlando");
           } else if (message.type === "AgentThinking") {
             state.suppressed = false;
             setStatus("SNOOP sta elaborando…");
@@ -329,6 +344,7 @@ export function DeepgramPilotVoice({
                   utterancePath.current = to;
                 },
                 last: voiceValues.current,
+                reportDay: message.cashDay,
               });
               if (message.id)
                 state.transport.send({
@@ -501,6 +517,22 @@ export function DeepgramPilotVoice({
         </p>
       )}
       <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+        {running && audioSuspended && (
+          <button
+            type="button"
+            onClick={() => {
+              void audio.current?.ctx
+                .resume()
+                .then(() => {
+                  setAudioSuspended(false);
+                  setStatus("SNOOP ti ascolta");
+                })
+                .catch(() => setStatus("Audio bloccato dal dispositivo. Ferma e riavvia SNOOP."));
+            }}
+          >
+            Riattiva audio
+          </button>
+        )}
         {!running && (
           <button type="button" disabled={!consent} onClick={() => void start()}>
             Avvia JARVIS

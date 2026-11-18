@@ -96,14 +96,37 @@ export function canonicalGeneticOrProduct(
   );
 }
 const normalized = (name: string) =>
-  name.normalize("NFKC").trim().toLocaleLowerCase("en").replace(/\s+/g, " ");
-/** Exact case/spacing normalization only. No fuzzy guesses or semantic substitution. */
+  name.normalize("NFKD").replace(/\p{M}/gu, "").trim().toLocaleLowerCase("en").replace(/\s+/g, " ");
+/** At most one character error, only for a unique sufficiently long label.
+ * This prepares a draft, never selects inventory or executes an operation.
+ * Short, missing, or conflicting labels require clarification. */
+export function vocabularyMatch(name: string, candidates: readonly string[]) {
+  const wanted = normalized(name);
+  const exact = candidates.filter((n) => normalized(n) === wanted);
+  if (exact.length) return exact.length === 1 ? exact[0] : null;
+  if (wanted.length < 6) return null;
+  const near = candidates.filter((n) => {
+    const other = normalized(n);
+    if (other.length < 6 || Math.abs(other.length - wanted.length) > 1) return false;
+    let i = 0,
+      j = 0,
+      errors = 0;
+    while (i < wanted.length && j < other.length) {
+      if (wanted[i] === other[j]) {
+        i++;
+        j++;
+        continue;
+      }
+      if (++errors > 1) return false;
+      if (wanted.length >= other.length) i++;
+      if (other.length >= wanted.length) j++;
+    }
+    return errors + (wanted.length - i) + (other.length - j) <= 1;
+  });
+  return near.length === 1 ? near[0] : null;
+}
 export function canonicalCategory(name: string, vocabulary: CatalogVocabulary) {
-  return (
-    catalogVocabulary(vocabulary).categories.find(
-      (candidate) => normalized(candidate) === normalized(name),
-    ) ?? null
-  );
+  return vocabularyMatch(name, catalogVocabulary(vocabulary).categories);
 }
 export function vocabularyPrompt(input: CatalogVocabulary = EMPTY_CATALOG) {
   const vocabulary = catalogVocabulary(input);

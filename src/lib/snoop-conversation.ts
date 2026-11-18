@@ -1,20 +1,9 @@
 import { z } from "zod";
 import { calendarDate, isAdult } from "./member-administration.ts";
 import { accessRedirect, type AccountAccess } from "./access-context.ts";
+import { voiceDestinations, voiceDestinationNames } from "./voice/destinations.ts";
 export const ConversationMode = z.enum(["pilot", "real", "demo"]);
-export const ConversationTarget = z.enum([
-  "home",
-  "member_create",
-  "members",
-  "products",
-  "product_create",
-  "categories",
-  "stock",
-  "cash",
-  "cash_report",
-  "reports",
-  "activity",
-]);
+export const ConversationTarget = z.enum(voiceDestinationNames);
 export const memberFields = z
   .object({
     first_name: z.string().max(80).optional(),
@@ -121,19 +110,7 @@ export const ConversationProposal = z
       ctx.addIssue({ code: "custom", message: "Invalid phone" });
   });
 export type ConversationProposalValue = z.infer<typeof ConversationProposal>;
-export const targetPath: Record<z.infer<typeof ConversationTarget>, string> = {
-  home: "/",
-  member_create: "/soci/nuovo",
-  members: "/soci/gestisci",
-  products: "/productos",
-  product_create: "/productos",
-  categories: "/productos",
-  stock: "/productos",
-  cash: "/caja",
-  cash_report: "/caja",
-  reports: "/ajustes/informes",
-  activity: "/actividades",
-};
+export const targetPath: Record<z.infer<typeof ConversationTarget>, string> = voiceDestinations;
 export function conversationAllowed(access: AccountAccess, p: ConversationProposalValue) {
   return (
     access.status === "active" &&

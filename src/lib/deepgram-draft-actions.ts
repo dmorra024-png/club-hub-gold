@@ -6,6 +6,7 @@ import {
 } from "./snoop-conversation.ts";
 import { applicationPorts, type VoicePort } from "./voice/application-ports.ts";
 import type { AccountAccess } from "./access-context.ts";
+import { calendarDate } from "./member-administration.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
@@ -29,6 +30,7 @@ export async function applyDeepgramDraft(
     path: () => string;
     current: () => boolean;
     last: Record<string, Record<string, string>>;
+    reportDay?: string;
   },
 ) {
   const parsed = ConversationProposal.safeParse(value);
@@ -45,11 +47,17 @@ export async function applyDeepgramDraft(
       await new Promise((r) => setTimeout(r, 20));
   }
   const valid = () => options.current() && (!to || options.path() === to);
-  const port = (name: string) => applicationPorts.wait(options.owner ?? "", name, valid);
+  const port = async (name: string) => {
+    const found = await applicationPorts.wait(options.owner ?? "", name, valid);
+    if (!valid()) throw Error("SNOOP_STALE_PROPOSAL");
+    return found;
+  };
   let skipped: string[] = [];
   let applied: string[] = [];
   if (p.target && ["products", "product_create", "categories", "stock"].includes(p.target)) {
-    (await port("products.page")).open?.(p.target, p.query);
+    const page = await port("products.page");
+    if (!page.open) throw Error("SNOOP_FORM_UNAVAILABLE");
+    page.open(p.target, p.query);
   }
   const kind =
     p.intent === "member"
@@ -72,7 +80,8 @@ export async function applyDeepgramDraft(
       forms.set(kind, form);
     }
     const patch = (kind === "member" ? p.member : p.product) as Record<string, string>;
-    const next = protectedVoicePatch(form.snapshot?.() ?? {}, options.last[kind] ?? {}, patch);
+    if (!form.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");
+    const next = protectedVoicePatch(form.snapshot(), options.last[kind] ?? {}, patch);
     skipped = next.skipped;
     if (Object.keys(next.applied).length) {
       if (!form.patch) throw Error("SNOOP_FORM_UNAVAILABLE");
@@ -81,8 +90,17 @@ export async function applyDeepgramDraft(
       options.last[kind] = { ...options.last[kind], ...next.applied };
     }
   }
-  if (p.intent === "search" && p.target === "members")
-    (await port("members.search")).search?.(p.query ?? "");
-  if (p.target === "cash_report") (await port("cash.page")).open?.("report");
+  if (p.intent === "search" && p.target === "members") {
+    const search = await port("members.search");
+    if (!search.search) throw Error("SNOOP_FORM_UNAVAILABLE");
+    search.search(p.query ?? "");
+  }
+  if (p.target === "cash_report") {
+    if (options.reportDay !== undefined && !calendarDate(options.reportDay))
+      throw Error("SNOOP_INVALID_REPORT_DAY");
+    const cash = await port("cash.page");
+    if (!cash.open) throw Error("SNOOP_FORM_UNAVAILABLE");
+    cash.open("report", options.reportDay);
+  }
   return { proposal: p, skipped, applied };
 }
