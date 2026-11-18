@@ -178,5 +178,11 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_ORDER_SETTLEMENT_REVIEW_ONLY.sql
       - name: Verify proven wallet spend and single audited cancellation refund
         run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ORDERS.sql
+      - name: Bootstrap fake SNOOP order/stock contracts only inside disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ATOMIC_BOOTSTRAP.sql
+      - name: Compile atomic wallet order plus cancellation draft with no runtime grants
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql
+      - name: Verify single-transaction order/debit and cancellation/refund rollback
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ATOMIC.sql
       - name: No Supabase modifications
         run: echo "Only ephemeral local PostgreSQL container; no production database access"
