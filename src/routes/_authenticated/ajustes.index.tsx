@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
-import { BadgeEuro, Users, ShieldCheck, Cable, BarChart3, Wallet } from "lucide-react";
+import { BadgeEuro, Users, ShieldCheck, Cable, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { ClubWalletSettingsPanel } from "@/components/ClubWalletSettingsPanel";
@@ -9,11 +9,10 @@ export const Route = createFileRoute("/_authenticated/ajustes/")({
   component: AjustesIndex,
 });
 
-function Tile({ to, hash, icon: Icon, title, text }: any) {
+function Tile({ to, icon: Icon, title, text }: any) {
   return (
     <Link
       to={to}
-      hash={hash}
       className="group bg-card/60 border border-neon/25 rounded-2xl p-6 hover:border-neon hover:bg-card/80 hover:glow-neon-soft transition flex flex-col items-center text-center"
     >
       <div className="w-14 h-14 rounded-full border border-neon/50 flex items-center justify-center mb-3 group-hover:bg-neon/10 transition">
@@ -35,14 +34,11 @@ function AjustesIndex() {
     <SnoopLayout title="Ajustes" subtitle="Configuración exclusiva del administrador del club">
       <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
         <Tile to="/ajustes/cuotas" icon={BadgeEuro} title="Cuotas" text="Modalidades de inscripción, duración y precio." />
-        <Tile to="/ajustes" hash="monedero" icon={Wallet} title="Monedero" text="Activa una sola vez el monedero para todos los socios activos del club." />
+        <ClubWalletSettingsPanel />
         <Tile to="/ajustes/socios" icon={Users} title="Socios" text="Descuentos y campos de inscripción de los socios." />
         <Tile to="/ajustes/colaboradores" icon={ShieldCheck} title="Colaboradores" text="Crea cuentas con permisos específicos para tu equipo." />
         <Tile to="/ajustes/dispositivos" icon={Cable} title="Dispositivos" text="Conecta báscula, lector QR y tableta de firma." />
         <Tile to="/ajustes/informes" icon={BarChart3} title="Informes" text="Gráficos de stock añadido, ventas y productos más vendidos." />
-      </div>
-      <div className="mt-6">
-        <ClubWalletSettingsPanel />
       </div>
     </SnoopLayout>
   );
