@@ -12,20 +12,20 @@ begin
  if not found then return new;end if;
  v_enabled:=v_club.active and v_club.enabled;
  v_active:=v_club.active and new.expires_at>=current_date;
- if v_enabled then
-  insert into public.socio_member_cards
-   (club_id,member_id,club_name,member_number,active,wallet_enabled,revoked_at,updated_at)
-  values(new.club_id,new.id,v_club.name,new.member_number,v_active,v_active,
-   case when v_active then null else now() end,now())
-  on conflict (club_id,member_id) do update set
-   club_name=excluded.club_name,member_number=excluded.member_number,
-   active=excluded.active,wallet_enabled=excluded.wallet_enabled,
-   revoked_at=excluded.revoked_at,updated_at=now();
-  if v_active then
-   insert into public.socio_wallet_accounts(club_id,member_id,balance_cents)
-   values(new.club_id,new.id,0)
-   on conflict (club_id,member_id) do nothing;
-  end if;
+ -- Every active club member needs a Socio digital card, regardless of
+ -- whether this club has enabled the optional Monedero payment feature.
+ insert into public.socio_member_cards
+  (club_id,member_id,club_name,member_number,active,wallet_enabled,revoked_at,updated_at)
+ values(new.club_id,new.id,v_club.name,new.member_number,v_active,
+  (v_active and v_enabled),case when v_active then null else now() end,now())
+ on conflict (club_id,member_id) do update set
+  club_name=excluded.club_name,member_number=excluded.member_number,
+  active=excluded.active,wallet_enabled=excluded.wallet_enabled,
+  revoked_at=excluded.revoked_at,updated_at=now();
+ if v_enabled and v_active then
+  insert into public.socio_wallet_accounts(club_id,member_id,balance_cents)
+  values(new.club_id,new.id,0)
+  on conflict (club_id,member_id) do nothing;
  end if;
  return new;
 end;
