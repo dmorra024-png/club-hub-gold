@@ -131,3 +131,12 @@ body{background:radial-gradient(ellipse at 70% -5%,var(--navy2),transparent 59%)
 }
 @media(max-width:360px){.socio-dock button{font-size:10px}.wallet{padding:18px}.shell{padding-left:15px;padding-right:15px}}
 @media(prefers-reduced-motion:reduce){.btn,.club-option{transition:none!important}}
+
+@font-face{font-family:"Snoop Display";font-style:normal;font-weight:600;font-display:swap;
+ src:url("./chakra-petch-latin-600.woff2") format("woff2")}
+.title,.club-heading,.section-heading,.carnet-topline,.wallet-title,.carnet-member-number,
+.carnet-active,.kicker{
+ font-family:"Snoop Display","Space Grotesk",system-ui,sans-serif;
+ font-weight:600;letter-spacing:.045em;
+}
+.wallet-amount{font-family:"Snoop Display","Space Grotesk",system-ui,sans-serif;font-weight:600}
