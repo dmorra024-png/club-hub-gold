@@ -165,6 +165,10 @@ function PedidoPage() {
 
   useEffect(() => {
     if (authLoading || accessError || !access.clubId || !can("use_cash")) return;
+    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
+      setWalletState({enabled:false,clubEnabled:false,balanceCents:null});
+      setWalletStatusError(false);setWalletUncertain(false);return;
+    }
     let active=true;
     setWalletState(null);setWalletStatusError(false);setWalletConfirmed(false);setWalletUncertain(false);
     walletMemberStatus({data:{memberId:id}})
