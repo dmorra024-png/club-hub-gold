@@ -17,7 +17,7 @@ const server=createServer(async(req,res)=>{
  try{
   const name=new URL(req.url,'http://127.0.0.1').pathname;
   const file=name==='/'?'index.html':name.replace(/^\//,'');
-  if(!['index.html','styles.css','main.js','manifest.webmanifest','sw.js','icon.svg'].includes(file)){
+  if(!['index.html','styles.css','main.js','manifest.webmanifest','sw.js','icon.svg','snoop-wordmark.svg'].includes(file)){
    res.writeHead(404);return res.end();
   }
   const body=await readFile(join(dir,file));
