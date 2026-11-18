@@ -95,6 +95,10 @@ export function FinancialRecordDialog({
   }, [scope, allowed, retry]);
   useEffect(()=>{
     if(!allowed)return;
+    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
+      setWalletPayment(false);setWalletStatusError(false);setWalletUncertain(false);
+      return;
+    }
     let active=true;
     setWalletPayment(null);setWalletStatusError(false);setWalletUncertain(false);
     walletOrderPaymentState({data:{orderId}})
