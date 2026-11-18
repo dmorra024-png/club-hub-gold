@@ -88,6 +88,20 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  };
  // Recovery URLs must be explicitly allowed by Supabase Auth redirect settings.
  // Never send credentials or bearer tokens to third-party websites.
+ const resendConfirmation=async({input})=>{
+  const email=normalize(input?.email);
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)
+   return failed(400,'INVALID_EMAIL');
+  let result;
+  try{
+   result=await fetcher(base+'/resend',{method:'POST',
+    headers:{apikey:publishableKey,'content-type':'application/json'},
+    body:JSON.stringify({type:'signup',email}),
+    redirect:'error',signal:AbortSignal.timeout(8000)});
+  }catch{return failed(503,'RESEND_UNAVAILABLE');}
+  if(!result.ok)return failed(result.status===429?429:503,'RESEND_UNAVAILABLE');
+  return response({accepted:true,message:'Si la cuenta está pendiente, recibirás otro enlace.'});
+ };
  const recover=async({input})=>{
   const email=normalize(input?.email);
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return failed(400,'INVALID_EMAIL');
@@ -159,5 +173,5 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
- return{authenticate,signup,login,logout,refresh,recover,completeRecovery,changePassword};
+ return{authenticate,signup,login,logout,refresh,recover,resendConfirmation,completeRecovery,changePassword};
 }
