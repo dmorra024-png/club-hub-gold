@@ -172,8 +172,28 @@ async function runBrowser(browserType,deviceName,options){
   console.log('PASS',deviceName,'login, 2 clubs, QR, wallet, movements, logout; network mocked');
  }finally{await browser.close();}
 }
+async function testUnavailableBackend(browserType,deviceName){
+ const browser=await browserType.launch({headless:true});
+ const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+ const page=await context.newPage();
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/api/socio/**',route=>route.fulfill({
+  status:503,contentType:'application/json',
+  body:JSON.stringify({message:'Servicio temporalmente indisponible'})
+ }));
+ try{
+  await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'domcontentloaded'});
+  await page.getByRole('heading',{name:'Bienvenido'}).waitFor();
+  await page.getByText('Servicio de socios aún no disponible.').waitFor({timeout:12000});
+  assert.equal(await page.getByRole('button',{name:'Iniciar sesión'}).isVisible(),true);
+  assert.deepEqual(errors,[]);
+  console.log('PASS',deviceName,'unavailable backend reports clear error, not blank screen');
+ }finally{await browser.close();}
+}
 const port=await listen();
 try{
  await runBrowser(chromium,'android-chromium',{viewport:{width:390,height:844},mobile:true});
  await runBrowser(webkit,'iphone-webkit',{viewport:{width:375,height:812},mobile:true});
+ await testUnavailableBackend(chromium,'android-chromium');
+ await testUnavailableBackend(webkit,'iphone-webkit');
 }finally{await close();}
