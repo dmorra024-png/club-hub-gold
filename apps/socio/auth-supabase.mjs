@@ -86,6 +86,39 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return failed(401,'INVALID_LOGIN');
   return response({authenticated:true},200,sessionCookies(data));
  };
+ const changePassword=async({request,input})=>{
+  // Require an existing server-verified Socio session AND the current password.
+  // No credential is stored in browser storage or returned in the response.
+  const actor=await authenticate(request);
+  if(!actor)return failed(401,'SESSION_REQUIRED');
+  const currentPassword=input?.currentPassword,newPassword=input?.newPassword;
+  if(typeof currentPassword!=='string'||currentPassword.length<1||
+     currentPassword.length>128||typeof newPassword!=='string'||
+     newPassword.length<10||newPassword.length>128||
+     newPassword===currentPassword)return failed(400,'PASSWORD_INVALID');
+  let verification;
+  try{
+   verification=await call('/token?grant_type=password',{
+    method:'POST',body:{email:actor.email,password:currentPassword}
+   });
+  }catch{return failed(503,'PASSWORD_PROVIDER_UNAVAILABLE');}
+  if(!verification?.access_token)return failed(401,'CURRENT_PASSWORD_INVALID');
+  const check=await authUser(verification.access_token);
+  if(!check||check.id!==actor.userId)return failed(401,'CURRENT_PASSWORD_INVALID');
+  let changed;
+  try{
+   changed=await fetcher(base+'/user',{
+    method:'PUT',
+    headers:{apikey:publishableKey,authorization:'Bearer '+actor.accessToken,
+      'content-type':'application/json'},
+    body:JSON.stringify({password:newPassword}),redirect:'error',
+    signal:AbortSignal.timeout(8000)
+   });
+  }catch{return failed(503,'PASSWORD_PROVIDER_UNAVAILABLE');}
+  if(!changed.ok)return failed(changed.status===401?401:503,'PASSWORD_UPDATE_FAILED');
+  // Force a fresh login on this device after a confirmed password change.
+  return response({changed:true,reloginRequired:true},200,clear());
+ };
  const logout=async({request})=>{
   const token=tokenIn(request,ACCESS);
   // Best effort remote revocation, but browser cookies are ALWAYS revoked locally.
@@ -101,5 +134,5 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
- return{authenticate,signup,login,logout,refresh};
+ return{authenticate,signup,login,changePassword,logout,refresh};
 }
