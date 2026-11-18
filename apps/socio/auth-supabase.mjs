@@ -85,7 +85,14 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!data?.access_token||!data?.refresh_token)return failed(401,'INVALID_LOGIN');
   // Always re-check current Auth user, not the unsigned/stale token response user.
   const user=await authUser(data.access_token);
-  if(!(await checked(user,data.access_token)))return failed(401,'INVALID_LOGIN');
+  if(!userVerified(user))return failed(401,'INVALID_LOGIN');
+  // A valid management identity is NOT a Socio identity. Do not establish
+  // a Socio session or change its password/roles to make it fit.
+  if(!(await checked(user,data.access_token)))return response({
+   code:'SOCIO_ACCOUNT_REQUIRED',
+   message:'Esta cuenta no tiene acceso a SNOOP Socio. El acceso del personal pertenece al gestor SNOOP. Solicita al club ayuda con tu cuenta de socio.'
+  },403);
+
   return response({authenticated:true},200,sessionCookies(data));
  };
  // Recovery URLs must be explicitly allowed by Supabase Auth redirect settings.

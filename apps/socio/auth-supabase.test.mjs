@@ -46,7 +46,7 @@ test('staff account and email-unconfirmed cannot authenticate',async()=>{
  for(const opts of [{allow:false},{confirmed:false}]){
   const {auth}=fixture(opts);
   const r=await auth.login({input:{email:'socio@example.com',password:'password12345'}});
-  assert.equal(r.status,401);
+  assert.equal(r.status,opts.allow===false&&opts.confirmed!==false?403:401);
   assert.equal(r.headers.get('set-cookie'),null);
  }
 });
