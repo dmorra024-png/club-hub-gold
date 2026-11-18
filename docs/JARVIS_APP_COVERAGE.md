@@ -193,3 +193,17 @@ Chromium/WebKit tests mount each real form, test corrections and unknown discoun
 assert zero automatic writes, and run with synthetic wallet status as a separate CI
 build. `.sandbox/deepgram/administrative-results.json` explicitly identifies fake
 provider/audio/auth and whether the wallet-enabled scenario was run.
+
+## Rendered confirmation access
+
+Visual review of the iPhone fee-editor screenshot exposed an actual obstruction:
+its Save footer was covered by the active voice panel. Active listening now uses a
+bounded compact top indicator, leaving the header menu controls and modal footer
+usable. Details/citations remain available through an explicit expand control.
+Chromium and WebKit assert that the real Guardar and menu targets can receive a
+trial click without executing either action. This is an interaction check, not just
+an element-exists assertion. Updated screenshots show the unobstructed footer.
+
+The browser harness also now resolves unique compiled server-function IDs across
+both TanStack SSR wrappers and implementations; choosing the first hashed filename
+was nondeterministic. It still fails if the real ID is missing or ambiguous.

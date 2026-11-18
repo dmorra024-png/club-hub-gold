@@ -10,44 +10,29 @@ const api = new URL(
     (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
-const file = (await readdir(".output/server/_ssr")).find((n) =>
-  n.startsWith("deepgram-pilot.functions-"),
-);
-const source = await readFile(".output/server/_ssr/" + file, "utf8");
-const id = (name, code = source) => {
-  const value = new RegExp(
-    "id:\\s*[\"'`]([a-f0-9]+)[\"'`],\\s*name:\\s*[\"'`]" + name + "[\"'`]",
-  ).exec(code)?.[1];
-  assert(value, name);
-  return value;
-};
-const statusId = id("deepgramPilotStatus"),
-  catalogId = id("deepgramPilotCatalog");
-const cashFile = (await readdir(".output/server/_ssr")).find((n) =>
-  n.startsWith("cash-sessions.functions-"),
-);
-const cashId = id("getCashReport", await readFile(".output/server/_ssr/" + cashFile, "utf8"));
-const historyFile = (await readdir(".output/server/_ssr")).find((n) =>
-  n.startsWith("member-order-history.functions-"),
-);
-const historyId = id(
-  "getMemberOrderHistory",
-  await readFile(".output/server/_ssr/" + historyFile, "utf8"),
-);
-const platformFile = (await readdir(".output/server/_ssr")).find((n) =>
-  n.startsWith("platform.functions-"),
-);
-const collaboratorListId = id(
-  "listCollaborators",
-  await readFile(".output/server/_ssr/" + platformFile, "utf8"),
-);
-const walletFile = (await readdir(".output/server/_ssr")).find((n) =>
-  n.startsWith("wallet-management.functions-"),
-);
-const walletStatusId = id(
-  "walletMemberStatus",
-  await readFile(".output/server/_ssr/" + walletFile, "utf8"),
-);
+// TanStack emits both SSR wrappers and server implementations; filesystem/hash
+// ordering must not decide which one the test reads. Require one unique real ID.
+async function serverFunctionId(name, prefix) {
+  const values = new Set();
+  for (const file of (await readdir(".output/server/_ssr")).filter((file) =>
+    file.startsWith(prefix),
+  )) {
+    const code = await readFile(".output/server/_ssr/" + file, "utf8");
+    const pattern = new RegExp(
+      "id:\\s*[\"'`]([a-f0-9]+)[\"'`],\\s*name:\\s*[\"'`]" + name + "[\"'`]",
+      "g",
+    );
+    for (const match of code.matchAll(pattern)) values.add(match[1]);
+  }
+  assert.equal(values.size, 1, "Expected one compiled server function: " + name);
+  return [...values][0];
+}
+const statusId = await serverFunctionId("deepgramPilotStatus", "deepgram-pilot.functions-"),
+  catalogId = await serverFunctionId("deepgramPilotCatalog", "deepgram-pilot.functions-"),
+  cashId = await serverFunctionId("getCashReport", "cash-sessions.functions-"),
+  historyId = await serverFunctionId("getMemberOrderHistory", "member-order-history.functions-"),
+  collaboratorListId = await serverFunctionId("listCollaborators", "platform.functions-"),
+  walletStatusId = await serverFunctionId("walletMemberStatus", "wallet-management.functions-");
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -495,6 +480,7 @@ for (const [label, engine, device] of [
     await send(proposal("navigate", "profile"));
     await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
     assert.equal(sockets, 1, "profile navigation must preserve the voice session");
+    await page.getByRole("button", { name: "Abrir menú", exact: true }).click({ trial: true });
     await send(proposal("navigate", "cash_report"), { cashDay: "2026-10-25" });
     await page.waitForFunction(
       () => document.querySelector('input[aria-label="Fecha del informe"]')?.value === "2026-10-25",
@@ -544,6 +530,7 @@ for (const [label, engine, device] of [
         ],
       }),
     );
+    await panel.getByRole("button", { name: "Dettagli SNOOP", exact: true }).click();
     await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
     assert.equal(
       await panel.locator("a").count(),
@@ -555,6 +542,7 @@ for (const [label, engine, device] of [
       "https://www.leafly.com/strains/amnesia-haze",
     );
     await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
+    await panel.getByRole("button", { name: "Riduci SNOOP", exact: true }).click();
     await send(
       proposal("administrative_draft", "collaborators", {
         form: {
@@ -604,6 +592,11 @@ for (const [label, engine, device] of [
     );
     await page.waitForFunction(() =>
       [...document.querySelectorAll("input")].some((input) => input.value === "33.5"),
+    );
+    await page.getByRole("button", { name: "Guardar", exact: true }).click({ trial: true });
+    assert(
+      (await panel.boundingBox()).height <= 120,
+      "active voice must stay compact above the form",
     );
     await page.screenshot({
       path: ".sandbox/deepgram/" + label + "-fee-draft.png",

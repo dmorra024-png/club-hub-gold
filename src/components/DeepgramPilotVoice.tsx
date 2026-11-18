@@ -54,6 +54,7 @@ export function DeepgramPilotVoice({
   const audio = useRef<AudioState | null>(null);
   const generation = useRef(0);
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [running, setRunning] = useState(false);
   const [audioSuspended, setAudioSuspended] = useState(false);
   const [status, setStatus] = useState("Pronto");
@@ -86,6 +87,7 @@ export function DeepgramPilotVoice({
         voiceValues.current = {};
         resumeRef.current = undefined;
       }
+      setExpanded(false);
       setLines([]);
       setProposal(null);
       setCitations(null);
@@ -479,6 +481,7 @@ export function DeepgramPilotVoice({
     }
   };
 
+  const compact = running && !expanded;
   return open ? (
     <section
       role="dialog"
@@ -487,22 +490,36 @@ export function DeepgramPilotVoice({
         position: "fixed",
         left: 12,
         right: 12,
-        bottom: 78,
+        top: compact ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined,
+        bottom: compact ? undefined : 78,
         zIndex: 100,
         borderRadius: 18,
-        padding: running ? 12 : 18,
+        padding: compact ? 8 : running ? 12 : 18,
         background: "#0e1933",
         color: "#f7df9d",
         border: "1px solid #a98b4c",
-        maxHeight: "70dvh",
+        maxHeight: compact ? 120 : "70dvh",
         overflowY: "auto",
-        maxWidth: 520,
+        width: compact ? "calc(100vw - 128px)" : undefined,
+        maxWidth: compact ? 320 : 520,
         margin: "0 auto",
         boxShadow: "0 14px 50px #0008",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <strong style={{ fontSize: running ? 13 : undefined }}>SNOOP · JARVIS 3</strong>
+        <strong style={{ fontSize: running ? 13 : undefined }}>
+          {compact ? "● SNOOP" : "SNOOP · JARVIS 3"}
+        </strong>
+        {running && (
+          <button
+            type="button"
+            aria-label={compact ? "Dettagli SNOOP" : "Riduci SNOOP"}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            ⋯
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -516,7 +533,16 @@ export function DeepgramPilotVoice({
       </div>
       <p
         role="status"
-        style={running ? { fontSize: 12, margin: "4px 0", lineHeight: 1.3 } : undefined}
+        style={
+          running
+            ? {
+                fontSize: 12,
+                margin: "4px 0",
+                lineHeight: 1.3,
+                ...(compact ? { maxHeight: 32, overflow: "hidden" } : {}),
+              }
+            : undefined
+        }
       >
         {status}
       </p>
@@ -547,12 +573,19 @@ export function DeepgramPilotVoice({
           Acepto el procesamiento de voz; uso datos ficticios al tratar datos de personas.
         </label>
       </div>
-      {running && (
+      {running && !compact && (
         <p style={{ fontSize: 11, margin: "4px 0" }}>
           Revisión antes de guardar · pausa automática cuando no se utiliza
         </p>
       )}
-      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginTop: compact ? 4 : 12,
+          fontSize: compact ? 11 : undefined,
+        }}
+      >
         {running && audioSuspended && (
           <button
             type="button"
@@ -581,7 +614,7 @@ export function DeepgramPilotVoice({
           Interrompi
         </button>
       </div>
-      {usage && (
+      {usage && !compact && (
         <p style={{ fontSize: 11 }}>
           Voz disponible: {(usage.remainingSeconds / 60).toFixed(1)} min ·{" "}
           {usage.estimatedMicrousd === null
@@ -589,7 +622,7 @@ export function DeepgramPilotVoice({
             : `estimación ${(usage.estimatedMicrousd / 1000000).toFixed(2)} USD`}
         </p>
       )}
-      {citations && (
+      {citations && !compact && (
         <details style={{ fontSize: 11, marginTop: 4 }}>
           <summary>Fuentes · {citations.name}</summary>
           {citations.sources.length ? (
@@ -610,7 +643,11 @@ export function DeepgramPilotVoice({
         </details>
       )}
       {!running && verifiedCount !== null && <p>Categorie verificate: {verifiedCount}</p>}
-      <div aria-live="polite" style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}>
+      <div
+        hidden={compact}
+        aria-live="polite"
+        style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}
+      >
         {(running ? lines.slice(-1) : lines).map((line, i) => (
           <p key={i} style={{ fontSize: 13, margin: running ? 0 : undefined }}>
             <b>{line.role === "user" ? "Tu" : "SNOOP"}:</b> {line.content}
