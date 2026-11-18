@@ -35,12 +35,12 @@ begin
  -- Database role is authoritative, never trust request permissions/club.
  if not exists (
   select 1 from public.user_roles r
-  join public.socio_wallet_staff_permissions p
+  left join public.socio_wallet_staff_permissions p
    on p.club_id=r.club_id and p.user_id=r.user_id
   where r.user_id=v_actor and r.club_id=p_club_id
    and r.role::text in ('admin','collaborator')
    and (r.role::text='admin' or 'use_cash'=any(r.permissions))
-   and p.can_topup is true
+   and (r.role::text='admin' or p.can_topup is true)
  ) then raise exception 'WALLET_TOPUP_NOT_AUTHORIZED' using errcode='42501'; end if;
  -- Lock the setting, cash session, member, card and wallet within one
  -- transaction. Closing cash, disabling a club or updating membership
@@ -62,7 +62,7 @@ begin
    on card.member_id=m.id and card.club_id=m.club_id
   where m.id=p_member_id and m.club_id=p_club_id
    and m.expires_at>=current_date and card.active and
-    card.revoked_at is null and card.wallet_enabled
+    card.revoked_at is null
   for share of m,card;
  if not found then
   raise exception 'WALLET_MEMBER_INACTIVE' using errcode='23514'; end if;
