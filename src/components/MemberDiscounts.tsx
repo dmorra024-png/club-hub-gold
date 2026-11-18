@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentClubId } from "@/lib/club";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +25,94 @@ export function MemberDiscounts({ memberId }: { memberId?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<MemberDiscount | null>(null);
   const [percentage, setPercentage] = useState("");
+  const newVoiceDiscounts = useRef<Record<string, Record<string, string>>>({});
+  const discountValues = (discount: MemberDiscount | null) => ({
+    name: discount?.name ?? "",
+    percentage: String((discount?.percentage_basis_points ?? 1000) / 100),
+    valid_from: discount?.valid_from ?? "",
+    valid_until: discount?.valid_until ?? "",
+  });
+  useVoiceToolPort(
+    "admin.discount",
+    {
+      ready: () => isAdmin && !memberId && loaded && !error && !busy,
+      baseline: () =>
+        editing && newVoiceDiscounts.current[editing.id]
+          ? newVoiceDiscounts.current[editing.id]
+          : discountValues(discounts.find((discount) => discount.id === editing?.id) ?? null),
+      snapshot: () => ({ ...discountValues(editing), percentage: editing ? percentage : "10" }),
+      patch: (values) => {
+        if (
+          !isAdmin ||
+          memberId ||
+          busy ||
+          !loaded ||
+          error ||
+          Object.keys(values).some(
+            (key) => !["name", "percentage", "valid_from", "valid_until"].includes(key),
+          )
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        const from = values.valid_from ?? editing?.valid_from,
+          until = values.valid_until ?? editing?.valid_until;
+        if (from && until && from > until) throw Error("SNOOP_INVALID_DATES");
+        const next = {
+          ...(editing ?? {
+            id: crypto.randomUUID(),
+            name: "",
+            percentage_basis_points: 1000,
+            active: true,
+            valid_from: null,
+            valid_until: null,
+          }),
+          ...(values.name === undefined ? {} : { name: values.name }),
+          ...(values.valid_from === undefined ? {} : { valid_from: values.valid_from || null }),
+          ...(values.valid_until === undefined ? {} : { valid_until: values.valid_until || null }),
+        };
+        if (!editing)
+          newVoiceDiscounts.current[next.id] = {
+            ...discountValues(next),
+            percentage: values.percentage ?? "10",
+          };
+        setEditing(next);
+        if (values.percentage !== undefined) setPercentage(values.percentage);
+        else if (!editing) setPercentage("10");
+      },
+    },
+    `${memberId ?? "settings"}:${editing?.id ?? "new"}`,
+  );
+  useVoiceToolPort(
+    "admin.member_discount",
+    {
+      ready: () => isAdmin && !!memberId && loaded && !error && !busy,
+      baseline: () => ({
+        discount_name: discounts.find((discount) => discount.id === assigned)?.name ?? "",
+      }),
+      snapshot: () => ({
+        discount_name: discounts.find((discount) => discount.id === selected)?.name ?? "",
+      }),
+      patch: (values) => {
+        if (
+          !isAdmin ||
+          !memberId ||
+          busy ||
+          !loaded ||
+          error ||
+          Object.keys(values).some((key) => key !== "discount_name")
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        const matches = discounts.filter(
+          (discount) =>
+            discount.name.toLocaleLowerCase() === values.discount_name?.toLocaleLowerCase(),
+        );
+        if (matches.length !== 1 || !matches[0].active || discountStatus(matches[0]) === "Caducado")
+          throw Error("SNOOP_UNKNOWN_DISCOUNT");
+        setSelected(matches[0].id);
+      },
+    },
+    memberId ?? "none",
+  );
+
   useEffect(() => {
     let current = true;
     if (loading || !canRead) return;

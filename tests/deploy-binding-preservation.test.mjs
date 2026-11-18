@@ -65,7 +65,7 @@ async function proof({
         CLOUDFLARE_API_TOKEN: canary,
         CLOUDFLARE_ACCOUNT_ID: account,
         GITHUB_REPOSITORY: "dmorra024-png/club-hub-gold",
-        GITHUB_REF_NAME: "codex/stabilize-independent-club",
+        GITHUB_REF_NAME: "integration/snoop-monederosocio-management-20261118",
         SNOOP_BINDINGS_CHECK_ONLY: String(checkOnly),
         SUPABASE_URL: "https://bnwanxbmprbymbutoths.supabase.co",
         APP_URL: "https://snoop-pilot.dmorra024.workers.dev",

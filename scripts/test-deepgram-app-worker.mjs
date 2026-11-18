@@ -15,6 +15,8 @@ const bundled = await build({
   write: false,
   format: "esm",
   platform: "browser",
+  // Production already uses nodejs_compat; resolve built-ins in Workerd itself.
+  external: ["node:*"],
   target: "es2022",
 });
 const script =
@@ -32,8 +34,8 @@ const bindings = {
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_synthetic-meter",
   SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
 };
-const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[];export default{async fetch(req){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
- if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools,closeAttempts,closeDurations});
+const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];export default{async fetch(req){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
+ if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools,closeAttempts,closeDurations,cashResponses,tables});
  if(u.hostname==='bnwanxbmprbymbutoths.supabase.co'){
   if(u.pathname==='/rest/v1/rpc/snoop_voice_usage'){
    if(req.headers.get('apikey')!=='sb_secret_synthetic-meter'||req.method!=='POST')throw Error('Meter credential scope');
@@ -41,11 +43,24 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
    if(p.p_operation==='close'){closeAttempts++;closeDurations.push(p.p_connected_ms);if(closeAttempts===1)return Response.json({message:'synthetic transient close failure'},{status:503});}
    return Response.json({session:p.p_id,sequence:p.p_sequence,state:p.p_operation==='close'?'closed':'active',leaseUntil:new Date(Date.now()+30000).toISOString(),reservedSeconds:30*(p.p_sequence+1),remainingSeconds:3500,monthlySeconds:3600,connectedMs:p.p_connected_ms,estimatedMicrousd:null,billedCostVerified:false});
   }
-  authCalls++;if(token.includes('revoked'))return new Response('denied',{status:401});
+  authCalls++;tables.push(u.pathname);if(token.includes('revoked'))return new Response('denied',{status:401});
   if(u.pathname==='/auth/v1/user')return Response.json({id:token.includes('otheruser')?'00000000-0000-4000-8000-000000000002':'${uid}'});
   if(u.pathname==='/rest/v1/rpc/snoop_access_context')return Response.json({role:token.includes('staff')?'collaborator':'admin',status:'active',clubId:token.includes('otherclub')?'other-club':'${club}',permissions:['manage_members','manage_products','use_cash','view_reports']});
-  if(['/rest/v1/products','/rest/v1/product_categories'].includes(u.pathname)&&req.method==='GET'&&u.searchParams.get('select')==='name'&&u.searchParams.get('club_id')==='eq.${club}')return Response.json([{name:u.pathname.endsWith('/products')?'Amnesia Haze':'Flores'}]);
+  if(['/rest/v1/products','/rest/v1/product_categories'].includes(u.pathname)&&req.method==='GET'&&u.searchParams.get('select')==='name'&&u.searchParams.get('club_id')==='eq.${club}'){if(u.searchParams.has('name')){if(u.searchParams.get('name')!=='ilike.%Flores Especial%'||u.searchParams.get('limit')!=='7')throw Error('Unbounded catalog lookup');return Response.json([{name:'Flores Especial'}]);}return Response.json([{name:u.pathname.endsWith('/products')?'Amnesia Haze':'Flores'}]);}
+  if(u.pathname==='/rest/v1/rpc/is_current_user_club_admin'&&req.method==='POST')return Response.json(true);
+  if(['/rest/v1/orders','/rest/v1/membership_receipts','/rest/v1/cash_sessions','/rest/v1/financial_order_reversals','/rest/v1/financial_order_refunds','/rest/v1/profiles'].includes(u.pathname)&&req.method==='GET'){
+   if(!token.includes('authorized'))throw Error('Cash requires user JWT');
+   if(!u.pathname.endsWith('/profiles')&&u.searchParams.get('club_id')!=='eq.${club}')throw Error('Cash club filter');
+   return Response.json([]);
+  }
   forbiddenCalls++;return new Response('unexpected data request',{status:403});
+ }
+ if(['www.wikidata.org','commons.wikimedia.org','html.duckduckgo.com','www.leafly.com','www.strainpedia.com','seedfinder.eu','www.allbud.com','www.wikileaf.com'].includes(u.hostname)){
+  if(token||req.headers.get('apikey'))throw Error('Credentials leaked to public source');
+  if(u.hostname==='www.wikidata.org')return Response.json({search:[{id:'Q123',label:'Amnesia Haze',description:'cannabis strain'}]});
+  if(u.hostname==='commons.wikimedia.org')return Response.json({});
+  if(u.pathname==='/robots.txt')return new Response('User-agent: *'+String.fromCharCode(10)+'Disallow: /');
+  return new Response('');
  }
  if(u.hostname==='agent.deepgram.com'&&u.pathname==='/v1/agent/converse'){
   providerCalls++;if(token!=='Token test-provider-only')return new Response('bad key',{status:401});
@@ -56,9 +71,15 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
     const r=m.agent.listen.provider,s=JSON.stringify(m);if(r.eot_threshold!==.85||r.eot_timeout_ms!==5000||!r.keyterms.includes('Amnesia Haze')||!r.keyterms.includes('Flores')||s.includes('${uid}')||s.includes('${club}')||s.includes('synthetic.authorized.token'))throw Error('Provider scope leaked');
     p[1].send(JSON.stringify({type:'SettingsApplied'}));
    }
-   if(m.type==='FunctionCallResponse'){const r=JSON.parse(m.content);if(r.ok!==true||r.persisted!==false||r.requiresConfirmation!==true)throw Error('Unsafe tool result');tools++;p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
+   if(m.type==='FunctionCallResponse'){const r=JSON.parse(m.content);
+    if(m.name==='snoop_catalog_search'){if(!r.ok||r.persisted!==false||r.matches.length!==1||r.matches[0]!=='Flores Especial')throw Error('Catalog lookup result');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'product',target:'product_create',member:{},product:{name:'Synthetic',category:'Flores Especial'},query:null,declined:[],question:'',asking:null})}]}));return;}
+if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
   }else{
-   if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:'Synthetic administrative draft'}));p[1].send(JSON.stringify({type:'AgentThinking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null})}]}));
+   if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
+   if([3,4].includes(new Uint8Array(e.data)[0])){const period=new Uint8Array(e.data)[0]===3;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'read-'+count,name:period?'snoop_cash_period':'snoop_genetics_information',client_side:true,arguments:JSON.stringify(period?{from:'2026-10-24',to:'2026-10-25'}:{name:'Amnesia Haze'})}]}));return;}
+   if(new Uint8Array(e.data)[0]===2){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-'+count,name:'snoop_catalog_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Flores Especial'})}]}));return;}
+   if(new Uint8Array(e.data)[0]===1){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cash-'+count,name:'snoop_cash_day',client_side:true,arguments:JSON.stringify({day:'2026-10-25'})}]}));return;}
+   p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:'Synthetic administrative draft'}));p[1].send(JSON.stringify({type:'AgentThinking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null})}]}));
   }});return new Response(null,{status:101,webSocket:p[0]});
  }
  forbiddenCalls++;return new Response('unexpected network request',{status:403});
@@ -195,6 +216,10 @@ try {
   s.ws.send(receipt);
   s.acknowledge();
   await until(() => s.events.some((e) => e.type === "Audio"));
+  assert(
+    s.events.some((e) => e.type === "AgentStartedSpeaking"),
+    "new audio turn signal must reach the browser",
+  );
   const concurrent = await socket("synthetic.authorized.token");
   await until(() => concurrent.events.some((e) => e.type === "AppClosed"));
   assert(concurrent.events.some((e) => e.code === "SESSION_LIMIT"));
@@ -211,6 +236,52 @@ try {
       () => s.events.filter((e) => e.type === "AppProposal" && e.result.ok).length === turn + 2,
     );
   }
+  const cashAudio = new Uint8Array(4800);
+  cashAudio[0] = 1;
+  s.ws.send(cashAudio.buffer);
+  await until(() =>
+    s.events.some((e) => e.type === "AppCashResult" && e.summary.day === "2026-10-25"),
+  ).catch(async (error) => {
+    console.error(
+      JSON.stringify({
+        events: s.events
+          .slice(-10)
+          .map((e) => ({ type: e.type, code: e.code, resultCode: e.result?.code, day: e.cashDay })),
+        stats: await stats(),
+      }),
+    );
+    throw error;
+  });
+  assert(
+    s.events.some((e) => e.type === "AppProposal" && e.cashDay === "2026-10-25"),
+    "requested date must reach the existing report UI",
+  );
+  const lookupAudio = new Uint8Array(4800);
+  lookupAudio[0] = 2;
+  s.ws.send(lookupAudio.buffer);
+  await until(() =>
+    s.events.some(
+      (e) =>
+        e.type === "AppProposal" &&
+        e.result.ok &&
+        e.result.proposal.product?.category === "Flores Especial",
+    ),
+  );
+  const periodAudio = new Uint8Array(4800);
+  periodAudio[0] = 3;
+  s.ws.send(periodAudio.buffer);
+  await until(() =>
+    s.events.some((e) => e.type === "AppCashPeriodResult" && e.summary.to === "2026-10-25"),
+  );
+  const beforeBotanical = (await stats()).tools;
+  const botanicalAudio = new Uint8Array(4800);
+  botanicalAudio[0] = 4;
+  s.ws.send(botanicalAudio.buffer);
+  await until(() => s.events.filter((e) => e.type === "Audio").length >= (closeRetryOnly ? 6 : 12));
+  assert(
+    (await stats()).tools > beforeBotanical,
+    "provider must receive the actual sourced botanical result",
+  );
   s.ws.send("STOP");
   await until(() => s.events.some((e) => e.code === "STOPPED"));
   s.ws.close();
@@ -225,13 +296,13 @@ try {
     "retry must not charge network outage time",
   );
   assert.equal(final.forbiddenCalls, 0);
-  assert.equal(final.tools, closeRetryOnly ? 2 : 8);
+  assert.equal(final.tools, closeRetryOnly ? 7 : 13);
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
   console.log(
     (compiled ? "PASS compiled application Worker: " : "PASS isolated Workerd gateway: ") +
       (closeRetryOnly ? " two synthetic turns" : " eight turns beyond 90s") +
-      ", authenticated audio, one active session, failed close retried once with frozen duration, no business writes or secret exposure (provider simulated)",
+      ", explicit day/period cash reads and sourced botanical information, on-demand catalog lookup beyond initial snapshot, authenticated audio, one active session, failed close retried once with frozen duration, no business writes or secret exposure (provider simulated)",
   );
 } finally {
   await mf.dispose();

@@ -1,5 +1,12 @@
+/** Parent member routes also render order children; their hidden editor is not a capability. */
+export function isMemberCardPath(path: string) {
+  const match = /^\/soci\/([^/]+)\/?$/.exec(path);
+  return !!match && !["nuovo", "gestisci", "importar"].includes(match[1]);
+}
 export type VoicePort = {
+  ready?: () => boolean;
   snapshot?: () => Record<string, string>;
+  baseline?: () => Record<string, string>;
   patch?: (values: Record<string, string>) => void;
   open?: (target: string, query?: string | null) => void;
   search?: (query: string) => void;
@@ -21,7 +28,7 @@ class ApplicationPorts {
     const until = performance.now() + timeout;
     while (valid() && performance.now() < until) {
       const port = this.get(owner, name);
-      if (port) return port;
+      if (port && (!port.ready || port.ready())) return port;
       await new Promise((r) => setTimeout(r, 20));
     }
     throw Error("SNOOP_FORM_UNAVAILABLE");

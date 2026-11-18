@@ -1,27 +1,38 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, mkdir } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3074";
 assert(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL ||
+    (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
-const file = (await readdir(".output/server/_ssr")).find((n) =>
-  n.startsWith("deepgram-pilot.functions-"),
-);
-const source = await readFile(".output/server/_ssr/" + file, "utf8");
-const id = (name) => {
-  const value = new RegExp(
-    "id:\\s*[\"'`]([a-f0-9]+)[\"'`],\\s*name:\\s*[\"'`]" + name + "[\"'`]",
-  ).exec(source)?.[1];
-  assert(value, name);
-  return value;
-};
-const statusId = id("deepgramPilotStatus"),
-  catalogId = id("deepgramPilotCatalog");
+// TanStack emits both SSR wrappers and server implementations; filesystem/hash
+// ordering must not decide which one the test reads. Require one unique real ID.
+async function serverFunctionId(name, prefix) {
+  const values = new Set();
+  for (const file of (await readdir(".output/server/_ssr")).filter((file) =>
+    file.startsWith(prefix),
+  )) {
+    const code = await readFile(".output/server/_ssr/" + file, "utf8");
+    const pattern = new RegExp(
+      "id:\\s*[\"'`]([a-f0-9]+)[\"'`],\\s*name:\\s*[\"'`]" + name + "[\"'`]",
+      "g",
+    );
+    for (const match of code.matchAll(pattern)) values.add(match[1]);
+  }
+  assert.equal(values.size, 1, "Expected one compiled server function: " + name);
+  return [...values][0];
+}
+const statusId = await serverFunctionId("deepgramPilotStatus", "deepgram-pilot.functions-"),
+  catalogId = await serverFunctionId("deepgramPilotCatalog", "deepgram-pilot.functions-"),
+  cashId = await serverFunctionId("getCashReport", "cash-sessions.functions-"),
+  historyId = await serverFunctionId("getMemberOrderHistory", "member-order-history.functions-"),
+  collaboratorListId = await serverFunctionId("listCollaborators", "platform.functions-"),
+  walletStatusId = await serverFunctionId("walletMemberStatus", "wallet-management.functions-");
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -54,6 +65,7 @@ const proposal = (intent, target, fields = {}) => ({
   ...fields,
 });
 await mkdir(".sandbox/deepgram", { recursive: true });
+const browserResults = [];
 for (const [label, engine, device] of [
   ["samsung", chromium, devices["Galaxy S9+"]],
   ["iphone-webkit", webkit, devices["iPhone 13"]],
@@ -65,7 +77,9 @@ for (const [label, engine, device] of [
           executablePath: existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined,
           args: ["--no-sandbox"],
         }
-      : {}),
+      : process.env.TEST_WEBKIT_EXECUTABLE_PATH
+        ? { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }
+        : {}),
   });
   try {
     const context = await browser.newContext({ ...device, serviceWorkers: "block" });
@@ -111,12 +125,17 @@ for (const [label, engine, device] of [
         }
         window.AudioContext = class {
           constructor() {
+            window.__audio.context = this;
+            this.state = "running";
             this.sampleRate = 48000;
             this.currentTime = 1;
             this.destination = new Node();
             this.audioWorklet = { addModule: async () => {} };
           }
-          async resume() {}
+          async resume() {
+            this.state = "running";
+            this.onstatechange?.();
+          }
           async close() {}
           createMediaStreamSource() {
             return new Node();
@@ -167,6 +186,24 @@ for (const [label, engine, device] of [
           context: {},
         });
       }
+      if (u.pathname.endsWith("/" + cashId)) {
+        const data = fromJSON(JSON.parse(req.postData())).data;
+        const day = data.day ?? "2026-10-25";
+        return json({
+          result: {
+            day,
+            admin: true,
+            start: "2026-10-24T22:00:00.000Z",
+            end: "2026-10-25T23:00:00.000Z",
+            movements: [],
+            sessions: [],
+            profiles: [],
+            refunds: [],
+            auditRecords: [],
+          },
+          context: {},
+        });
+      }
       if (u.origin === api.origin) {
         let data = [];
         if (
@@ -186,6 +223,36 @@ for (const [label, engine, device] of [
             clubName: "Club sintético",
             permissions: ["manage_members", "manage_products", "use_cash", "view_reports"],
           };
+        if (u.pathname.endsWith("/member_discounts"))
+          data = [
+            {
+              id: "50000000-0000-4000-8000-000000000001",
+              name: "Descuento sintético",
+              percentage_basis_points: 1000,
+              active: true,
+              valid_from: null,
+              valid_until: null,
+            },
+          ];
+        if (u.pathname.endsWith("/member_discount_assignments")) data = { discount_id: null };
+        if (u.pathname.endsWith("/members")) {
+          const member = {
+            id: club,
+            club_id: club,
+            member_number: "1042",
+            first_name: "Marco",
+            last_name: "Rossi",
+            birth_date: "1995-03-12",
+            city: "Palma",
+            phone: null,
+            email: null,
+            dni_number: "SYNTHETIC",
+            joined_at: "2026-01-01",
+            expires_at: "2030-01-01",
+            plan_id: null,
+          };
+          data = u.searchParams.get("id") ? member : [member];
+        }
         if (u.pathname.endsWith("/product_categories"))
           data = [
             {
@@ -212,6 +279,14 @@ for (const [label, engine, device] of [
           ];
         return json(data);
       }
+      if (u.pathname.includes(collaboratorListId)) return json({ result: [], context: {} });
+      if (u.pathname.includes(walletStatusId))
+        return json({
+          result: { enabled: true, clubEnabled: true, balanceCents: 12345, cashSessionId: club },
+          context: {},
+        });
+      if (u.pathname.includes(historyId))
+        return json({ result: { orders: [], ownOnly: false, hasMore: false }, context: {} });
       if (u.pathname.includes("_serverFn")) {
         unexpected.push(u.pathname);
         return json({ result: { available: false }, context: {} });
@@ -272,7 +347,19 @@ for (const [label, engine, device] of [
     assert.equal(sockets, 1);
     assert.equal(catalogCalls, 1);
     assert.equal(statusCalls, 1);
-    const send = async (p) => {
+    // A valid next response need not include AgentThinking. Interrupting an old
+    // answer must not permanently mute future Deepgram audio.
+    peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
+    peer.send(JSON.stringify({ type: "AgentStartedSpeaking" }));
+    peer.send(Buffer.alloc(4800));
+    await page.waitForFunction(() => window.__audio.played > 0);
+    await page.evaluate(() => {
+      window.__audio.context.state = "suspended";
+      window.__audio.context.onstatechange?.();
+    });
+    await panel.getByRole("button", { name: "Riattiva audio", exact: true }).click();
+    await page.waitForFunction(() => window.__audio.context.state === "running");
+    const send = async (p, extra = {}) => {
       peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
       peer.send(JSON.stringify({ type: "AgentThinking" }));
       peer.send(
@@ -280,6 +367,7 @@ for (const [label, engine, device] of [
           type: "AppProposal",
           id: "action-" + crypto.randomUUID(),
           result: { ok: true, proposal: p },
+          ...extra,
         }),
       );
     };
@@ -312,6 +400,282 @@ for (const [label, engine, device] of [
       timeout: 60000,
       animations: "disabled",
     });
+
+    await send(proposal("navigate", "members"));
+    await page.getByRole("link", { name: /Marco Rossi/ }).click();
+    await page.getByRole("heading", { name: "Marco Rossi", exact: true }).waitFor();
+    await send(proposal("member_edit", null, { member: { last_name: "Bianchi", city: "Inca" } }));
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((i) => i.value === "Bianchi"),
+    );
+    assert.equal(await page.getByLabel("Nombre", { exact: true }).inputValue(), "Marco");
+    assert.equal(await page.getByLabel("Ciudad", { exact: true }).inputValue(), "Inca");
+    await page.getByLabel("Apellido", { exact: true }).fill("Manual");
+    await send(proposal("member_edit", null, { member: { last_name: "Modelo", city: "Madrid" } }));
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((i) => i.value === "Madrid"),
+    );
+    assert.equal(await page.getByLabel("Apellido", { exact: true }).inputValue(), "Manual");
+    assert.equal(writes, 0, "member correction is a draft, never a hidden update");
+    await page.getByRole("button", { name: "Hacer pedido", exact: true }).click();
+    await page.getByRole("heading", { name: "Nuevo pedido", exact: true }).waitFor();
+    await send(proposal("member_edit", null, { member: { last_name: "Hidden" } }));
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Apri la scheda del socio prima di modificarla"),
+    );
+    assert.equal(writes, 0, "hidden parent editor cannot write from the nested order route");
+    await page.getByRole("link", { name: "Cancelar borrador", exact: true }).click();
+    await page.getByRole("heading", { name: "Marco Rossi", exact: true }).waitFor();
+    assert.equal(await page.getByLabel("Apellido", { exact: true }).inputValue(), "Manual");
+    for (const section of ["qr", "discounts", "renewal", "history"])
+      await send(proposal("member_section", null, { query: section }));
+    await page.getByText("Sin registros visibles.", { exact: true }).waitFor();
+    assert.equal(writes, 0, "opening renewal/history never charges or writes");
+    await send(
+      proposal("administrative_draft", null, {
+        form: { kind: "member_discount", fields: { discount_name: "Descuento inexistente" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Impossibile preparare il modulo"),
+    );
+    assert.equal(await page.getByLabel("Descuento asignado", { exact: true }).inputValue(), "");
+    await send(
+      proposal("administrative_draft", null, {
+        form: { kind: "member_discount", fields: { discount_name: "Descuento sintético" } },
+      }),
+    );
+    await page.waitForFunction(
+      () =>
+        document.querySelector('select[aria-label="Descuento asignado"]')?.value ===
+        "50000000-0000-4000-8000-000000000001",
+    );
+    if (process.env.TEST_WALLET_ENABLED === "true") {
+      const wallet = page.getByLabel("Monedero del socio", { exact: true });
+      await wallet.waitFor();
+      await send(
+        proposal("administrative_draft", null, {
+          form: { kind: "wallet_topup", fields: { amount: "25,50" } },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "25,50"),
+      );
+      assert.equal(await wallet.getByRole("checkbox").isChecked(), false);
+      await wallet.getByRole("checkbox").check();
+      await send(
+        proposal("administrative_draft", null, {
+          form: { kind: "wallet_topup", fields: { amount: "30,25" } },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "30,25"),
+      );
+      assert.equal(
+        await wallet.getByRole("checkbox").isChecked(),
+        false,
+        "changed voice amount must revoke prior confirmation",
+      );
+      assert.equal(writes, 0, "wallet preparation never calls topup or activation");
+      await page.screenshot({
+        path: ".sandbox/deepgram/" + label + "-wallet-draft.png",
+        fullPage: false,
+      });
+    }
+
+    await page.screenshot({
+      path: ".sandbox/deepgram/" + label + "-member-edit.png",
+      fullPage: true,
+    });
+    await send(proposal("navigate", "profile"));
+    await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
+    assert.equal(sockets, 1, "profile navigation must preserve the voice session");
+    await page.getByRole("button", { name: "Abrir menú", exact: true }).click({ trial: true });
+    await send(proposal("navigate", "cash_report"), { cashDay: "2026-10-25" });
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Fecha del informe"]')?.value === "2026-10-25",
+    );
+    assert.equal(sockets, 1, "dated report must retain the same voice session");
+    await send(proposal("cash_draft", "cash", { cash: { opening_cash: "50,25" } }));
+    await page.waitForFunction(
+      () => document.querySelector('input[aria-label="Dinero inicial (€)"]')?.value === "50,25",
+    );
+    await page.getByLabel("Dinero inicial (€)", { exact: true }).fill("75");
+    await send(proposal("cash_draft", "cash", { cash: { opening_cash: "60" } }));
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Conservo le modifiche manuali"),
+    );
+    assert.equal(await page.getByLabel("Dinero inicial (€)", { exact: true }).inputValue(), "75");
+    assert.equal(writes, 0, "cash draft must never open a session automatically");
+    await send(proposal("review", null));
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Rivedi i dati e conferma dal modulo"),
+    );
+    assert(
+      actionReceipts.some(
+        (receipt) =>
+          receipt.status === "confirmation_required" && receipt.code === "CONFIRMATION_REQUIRED",
+      ),
+    );
+    assert.equal(writes, 0, "review requires explicit manual confirmation and never saves");
+    peer.send(
+      JSON.stringify({
+        type: "AppCashPeriodResult",
+        summary: { from: "2026-10-24", to: "2026-10-25", cents: 1750, scope: "club" },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("2026-10-24 – 2026-10-25: 17.50 €"),
+    );
+    peer.send(
+      JSON.stringify({
+        type: "AppGeneticsResult",
+        name: "Amnesia Haze",
+        verified: true,
+        sources: [
+          "https://www.leafly.com/strains/amnesia-haze",
+          "javascript:alert(1)",
+          "https://untrusted.invalid/steal",
+          "https://www.leafly.com/shop/amnesia-haze",
+        ],
+      }),
+    );
+    await panel.getByRole("button", { name: "Dettagli SNOOP", exact: true }).click();
+    await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
+    assert.equal(
+      await panel.locator("a").count(),
+      1,
+      "only verified informational citations may be linked",
+    );
+    assert.equal(
+      await panel.locator("a").getAttribute("href"),
+      "https://www.leafly.com/strains/amnesia-haze",
+    );
+    await panel.locator("summary").filter({ hasText: "Fuentes" }).click();
+    await panel.getByRole("button", { name: "Riduci SNOOP", exact: true }).click();
+    await send(
+      proposal("administrative_draft", "collaborators", {
+        form: {
+          kind: "collaborator_invite",
+          fields: { first_name: "Ana", last_name: "Prueba", email: "synthetic@example.test" },
+        },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some(
+        (input) => input.value === "synthetic@example.test",
+      ),
+    );
+    await page.getByLabel("Apellidos", { exact: true }).fill("Manual");
+    await send(
+      proposal("administrative_draft", "collaborators", {
+        form: { kind: "collaborator_invite", fields: { last_name: "Modelo" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Conservo le modifiche manuali"),
+    );
+    assert.equal(await page.getByLabel("Apellidos", { exact: true }).inputValue(), "Manual");
+    for (let round = 0; round < 4; round++) {
+      await send(
+        proposal("administrative_draft", "membership_fees", {
+          form: {
+            kind: "membership_fee",
+            fields: { name: "Cuota sintética", duration_days: "180", price: "30,25" },
+          },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "30.25"),
+      );
+      await send(
+        proposal("administrative_draft", "membership_fees", {
+          form: { kind: "membership_fee", fields: { price: "32,50" } },
+        }),
+      );
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("input")].some((input) => input.value === "32.5"),
+      );
+      await send(
+        proposal("administrative_draft", "membership_fees", {
+          form: { kind: "membership_fee", fields: { price: "33,50" } },
+        }),
+      );
+      await page
+        .waitForFunction(() =>
+          [...document.querySelectorAll("input")].some((input) => input.value === "33.5"),
+        )
+        .catch(async (error) => {
+          console.error(
+            "Fee correction metadata",
+            JSON.stringify({
+              browser: label,
+              round,
+              receipts: actionReceipts
+                .slice(-4)
+                .map(({ status, code, applied, skipped }) => ({ status, code, applied, skipped })),
+            }),
+          );
+          await page.screenshot({ path: ".sandbox/deepgram/" + label + "-fee-failure.png" });
+          throw error;
+        });
+      await page.getByRole("button", { name: "Guardar", exact: true }).click({ trial: true });
+      assert(
+        (await panel.boundingBox()).height <= 120,
+        "active voice must stay compact above the form",
+      );
+      if (round < 3) await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+    }
+    await page.screenshot({
+      path: ".sandbox/deepgram/" + label + "-fee-draft.png",
+      fullPage: false,
+    });
+    await page.getByLabel("Precio (€)", { exact: true }).fill("45.75");
+    await send(
+      proposal("administrative_draft", "membership_fees", {
+        form: { kind: "membership_fee", fields: { price: "40,50" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      document.body.innerText.includes("Conservo le modifiche manuali"),
+    );
+    assert.equal(await page.getByLabel("Precio (€)", { exact: true }).inputValue(), "45.75");
+    assert.equal(writes, 0, "consecutive corrections must never save a fee");
+    await send(
+      proposal("administrative_draft", "membership_settings", {
+        form: {
+          kind: "discount",
+          fields: {
+            name: "Descuento de prueba",
+            percentage: "12,50",
+            valid_from: "2026-11-18",
+            valid_until: "2026-12-31",
+          },
+        },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some(
+        (input) => input.value === "Descuento de prueba",
+      ),
+    );
+    await send(
+      proposal("administrative_draft", "membership_settings", {
+        form: { kind: "discount", fields: { percentage: "15,25" } },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((input) => input.value === "15,25"),
+    );
+    assert.equal(
+      writes,
+      0,
+      "administrative drafts must not invite, save fees, assign discounts or top up",
+    );
+    await page.screenshot({
+      path: ".sandbox/deepgram/" + label + "-discount-draft.png",
+      fullPage: false,
+    });
     await send(
       proposal("product", "product_create", {
         product: { name: "Amnesia Haze", category: "Flores" },
@@ -340,8 +704,14 @@ for (const [label, engine, device] of [
         document.querySelector('input[placeholder="ej. Flores"]')?.value === "Categoría sintética",
     );
     assert.equal(sockets, 1, "internal navigation must retain the same authenticated socket");
-    assert(actionReceipts.some(r=>r.applied.includes("first_name")),"application must acknowledge the actual patched fields");
-    assert(actionReceipts.some(r=>r.skipped.includes("last_name")),"manual edits must be reported as preserved");
+    assert(
+      actionReceipts.some((r) => r.applied.includes("first_name")),
+      "application must acknowledge the actual patched fields",
+    );
+    assert(
+      actionReceipts.some((r) => r.skipped.includes("last_name")),
+      "manual edits must be reported as preserved",
+    );
     peer.send(Buffer.alloc(2400));
     await page.waitForFunction(() => window.__audio.played > 0);
     peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
@@ -406,6 +776,14 @@ for (const [label, engine, device] of [
       "collaborators retain legacy without querying the admin gate",
     );
     assert.equal(sockets, 1);
+    await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
+    await page.getByLabel("Sesión de voz", { exact: true }).waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
+    await page.getByRole("link", { name: "Ajustes", exact: true }).first().click();
+    await page.getByRole("heading", { name: "Ajustes", exact: true }).waitFor();
+    await page.getByRole("link", { name: /Mi perfil/ }).waitFor();
+    assert.equal(await page.getByRole("link", { name: /Colaboradores/ }).count(), 0);
+    assert.equal(await page.getByRole("link", { name: /Cuotas/ }).count(), 0);
     assert.equal(writes, 0);
     assert.deepEqual(errors, []);
     console.log(
@@ -413,8 +791,22 @@ for (const [label, engine, device] of [
         label +
         ": Deepgram dock, consent, one persistent socket, real member/product/category forms, search, protected manual edits, streamed playback/interruption, stop, no automatic writes (audio/provider simulated)",
     );
+    browserResults.push({
+      browser: label,
+      syntheticAuth: true,
+      syntheticAudio: true,
+      syntheticProvider: true,
+      automaticWrites: writes,
+      walletDraft: process.env.TEST_WALLET_ENABLED === "true",
+      result: "PASS",
+    });
     await context.close();
   } finally {
     await browser.close();
   }
 }
+
+await writeFile(
+  ".sandbox/deepgram/administrative-results.json",
+  JSON.stringify(browserResults, null, 2),
+);

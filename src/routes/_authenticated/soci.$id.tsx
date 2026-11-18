@@ -1,6 +1,10 @@
+import { isMemberCardPath } from "@/lib/voice/application-ports";
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { MemberDiscounts } from "@/components/MemberDiscounts";
 import { AdministrativePaymentDialog } from "@/components/AdministrativePaymentDialog";
 import { MemberOrderHistory } from "@/components/MemberOrderHistory";
+import { WalletTopupPanel } from "@/components/WalletTopupPanel";
+import { SocioClientLinkPanel } from "@/components/SocioClientLinkPanel";
 import { madridToday, addCalendarDays, isAdult } from "@/lib/member-administration";
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
@@ -57,6 +61,7 @@ function SocioDetail() {
   const { id } = Route.useParams();
   const nav = useNavigate();
   const location = useLocation();
+  const memberCardVisible = isMemberCardPath(location.pathname);
   const { isAdmin } = useAuth();
   const [member, setMember] = useState<Member | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -73,7 +78,64 @@ function SocioDetail() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Member>>({});
   const [savingEdit, setSavingEdit] = useState(false);
+  const memberSections = useRef<Record<string, HTMLElement | null>>({});
+  const [historyRequest, setHistoryRequest] = useState(0);
+  useVoiceToolPort(
+    "member.sections",
+    {
+      ready: () => memberCardVisible && !!member && member.id === id,
+      open: (section) => {
+        if (
+          !memberCardVisible ||
+          !member ||
+          member.id !== id ||
+          !["qr", "history", "discounts", "renewal"].includes(section)
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        const element = memberSections.current[section];
+        if (!element) throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (section === "history") setHistoryRequest((value) => value + 1);
+        element.scrollIntoView({ block: "center", behavior: "smooth" });
+      },
+    },
+    id,
+  );
   const [resendingQr, setResendingQr] = useState(false);
+  // Existing member editor only: no persistence or personal data returned to AI.
+  const memberVoiceValues = (source: Partial<Member> | null) =>
+    Object.fromEntries(
+      ["first_name", "last_name", "birth_date", "city", "phone"].map((key) => [
+        key,
+        String(source?.[key as keyof Member] ?? ""),
+      ]),
+    );
+  useVoiceToolPort(
+    "member.edit",
+    {
+      ready: () => memberCardVisible && !!member && member.id === id && !savingEdit,
+      baseline: () => {
+        if (!memberCardVisible || !member || member.id !== id)
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        return memberVoiceValues(member);
+      },
+      snapshot: () => {
+        if (!memberCardVisible || !member || member.id !== id)
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        return memberVoiceValues(editing ? form : member);
+      },
+      patch: (values) => {
+        if (!memberCardVisible || !member || member.id !== id || savingEdit)
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        const allowed = new Set(["first_name", "last_name", "birth_date", "city", "phone"]);
+        if (Object.keys(values).some((key) => !allowed.has(key)))
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        setForm((current) => ({ ...(editing ? current : member), ...values }));
+        setEditing(true);
+      },
+    },
+    id,
+  );
+
   const [qrMailStatus, setQrMailStatus] = useState("");
   async function checkQrMail() {
     try {
@@ -134,7 +196,11 @@ function SocioDetail() {
       const name = [member.first_name, member.last_name].join(" ").trim();
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: "Carnet QR SNOOP", text: `Carnet QR de ${name}` });
+          await navigator.share({
+            files: [file],
+            title: "Carnet QR SNOOP",
+            text: `Carnet QR de ${name}`,
+          });
         } catch (error) {
           if ((error as Error)?.name !== "AbortError") throw error;
         }
@@ -477,7 +543,14 @@ function SocioDetail() {
           <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 flex flex-col items-center text-center">
             <div className="flex items-center gap-2 mb-3">
               <QrCode className="w-4 h-4 text-neon" />
-              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Carnet QR</div>
+              <div
+                ref={(element) => {
+                  memberSections.current.qr = element;
+                }}
+                className="text-[10px] uppercase tracking-[0.3em] text-neon-dim"
+              >
+                Carnet QR
+              </div>
             </div>
             {qrUrl ? (
               <img src={qrUrl} alt={`QR socio ${member.member_number}`} className="w-44 h-44" />
@@ -534,7 +607,14 @@ function SocioDetail() {
           <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-3">
               <RefreshCw className="w-4 h-4 text-neon" />
-              <div className="font-display text-sm">Renovar cuota</div>
+              <div
+                ref={(element) => {
+                  memberSections.current.renewal = element;
+                }}
+                className="font-display text-sm"
+              >
+                Renovar cuota
+              </div>
             </div>
             <select
               value={newPlanId}
@@ -592,8 +672,22 @@ function SocioDetail() {
           )}
         </div>
       </div>
-      <MemberDiscounts memberId={id} />
-      <MemberOrderHistory memberId={id} />
+      <div
+        ref={(element) => {
+          memberSections.current.discounts = element;
+        }}
+      >
+        <MemberDiscounts memberId={id} />
+      </div>
+      <SocioClientLinkPanel memberId={id} />
+      <WalletTopupPanel memberId={id} />
+      <div
+        ref={(element) => {
+          memberSections.current.history = element;
+        }}
+      >
+        <MemberOrderHistory memberId={id} openRequest={historyRequest} />
+      </div>
     </SnoopLayout>
   );
 }

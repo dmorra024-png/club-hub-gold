@@ -1,5 +1,11 @@
 import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
-import { voiceCashToday } from "./voice/cash-read.server.ts";
+import {
+  voiceCashToday,
+  voiceCashDay,
+  VoiceCashDay,
+  voiceCashPeriod,
+} from "./voice/cash-read.server.ts";
+import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -11,6 +17,7 @@ import { parseAccountAccess, type AccountAccess } from "./access-context.ts";
 import { deepgramPilotAllowed, normalizedPilotNames } from "./deepgram-pilot-policy.ts";
 import { agentSettings, authorizeProposal } from "./voice/agent-settings.server.ts";
 import type { CatalogVocabulary } from "./voice/catalog-vocabulary.ts";
+import { voiceCatalogSearch, VoiceCatalogQuery } from "./voice/catalog-read.server.ts";
 
 const SAFE_FAILURES = new Set([
   "AUTH_CONFIG",
@@ -167,7 +174,12 @@ export async function deepgramAppSocket(
   const seen = new Set<string>();
   const pending = new Map<
     string,
-    { name: string; timer: ReturnType<typeof setTimeout>; proposal: ConversationProposalValue }
+    {
+      name: string;
+      timer: ReturnType<typeof setTimeout>;
+      proposal: ConversationProposalValue;
+      cashDay?: string;
+    }
   >();
   let deadline: ReturnType<typeof setTimeout>;
   const send = (body: unknown) => {
@@ -303,9 +315,140 @@ export async function deepgramAppSocket(
               for (const f of m.functions || []) {
                 if (f.client_side !== true) continue;
                 if (typeof f.id === "string" && seen.has(f.id)) continue;
+                if (
+                  [
+                    "snoop_catalog_search",
+                    "snoop_cash_period",
+                    "snoop_genetics_information",
+                  ].includes(f.name)
+                ) {
+                  const id = f.id;
+                  if (typeof id !== "string" || !id.length || id.length > 120) {
+                    close("PROVIDER_INVALID");
+                    continue;
+                  }
+                  if (!newTurn || ++calls > 8) {
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id,
+                        name: f.name,
+                        content: JSON.stringify({
+                          ok: false,
+                          code: "SNOOP_PROPOSAL_REJECTED",
+                          persisted: false,
+                        }),
+                      }),
+                    );
+                    continue;
+                  }
+                  seen.add(id);
+                  void (async () => {
+                    const unavailable =
+                      f.name === "snoop_cash_period"
+                        ? "CASH_UNAVAILABLE"
+                        : f.name === "snoop_genetics_information"
+                          ? "GENETICS_SOURCES_UNAVAILABLE"
+                          : "CATALOG_UNAVAILABLE";
+                    let outcome: unknown = {
+                      ok: false,
+                      code: unavailable,
+                      persisted: false,
+                    };
+                    try {
+                      const args = JSON.parse(f.arguments);
+                      const current = await verifySession(
+                        verifiedToken,
+                        env,
+                        authController.signal,
+                      );
+                      if (
+                        current.user !== verified.user ||
+                        current.access.clubId !== verified.access.clubId
+                      )
+                        throw Error("AUTH_FORBIDDEN");
+                      if (f.name === "snoop_catalog_search") {
+                        const query = VoiceCatalogQuery.parse(args);
+                        const result = await voiceCatalogSearch(
+                          setting(env, "SUPABASE_URL"),
+                          setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                          verifiedToken,
+                          current.access,
+                          query,
+                          fetch,
+                          authController.signal,
+                        );
+                        if (ended) return;
+                        verified.catalog = {
+                          ...verified.catalog,
+                          [query.kind]: [
+                            ...new Set([...result.matches, ...verified.catalog[query.kind]]),
+                          ].slice(0, 35),
+                        };
+                        outcome = { ok: true, ...result };
+                      } else if (f.name === "snoop_cash_period") {
+                        const summary = await voiceCashPeriod(
+                          setting(env, "SUPABASE_URL"),
+                          setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                          verifiedToken,
+                          current.user,
+                          current.access,
+                          args,
+                        );
+                        if (ended) return;
+                        outcome = { ok: true, ...summary };
+                        send({ type: "AppCashPeriodResult", summary });
+                      } else {
+                        const information = await voiceGeneticsInformation(
+                          args,
+                          fetch,
+                          authController.signal,
+                        );
+                        if (ended) return;
+                        outcome = { ok: true, ...information };
+                        send({
+                          type: "AppGeneticsResult",
+                          name: information.name,
+                          verified: information.verified,
+                          sources: information.sources,
+                        });
+                      }
+                      history.push({
+                        role: "assistant",
+                        content: ("Authorized read result: " + JSON.stringify(outcome)).slice(
+                          0,
+                          1200,
+                        ),
+                      });
+                      if (history.length > 10) history.shift();
+                      void checkpoint();
+                    } catch (error) {
+                      outcome = {
+                        ok: false,
+                        persisted: false,
+                        code:
+                          error instanceof Error && SAFE_FAILURES.has(error.message)
+                            ? error.message
+                            : unavailable,
+                      };
+                    }
+                    if (!ended)
+                      try {
+                        upstream?.send(
+                          JSON.stringify({
+                            type: "FunctionCallResponse",
+                            id,
+                            name: f.name,
+                            content: JSON.stringify(outcome),
+                          }),
+                        );
+                      } catch {}
+                  })();
+                  continue;
+                }
                 let result: unknown = { ok: false, code: "SNOOP_PROPOSAL_REJECTED" };
                 if (
-                  ["snoop_propose", "snoop_cash_today"].includes(f.name) &&
+                  ["snoop_propose", "snoop_cash_today", "snoop_cash_day"].includes(f.name) &&
                   typeof f.id === "string" &&
                   f.id.length <= 120 &&
                   !seen.has(f.id) &&
@@ -316,11 +459,15 @@ export async function deepgramAppSocket(
                   try {
                     const args = JSON.parse(f.arguments);
                     const proposal =
-                      f.name === "snoop_cash_today"
-                        ? args &&
-                          typeof args === "object" &&
-                          !Array.isArray(args) &&
-                          Object.keys(args).length === 0
+                      f.name === "snoop_cash_today" || f.name === "snoop_cash_day"
+                        ? (
+                            f.name === "snoop_cash_day"
+                              ? VoiceCashDay.safeParse(args).success
+                              : args &&
+                                typeof args === "object" &&
+                                !Array.isArray(args) &&
+                                Object.keys(args).length === 0
+                          )
                           ? {
                               intent: "navigate",
                               target: "cash_report",
@@ -365,8 +512,16 @@ export async function deepgramAppSocket(
                     name: f.name,
                     timer,
                     proposal: (result as { proposal: ConversationProposalValue }).proposal,
+                    ...(f.name === "snoop_cash_day"
+                      ? { cashDay: VoiceCashDay.parse(JSON.parse(f.arguments)).day }
+                      : {}),
                   });
-                  send({ type: "AppProposal", id, result });
+                  send({
+                    type: "AppProposal",
+                    id,
+                    result,
+                    ...(pending.get(id)?.cashDay ? { cashDay: pending.get(id)!.cashDay } : {}),
+                  });
                 } else {
                   send({ type: "AppProposal", id: f.id, result });
                   upstream?.send(
@@ -411,6 +566,7 @@ export async function deepgramAppSocket(
               });
             } else if (
               m.type === "UserStartedSpeaking" ||
+              m.type === "AgentStartedSpeaking" ||
               m.type === "AgentThinking" ||
               m.type === "AgentAudioDone"
             ) {
@@ -480,7 +636,10 @@ export async function deepgramAppSocket(
         pending.delete(receipt.data.id);
         memory = acknowledgedMemory(memory, item.proposal, receipt.data);
         let outcome: unknown = actionOutcome(receipt.data);
-        if (item.name === "snoop_cash_today" && receipt.data.status !== "rejected") {
+        if (
+          ["snoop_cash_today", "snoop_cash_day"].includes(item.name) &&
+          receipt.data.status !== "rejected"
+        ) {
           try {
             const verified = await verifySession(verifiedToken, env, authController.signal);
             if (
@@ -490,13 +649,16 @@ export async function deepgramAppSocket(
               !verified.access.permissions.includes("view_reports")
             )
               throw Error("AUTH_FORBIDDEN");
-            const summary = await voiceCashToday(
+            const baseArgs = [
               setting(env, "SUPABASE_URL"),
               setting(env, "SUPABASE_PUBLISHABLE_KEY"),
               verifiedToken,
               verified.user,
               verified.access.clubId!,
-            );
+            ] as const;
+            const summary = item.cashDay
+              ? await voiceCashDay(...baseArgs, item.cashDay)
+              : await voiceCashToday(...baseArgs);
             outcome = { ok: true, status: "read", persisted: false, summary };
             send({ type: "AppCashResult", summary });
           } catch {

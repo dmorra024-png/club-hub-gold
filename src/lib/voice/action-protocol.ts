@@ -8,6 +8,17 @@ const FieldKey = z.enum([
   "phone",
   "name",
   "category",
+  "opening_cash",
+  "closing_cash",
+  "notes",
+  "email",
+  "duration_days",
+  "price",
+  "percentage",
+  "valid_from",
+  "valid_until",
+  "discount_name",
+  "amount",
 ]);
 export const ActionReceipt = z
   .object({
@@ -31,6 +42,10 @@ export const ActionReceipt = z
 export const actionDefinitions = Object.freeze({
   navigate: { effect: "navigation", confirmation: false },
   member: { effect: "draft", confirmation: false },
+  member_edit: { effect: "draft", confirmation: true },
+  member_section: { effect: "navigation", confirmation: false },
+  cash_draft: { effect: "draft", confirmation: true },
+  administrative_draft: { effect: "draft", confirmation: true },
   product: { effect: "informational-draft", confirmation: false },
   category: { effect: "draft", confirmation: false },
   search: { effect: "read", confirmation: false },
@@ -48,7 +63,7 @@ export function actionOutcome(value: unknown) {
     skipped: receipt.skipped,
     code: receipt.code,
     persisted: receipt.status === "completed",
-    requiresConfirmation: receipt.status !== "completed",
+    requiresConfirmation: ["prepared", "confirmation_required"].includes(receipt.status),
   };
 }
 
@@ -61,7 +76,8 @@ export function acknowledgedMemory(
   const receipt = ActionReceipt.parse(value);
   if (receipt.status === "rejected") return previous;
   const next = structuredClone(previous);
-  if (["member", "product", "category", "search"].includes(proposal.intent))
+  if (proposal.intent === "member_edit") next.operation = "member";
+  else if (["member", "product", "category", "search"].includes(proposal.intent))
     next.operation = proposal.intent as ConversationMemoryValue["operation"];
   for (const field of receipt.applied) {
     if (Object.hasOwn(proposal.member, field))

@@ -10,6 +10,7 @@ import type { DictationPhase } from "@/hooks/useWhisperDictation";
 import { applyDeepgramDraft } from "@/lib/deepgram-draft-actions";
 import { voiceOwner } from "@/lib/voice/application-ports";
 import type { AccountAccess } from "@/lib/access-context";
+import { voiceGeneticsSource } from "@/lib/voice/source-links";
 
 type Language = "it" | "es" | "en";
 type Entry = { role: "user" | "assistant"; content: string };
@@ -53,12 +54,15 @@ export function DeepgramPilotVoice({
   const audio = useRef<AudioState | null>(null);
   const generation = useRef(0);
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [running, setRunning] = useState(false);
+  const [audioSuspended, setAudioSuspended] = useState(false);
   const [status, setStatus] = useState("Pronto");
   const [language, setLanguage] = useState<Language>("es");
   const [consent, setConsent] = useState(false);
   const [lines, setLines] = useState<Entry[]>([]);
   const [proposal, setProposal] = useState<ConversationProposalValue | null>(null);
+  const [citations, setCitations] = useState<{ name: string; sources: string[] } | null>(null);
   const [verifiedCount, setVerifiedCount] = useState<number | null>(null);
 
   const interrupt = useCallback(() => {
@@ -83,8 +87,10 @@ export function DeepgramPilotVoice({
         voiceValues.current = {};
         resumeRef.current = undefined;
       }
+      setExpanded(false);
       setLines([]);
       setProposal(null);
+      setCitations(null);
       const state = audio.current;
       audio.current = null;
       if (state) {
@@ -109,6 +115,7 @@ export function DeepgramPilotVoice({
       }
       setStatus(reason);
       setRunning(false);
+      setAudioSuspended(false);
       onPhaseChange?.("idle");
     },
     [onPhaseChange],
@@ -152,6 +159,8 @@ export function DeepgramPilotVoice({
     state.sounds.push(sound);
     sound.onended = () => {
       state.sounds = state.sounds.filter((s) => s !== sound);
+      if (audio.current === state && state.sounds.length === 0 && state.ready)
+        setStatus("SNOOP ti ascolta");
     };
     sound.start(at);
     setStatus("SNOOP sta parlando");
@@ -169,6 +178,12 @@ export function DeepgramPilotVoice({
       // Audio activation stays in the click event for mobile Safari.
       ctx = new AudioContext({ sampleRate: 48000 });
       await ctx.resume();
+      ctx.onstatechange = () => {
+        if (audio.current?.ctx !== ctx) return;
+        const paused = ctx?.state === "suspended" || (ctx?.state as string) === "interrupted";
+        setAudioSuspended(paused);
+        if (paused) setStatus("Audio sospeso dal dispositivo. Tocca Riattiva audio.");
+      };
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: false,
@@ -290,6 +305,11 @@ export function DeepgramPilotVoice({
             utterancePath.current = pathRef.current;
             interrupt();
             setStatus("Ti ascolto…");
+          } else if (message.type === "AgentStartedSpeaking") {
+            // Deepgram can begin the next audio response without an AgentThinking event.
+            // A previous interruption must suppress the old response, not all future speech.
+            state.suppressed = false;
+            setStatus("SNOOP sta parlando");
           } else if (message.type === "AgentThinking") {
             state.suppressed = false;
             setStatus("SNOOP sta elaborando…");
@@ -329,26 +349,37 @@ export function DeepgramPilotVoice({
                   utterancePath.current = to;
                 },
                 last: voiceValues.current,
+                reportDay: message.cashDay,
               });
               if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
                   id: message.id,
                   status:
-                    applied.proposal.intent === "navigate" || applied.proposal.intent === "search"
-                      ? "opened"
-                      : "prepared",
+                    applied.proposal.intent === "review"
+                      ? "confirmation_required"
+                      : ["navigate", "search", "member_section"].includes(applied.proposal.intent)
+                        ? "opened"
+                        : "prepared",
                   applied: applied.applied,
                   skipped: applied.skipped,
-                  code: applied.skipped.length ? "MANUAL_EDIT_PRESERVED" : "OK",
+                  code: applied.skipped.length
+                    ? "MANUAL_EDIT_PRESERVED"
+                    : applied.proposal.intent === "review"
+                      ? "CONFIRMATION_REQUIRED"
+                      : "OK",
                 });
               setProposal(applied.proposal);
               setStatus(
                 applied.skipped.length
                   ? "Conservo le modifiche manuali. Verifica la bozza."
-                  : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
+                  : applied.proposal.intent === "review"
+                    ? "Rivedi i dati e conferma dal modulo. Nessun dato salvato."
+                    : ["navigate", "search", "member_section"].includes(applied.proposal.intent)
+                      ? "Sezione aperta. Nessun dato salvato."
+                      : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
               );
-            } catch {
+            } catch (error) {
               if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
@@ -358,7 +389,11 @@ export function DeepgramPilotVoice({
                   skipped: [],
                   code: "FORM_UNAVAILABLE",
                 });
-              setStatus("Impossibile preparare il modulo. Nessun dato salvato.");
+              setStatus(
+                error instanceof Error && error.message === "SNOOP_FORM_UNAVAILABLE_MEMBER_CARD"
+                  ? "Apri la scheda del socio prima di modificarla. Nessun dato salvato."
+                  : "Impossibile preparare il modulo. Nessun dato salvato.",
+              );
             } finally {
               applying.current = false;
             }
@@ -367,6 +402,29 @@ export function DeepgramPilotVoice({
               setStatus(
                 `${message.summary.day}: ${(message.summary.cents / 100).toFixed(2)} € · ${message.summary.scope === "club" ? "club" : "tu actividad"}`,
               );
+          } else if (message.type === "AppCashPeriodResult") {
+            const summary = message.summary;
+            if (
+              Number.isSafeInteger(summary?.cents) &&
+              typeof summary.from === "string" &&
+              typeof summary.to === "string"
+            )
+              setStatus(
+                `${summary.from} – ${summary.to}: ${(summary.cents / 100).toFixed(2)} € · ${summary.scope === "club" ? "club" : "tu actividad"}`,
+              );
+          } else if (
+            message.type === "AppGeneticsResult" &&
+            typeof message.name === "string" &&
+            Array.isArray(message.sources)
+          ) {
+            setCitations({
+              name: message.name.slice(0, 100),
+              sources: message.sources
+                .filter(
+                  (s: unknown) => typeof s === "string" && voiceGeneticsSource(s, message.name),
+                )
+                .slice(0, 9),
+            });
           } else if (message.type === "AppError") {
             stop("Deepgram: " + String(message.code || "PROVIDER_ERROR").slice(0, 80));
           } else if (message.type === "AppClosed") {
@@ -427,6 +485,7 @@ export function DeepgramPilotVoice({
     }
   };
 
+  const compact = running && !expanded;
   return open ? (
     <section
       role="dialog"
@@ -435,22 +494,36 @@ export function DeepgramPilotVoice({
         position: "fixed",
         left: 12,
         right: 12,
-        bottom: 78,
+        top: compact ? "calc(env(safe-area-inset-top, 0px) + 8px)" : undefined,
+        bottom: compact ? undefined : 78,
         zIndex: 100,
         borderRadius: 18,
-        padding: running ? 12 : 18,
+        padding: compact ? 8 : running ? 12 : 18,
         background: "#0e1933",
         color: "#f7df9d",
         border: "1px solid #a98b4c",
-        maxHeight: "70dvh",
+        maxHeight: compact ? 120 : "70dvh",
         overflowY: "auto",
-        maxWidth: 520,
+        width: compact ? "calc(100vw - 128px)" : undefined,
+        maxWidth: compact ? 320 : 520,
         margin: "0 auto",
         boxShadow: "0 14px 50px #0008",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <strong style={{ fontSize: running ? 13 : undefined }}>SNOOP · JARVIS 3</strong>
+        <strong style={{ fontSize: running ? 13 : undefined }}>
+          {compact ? "● SNOOP" : "SNOOP · JARVIS 3"}
+        </strong>
+        {running && (
+          <button
+            type="button"
+            aria-label={compact ? "Dettagli SNOOP" : "Riduci SNOOP"}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            ⋯
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -464,7 +537,16 @@ export function DeepgramPilotVoice({
       </div>
       <p
         role="status"
-        style={running ? { fontSize: 12, margin: "4px 0", lineHeight: 1.3 } : undefined}
+        style={
+          running
+            ? {
+                fontSize: 12,
+                margin: "4px 0",
+                lineHeight: 1.3,
+                ...(compact ? { maxHeight: 32, overflow: "hidden" } : {}),
+              }
+            : undefined
+        }
       >
         {status}
       </p>
@@ -495,12 +577,35 @@ export function DeepgramPilotVoice({
           Acepto el procesamiento de voz; uso datos ficticios al tratar datos de personas.
         </label>
       </div>
-      {running && (
+      {running && !compact && (
         <p style={{ fontSize: 11, margin: "4px 0" }}>
           Revisión antes de guardar · pausa automática cuando no se utiliza
         </p>
       )}
-      <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginTop: compact ? 4 : 12,
+          fontSize: compact ? 11 : undefined,
+        }}
+      >
+        {running && audioSuspended && (
+          <button
+            type="button"
+            onClick={() => {
+              void audio.current?.ctx
+                .resume()
+                .then(() => {
+                  setAudioSuspended(false);
+                  setStatus("SNOOP ti ascolta");
+                })
+                .catch(() => setStatus("Audio bloccato dal dispositivo. Ferma e riavvia SNOOP."));
+            }}
+          >
+            Riattiva audio
+          </button>
+        )}
         {!running && (
           <button type="button" disabled={!consent} onClick={() => void start()}>
             Avvia JARVIS
@@ -513,7 +618,7 @@ export function DeepgramPilotVoice({
           Interrompi
         </button>
       </div>
-      {usage && (
+      {usage && !compact && (
         <p style={{ fontSize: 11 }}>
           Voz disponible: {(usage.remainingSeconds / 60).toFixed(1)} min ·{" "}
           {usage.estimatedMicrousd === null
@@ -521,8 +626,32 @@ export function DeepgramPilotVoice({
             : `estimación ${(usage.estimatedMicrousd / 1000000).toFixed(2)} USD`}
         </p>
       )}
+      {citations && !compact && (
+        <details style={{ fontSize: 11, marginTop: 4 }}>
+          <summary>Fuentes · {citations.name}</summary>
+          {citations.sources.length ? (
+            citations.sources.map((source) => (
+              <a
+                key={source}
+                href={source}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "block", overflowWrap: "anywhere" }}
+              >
+                {new URL(source).hostname}
+              </a>
+            ))
+          ) : (
+            <p>No hay fuentes verificadas disponibles.</p>
+          )}
+        </details>
+      )}
       {!running && verifiedCount !== null && <p>Categorie verificate: {verifiedCount}</p>}
-      <div aria-live="polite" style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}>
+      <div
+        hidden={compact}
+        aria-live="polite"
+        style={{ maxHeight: running ? 44 : 140, overflow: "auto" }}
+      >
         {(running ? lines.slice(-1) : lines).map((line, i) => (
           <p key={i} style={{ fontSize: 13, margin: running ? 0 : undefined }}>
             <b>{line.role === "user" ? "Tu" : "SNOOP"}:</b> {line.content}

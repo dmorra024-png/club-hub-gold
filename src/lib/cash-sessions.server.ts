@@ -7,6 +7,7 @@ import {
 } from "./financial-reversals.server.ts";
 import { clubDayRange } from "./cash-summary.ts";
 import { cashMovements } from "./cash-sessions.ts";
+import { readWalletCashEvidence } from "./cash-wallet-evidence.server.ts";
 export type CashScope = { userId: string; clubId: string };
 const rows = cashRows;
 export async function openSession(client: any, scope: CashScope, opening: number) {
@@ -84,6 +85,11 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
     latest,
     true,
   );
+  const walletEvidence = await readWalletCashEvidence(client,earliest,latest);
+  const ordersWithPayment = orders.map((order:any)=>({
+    ...order,
+    payment_method:walletEvidence.walletOrderIds.has(order.id)?"wallet":null
+  }));
   const refunds = await financialRefundsInPeriod(
     client,
     scope.clubId,
@@ -101,14 +107,14 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
       )
       .reduce((n: number, r: any) => n + r.cents, 0);
     // Original orders do not record payment method: annulment cannot imply cash was returned.
-    session.unverified_cancelled_cash = orders.some(
+    session.unverified_cancelled_cash = ordersWithPayment.some(
       (o: any) =>
-        o.status === "cancelled" &&
+        o.status === "cancelled" && o.payment_method !== "wallet" &&
         o.cash_session_id === session.id &&
         o.created_by === session.user_id,
     );
   }
-  const movements = cashMovements(orders, fees, sessions);
+  const movements = cashMovements(ordersWithPayment, fees, sessions, walletEvidence.topups);
   const cancelled = orders.filter((o: any) => o.status === "cancelled");
   const [linkedReversals, dayReversals] = await Promise.all([
     financialReversals(
