@@ -90,7 +90,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  // Never send credentials or bearer tokens to third-party websites.
  const recover=async({input})=>{
   const email=normalize(input?.email);
-  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return failed(400,'INVALID_EMAIL');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return failed(400,'INVALID_EMAIL');
   let result;
   try{
    result=await fetcher(base+'/recover?redirect_to='+encodeURIComponent(signupRedirectUrl+'?snoop_recovery=1'),{
