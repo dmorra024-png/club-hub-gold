@@ -11,11 +11,12 @@ select public.socio_create_wallet_order(
  '[{"product_id":"deafbeef-1111-4222-8333-444444444444","quantity":1,"line_total_cents":800}]'::jsonb,
  '12121212-1111-4222-8333-444444444444') as created \gset
 reset role;
+create temporary table wallet_test_created as select :'created'::jsonb as body;
 
 do $check$
 declare j jsonb;oid uuid;bal bigint;stock integer;n integer;
 begin
- j:=:'created'::jsonb;
+ select body into j from wallet_test_created;
  oid:=(j->>'orderId')::uuid;
  if j->>'status'<>'applied' or (j->>'amountCents')::bigint<>800 then
   raise exception 'ORDER_NOT_COMMITTED';end if;
@@ -39,11 +40,12 @@ select public.socio_cancel_wallet_order(
  'synthetic customer cancellation',
  '13131313-1111-4222-8333-444444444444') as cancelled \gset
 reset role;
+create temporary table wallet_test_cancelled as select :'cancelled'::jsonb as body;
 
 do $check$
 declare j jsonb;oid uuid;bal bigint;stock integer;n integer;
 begin
- j:=:'cancelled'::jsonb;oid:=(j->>'orderId')::uuid;
+ select body into j from wallet_test_cancelled;oid:=(j->>'orderId')::uuid;
  select balance_cents into bal from public.socio_wallet_accounts
  where club_id='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc'
  and member_id='c319b1ed-9389-4c81-9e7f-42f808d95c34';
