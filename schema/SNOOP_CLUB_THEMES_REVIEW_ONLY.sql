@@ -1,4 +1,6 @@
--- REVIEW BEFORE RUNNING ON PILOT DATABASE. Additive, isolated club theme configuration.
+-- Applied to Snoop-pilot via Supabase migration snoop_club_premium_themes (2026-11-18).
+-- Retained for code review and future audited deployment to other environments.
+-- Additive, isolated club theme configuration.
 -- No changes to existing cash/order/member tables or privileges.
 create table if not exists public.snoop_club_themes (
   club_id uuid primary key references public.clubs(id) on delete cascade,
