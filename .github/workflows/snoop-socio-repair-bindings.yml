@@ -1,4 +1,4 @@
-name: SNOOP Socio — one-time secret binding repair
+name: SNOOP Socio — verify recovered bindings and auth endpoints
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   repair:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'repair-snoop-socio-bindings-once' }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/main' && github.event.head_commit.message == 'verify-snoop-socio-auth-bindings' }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 15
@@ -47,28 +47,11 @@ jobs:
             if(!bindings.some(b=>b.name==='SUPABASE_SERVICE_ROLE_KEY'&&b.type==='secret_text')||
              !bindings.some(b=>b.name==='SOCIO_QR_SIGNING_KEY_BASE64'&&b.type==='secret_text'))throw Error('Management Worker not in expected safe baseline; abort');
            } else {
-            if(bindings.some(b=>b.name==='SOCIO_QR_SIGNING_KEY_BASE64'))throw Error('Socio Worker QR key already recovered; abort unexpected rotation');
+            if(!bindings.some(b=>b.name==='SOCIO_QR_SIGNING_KEY_BASE64'&&b.type==='secret_text')||!bindings.some(b=>b.name==='SOCIO_SUPABASE_PUBLISHABLE_KEY'&&b.type==='secret_text'))throw Error('Socio Worker still lacks required binding; stop before any changes');
            }
            console.log(JSON.stringify({name,secretNames:bindings.filter(b=>b.type==='secret_text').map(b=>b.name)}));
           }
           NODE
-      - name: Restore public Supabase key to independent client Worker
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' "$SOCIO_PUBLISHABLE_KEY" | npx wrangler secret put SOCIO_SUPABASE_PUBLISHABLE_KEY --name snoop-socio-pilot >/dev/null
-          echo "SNOOP_SOCIO_PUBLISHABLE_BINDING_RESTORED"
-      - name: Rotate only the shared Socio QR key in both workers
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The old Socio key is not retrievable from Cloudflare and the DB has
-          # zero linked Socio accounts. Both sides must share the same new key.
-          KEY="$(openssl rand -base64 32 | tr -d '\n')"
-          printf '%s' "$KEY" | npx wrangler secret put SOCIO_QR_SIGNING_KEY_BASE64 --name snoop-pilot >/dev/null
-          printf '%s' "$KEY" | npx wrangler secret put SOCIO_QR_SIGNING_KEY_BASE64 --name snoop-socio-pilot >/dev/null
-          unset KEY
-          echo "SNOOP_SOCIO_SHARED_QR_KEY_RESTORED"
       - name: Verify both workers and real HTTP auth negative paths
         shell: bash
         run: |
@@ -96,4 +79,4 @@ jobs:
           test "$STATUS" = 401
           STATUS="$(curl -sS --max-time 20 -o /tmp/snoop-management -w '%{http_code}' https://snoop-pilot.dmorra024.workers.dev/)"
           test "$STATUS" = 200
-          echo "SNOOP_SOCIO_AUTH_BINDINGS_REPAIRED_AND_VERIFIED"
+          echo "SNOOP_SOCIO_AUTH_BINDINGS_PRESENT_AND_VERIFIED"
