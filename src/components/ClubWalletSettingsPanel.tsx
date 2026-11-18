@@ -1,10 +1,12 @@
 import {useAuth} from "@/hooks/useAuth";
 import {useEffect,useState} from "react";
-import {Wallet,AlertTriangle,CheckCircle2} from "lucide-react";
+import {Wallet} from "lucide-react";
 import {getClubWalletSettings,changeClubWalletSettings} from "@/lib/wallet-club-settings.functions";
 import {toast} from "sonner";
 
 type Settings={configured:boolean;clubEnabled:boolean;operationsReady:boolean};
+
+/** One premium club-level settings tile; no duplicate menu tile or member toggle. */
 export function ClubWalletSettingsPanel(){
  const {isAdmin,loading}=useAuth();
  const [state,setState]=useState<Settings|null>(null);
@@ -13,63 +15,60 @@ export function ClubWalletSettingsPanel(){
  useEffect(()=>{
   if(loading||!isAdmin)return;
   let active=true;
-  getClubWalletSettings().then(result=>{if(active){setState(result);setError("");}})
-   .catch(()=>{if(active){setError("No se pudo verificar la configuración del club.");setState(null);}});
+  getClubWalletSettings().then(result=>{
+   if(active){setState(result);setError("");}
+  }).catch(()=>{
+   if(active){setError("No se pudo consultar el estado. Vuelve a intentarlo.");setState(null);}
+  });
   return()=>{active=false;};
  },[loading,isAdmin]);
  async function setEnabled(enabled:boolean){
-  if(busy||!state?.operationsReady)return;
-  const prompt=enabled?
-   "¿Activar Monedero para TODOS los socios activos del club? Cada socio tendrá un saldo independiente. Los saldos existentes se conservarán.":
-   "¿Desactivar Monedero para TODO el club? No se borrará ningún saldo ni movimiento.";
-  if(!window.confirm(prompt))return;
+  if(busy||!state?.operationsReady||!state.configured)return;
+  if(!window.confirm(enabled?
+   "¿Activar Monedero para todos los socios activos? Cada socio conserva su propio saldo.":
+   "¿Desactivar Monedero para todo el club? Los saldos se conservarán."))return;
   setBusy(true);setError("");
   try{
    const result=await changeClubWalletSettings({data:{enabled,confirmed:true}});
    setState(result);
-   toast.success(enabled?"Monedero activado para el club.":"Monedero desactivado para el club.");
+   toast.success(enabled?"Monedero del club activado.":"Monedero del club desactivado.");
   }catch{
-   setError("No se ha confirmado ningún cambio. Comprueba la configuración antes de reintentar.");
+   setError("No se ha confirmado el cambio. Consulta el estado antes de repetir.");
   }finally{setBusy(false);}
  }
  if(loading||!isAdmin)return null;
- return <section id="monedero" aria-label="Configuración del monedero del club">
-  <div className="max-w-2xl space-y-5">
-   <section className="rounded-2xl border border-neon/25 bg-card/60 p-6 space-y-4">
-    <div className="flex items-center gap-3">
-     <Wallet className="text-neon" size={28}/>
-     <div>
-      <h2 className="font-display text-lg">Monedero del club</h2>
-      <p className="text-sm text-muted-foreground">Una sola activación para todos los socios activos.</p>
-     </div>
-    </div>
-    <p className="text-sm text-muted-foreground">
-     Al activarlo, todos los socios activos del club pueden utilizar Monedero.
-     Cada socio conserva su propio saldo y sus movimientos. No se activa socio por socio.
-     Los colaboradores siguen sujetos a sus permisos de caja.
-    </p>
-    {error&&<p role="alert" className="text-sm text-red-400">{error}</p>}
-    {!state?<p role="status" className="text-sm">Verificando configuración…</p>:
-     <div className="space-y-3">
-      <div className="flex gap-2 items-center text-sm">
-       {state.clubEnabled?<CheckCircle2 size={18} className="text-neon"/>:<AlertTriangle size={18} className="text-muted-foreground"/>}
-       <span>Estado: <strong>{state.clubEnabled?"Activado para el club":"Desactivado para el club"}</strong></span>
-      </div>
-      {!state.operationsReady&&<p role="status" className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
-       Monedero está preparado en el código, pero aún faltan las migraciones
-       y la validación contable necesarias para activarlo. No se han generado saldos ni cargos reales.
-      </p>}
-      <button type="button" role="switch" aria-checked={state.clubEnabled}
-       disabled={busy||!state.operationsReady}
-       onClick={()=>void setEnabled(!state.clubEnabled)}
-       className="flex items-center gap-3 rounded-xl border border-neon/30 bg-card px-4 py-3 disabled:opacity-50">
-       <span className={`relative inline-flex w-12 h-7 items-center rounded-full transition ${state.clubEnabled?"bg-neon":"bg-muted"}`}>
-        <span className={`absolute h-5 w-5 rounded-full bg-background transition-all ${state.clubEnabled?"left-6":"left-1"}`}/>
-       </span>
-       {state.clubEnabled?"Desactivar Monedero del club":"Activar Monedero del club"}
-      </button>
-     </div>}
-   </section>
-  </div>
- </section>;
+ const ready=state?.configured===true&&state?.operationsReady===true;
+ const status=error?"Error de conexión":!state?"Comprobando…":
+  !ready?"Pendiente de sincronización":
+  state.clubEnabled?"Activado":"Desactivado";
+ return <section id="monedero"
+  aria-label="Monedero del club"
+  className="group flex flex-col items-center justify-center text-center rounded-2xl border border-neon/25 bg-card/60 p-6 transition hover:border-neon/50 hover:bg-card/80">
+   <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-neon/50">
+    <Wallet className="h-6 w-6 text-neon"/>
+   </div>
+   <h2 className="font-display text-lg tracking-tight text-foreground">Monedero</h2>
+   <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+    Saldo individual para los socios. Activación única para el club.
+   </p>
+   <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground" role="status">
+    <span className={`h-2 w-2 rounded-full ${ready&&state?.clubEnabled?"bg-neon":"bg-muted-foreground/50"}`}/>
+    <span>{status}</span>
+   </div>
+   <button type="button" role="switch"
+    aria-label="Activar o desactivar el Monedero de todo el club"
+    aria-checked={ready&&state?.clubEnabled===true}
+    disabled={busy||!ready}
+    onClick={()=>void setEnabled(!state!.clubEnabled)}
+    className="mt-4 flex w-full items-center justify-center gap-3 rounded-xl border border-neon/25 bg-background/30 px-4 py-3 text-sm text-foreground transition hover:border-neon/60 disabled:opacity-50">
+    <span aria-hidden="true" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${ready&&state?.clubEnabled?"bg-neon":"bg-muted"}`}>
+     <span className={`absolute h-4 w-4 rounded-full bg-background transition-all ${ready&&state?.clubEnabled?"left-6":"left-1"}`}/>
+    </span>
+    {busy?"Guardando…":ready?(state!.clubEnabled?"Desactivar":"Activar"):"No disponible"}
+   </button>
+   {error&&<p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
+   {state&&!ready&&<p className="mt-2 text-xs text-muted-foreground">
+    Verifica la conexión del servidor antes de usar fondos reales.
+   </p>}
+  </section>;
 }
