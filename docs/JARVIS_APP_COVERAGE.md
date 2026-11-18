@@ -147,7 +147,7 @@ manual/voice parity remains unaccepted; no merge or release is performed.
 
 ## Reconciliation regression evidence
 
-- Unit suite: 411/411 on the reconciled tree, including synthetic PostgreSQL tests.
+- Unit suite: 413/413 on the reconciled tree, including synthetic PostgreSQL tests.
 - Selected-member corrections preserve source fields and manual overrides; account/club
   scope, readiness and forbidden document/role/money fields are covered.
 - Member-section commands reveal the existing QR, discount, renewal or history area;
@@ -222,3 +222,15 @@ an order, attempt the forbidden hidden edit, return through the existing cancel 
 and verify that the original unsaved manual surname remains intact. No order, stock,
 accounting or wallet mutation runs. The UI identifies the missing member card instead
 of silently applying the patch to a hidden form.
+
+## CI dependency-download correction
+
+The regional EC2 Ubuntu mirror took over 27 minutes in the browser dependency
+installation step; the earlier successful run fetched the same 125 MB in 17 seconds.
+The CI-only preparation script changes only those EC2 archive URLs to the official
+Ubuntu HTTPS archive. It retains mirror priorities, suites, components, Signed-By,
+package verification and every browser/test. Other repositories are unchanged.
+It runs only as root on the Ubuntu 24.04 GitHub runner, and refuses local execution.
+Fixture tests cover exact transformation, idempotence and preservation of unrelated
+URLs/signature settings. No application code, credentials or production settings
+are affected by this CI correction.

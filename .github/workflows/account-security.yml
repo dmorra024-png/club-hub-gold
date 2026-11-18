@@ -46,7 +46,10 @@ jobs:
           fi
           npm run test:smoke:accounts
       - name: Install test browser
-        run: npx playwright-core install --with-deps chromium webkit
+        shell: bash
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS "$(command -v node)" scripts/prepare-ci-ubuntu-mirrors.mjs
+          npx playwright-core install --with-deps chromium webkit
       - name: Production PWA and administrative browser tests
         shell: bash
         run: |
