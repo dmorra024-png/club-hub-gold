@@ -45,11 +45,13 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 '<div class="auth-extras"><button class="btn small ghost" data-action="forgot">¿Olvidaste tu contraseña?</button><button class="btn small ghost" data-action="install">Instalar SNOOP Socio</button></div>');}
 function verifyPage(){
  const signup=state.verification==='signup';
- shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">'+(signup?'Confirma tu dirección':'Recuperar acceso')+'</h1>'+
- '<p class="lede">'+(signup?'Si el registro es válido, recibirás instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.':
+ shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">'+(signup?'Comprueba tu cuenta':'Recuperar acceso')+'</h1>'+
+ '<p class="lede">'+(signup?'La solicitud se ha recibido, pero eso no confirma que se haya enviado un correo. Si esta dirección ya tiene una cuenta SNOOP confirmada, no recibirás un segundo correo de alta: entra con la contraseña que ya utilizabas.':
  'Si existe una cuenta con ese correo, recibirás un enlace para crear una nueva contraseña.')+'</p></section>'+
- (signup?'<button class="btn ghost" data-action="resend-verification" '+(state.pending?'disabled':'')+'>Reenviar correo de confirmación</button>':'')+
- '<button class="btn primary" data-action="login">Ir al inicio de sesión</button>');
+ (signup?'<p class="muted">¿No recibes nada? Prueba primero «Ya tengo cuenta». Si no recuerdas la contraseña, usa «Recuperar contraseña». No vuelvas a crear la misma cuenta.</p>'+
+ '<button class="btn ghost" data-action="resend-verification" '+(state.pending?'disabled':'')+'>Reenviar correo si mi cuenta es nueva</button>':'')+
+ '<button class="btn primary" data-action="login">Ya tengo cuenta · Iniciar sesión</button>'+
+ '<button class="btn ghost" data-action="forgot">Recuperar contraseña</button>');
 }
 function linkPage(){shell('<section><div class="kicker">Vinculación segura</div><h1 class="title">Vincula tu carnet</h1><p class="lede">Tu cuenta está lista. Para acceder a la tarjeta de un club necesitamos comprobar que eres realmente su socio. Pide al personal un código de vinculación temporal.</p></section>'+
 '<section class="panel"><form id="link-form" class="stack"><label class="field">Código de vinculación<input name="code" autocomplete="off" spellcheck="false" minlength="6" maxlength="64" required placeholder="Código facilitado en el club"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Vincular mi carnet</button></form></section>'+
