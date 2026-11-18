@@ -97,6 +97,22 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  };
  // Recovery URLs must be explicitly allowed by Supabase Auth redirect settings.
  // Never send credentials or bearer tokens to third-party websites.
+ const verifySignupCode=async({input})=>{
+  const email=normalize(input?.email),token=input?.code;
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||
+     typeof token!=='string'||!/^[0-9]{6}$/.test(token))return failed(400,'INVALID_CONFIRMATION_CODE');
+  let result;
+  try{
+   result=await fetcher(base+'/verify',{method:'POST',
+    headers:{apikey:publishableKey,'content-type':'application/json'},
+    body:JSON.stringify({type:'signup',email,token}),
+    redirect:'error',signal:AbortSignal.timeout(8000)});
+  }catch{return failed(503,'VERIFY_UNAVAILABLE');}
+  if(!result.ok)return failed(result.status===429?429:400,'INVALID_CONFIRMATION_CODE');
+  // Verification must never automatically authorize staff or issue a session.
+  // Client signs in with its previously chosen password after confirmation.
+  return response({verified:true},200,clear());
+ };
  const resendConfirmation=async({input})=>{
   const email=normalize(input?.email);
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)
@@ -182,5 +198,5 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
- return{authenticate,signup,login,logout,refresh,recover,resendConfirmation,completeRecovery,changePassword};
+ return{authenticate,signup,verifySignupCode,login,logout,refresh,recover,resendConfirmation,completeRecovery,changePassword};
 }
