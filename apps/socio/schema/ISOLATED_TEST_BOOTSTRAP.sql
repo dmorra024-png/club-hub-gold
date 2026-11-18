@@ -17,5 +17,12 @@ create table public.members(
 expires_at date not null default (current_date + interval '30 days')
 );
 create table public.user_roles(user_id uuid not null references auth.users(id),club_id uuid references public.clubs(id),role text not null,permissions text[] not null default '{}');
-create table public.orders(id uuid primary key, club_id uuid not null, member_id uuid not null);
+create table public.orders(id uuid primary key, club_id uuid not null,
+ member_id uuid not null,total_cents integer not null default 0,
+ status text not null default 'completed',cancelled_at timestamptz);
+create table public.financial_order_reversals(
+ id uuid primary key,order_id uuid not null,club_id uuid not null,
+ original_cents bigint not null,delta_cents bigint not null);
+create table public.financial_order_refunds(
+ id uuid primary key,reversal_id uuid not null);
 create table public.cash_sessions(id uuid primary key, club_id uuid not null, user_id uuid not null, status text not null default 'open',closed_at timestamptz);
