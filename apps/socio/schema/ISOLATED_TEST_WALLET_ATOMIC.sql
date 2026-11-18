@@ -8,7 +8,7 @@ select set_config('request.jwt.claim.sub','7dbe4ead-c904-4c52-9fc1-51a9018aeb22'
 select public.socio_create_wallet_order(
  'c319b1ed-9389-4c81-9e7f-42f808d95c34',
  'synthetic test only',
- '[{"product_id":"deafbeef-1111-4222-8333-444444444444","quantity":1,"line_total_cents":800}]'::jsonb,
+ '[{"product_id":"deafbeef-1111-4222-8333-444444444444","product_name":"Synthetic","unit_type":"gr","quantity":1,"unit_price_cents":800,"line_total_cents":800}]'::jsonb,
  '12121212-1111-4222-8333-444444444444') as created \gset
 reset role;
 create temporary table wallet_test_created as select :'created'::jsonb as body;
@@ -73,7 +73,7 @@ begin
   perform public.socio_create_wallet_order(
    'c319b1ed-9389-4c81-9e7f-42f808d95c34',
    'insufficient synthetic funds',
-   '[{"product_id":"deafbeef-1111-4222-8333-444444444444","quantity":1,"line_total_cents":5000}]'::jsonb,
+   '[{"product_id":"deafbeef-1111-4222-8333-444444444444","product_name":"Synthetic","unit_type":"gr","quantity":7,"unit_price_cents":800,"line_total_cents":5600}]'::jsonb,
    '14141414-1111-4222-8333-444444444444');
   raise exception 'INSUFFICIENT_BALANCE_ORDER_ACCEPTED';
  exception when check_violation then null;
