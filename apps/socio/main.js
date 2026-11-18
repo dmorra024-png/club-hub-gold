@@ -164,7 +164,7 @@ async function submitPassword(form){
  state.pending=true;render();try{
  const changed=await api('/auth/change-password',{method:'POST',body:{currentPassword:old,newPassword:password}});
  if(changed?.updated!==true)throw Error('El servidor no confirmó el cambio.');
- resetClub();state.me=null;state.clubs=[];state.pending=false;state.page='login';
+ resetClub();sessionStorage.removeItem('snoop-socio-last-club');state.me=null;state.clubs=[];state.email='';state.pending=false;state.page='login';
  notify('Contraseña actualizada. Inicia sesión de nuevo.');
  }catch(e){state.pending=false;notify(e?.status===401?'Contraseña actual incorrecta o sesión caducada.':e.message||'No se ha podido cambiar la contraseña.',true);}
 }
@@ -178,7 +178,7 @@ async function submitRecovery(form){const password=String(new FormData(form).get
  state.pending=true;render();try{
  const recovered=await api('/auth/complete-recovery',{method:'POST',body:{accessToken:token,password}});
  if(recovered?.updated!==true)throw Error('El servidor no confirmó el cambio.');
- state.recoveryToken=null;state.pending=false;state.page='login';notify('Contraseña restablecida. Inicia sesión.');
+ state.recoveryToken=null;resetClub();sessionStorage.removeItem('snoop-socio-last-club');state.me=null;state.clubs=[];state.email='';state.pending=false;state.page='login';notify('Contraseña restablecida. Inicia sesión.');
  }catch(e){state.pending=false;notify(e.message||'No se pudo recuperar el acceso.',true);}
 }
 async function resendVerification(){
