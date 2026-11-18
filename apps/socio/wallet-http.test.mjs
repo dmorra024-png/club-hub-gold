@@ -46,3 +46,25 @@ test('wallet route rejects unauthenticated identity and disabled wallet',async()
  }});
  assert.equal((await y(r.request())).status,403);
 });
+
+test('fresh authenticated staff is bound to a new repository per request',async()=>{
+ const seen=[];
+ const handler=createStaffWalletHttp({
+  origin,authenticateStaff:async()=>({...staff,accessToken:'verified-JWT'}),
+  repositoryFactory:async actor=>{
+   seen.push(actor);
+   return{
+    memberWalletEnabled:async()=>true,
+    commitWalletOperation:async op=>({status:'applied',balanceCents:op.amountCents,operationId:op.operationId})
+   };
+  }
+ });
+ const request=()=>new Request(origin+'/api/snoop-wallet/topup',{
+  method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},
+  body:JSON.stringify(valid)
+ });
+ assert.equal((await handler(request())).status,200);
+ assert.equal((await handler(request())).status,200);
+ assert.equal(seen.length,2);
+ assert.equal(seen[0].accessToken,'verified-JWT');
+});
