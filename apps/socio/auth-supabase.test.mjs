@@ -111,3 +111,23 @@ test('rejected registration cannot masquerade as verification email',async()=>{
  assert.equal(result.headers.get('set-cookie'),null);
  assert.equal(JSON.stringify(await result.json()).includes('Password rejected'),false);
 });
+
+test('Cloudflare Workerd-compatible manual redirects never silently follow credential requests',async()=>{
+ const attempts=[];
+ const fetcher=async(url,opts)=>{
+  attempts.push({url,redirect:opts.redirect});
+  if(opts.redirect==='error')throw Error('Workerd unsupported redirect mode');
+  if(url.includes('/signup?redirect_to='))return Response.json({id:uid});
+  if(url.includes('/token?grant_type=password'))return Response.json({access_token:'session-access',refresh_token:'session-refresh',expires_in:1800});
+  if(url.endsWith('/user'))return Response.json({id:uid,email:'socio@example.com',email_confirmed_at:'2026-11-17T00:00:00Z'});
+  return Response.json({}, {status:404});
+ };
+ const auth=createSupabaseSocioAuth({url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',fetcher,authorizeSocioUser:async()=>true});
+ assert.equal((await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}})).status,200);
+ assert.equal((await auth.login({input:{email:'socio@example.com',password:'correctHorse123!'}})).status,200);
+ assert(attempts.length>=3);
+ assert(attempts.every(r=>r.redirect==='manual'),'never ask Workerd for unsupported error redirect mode');
+ const redirectFetch=async()=>new Response(null,{status:302,headers:{Location:'https://untrusted.test/hijack'}});
+ const redirectAuth=createSupabaseSocioAuth({url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',fetcher:redirectFetch,authorizeSocioUser:async()=>true});
+ assert.equal((await redirectAuth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}})).status,503);
+});
