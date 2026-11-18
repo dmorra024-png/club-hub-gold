@@ -4,6 +4,7 @@ import { BadgeEuro, Users, ShieldCheck, Cable, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { ClubWalletSettingsPanel } from "@/components/ClubWalletSettingsPanel";
+import { ClubThemeSettingsPanel } from "@/components/ClubThemeSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/ajustes/")({
   component: AjustesIndex,
@@ -40,6 +41,7 @@ function AjustesIndex() {
         <Tile to="/ajustes/dispositivos" icon={Cable} title="Dispositivos" text="Conecta báscula, lector QR y tableta de firma." />
         <Tile to="/ajustes/informes" icon={BarChart3} title="Informes" text="Gráficos de stock añadido, ventas y productos más vendidos." />
       </div>
+      <ClubThemeSettingsPanel />
     </SnoopLayout>
   );
 }
