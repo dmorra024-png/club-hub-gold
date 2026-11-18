@@ -38,7 +38,7 @@ export function createSupabaseAtomicWalletOrderRepository({supabaseUrl,publishab
        Object.keys(item).some(k=>!['product_id','product_name','unit_type','quantity','merma','unit_price_cents','line_total_cents'].includes(k))||
        !validId(item.product_id)||typeof item.product_name!=='string'||
        item.product_name.length<1||item.product_name.length>160||
-       !['g','ud','unit','gram','unidad'].includes(item.unit_type)||
+       !['gr','unit'].includes(item.unit_type)||
        typeof item.quantity!=='number'||!Number.isFinite(item.quantity)||
        item.quantity<=0||item.quantity>100000||
        (item.merma!==undefined&&(typeof item.merma!=='number'||!Number.isFinite(item.merma)||item.merma<0||item.merma>100000))||
