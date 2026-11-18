@@ -28,10 +28,13 @@ async function api(path,{method='GET',body}={}){
 }
 function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
 function resetClub(){state.sessionEpoch++;stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
-function brand(){return '<header class="brand"><div><div class="brand-word">SNOOP</div><div class="subbrand">PORTAL SOCIOS</div></div>'+
+function brand(){return '<header class="brand"><div class="brand-identity"><img class="brand-wordmark" src="./snoop-wordmark.svg" alt="SNOOP" width="172" height="24"/><div class="subbrand">SOCIO · CARNET DIGITAL</div></div>'+
 (state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
 (state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'')+'</header>';}
-function shell(body){app.innerHTML='<main class="shell">'+brand()+(state.message?'<div class="status '+(state.error?'error':'')+'" role="status">'+safe(state.message)+'</div>':'')+body+'<div class="footer">SNOOP SOCIO · Acceso personal y privado</div></main>';}
+function shell(body){
+ const nav=state.me?.authenticated?'<nav class="socio-dock" aria-label="Navegación del socio"><button type="button" data-action="home" '+(!state.selected?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon">▣</span><span>Carnet</span></button><button type="button" data-action="clubs" aria-current="'+(state.page==='clubs')+'"><span class="dock-icon">▦</span><span>Clubes</span></button><button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon">♙</span><span>Perfil</span></button></nav>':'';
+ app.innerHTML='<main class="shell">'+brand()+(state.message?'<div class="status '+(state.error?'error':'')+'" role="status">'+safe(state.message)+'</div>':'')+body+'<div class="footer">SNOOP SOCIO · Acceso personal y privado</div>'+nav+'</main>';
+}
 function authPage(mode){const reg=mode==='register';shell('<section><div class="kicker">Tu carnet digital</div><h1 class="title">'+(reg?'Crea tu cuenta':'Bienvenido')+'</h1><p class="lede">Una cuenta para todos tus clubes SNOOP. Tus códigos son privados.</p></section>'+
 '<section class="panel"><form id="auth-form" class="stack"><label class="field">Correo electrónico<input name="email" type="email" autocomplete="email" required maxlength="254" value="'+safe(state.email)+'"/></label>'+
 '<label class="field">Contraseña<input name="password" type="password" autocomplete="'+(reg?'new-password':'current-password')+'" minlength="10" required maxlength="128"/></label>'+
