@@ -1,4 +1,6 @@
 -- REVIEW ONLY: do not apply to SNOOP production.
+-- DDL + REVOKEs occur atomically to avoid any transient PUBLIC EXECUTE window.
+begin;
 -- Requires reviewed socio_* schema, WALLET_ORDER_SETTLEMENT_REVIEW_ONLY.sql,
 -- and the existing protected SNOOP order/stock functions. Do not enable
 -- wallet payments until ALL live cash reports distinguish wallet from cash.
@@ -148,3 +150,5 @@ revoke all on function public.socio_cancel_wallet_order(uuid,uuid,text,uuid)
 -- No grant, trigger, or data migration is applied by this review file.
 -- BEFORE release: existing direct annul_financial_order MUST be protected
 -- against bypassing wallet refund, and cash reports must be payment-aware.
+
+commit;
