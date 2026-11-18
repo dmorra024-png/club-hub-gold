@@ -9,10 +9,11 @@ const fail=(code,status=503)=>Object.assign(Error(code),{code,status});
 export function createSocioRlsRepository({url,publishableKey,accessToken,actorId,fetcher=fetch}){
  if(!/^https:\/\/[^/]+$/.test(url||'')||!publishableKey||!accessToken||!uuid(actorId))throw Error('SOCIO_RLS_REPOSITORY_NOT_CONFIGURED');
  const root=url+'/rest/v1';
+ const safeFetch=async(input,init)=>{const r=await fetcher(input,{...init,redirect:'manual'});if(r.status>=300&&r.status<400)throw Error('SUPABASE_REDIRECT_REJECTED');return r;};
  async function select(path){
-  const response=await fetcher(root+path,{method:'GET',headers:{
+  const response=await safeFetch(root+path,{method:'GET',headers:{
    'apikey':publishableKey,'authorization':'Bearer '+accessToken,'accept':'application/json'
-  },redirect:'error',signal:AbortSignal.timeout(8000)});
+  },redirect:'manual',signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw fail('SOCIO_READ_UNAVAILABLE');
   const result=await response.json();
   if(!Array.isArray(result))throw fail('SOCIO_BAD_DATA');
@@ -50,11 +51,11 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
    // cannot supply clubId/memberId/userId or control a verified link.
    let res;
    try{
-    res=await fetcher(root+'/rpc/socio_claim_member',{
+    res=await safeFetch(root+'/rpc/socio_claim_member',{
      method:'POST',headers:{
       apikey:publishableKey,authorization:'Bearer '+accessToken,
       accept:'application/json','content-type':'application/json'
-     },body:JSON.stringify({p_code:code}),redirect:'error',signal:AbortSignal.timeout(8000)
+     },body:JSON.stringify({p_code:code}),redirect:'manual',signal:AbortSignal.timeout(8000)
     });
    }catch{throw fail('SOCIO_LINK_PROVIDER_UNAVAILABLE');}
    if(res.status===400||res.status===401||res.status===403||res.status===409)return{ok:false};

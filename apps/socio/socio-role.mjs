@@ -5,11 +5,12 @@
  */
 export function createSocioRolePolicy({url,publishableKey,fetcher=fetch}){
  if(!/^https:\/\/[^/]+$/.test(url||'')||!publishableKey)throw Error('ROLE_POLICY_NOT_CONFIGURED');
+ const safeFetch=async(input,init)=>{const r=await fetcher(input,{...init,redirect:'manual'});if(r.status>=300&&r.status<400)throw Error('SUPABASE_REDIRECT_REJECTED');return r;};
  return async function isSocioUser(userId,accessToken){
   if(!/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(userId||'')||!accessToken)return false;
   try{
-   const response=await fetcher(url+'/rest/v1/user_roles?select=role&user_id=eq.'+encodeURIComponent(userId),{
-    method:'GET',headers:{apikey:publishableKey,authorization:'Bearer '+accessToken,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(8000)
+   const response=await safeFetch(url+'/rest/v1/user_roles?select=role&user_id=eq.'+encodeURIComponent(userId),{
+    method:'GET',headers:{apikey:publishableKey,authorization:'Bearer '+accessToken,accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(8000)
    });
    if(!response.ok)return false;
    const rows=await response.json();
