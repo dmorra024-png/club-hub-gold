@@ -329,7 +329,7 @@ function Caja() {
                                   key={`${m.source}:${m.id}`}
                                   className="border-b border-border py-2 text-sm"
                                 >
-                                  {m.source === "fee" ? "Cuota asociativa" : "Pedido"} ·{" "}
+                                  {m.source === "fee" ? "Cuota asociativa" : m.source === "topup" ? "Recarga Monedero" : m.payment_method === "wallet" ? "Pedido pagado con Monedero" : "Pedido"} ·{" "}
                                   {money(m.cents)} · {name(m.by)} · {time(m.at)}
                                 </p>
                               ))}
@@ -347,7 +347,7 @@ function Caja() {
                             className="border-b border-border py-2 text-sm"
                           >
                             <p>
-                              {m.source === "order" ? "Pedido" : "Cuota asociativa"} ·{" "}
+                              {m.source === "order" ? (m.payment_method === "wallet" ? "Pedido · Monedero" : "Pedido") : m.source === "topup" ? "Recarga Monedero · efectivo" : "Cuota asociativa"} ·{" "}
                               {money(m.cents)}
                             </p>
                             <p>
