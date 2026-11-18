@@ -2,7 +2,7 @@
 // No demo accounts, fabricated balances or operational QR tokens. No credentials in localStorage.
 const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
-  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
+  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0,recoveryToken:null,verification:'signup'};
 const endpoint = '/api/socio';
 const enc = (v)=>encodeURIComponent(String(v));
 const safe = (v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -42,8 +42,15 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 '<button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Comprobando…':(reg?'Registrarme':'Iniciar sesión'))+'</button></form>'+
 '<div class="divider"></div><button class="btn ghost" style="width:100%" data-action="'+(reg?'login':'register')+'">'+(reg?'Ya tengo cuenta':'Crear una cuenta')+'</button></section>'+
 '<p class="muted align-center">La dirección debe coincidir con la facilitada al club. La vinculación se verificará antes de mostrar cualquier carnet.</p>'+
-'<button class="btn small end" data-action="install">Instalar SNOOP Socio</button>');}
-function verifyPage(){shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">Confirma tu dirección</h1><p class="lede">Si el registro es válido, recibirás las instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.</p></section><button class="btn primary" data-action="login">Ir al inicio de sesión</button>');}
+'<div class="auth-extras"><button class="btn small ghost" data-action="forgot">¿Olvidaste tu contraseña?</button><button class="btn small ghost" data-action="install">Instalar SNOOP Socio</button></div>');}
+function verifyPage(){
+ const signup=state.verification==='signup';
+ shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">'+(signup?'Confirma tu dirección':'Recuperar acceso')+'</h1>'+
+ '<p class="lede">'+(signup?'Si el registro es válido, recibirás instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.':
+ 'Si existe una cuenta con ese correo, recibirás un enlace para crear una nueva contraseña.')+'</p></section>'+
+ (signup?'<button class="btn ghost" data-action="resend-verification" '+(state.pending?'disabled':'')+'>Reenviar correo de confirmación</button>':'')+
+ '<button class="btn primary" data-action="login">Ir al inicio de sesión</button>');
+}
 function linkPage(){shell('<section><div class="kicker">Vinculación segura</div><h1 class="title">Vincula tu carnet</h1><p class="lede">Tu cuenta está lista. Para acceder a la tarjeta de un club necesitamos comprobar que eres realmente su socio. Pide al personal un código de vinculación temporal.</p></section>'+
 '<section class="panel"><form id="link-form" class="stack"><label class="field">Código de vinculación<input name="code" autocomplete="off" spellcheck="false" minlength="6" maxlength="64" required placeholder="Código facilitado en el club"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Vincular mi carnet</button></form></section>'+
 '<button class="btn ghost" data-action="reload-clubs">Actualizar mis clubes</button>');}
@@ -59,7 +66,25 @@ function carnetPage(){const c=state.clubs.find(c=>c.id===state.selected);if(!c){
 '<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Actualizar QR</button></section>'+
 (c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">Saldo monedero</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Movimientos</button></section>':'')+
 '<button class="btn ghost end" data-action="clubs">Mis clubes</button>');}
-function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section><button class="btn ghost" data-action="clubs">Mis clubes</button><button class="btn" data-action="logout">Cerrar sesión</button>');}
+function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section>'+
+'<section class="panel"><h2 class="section-heading">Cambiar contraseña</h2><form id="password-form" class="stack">'+
+'<label class="field">Contraseña actual<input name="currentPassword" type="password" autocomplete="current-password" required maxlength="128"/></label>'+
+'<label class="field">Nueva contraseña<input name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required/></label>'+
+'<label class="field">Repetir nueva contraseña<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128" required/></label>'+
+'<button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Cambiar contraseña</button></form></section>'+
+'<button class="btn ghost" data-action="clubs">Mis clubes</button><button class="btn" data-action="logout">Cerrar sesión</button>');}
+function forgotPage(){shell('<section><div class="kicker">Recuperar acceso</div><h1 class="title">Restablecer contraseña</h1>'+
+'<p class="lede">Recibirás un enlace de recuperación si tienes una cuenta verificada.</p></section>'+
+'<section class="panel"><form id="forgot-form" class="stack">'+
+'<label class="field">Correo electrónico<input name="email" type="email" autocomplete="email" value="'+safe(state.email)+'" required maxlength="254"/></label>'+
+'<button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Enviar enlace</button></form></section>'+
+'<button class="btn ghost" data-action="login">Volver al inicio</button>');}
+function recoveryPage(){shell('<section><div class="kicker">Acceso seguro</div><h1 class="title">Nueva contraseña</h1>'+
+'<p class="lede">Elige una contraseña nueva para tu cuenta SNOOP Socio.</p></section>'+
+'<section class="panel"><form id="recovery-form" class="stack">'+
+'<label class="field">Nueva contraseña<input name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required/></label>'+
+'<label class="field">Repetir contraseña<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128" required/></label>'+
+'<button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Guardar nueva contraseña</button></form></section>');}
 function movementsPage(){
 const rows=Array.isArray(state.movements)?state.movements:[];
 const format=n=>(n/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
@@ -68,7 +93,7 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 (state.movements===null?'<div class="status">Consultando movimientos…</div>':items?'<div class="list">'+items+'</div>':'<div class="status">No hay movimientos registrados.</div>')+
 '<button class="btn end" data-action="home">Volver al carnet</button>');
 }
-function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
+function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'forgot':forgotPage();break;case'recovery':recoveryPage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
 async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
 async function refreshCarnet(){
@@ -132,13 +157,69 @@ async function authenticate(){
   render();
  }
 }
-async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
-async function submitLink(form){state.pending=true;render();try{await api('/link/claim',{method:'POST',body:{code:String(new FormData(form).get('code')||'').trim()}});state.pending=false;state.message='';await refreshClubs();}catch(e){state.pending=false;notify(e.message||'No se pudo vincular el carnet.',true);}}
-document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}});
+async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.verification='signup';state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
+async function submitPassword(form){
+ const fd=new FormData(form),old=String(fd.get('currentPassword')||''),password=String(fd.get('newPassword')||'');
+ if(password!==fd.get('confirm'))return notify('Las contraseñas no coinciden.',true);
+ state.pending=true;render();try{
+ const changed=await api('/auth/change-password',{method:'POST',body:{currentPassword:old,newPassword:password}});
+ if(changed?.updated!==true)throw Error('El servidor no confirmó el cambio.');
+ resetClub();sessionStorage.removeItem('snoop-socio-last-club');state.me=null;state.clubs=[];state.email='';state.pending=false;state.page='login';
+ notify('Contraseña actualizada. Inicia sesión de nuevo.');
+ }catch(e){state.pending=false;notify(e?.status===401?'Contraseña actual incorrecta o sesión caducada.':e.message||'No se ha podido cambiar la contraseña.',true);}
+}
+async function submitForgot(form){const email=String(new FormData(form).get('email')||'').trim().toLowerCase();state.email=email;state.pending=true;render();
+ try{const result=await api('/auth/recover',{method:'POST',body:{email}});if(result?.accepted!==true)throw Error('La solicitud no fue confirmada.');state.pending=false;state.verification='recover';state.page='verify';notify('Si existe una cuenta, recibirás un correo para recuperar el acceso.');}
+ catch(e){state.pending=false;notify(e.message||'No se ha podido solicitar el enlace.',true);}
+}
+async function submitRecovery(form){const password=String(new FormData(form).get('newPassword')||'');const confirm=String(new FormData(form).get('confirm')||'');
+ if(password!==confirm)return notify('Las contraseñas no coinciden.',true);
+ const token=state.recoveryToken;if(!token)return notify('El enlace ha caducado. Solicita otro.',true);
+ state.pending=true;render();try{
+ const recovered=await api('/auth/complete-recovery',{method:'POST',body:{accessToken:token,password}});
+ if(recovered?.updated!==true)throw Error('El servidor no confirmó el cambio.');
+ state.recoveryToken=null;resetClub();sessionStorage.removeItem('snoop-socio-last-club');state.me=null;state.clubs=[];state.email='';state.pending=false;state.page='login';notify('Contraseña restablecida. Inicia sesión.');
+ }catch(e){state.pending=false;notify(e.message||'No se pudo recuperar el acceso.',true);}
+}
+async function resendVerification(){
+ if(!state.email||state.pending)return notify('Introduce primero tu correo de registro.',true);
+ state.pending=true;render();try{
+  const response=await api('/auth/resend',{method:'POST',body:{email:state.email}});
+  if(response?.accepted!==true)throw Error('El servidor no confirmó el reenvío.');
+  state.pending=false;notify('Si la cuenta está pendiente, recibirás un nuevo enlace.');
+ }catch(e){state.pending=false;notify(e.message||'No se pudo reenviar el correo.',true);}
+}
+async function submitLink(form){
+ const code=String(new FormData(form).get('code')||'').trim().toLowerCase().replace(/\s+/g,'');
+ if(!/^[a-f0-9]{48}$/.test(code))
+  return notify('El código debe contener 48 caracteres. Puedes pegarlo directamente.',true);
+ state.pending=true;render();
+ try{
+  const linked=await api('/link/claim',{method:'POST',body:{code}});
+  if(linked?.linked!==true)throw Error('El servidor no confirmó la vinculación.');
+  state.pending=false;state.message='';await refreshClubs();
+ }catch(e){
+  state.pending=false;
+  notify(e?.status===403?'Código caducado, ya utilizado o no autorizado. Solicita uno nuevo.':
+   e.message||'No se pudo vincular el carnet.',true);
+ }
+}
+document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}if(e.target.id==='password-form'){e.preventDefault();void submitPassword(e.target);}if(e.target.id==='forgot-form'){e.preventDefault();void submitForgot(e.target);}if(e.target.id==='recovery-form'){e.preventDefault();void submitRecovery(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';stopQr();break;case'profile':state.page='profile';stopQr();break;case'link':state.page='link';stopQr();break;case'home':state.page='carnet';void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;stopQr();void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'forgot':state.page='forgot';break;case'resend-verification':void resendVerification();break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';stopQr();break;case'profile':state.page='profile';stopQr();break;case'link':state.page='link';stopQr();break;case'home':state.page='carnet';void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;stopQr();void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopQr();else if(state.page==='carnet')void refreshCarnet();});
 window.addEventListener('pagehide',stopQr);
 if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
-render();void authenticate();
+// GoTrue recovery tokens are returned in the URL fragment (never sent to the server).
+// Remove them immediately before loading external assets or issuing any API request.
+try{
+ const hash=new URLSearchParams(location.hash.slice(1));
+ if(hash.get('type')==='recovery'&&typeof hash.get('access_token')==='string'&&
+    hash.get('access_token').split('.').length===3){
+  state.recoveryToken=hash.get('access_token');
+  state.page='recovery';
+ }
+ if(location.hash||location.search)history.replaceState(null,'',location.pathname);
+}catch{state.recoveryToken=null;}
+render();if(!state.recoveryToken)void authenticate();

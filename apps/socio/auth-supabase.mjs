@@ -71,7 +71,9 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
   if(status>=500||status===429||status===401||status===403||status===404||status===0)
    return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');
-  // 400/409/422 may indicate an existing account or a policy rejection.
+  if(status===400)return failed(400,'SIGNUP_REJECTED');
+  // 409/422 can indicate an existing account; reply generically to avoid enumeration.
+  // A rejected validation/weak-password 400 must never be shown as email sent.
   // Keep the response generic to avoid account enumeration; do not conceal
   // provider authorization/configuration errors as successful email dispatch.
   return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
@@ -85,6 +87,78 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   const user=await authUser(data.access_token);
   if(!(await checked(user,data.access_token)))return failed(401,'INVALID_LOGIN');
   return response({authenticated:true},200,sessionCookies(data));
+ };
+ // Recovery URLs must be explicitly allowed by Supabase Auth redirect settings.
+ // Never send credentials or bearer tokens to third-party websites.
+ const resendConfirmation=async({input})=>{
+  const email=normalize(input?.email);
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)
+   return failed(400,'INVALID_EMAIL');
+  let result;
+  try{
+   result=await fetcher(base+'/resend',{method:'POST',
+    headers:{apikey:publishableKey,'content-type':'application/json'},
+    body:JSON.stringify({type:'signup',email}),
+    redirect:'error',signal:AbortSignal.timeout(8000)});
+  }catch{return failed(503,'RESEND_UNAVAILABLE');}
+  if(!result.ok)return failed(result.status===429?429:503,'RESEND_UNAVAILABLE');
+  return response({accepted:true,message:'Si la cuenta está pendiente, recibirás otro enlace.'});
+ };
+ const recover=async({input})=>{
+  const email=normalize(input?.email);
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return failed(400,'INVALID_EMAIL');
+  let result;
+  try{
+   result=await fetcher(base+'/recover?redirect_to='+encodeURIComponent(signupRedirectUrl+'?snoop_recovery=1'),{
+    method:'POST',headers:{apikey:publishableKey,'content-type':'application/json'},
+    body:JSON.stringify({email}),redirect:'error',signal:AbortSignal.timeout(8000)
+   });
+  }catch{return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');}
+  if(!result.ok)return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');
+  return response({accepted:true,message:'Si existe una cuenta, recibirás un correo para cambiar la contraseña.'});
+ };
+ const completeRecovery=async({input})=>{
+  const token=input?.accessToken,password=input?.password;
+  if(typeof token!=='string'||token.length>9000||token.split('.').length!==3||
+   typeof password!=='string'||password.length<10||password.length>128)
+   return failed(400,'RECOVERY_INVALID');
+  const user=await authUser(token).catch(()=>null);
+  if(!userVerified(user)||!(await authorizeSocioUser(user.id,token)))
+   return failed(401,'RECOVERY_INVALID');
+  let result;
+  try{
+   result=await fetcher(base+'/user',{
+    method:'PUT',headers:{apikey:publishableKey,authorization:'Bearer '+token,
+     'content-type':'application/json'},
+    body:JSON.stringify({password}),redirect:'error',signal:AbortSignal.timeout(8000)
+   });
+  }catch{return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');}
+  if(!result.ok)return failed(403,'RECOVERY_REJECTED');
+  return response({updated:true},200,clear());
+ };
+ const changePassword=async({request,input})=>{
+  const oldPassword=input?.currentPassword,newPassword=input?.newPassword;
+  if(typeof oldPassword!=='string'||oldPassword.length<1||oldPassword.length>128||
+   typeof newPassword!=='string'||newPassword.length<10||newPassword.length>128||
+   oldPassword===newPassword)return failed(400,'INVALID_PASSWORD');
+  const token=tokenIn(request,ACCESS),user=await authUser(token).catch(()=>null);
+  if(!userVerified(user)||!(await checked(user,token)))return failed(401,'INVALID_SESSION');
+  const login=await call('/token?grant_type=password',{
+   method:'POST',body:{email:user.email,password:oldPassword}
+  }).catch(()=>null);
+  if(!login?.access_token)return failed(401,'WRONG_PASSWORD');
+  const reauthenticated=await authUser(login.access_token).catch(()=>null);
+  if(reauthenticated?.id!==user.id)return failed(403,'MISMATCHED_ACCOUNT');
+  let result;
+  try{
+   result=await fetcher(base+'/user',{
+    method:'PUT',headers:{apikey:publishableKey,authorization:'Bearer '+login.access_token,
+     'content-type':'application/json'},
+    body:JSON.stringify({password:newPassword}),redirect:'error',signal:AbortSignal.timeout(8000)
+   });
+  }catch{return failed(503,'PROVIDER_UNAVAILABLE');}
+  if(!result.ok)return failed(403,'PASSWORD_REJECTED');
+  return response({updated:true,relogin:true},200,clear());
  };
  const logout=async({request})=>{
   const token=tokenIn(request,ACCESS);
@@ -101,5 +175,5 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
- return{authenticate,signup,login,logout,refresh};
+ return{authenticate,signup,login,logout,refresh,recover,resendConfirmation,completeRecovery,changePassword};
 }
