@@ -149,3 +149,16 @@ test('member password change requires authenticated Socio identity and current p
  assert.equal(unauthorized.status,401);
  assert.equal(requests.filter(x=>x.method==='PUT').length,1);
 });
+
+test('rejected signup is not misreported as a verification email sent',async()=>{
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async()=>Response.json({error:'password policy rejected'},{status:400}),
+  authorizeSocioUser:async()=>true
+ });
+ const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+ assert.equal(result.status,400);
+ assert.equal(result.headers.get('set-cookie'),null);
+ const body=await result.json();
+ assert.equal(JSON.stringify(body).includes('password policy rejected'),false);
+});
