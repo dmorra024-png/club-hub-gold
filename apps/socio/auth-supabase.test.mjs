@@ -99,3 +99,15 @@ test('signup never claims verification mail was sent on missing or unauthorized 
   assert.equal(result.headers.get('set-cookie'),null);
  }
 });
+
+test('rejected registration cannot masquerade as verification email',async()=>{
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async()=>Response.json({error:'Password rejected by Auth policy'},{status:400}),
+  authorizeSocioUser:async()=>true
+ });
+ const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+ assert.equal(result.status,400);
+ assert.equal(result.headers.get('set-cookie'),null);
+ assert.equal(JSON.stringify(await result.json()).includes('Password rejected'),false);
+});
