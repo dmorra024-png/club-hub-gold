@@ -6,7 +6,7 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {toast} from "sonner";
 
-type Status={enabled:boolean;balanceCents:number|null;cashSessionId:string|null};
+type Status={enabled:boolean;clubEnabled:boolean;balanceCents:number|null;cashSessionId:string|null};
 const money=(c:number)=>(c/100).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
 /** Staff wallet panel. Nothing is shown when a club has not explicitly enabled Monedero. */
 export function WalletTopupPanel({memberId}:{memberId:string}){
