@@ -29,14 +29,17 @@ export const walletMemberStatus=createServerFn({method:"POST"})
  .inputValidator((input:unknown)=>z.object({memberId:uuid}).strict().parse(input))
  .handler(async ({context,data})=>{
   setResponseHeader("Cache-Control","private, no-store");
-  if(!available())return {enabled:false,balanceCents:null};
+  if(!available())return {enabled:false,balanceCents:null,cashSessionId:null};
   await checkMember(context,data.memberId);
   const {data:result,error}=await (context.supabase as any).rpc(
    "socio_wallet_staff_member_state",{p_member_id:data.memberId});
   if(error||!result||typeof result.enabled!=="boolean"||
       (result.enabled&&(!Number.isSafeInteger(result.balanceCents)||
                          result.balanceCents<0)))fail();
-  return {enabled:result.enabled,balanceCents:result.enabled?result.balanceCents:null};
+  const {data:sessionId,error:sessionError}=await (context.supabase as any).rpc('current_open_cash_session');
+  if(sessionError)fail();
+  return {enabled:result.enabled,balanceCents:result.enabled?result.balanceCents:null,
+   cashSessionId:uuid.safeParse(sessionId).success?sessionId:null};
  });
 export const walletTopup=createServerFn({method:"POST"})
  .middleware([requireClubCashAuth])
