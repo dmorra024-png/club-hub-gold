@@ -86,17 +86,27 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
    if(!staff||staff.accountType!=='staff'||staff.verified!==true||!isUuid(staff.userId)||!isUuid(staff.clubId)||staff.canScan!==true)throw error('SCANNER_UNAUTHORIZED');
    const checked=await verifyCardQr(token,{clubId:staff.clubId,secret:signingSecret,now:now(),memberActive:true});
    if(!checked.ok)throw error('QR_REJECTED');
-   // Confirm current club membership from server, not token or staff's client flags.
-   const valid=await repository.isMemberActive(checked.clubId,checked.memberId);
-   if(valid!==true)throw error('MEMBERSHIP_REVOKED');
-   // One-use nonce is consumed atomically by the scanner's trusted server adapter.
-   // Issuance never consumes the nonce; second scan within TTL must fail.
-   if(typeof repository.consumeQrNonce!=='function')throw error('QR_REPLAY_PROTECTION_REQUIRED',503);
-   const consumed=await repository.consumeQrNonce({
-    clubId:checked.clubId,memberId:checked.memberId,
-    nonce:checked.nonce,scannerUserId:staff.userId,expiresAt:now()+60_000
-   });
-   if(consumed!==true)throw error('QR_ALREADY_SCANNED',409);
+   // Preferred real adapter: membership, role, current expiry and nonce are
+   // verified/consumed together inside one trusted database transaction.
+   if(typeof repository.verifyAndConsumeQr==='function'){
+    const consumed=await repository.verifyAndConsumeQr({
+     clubId:checked.clubId,memberId:checked.memberId,
+     nonce:checked.nonce,scannerUserId:staff.userId,
+     expiresAt:now()+60_000
+    });
+    if(consumed!==true)throw error('QR_REJECTED_OR_REPLAY',409);
+   }else{
+    // Pure in-memory repository compatibility for legacy isolated tests only.
+    const valid=await repository.isMemberActive(checked.clubId,checked.memberId);
+    if(valid!==true)throw error('MEMBERSHIP_REVOKED');
+    if(typeof repository.consumeQrNonce!=='function')
+     throw error('QR_REPLAY_PROTECTION_REQUIRED',503);
+    const consumed=await repository.consumeQrNonce({
+     clubId:checked.clubId,memberId:checked.memberId,
+     nonce:checked.nonce,scannerUserId:staff.userId,expiresAt:now()+60_000
+    });
+    if(consumed!==true)throw error('QR_ALREADY_SCANNED',409);
+   }
    return{clubId:checked.clubId,memberId:checked.memberId,valid:true};
   }
  };
