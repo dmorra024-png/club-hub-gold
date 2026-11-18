@@ -33,18 +33,18 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
  const cents=parseCashCents(amount);
  async function topup(){
   if(inFlight.current||!confirmed||cents===null||cents<=0||cents>10000000||
-     !status.cashSessionId)return;
+     !status?.cashSessionId)return;
   inFlight.current=true;setBusy(true);setProblem("");
   // Keep the same idempotency key across network uncertainty, never generate
   // a new transaction by retrying a failed acknowledgement.
   operation.current??=crypto.randomUUID();
   try{
    const result=await walletTopup({data:{memberId,
-    cashSessionId:status.cashSessionId!,operationId:operation.current!,
+    cashSessionId:status!.cashSessionId!,operationId:operation.current!,
     amountCents:cents,confirmed:true}});
    operation.current=null;
    setAmount("");setConfirmed(false);
-   setStatus({...status,balanceCents:result.balanceCents});
+   setStatus({...status!,balanceCents:result.balanceCents});
    toast.success("Recarga registrada en caja y monedero.");
   }catch{
    setProblem("No se pudo confirmar la recarga. Comprueba el historial antes de reintentar; no se ha generado otra operación.");
