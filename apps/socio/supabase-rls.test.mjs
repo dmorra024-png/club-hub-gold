@@ -17,7 +17,7 @@ test('wallet uses club and member scope, with no mutation paths',async()=>{
  const r=make();assert.equal((await r.walletForMember(club,member)).balanceCents,2530);
  assert.deepEqual(await r.walletMovementsForMember(club,member),[]);
  await assert.rejects(r.walletForMember('wrong',member),{code:'SOCIO_WALLET_SCOPE'});
- await assert.rejects(r.autoLinkForVerifiedEmail({}),{code:'SOCIO_AUTOLINK_WRITE_DISABLED'});
+ await assert.rejects(r.autoLinkForVerifiedEmail({}),{code:'SOCIO_AUTOLINK_NOT_AUTHORIZED'});
  await assert.rejects(r.claimAndConsumeLinkChallenge({}),{code:'SOCIO_IDENTITY_SCOPE'});
 });
 test('query errors are failures, not fake empty membership',async()=>{
@@ -51,4 +51,33 @@ test('claim RPC rejects spent tokens, fails closed on missing RPC or corrupt rep
  await assert.rejects(unavailable.claimAndConsumeLinkChallenge({code,authUserId:uid}),{code:'SOCIO_LINK_PROVIDER_UNAVAILABLE'});
  const corrupt=make(async()=>Response.json({ok:true}));
  await assert.rejects(corrupt.claimAndConsumeLinkChallenge({code,authUserId:uid}),{code:'SOCIO_LINK_BAD_DATA'});
+});
+
+test('verified same-user identity autolinks via authenticated RPC without exposing member email or access code',async()=>{
+ const requests=[];
+ const r=make(async(url,opts)=>{
+  requests.push({url,opts});
+  if(url.endsWith('/rpc/socio_link_by_verified_email'))return Response.json(2);
+  return Response.json([]);
+ });
+ assert.deepEqual(await r.autoLinkForVerifiedEmail({
+  authUserId:uid,verifiedEmail:'socio@example.test',emailConfirmed:true
+ }),{linkedCount:2});
+ assert.equal(requests.length,1);
+ assert.match(requests[0].url,/\/rpc\/socio_link_by_verified_email$/);
+ assert.equal(requests[0].opts.headers.authorization,'Bearer verified-user-jwt');
+ assert.equal(requests[0].opts.body,'{}');
+ assert.equal(JSON.stringify(requests[0]).includes('socio@example.test'),false);
+ await assert.rejects(r.autoLinkForVerifiedEmail({
+  authUserId:other,verifiedEmail:'socio@example.test',emailConfirmed:true
+ }),{code:'SOCIO_AUTOLINK_NOT_AUTHORIZED'});
+ await assert.rejects(r.autoLinkForVerifiedEmail({
+  authUserId:uid,verifiedEmail:'socio@example.test',emailConfirmed:false
+ }),{code:'SOCIO_AUTOLINK_NOT_AUTHORIZED'});
+ assert.equal(requests.length,1);
+});
+test('autolink refuses provider errors and fabricated link counts',async()=>{
+ const p={authUserId:uid,verifiedEmail:'socio@example.test',emailConfirmed:true};
+ await assert.rejects(make(async()=>Response.json({message:'forbidden'},{status:403})).autoLinkForVerifiedEmail(p),{code:'SOCIO_AUTOLINK_UNAVAILABLE'});
+ await assert.rejects(make(async()=>Response.json({bad:5})).autoLinkForVerifiedEmail(p),{code:'SOCIO_AUTOLINK_BAD_DATA'});
 });
