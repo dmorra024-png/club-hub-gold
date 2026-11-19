@@ -2,7 +2,7 @@ import { parseMrzText, type MrzParseResult } from "./local-document-mrz";
 import { parsePrintedDocumentText, type VisualDocumentFields } from "./local-document-visual";
 
 type LocalTesseract = {
-  createWorker: (languages: string, oem?: number, options?: Record<string, unknown>) => Promise<{
+  createWorker: (languages: string | string[], oem?: number, options?: Record<string, unknown>) => Promise<{
     recognize: (image: Blob | HTMLCanvasElement) => Promise<{ data: { text: string } }>;
     setParameters: (params: Record<string, string>) => Promise<unknown>;
     terminate: () => Promise<unknown>;
@@ -86,7 +86,7 @@ export async function readLocalDocumentFromImages(files: readonly Blob[]): Promi
   const mrz = await readLocalMrzFromImages(files);
   if (mrz) return { ...mrz, rawText: "" };
   const tesseract = await localEngine();
-  const worker = await tesseract.createWorker("spa+eng", 1, {
+  const worker = await tesseract.createWorker(["spa", "eng"], 1, {
     workerPath: new URL("/ocr/worker.min.js", location.origin).href,
     corePath: new URL("/ocr/core", location.origin).href,
     langPath: new URL("/ocr/lang", location.origin).href,
