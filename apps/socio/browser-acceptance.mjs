@@ -53,7 +53,7 @@ async function setupApi(page){
   if(path==='/auth/signup')return response({message:'Signup de prueba deshabilitado'},503);
   if(!loggedIn)return response({message:'Not authorized'},401);
   if(path==='/me')return response({authenticated:true,email:testEmail,emailVerified:true});
-  if(path==='/memberships/sync')return response({synced:true,linkedCount:1});
+  if(path==='/memberships/sync'){secondClubLinked=true;return response({synced:true,linkedCount:1});}
   if(path==='/link/claim'&&method==='POST'){
    let input={};try{input=JSON.parse(request.postData()||'{}')}catch{}
    if(input.code!=='c'.repeat(48))return response({message:'Código inválido'},403);
@@ -114,7 +114,7 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor({timeout:15000});
   await page.getByText('Socio Nº 00124').waitFor();
   await page.getByText('25,75 €').waitFor();
-  await page.locator('img[alt="QR temporal de socio"]').waitFor();
+  await page.locator('img[alt="QR permanente de socio"]').waitFor();
   await mkdir(screenshotDir,{recursive:true});
   await page.screenshot({path:join(screenshotDir,deviceName+'-carnet.png'),fullPage:true});
   // Financial readings must be limited to the currently selected club.
@@ -124,13 +124,10 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('button',{name:'Volver al carnet'}).click();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('heading',{name:'Mis clubes'}).waitFor();
-  assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0,'Unlinked club must remain hidden');
-  await page.getByRole('button',{name:'Vincular otro club'}).click();
-  await page.getByRole('heading',{name:'Vincula tu carnet'}).waitFor();
-  await page.locator('input[name="code"]').fill('c'.repeat(48));
-  await page.getByRole('button',{name:'Vincular mi carnet'}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
-  await page.getByRole('button',{name:'Mis clubes'}).click();
+  // A verified account automatically gets eligible clubs. No staff-issued code
+  // should ever be visible or typed by the customer.
+  assert.equal(await page.locator('input[name="code"]').count(),0);
+  assert.equal(hits.some(h=>h==='POST /link/claim'),false);
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
   await page.getByRole('heading',{name:'SNOOP Club Demo Madrid'}).waitFor();
   await page.getByText('Socio Nº 00077').waitFor();
