@@ -51,6 +51,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Ensure OCR source matches the release event
+        shell: bash
+        working-directory: ocr
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA" || { echo "OCR checkout mismatch"; exit 1; }
       - name: Overlay only local OCR on currently active source
         run: node ../ocr/scripts/isolated-ocr-overlay.mjs "$PWD" "$PWD/../ocr"
       - name: Assert source changes limited strictly to OCR
@@ -268,3 +274,5 @@ jobs:
 # Scan-only retry: original camera pixels and resilient MRZ line parsing.
 
 # User-authorized Spanish printed-text OCR pilot release; deploy only after checks.
+
+# Release on 2026-11-19: includes multilingual-worker API correction.
