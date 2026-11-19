@@ -127,6 +127,7 @@ function NewSocio() {
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
   const [ocrReviewed, setOcrReviewed] = useState(true);
   const [ocrMessage, setOcrMessage] = useState("");
+  const [ocrText, setOcrText] = useState("");
 
   useEffect(() => {
     voiceMounted.current = true;
@@ -351,6 +352,7 @@ function NewSocio() {
     setScanStatus("scanning");
     setOcrReviewed(true);
     setOcrMessage("");
+    setOcrText("");
     try {
       const compressed: Blob[] = [];
       for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
@@ -361,10 +363,11 @@ function NewSocio() {
         reader.readAsDataURL(blob);
       })));
       setScanPreviews(previews);
-      const { fields } = await scanDocumentLocally(compressed);
+      const { fields, rawText } = await scanDocumentLocally(compressed);
+      setOcrText(rawText.trim());
       const found = Object.entries(fields).filter(([, value]) => Boolean(value)).map(([key]) => key);
       if (!found.length) {
-        setOcrMessage("No se han leído datos fiables. Prueba con otra foto o introduce los datos a mano.");
+        setOcrMessage(rawText.trim() ? "El OCR ha visto texto, pero no ha podido identificar los campos. Abre «Texto leído» para comprobarlo." : "No se ha detectado texto legible en la imagen. Prueba una foto más cercana, con buena luz.");
         toast.error("No se han podido leer los datos del documento");
       } else {
         setForm((current) => mergeUneditedValues(current, initial, {
@@ -666,6 +669,12 @@ function NewSocio() {
               </label>
             )}
           </div>
+        )}
+        {ocrText && (
+          <details className="mt-3 rounded-xl border border-neon/20 p-3 text-sm">
+            <summary className="cursor-pointer text-neon">Texto leído (solo en este dispositivo)</summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-muted-foreground max-h-40 overflow-y-auto">{ocrText}</pre>
+          </details>
         )}
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
