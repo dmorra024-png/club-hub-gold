@@ -27,6 +27,16 @@ test('user has club-specific card, no club mismatch, wallet gated per club',asyn
  await assert.rejects(svc.card(actor,'de2794a5-275d-4878-ab3e-7d2e3ecae995'),{code:'MEMBERSHIP_NOT_FOUND'});
  assert.equal((await svc.clubs({...actor,userId:other})).clubs.length,0);
 });
+test('permanent member QR remains stable across time and is isolated by club',async()=>{
+ const first=await svc.stableQr(actor,a);
+ const second=await svc.stableQr(actor,a);
+ assert.deepEqual(first,{token:'SNOOP:124'});
+ assert.deepEqual(second,first);
+ assert.deepEqual(await svc.stableQr(actor,b),{token:'SNOOP:872'});
+ assert.equal('expiresIn' in first,false);
+ await assert.rejects(svc.stableQr({...actor,emailVerified:false},a),{code:'SOCIO_UNAUTHORIZED'});
+ await assert.rejects(svc.stableQr({...actor,userId:other},a),{code:'MEMBERSHIP_NOT_FOUND'});
+});
 test('unverified email and staff account cannot read wallet or memberships',async()=>{
  await assert.rejects(svc.clubs({...actor,emailVerified:false}),{code:'SOCIO_UNAUTHORIZED'});
  await assert.rejects(svc.wallet({userId:other,emailVerified:true,accountType:'staff'},a),{code:'SOCIO_UNAUTHORIZED'});
