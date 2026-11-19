@@ -1,4 +1,4 @@
-name: SNOOP pilot — typed Tesseract OCR hotfix
+name: SNOOP pilot — OCR local test and diagnostic fix
 
 on:
   push:
@@ -77,6 +77,7 @@ jobs:
           bun run test:voice:activation
           bun run test:security:initialization
           bun run typecheck
+          node --test tests/document-ocr.test.ts
       - name: Build Cloudflare Worker (only public key embedded)
         shell: bash
         env:
