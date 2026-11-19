@@ -24,6 +24,20 @@ function sessionCookies(session){
 }
 function tokenIn(request,name){try{const raw=cookies(request)[name];return raw&&raw.length<10000?decodeURIComponent(raw):null;}catch{return null;}}
 const normalize=x=>typeof x==='string'?x.trim().toLowerCase():'';
+// Reject clearly expired, malformed or truncated cookie tokens before contacting
+// the provider. This is NEVER an authorization check: GoTrue still validates
+// cryptographic signatures and account type for all accepted candidates.
+function clearlyInvalidAccessToken(token){
+ if(typeof token!=='string'||token.length<32||token.length>9000)return true;
+ const parts=token.split('.');
+ if(parts.length!==3||parts.some(p=>!p||!/^[A-Za-z0-9_-]+$/.test(p)))return true;
+ try{
+  const json=JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+  return !json||typeof json.exp!=='number'||!Number.isFinite(json.exp)||
+   json.exp<=Math.floor(Date.now()/1000)||typeof json.sub!=='string';
+ }catch{return true;}
+}
+
 const userVerified=u=>u&&typeof u.id==='string'&&typeof u.email==='string'&&typeof u.email_confirmed_at==='string';
 /**
  * Required host-provided authorizeSocioUser(uid) must read trusted DB authorization,
@@ -49,7 +63,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  };
  const authenticate=async request=>{
   const accessToken=tokenIn(request,ACCESS);
-  if(!accessToken)return null;
+  if(!accessToken||clearlyInvalidAccessToken(accessToken))return null;
   const user=await authUser(accessToken);
   if(!(await checked(user,accessToken)))return null;
   return{userId:user.id,email:user.email,emailVerified:true,accountType:'socio',accessToken};
@@ -168,7 +182,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  };
  const refresh=async({request})=>{
   const refreshToken=tokenIn(request,REFRESH);
-  if(!refreshToken)return response({authenticated:false},401,clear());
+  if(!refreshToken||refreshToken.length<24||refreshToken.length>2048)return response({authenticated:false},401,clear());
   let data;try{data=await call('/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:refreshToken}});}catch{return failed(503,'REFRESH_UNAVAILABLE');}
   if(!data?.access_token||!data.refresh_token)return response({authenticated:false},401,clear());
   const user=await authUser(data.access_token);
