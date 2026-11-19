@@ -38,7 +38,7 @@ function parsedNames(s: string) {
 }
 // ICAO 9303 TD1 (DNI) / TD3 (passport) machine readable zones. Accept checked values only.
 export function parseMRZ(text: string): Partial<DocumentFields> {
-  const lines = text.split(/\r?\n/).map(upper).filter(s => s.length >= 25 && s.includes("<"));
+  const lines = text.split(/\r?\n/).map(upper).filter(s => s.length >= 25);
   for (let i = 0; i < lines.length; i++) {
     const a = lines[i], b = lines[i + 1], c = lines[i + 2];
     if (/^[A-Z<I][A-Z<][A-Z<]{3}/.test(a) && a.length === 30 && b?.length === 30 && c?.length === 30) {
