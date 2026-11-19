@@ -513,46 +513,13 @@ function NewSocio() {
 
       setPaymentOpen(false);
       registrationId.current = crypto.randomUUID();
-      // Email failure must not undo a committed registration. Open the new
-      // member card so a staff member can share its QR without a provider.
-      let qrMailFailed = false;
-      // Send the QR carnet by email if the socio provided one
-      try {
-        if (form.email.trim()) {
-          const { data: created } = await supabase
-            .from("members")
-            .select("member_number")
-            .eq("id", memberId)
-            .maybeSingle();
-          const { data: club } = await supabase
-            .from("clubs")
-            .select("name")
-            .eq("id", clubId)
-            .maybeSingle();
-          const { sendMemberQrEmail } = await import("@/lib/member-qr");
-          const mail = await sendMemberQrEmail({
-            memberId,
-            memberNumber: (created as any)?.member_number ?? "",
-            fullName: `${form.first_name} ${form.last_name}`.trim(),
-            email: form.email.trim(),
-            clubName: (club as any)?.name ?? "Club",
-          });
-          const { memberMailLabel } = await import("@/lib/member-mail-state");
-          toast.success("Socio creado — " + memberMailLabel(mail.status));
-        } else {
-          toast.success("Socio creado (sin email: no se envió el QR)");
-        }
-      } catch (mailErr: any) {
-        console.error("qr email failed", mailErr);
-        qrMailFailed = true;
-        toast.warning("Socio creado, pero falta el email. Comparte el QR desde esta ficha.");
-      }
-
+      // A newly registered member uses the single App Socio email invitation.
+      // No extra QR, duplicate member card or old QR-email is generated here.
+      toast.success("Socio creado. Envía su acceso desde «Enviar email App Socio».");
       try {
         window.sessionStorage.removeItem("snoop:new-member-transcript");
       } catch {}
-      if (qrMailFailed) nav({ to: "/soci/$id", params: { id: memberId } });
-      else nav({ to: "/soci/gestisci" });
+      nav({ to: "/soci/$id", params: { id: memberId } });
       return true;
     } catch (e: any) {
       failRegistration(e?.message || "Error al registrar el socio. No repitas el pago sin comprobar el estado.");
