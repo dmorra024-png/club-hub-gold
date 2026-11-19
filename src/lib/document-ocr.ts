@@ -85,7 +85,14 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
   const postal = joined.match(/\b\d{5}\b/);
   if (postal && /(?:DOMICILIO|DIRECCI[ÓO]N|ADDRESS|RESIDENCIA|LOCALIDAD|MUNICIPIO|CP|C\.P\.)/i.test(joined))
     result.postal_code = postal[0];
-  // Addresses and city are deliberately not guessed: no fixed layout across ID types.
+  const address = pick(/^(?:DOMICILIO|DIRECCI[ÓO]N|ADDRESS|ADRESSE)\\b\\s*/i);
+  if (address && /^.{5,100}$/.test(address) && /[\\p{L}]/u.test(address)
+      && !/^(?:NOMBRE|APELLIDOS?|NACIMIENTO|LOCALIDAD|MUNICIPIO|PROVINCIA|NATIONALITY)/i.test(address)) {
+    result.address = address;
+  }
+  const city = pick(/^(?:LOCALIDAD|MUNICIPIO|CIUDAD|CITY|POBLACI[ÓO]N)\\b\\s*/i);
+  if (city && /^[\\p{L} .'-]{2,65}$/u.test(city)) result.city = city;
+  // Never infer an address/city from unrelated fields or an unlabeled number.
   return result;
 }
 export async function scanDocumentLocally(images: Blob[]): Promise<{ fields: DocumentFields; rawText: string }> {
