@@ -7,8 +7,10 @@ let lastTheme: { clubId: string; id: SnoopThemeId } | null = null;
 export function useClubTheme(clubId: string | null | undefined) {
   useEffect(() => {
     let active = true;
-    applySnoopTheme(clubId && lastTheme?.clubId === clubId ? lastTheme.id : DEFAULT_SNOOP_THEME);
+    // Auth/session loading may briefly unset clubId during navigation.
+    // Preserve the already applied theme instead of flashing the default.
     if (!clubId) return () => { active = false; };
+    applySnoopTheme(lastTheme?.clubId === clubId ? lastTheme.id : DEFAULT_SNOOP_THEME);
     const load = async () => {
       try {
         const id = await getClubTheme(clubId);
