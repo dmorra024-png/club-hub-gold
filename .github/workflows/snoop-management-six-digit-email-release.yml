@@ -18,6 +18,7 @@ jobs:
       SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       APP_URL: https://snoop-pilot.dmorra024.workers.dev
       SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
@@ -71,6 +72,7 @@ jobs:
       SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       APP_URL: https://snoop-pilot.dmorra024.workers.dev
       SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
