@@ -264,3 +264,5 @@ jobs:
           echo "SNOOP_LOCAL_OCR_STATIC_ASSETS_AVAILABLE"
 
 
+
+# Scan-only retry: original camera pixels and resilient MRZ line parsing.
