@@ -32,10 +32,10 @@ export const Route = createFileRoute("/_authenticated/ajustes/informes")({
   component: InformesPage,
 });
 
-const NEON = "#39FF14";
-const NEON_DIM = "#1f6a13";
-const RED = "#ef4444";
-const PIE_COLORS = ["#39FF14", "#22d3ee", "#a855f7", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899"];
+const NEON = "var(--snoop-accent)";
+const NEON_DIM = "var(--snoop-muted)";
+const RED = "var(--snoop-danger, #c66f75)";
+const PIE_COLORS = ["var(--snoop-accent)", "#7599a8", "#9e84ba", "#b8a181", "#c07882", "#708db5", "#af8e9d"];
 
 type Range = "7d" | "30d" | "90d" | "365d";
 const RANGES: { id: Range; label: string; days: number }[] = [
@@ -341,7 +341,7 @@ function InformesPage() {
     );
 
   return (
-    <SnoopLayout title="Informes" subtitle="Estadísticas de stock y ventas">
+    <SnoopLayout title="Informes" subtitle="Inteligencia operacional · análisis del club">
       {/* Range selector */}
       <div className="flex flex-wrap gap-2 mb-6">
         {RANGES.map((r) => (
@@ -415,13 +415,13 @@ function InformesPage() {
             <ChartCard title="Entradas y salidas por día">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={accessStats.daily}>
-                  <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                  <XAxis dataKey="day" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#0a0a0a", border: "1px solid #39FF14" }} />
+                  <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.3} vertical={false} />
+                  <XAxis dataKey="day" stroke="var(--snoop-muted)" fontSize={10} />
+                  <YAxis stroke="var(--snoop-muted)" fontSize={10} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }} />
                   <Legend />
-                  <Bar dataKey="entradas" fill={NEON} name="Entradas" />
-                  <Bar dataKey="salidas" fill={RED} name="Salidas" />
+                  <Bar dataKey="entradas" fill={NEON} name="Entradas" radius={[6,6,0,0]} animationDuration={550} />
+                  <Bar dataKey="salidas" fill={RED} name="Salidas" radius={[6,6,0,0]} animationDuration={550} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -431,15 +431,15 @@ function InformesPage() {
           <ChartCard title="Ingresos por día">
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={daily}>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                <XAxis dataKey="day" stroke="#888" fontSize={11} />
-                <YAxis stroke="#888" fontSize={11} />
+                <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.3} vertical={false} />
+                <XAxis dataKey="day" stroke="var(--snoop-muted)" fontSize={11} />
+                <YAxis stroke="var(--snoop-muted)" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                  contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }}
                   labelStyle={{ color: NEON }}
                   formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
                 />
-                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={2.5} dot={false} activeDot={{r:5}} animationDuration={650} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -451,11 +451,11 @@ function InformesPage() {
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={topSold} layout="vertical" margin={{ left: 16 }}>
-                  <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                  <XAxis type="number" stroke="#888" fontSize={11} />
-                  <YAxis type="category" dataKey="name" stroke="#888" fontSize={11} width={110} />
+                  <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.3} vertical={false} />
+                  <XAxis type="number" stroke="var(--snoop-muted)" fontSize={11} />
+                  <YAxis type="category" dataKey="name" stroke="var(--snoop-muted)" fontSize={11} width={110} />
                   <Tooltip
-                    contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                    contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }}
                     formatter={(v: any, n: string) =>
                       n === "revenue"
                         ? [`€${Number(v).toFixed(2)}`, "Ingresos"]
@@ -472,13 +472,13 @@ function InformesPage() {
           <ChartCard title="Movimientos de stock por día">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={dailyMovs}>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                <XAxis dataKey="day" stroke="#888" fontSize={11} />
-                <YAxis stroke="#888" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }} />
+                <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.3} vertical={false} />
+                <XAxis dataKey="day" stroke="var(--snoop-muted)" fontSize={11} />
+                <YAxis stroke="var(--snoop-muted)" fontSize={11} />
+                <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="entradas" fill={NEON} name="Entradas" />
-                <Bar dataKey="salidas" fill={RED} name="Salidas" />
+                <Bar dataKey="entradas" fill={NEON} name="Entradas" radius={[6,6,0,0]} animationDuration={550} />
+                <Bar dataKey="salidas" fill={RED} name="Salidas" radius={[6,6,0,0]} animationDuration={550} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -581,7 +581,7 @@ function InformesPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                    contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }}
                     formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
                   />
                 </PieChart>
@@ -632,7 +632,7 @@ function Kpi({
 }) {
   const color = tint === "neon" ? "text-neon" : "text-destructive";
   return (
-    <div className="bg-card/60 border border-neon/20 rounded-2xl p-4">
+    <div className="snoop-hud-kpi bg-card/60 border border-neon/20 rounded-2xl p-4">
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
         <Icon className={`w-4 h-4 ${color}`} />
         {label}
@@ -644,7 +644,7 @@ function Kpi({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-5">
+    <div className="snoop-hud-chart bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-5">
       <div className="font-display text-sm text-neon tracking-wide uppercase mb-3">{title}</div>
       {children}
     </div>
