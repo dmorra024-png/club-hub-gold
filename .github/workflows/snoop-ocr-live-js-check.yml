@@ -27,10 +27,12 @@ jobs:
               legacyDenied:source.includes('Procesamiento de documentos no autorizado'),
               legacyHint:source.includes('Haz 1 o 2 fotos del DNI'),
               newLocalHint:source.includes('Fotografía la zona MRZ')||source.includes('Fotograf'),
-              newCode:source.includes('Lectura local verificada')||source.includes('Datos MRZ leídos'),
+              newCode:source.includes('OCR visual SIN VERIFICAR')||source.includes('Sugerencias OCR aplicadas'),
+              hasCamera:source.includes('Sacar foto'),
+              hasGallery:source.includes('Cargar de galería'),
               cacheControl:r.headers.get('cache-control'),
               etag:r.headers.get('etag')
             }));
           }
-          for(const path of ['/assets/soci.nuovo-WvegYhX8.js','/auth','/sw.js','/ocr/tesseract.min.js']) await check(path);
+          for(const path of ['/assets/soci.nuovo-DzO5YFFb.js','/auth','/sw.js','/ocr/tesseract.min.js']) await check(path);
           NODE
