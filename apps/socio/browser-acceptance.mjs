@@ -118,14 +118,14 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="email"]').fill(testEmail);
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor({timeout:15000});
-  await page.getByText('Socio Nº 00124').waitFor();
+  await page.locator('.socio-hello p').getByText('SNOOP Club Demo Palma').waitFor({timeout:15000});
+  await page.locator('.member-premium-card').getByText('00124').waitFor();
   await page.getByText('25,75 €').waitFor();
   await page.locator('img[alt="QR temporal de socio"]').waitFor();
   await mkdir(screenshotDir,{recursive:true});
   await page.screenshot({path:join(screenshotDir,deviceName+'-carnet.png'),fullPage:true});
   // Financial readings must be limited to the currently selected club.
-  await page.getByRole('button',{name:'Movimientos'}).click();
+  await page.locator('.socio-premium-wallet').click();
   await page.getByText('Aportación Palma').waitFor();
   assert.equal(await page.getByText('Recarga Madrid').count(),0);
   await page.getByRole('button',{name:'Volver al carnet'}).click();
@@ -136,14 +136,14 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('heading',{name:'Vincula tu carnet'}).waitFor();
   await page.locator('input[name="code"]').fill('c'.repeat(24)+' '+'c'.repeat(24));
   await page.getByRole('button',{name:'Vincular mi carnet'}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
+  await page.locator('.socio-hello p').getByText('SNOOP Club Demo Palma').waitFor();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Madrid'}).waitFor();
-  await page.getByText('Socio Nº 00077').waitFor();
+  await page.locator('.socio-hello p').getByText('SNOOP Club Demo Madrid').waitFor();
+  await page.locator('.member-premium-card').getByText('00077').waitFor();
   await page.getByText('60,00 €').waitFor();
-  assert.equal(await page.getByText('Socio Nº 00124').count(),0);
-  await page.getByRole('button',{name:'Movimientos'}).click();
+  assert.equal(await page.locator('.member-premium-card').getByText('00124').count(),0);
+  await page.locator('.socio-premium-wallet').click();
   await page.getByText('Recarga Madrid').waitFor();
   assert.equal(await page.getByText('Aportación Palma').count(),0);
   await page.screenshot({path:join(screenshotDir,deviceName+'-wallet.png'),fullPage:true});
@@ -152,7 +152,7 @@ async function runBrowser(browserType,deviceName,options){
   fixture.holdNextWallet();
   await page.getByRole('button',{name:/SNOOP Club Demo Palma/}).click();
   await fixture.heldWalletHit;
-  await page.getByRole('button',{name:'Menú'}).click();
+  await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
   await page.getByRole('button',{name:'Cerrar sesión'}).click();
   await page.getByRole('heading',{name:'Bienvenido'}).waitFor();
   assert.equal(await page.getByText('60,00 €').count(),0);
@@ -165,7 +165,7 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="email"]').fill(testEmail);
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
+  await page.locator('.socio-hello p').getByText('SNOOP Club Demo Palma').waitFor();
   await page.getByText('25,75 €').waitFor();
   fixture.releaseWallet();
   await page.waitForTimeout(250);
@@ -173,7 +173,7 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByText('25,75 €').waitFor();
   // Account settings must remain available to the member. Requiring the old
   // password prevents an already unlocked browser from silently changing it.
-  await page.getByRole('button',{name:'Menú'}).click();
+  await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
   await page.getByRole('button',{name:'Mi perfil'}).click();
   await page.getByRole('heading',{name:'Mi cuenta'}).waitFor();
   await page.locator('input[name="currentPassword"]').fill('wrong-old-password');
