@@ -99,7 +99,7 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
   return result;
 }
 export async function scanDocumentLocally(images: Blob[]): Promise<{ fields: DocumentFields; rawText: string }> {
-  const { createWorker } = await import("tesseract.js");
+  const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker(["spa", "eng"]);
   try {
     const texts: string[] = [];
@@ -108,9 +108,9 @@ export async function scanDocumentLocally(images: Blob[]): Promise<{ fields: Doc
       try {
         // The first pass captures printed field labels, the second improves
         // reading the dense machine-readable lines near the document edge.
-        await worker.setParameters({ tessedit_pageseg_mode: "11" });
+        await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
         const general = await worker.recognize(url);
-        await worker.setParameters({ tessedit_pageseg_mode: "6" });
+        await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
         const structured = await worker.recognize(url);
         texts.push(general.data.text, structured.data.text);
       } finally { URL.revokeObjectURL(url); }
