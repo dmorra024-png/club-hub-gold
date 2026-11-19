@@ -368,9 +368,9 @@ function NewSocio() {
       }
       const fields = result.fields;
       if (!window.confirm(
-        `Lectura local verificada. Comprueba antes de aplicar:\\n\\n` +
-        `Nombre: ${fields.first_name}\\nApellidos: ${fields.last_name}\\n` +
-        `Nacimiento: ${fields.birth_date}\\nDocumento: ${fields.dni_number}\\n\\n¿Rellenar estos campos?`,
+        `Lectura local verificada. Comprueba antes de aplicar:\n\n` +
+        `Nombre: ${fields.first_name}\nApellidos: ${fields.last_name}\n` +
+        `Nacimiento: ${fields.birth_date}\nDocumento: ${fields.dni_number}\n\n¿Rellenar estos campos?`,
       )) return;
       setForm((current) => mergeUneditedValues(current, initial, {
         first_name: fields.first_name || current.first_name,
@@ -630,7 +630,7 @@ function NewSocio() {
               Escanear documento
             </div>
             <p className="text-sm text-muted-foreground">
-              Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.
+              Haz una foto nítida de la zona MRZ (líneas del reverso del DNI o del pasaporte). Lectura local: no se envían fotos a una IA externa. Revisa los campos.
             </p>
           </div>
           <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
