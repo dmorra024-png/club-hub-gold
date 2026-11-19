@@ -16,6 +16,9 @@ for(const name of names){
   throw Error('Sensitive marker found in public asset '+name);
  await cp(source,join(dist,name));
 }
+const fontName='chakra-petch-latin-600.woff2';
+// Reuse the self-hosted geometric SNOOP display font; never request Google Fonts.
+await cp(join(root,'..','..','public','fonts',fontName),join(dist,fontName));
 const files=(await readdir(dist)).sort();
-if(files.join('|')!==names.slice().sort().join('|'))throw Error('PUBLIC_ASSET_ALLOWLIST_MISMATCH');
+if(files.join('|')!==[...names,fontName].sort().join('|'))throw Error('PUBLIC_ASSET_ALLOWLIST_MISMATCH');
 console.log('SNOOP Socio public assets:',files.join(', '));
