@@ -177,7 +177,7 @@ async function runBrowser(browserType,deviceName,options){
   // Account settings must remain available to the member. Requiring the old
   // password prevents an already unlocked browser from silently changing it.
   await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
-  await page.getByRole('button',{name:'Mi perfil'}).click();
+  await page.locator('.socio-app-menu').getByRole('button',{name:'Mi perfil'}).click();
   await page.getByRole('heading',{name:'Mi cuenta'}).waitFor();
   await page.locator('input[name="currentPassword"]').fill('wrong-old-password');
   await page.locator('input[name="newPassword"]').fill('A-Strong-New-Password123!');
