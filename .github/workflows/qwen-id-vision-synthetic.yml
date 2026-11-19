@@ -1,0 +1,50 @@
+name: Qwen vision synthetic ID test (no deployment)
+
+on:
+  push:
+    branches: [experiment/qwen-id-vision-test-20261119]
+    paths:
+      - .github/workflows/qwen-id-vision-synthetic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qwen-vision-synthetic:
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 8
+    env:
+      SNOOP_CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Generate synthetic ID only — no real identities
+        run: |
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          image=Image.new("RGB",(1500,950),"#f5f1e7")
+          d=ImageDraw.Draw(image)
+          font="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+          title=ImageFont.truetype(font,47)
+          body=ImageFont.truetype(font,40)
+          rows=[
+            "DOCUMENTO FICTICIO - SOLO PRUEBA",
+            "NOMBRE: ANA MARIA",
+            "APELLIDOS: GARCIA PEREZ",
+            "FECHA DE NACIMIENTO: 07/04/1994",
+            "DNI: 12345678Z",
+            "DOMICILIO: CALLE MAYOR 5",
+            "LOCALIDAD: PALMA",
+            "CODIGO POSTAL: 07001"
+          ]
+          for i,line in enumerate(rows):
+            d.text((65,65+i*98),line,fill="#111111",font=title if i==0 else body)
+          image.save("/tmp/snoop-synthetic-id.png")
+          PY
+      - name: Run Qwen multimodal test on synthetic-only image
+        run: node scripts/test-qwen-id-vision.mjs
