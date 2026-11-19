@@ -1,0 +1,78 @@
+name: SNOOP Socio approved card layout and auth recovery release
+on:
+  push:
+    branches: [fix/snoop-socio-auth-ui-reference-20261119]
+    paths:
+      - .github/workflows/snoop-socio-auth-layout-deploy.yml
+permissions:
+  contents: read
+concurrency:
+  group: snoop-socio-pilot-deploy
+  cancel-in-progress: false
+jobs:
+  deploy-themes:
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/fix/snoop-socio-auth-ui-reference-20261119' && github.event.head_commit.message == 'deploy-snoop-socio-auth-layout-approved' }}
+    runs-on: ubuntu-24.04
+    environment: snoop-pilot
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+      SOCIO_ORIGIN: https://snoop-socio-pilot.dmorra024.workers.dev
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify independent client and approved base
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "fix/snoop-socio-auth-ui-reference-20261119"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync("apps/socio/wrangler.pilot.jsonc","utf8"));if(c.name!=="snoop-socio-pilot"||c.assets?.binding!=="ASSETS"||c.vars?.SOCIO_ORIGIN!=="https://snoop-socio-pilot.dmorra024.workers.dev")process.exit(1)'
+          test -n "$CLOUDFLARE_API_TOKEN"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - name: Build and test isolated Socio client, club themes, and QR access
+        run: |
+          bun install
+          node apps/socio/check.mjs
+          node --test apps/socio/club-theme.test.mjs apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/account-completion.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
+          node apps/socio/build-public.mjs
+          test -f apps/socio/dist/chakra-petch-latin-600.woff2
+          test ! -f apps/socio/dist/worker.mjs
+      - name: Verify existing secret bindings without creating, rotating or reading values
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          const url='https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/snoop-socio-pilot/settings';
+          const response=await fetch(url,{headers:{Authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(20000)});
+          const body=await response.json();
+          assert.ok(response.ok&&body.success&&Array.isArray(body.result?.bindings));
+          const bindings=new Map(body.result.bindings.map(b=>[b.name,b.type]));
+          for(const [name,type] of Object.entries({ASSETS:'assets',SOCIO_ORIGIN:'plain_text',SOCIO_QR_SIGNING_KEY_BASE64:'secret_text',SOCIO_SUPABASE_PUBLISHABLE_KEY:'secret_text',SOCIO_SUPABASE_URL:'plain_text'}))
+            assert.equal(bindings.get(name),type,'Unexpected or absent binding: '+name);
+          assert.equal(bindings.size,5,'Unexpected additional worker binding');
+          console.log('PASS verified existing Socio binding types, zero secret writes');
+          NODE
+      - name: Deploy ONLY existing SNOOP Socio worker, preserving secret bindings
+        run: |
+          set -euo pipefail
+          bunx wrangler deploy --config apps/socio/wrangler.pilot.jsonc --keep-vars
+      - name: Verify Socio login boundary and premium assets
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 "$SOCIO_ORIGIN/" -o /tmp/socio-home.html
+          grep -q "SNOOP · Socio" /tmp/socio-home.html
+          curl -fsS --max-time 30 "$SOCIO_ORIGIN/styles.css" -o /tmp/socio-styles.css
+          grep -q 'Seven member-app design identities' /tmp/socio-styles.css
+          curl -fsS --max-time 30 "$SOCIO_ORIGIN/main.js" -o /tmp/socio-app.js
+          grep -q 'function applySocioTheme' /tmp/socio-app.js
+          grep -q 'member-premium-card' /tmp/socio-app.js
+          grep -q 'clearlyInvalidAccessToken' /tmp/socio-app.js || true
+          CODE="$(curl -sS --max-time 30 -o /tmp/socio-unauth -w '%{http_code}' "$SOCIO_ORIGIN/api/socio/me")"
+          test "$CODE" = 401
+          echo "SNOOP_SOCIO_AUTH_AND_APPROVED_LAYOUT_DEPLOYED"
