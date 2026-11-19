@@ -1517,3 +1517,89 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
  .snoop-reference-home{padding:86px 18px calc(var(--snoop-nav-height) + var(--snoop-safe-bottom) + 30px)!important}
 }
 @media(max-width:380px){.snoop-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.snoop-shift-row{gap:7px;padding:10px 8px}.snoop-shift-pill{font-size:10px}.snoop-reference-cash,.snoop-reference-shifts{padding:17px}}
+
+
+/* SNOOP JARVIS GLOBAL UI — operative across every management route.
+   Subtle science-fiction instrument styling rather than decorative mock data.
+   Foreground/contrast follows the seven selectable club themes. */
+.premium-shell{
+ --snoop-hud-glow:color-mix(in srgb,var(--snoop-accent) 25%,transparent);
+ --snoop-hud-hairline:color-mix(in srgb,var(--snoop-accent) 43%,var(--snoop-border));
+ --snoop-hud-surface:color-mix(in srgb,var(--snoop-panel) 93%,var(--snoop-accent));
+}
+.premium-shell::before{
+ content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+ background:linear-gradient(110deg,transparent 15%,color-mix(in srgb,var(--snoop-accent) 3%,transparent) 51%,transparent 87%);
+ opacity:.75;
+}
+.premium-main{isolation:isolate}
+.premium-main>div:not([hidden]){animation:snoop-route-enter .32s cubic-bezier(.22,1,.36,1) both}
+.premium-page-heading{position:relative;padding-bottom:16px;border-bottom:1px solid var(--snoop-border)}
+.premium-page-heading::after{content:"";position:absolute;left:0;bottom:-1px;width:min(108px,28%);height:1px;background:linear-gradient(90deg,var(--snoop-accent),transparent)}
+.premium-page-heading h1{font-family:var(--font-body);font-weight:750;letter-spacing:-.025em}
+.premium-shell :where(button,a,input,textarea,select):focus-visible{outline:2px solid var(--snoop-accent);outline-offset:3px}
+.premium-shell :where(button,a){transition:background-color .17s ease,border-color .17s ease,box-shadow .17s ease,color .17s ease,transform .17s ease}
+.premium-shell :where(button,a):where(:not(:disabled)):active{transform:scale(.985)}
+.premium-shell :where(input,textarea,select){transition:box-shadow .2s ease,border-color .2s ease}
+.premium-shell :where(input,textarea,select):focus{border-color:var(--snoop-accent);box-shadow:0 0 0 2px var(--snoop-hud-glow)}
+.premium-shell :where(.premium-menu,.snoop-desktop-rail){background:linear-gradient(150deg,var(--snoop-panel),var(--snoop-bg))}
+.snoop-rail-links a[aria-current="page"],.premium-menu nav a[aria-current="page"]{position:relative}
+.snoop-rail-links a[aria-current="page"]::after{
+ content:"";position:absolute;right:10px;top:50%;width:5px;height:5px;
+ border-radius:50%;background:var(--snoop-accent);box-shadow:0 0 10px var(--snoop-accent);transform:translateY(-50%)
+}
+.premium-shell :where(.premium-cash,.premium-activities,.snoop-reference-cash,.snoop-hud-kpi,.snoop-hud-chart,.snoop-reference-shifts,.snoop-theme-settings){
+ border-color:var(--snoop-border);background:linear-gradient(130deg,var(--snoop-hud-surface),var(--snoop-panel));
+ box-shadow:0 14px 32px #0002,inset 0 1px 0 color-mix(in srgb,var(--snoop-foreground) 6%,transparent)
+}
+.snoop-hud-kpi,.snoop-hud-chart{position:relative;overflow:hidden}
+.snoop-hud-kpi::before,.snoop-hud-chart::before{
+ content:"";position:absolute;left:0;top:0;width:27%;height:1px;
+ background:linear-gradient(90deg,var(--snoop-accent),transparent);opacity:.75
+}
+.snoop-hud-kpi{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+@media(hover:hover){.snoop-hud-kpi:hover{transform:translateY(-2px);border-color:var(--snoop-hud-hairline);box-shadow:0 16px 30px #0003,0 0 20px var(--snoop-hud-glow)}}
+.snoop-hud-chart .recharts-cartesian-grid line{stroke:var(--snoop-border);stroke-opacity:.34;stroke-dasharray:none}
+.snoop-hud-chart :where(.recharts-text,.recharts-legend-item-text){font-family:var(--font-body);fill:var(--snoop-muted);font-size:11px}
+.snoop-hud-chart .recharts-tooltip-wrapper{border-radius:11px;overflow:hidden;box-shadow:0 10px 30px #0005}
+.snoop-hud-chart .recharts-cartesian-axis-tick-line{stroke:var(--snoop-border)}
+.snoop-hud-chart .recharts-surface{overflow:visible}
+.premium-bottom-nav{backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-top:1px solid var(--snoop-hud-hairline)}
+.premium-dock-voice{position:relative;isolation:isolate}
+.snoop-dock-hud{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
+ background:radial-gradient(circle,color-mix(in srgb,var(--snoop-accent) 18%,var(--snoop-panel)),var(--snoop-panel));
+ border:1px solid var(--snoop-accent);box-shadow:0 0 0 3px var(--snoop-hud-glow),0 0 20px var(--snoop-hud-glow);
+}
+.snoop-dock-hud .snoop-wordmark{width:38px;z-index:2}
+.snoop-dock-hud-ring{position:absolute;inset:-5px;border:1px dashed var(--snoop-hud-hairline);border-radius:50%;opacity:.8;animation:snoop-orbit 18s linear infinite}
+.premium-dock-voice[data-voice-phase="recording"] .snoop-dock-hud,.premium-dock-voice[data-voice-phase="processing"] .snoop-dock-hud{
+ box-shadow:0 0 0 5px var(--snoop-hud-glow),0 0 25px var(--snoop-accent)
+}
+.premium-dock-voice[data-voice-phase="recording"] .snoop-dock-hud-ring{animation-duration:2.5s}
+.premium-dock-voice[data-voice-phase="processing"] .snoop-dock-hud-ring{animation-duration:4s;animation-direction:reverse}
+.jarvis-voice-layer{position:fixed;z-index:55;inset:0;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle at 50% 43%,color-mix(in srgb,var(--snoop-accent) 12%,transparent),transparent 48%);animation:snoop-layer-show .24s ease-out both}
+.jarvis-voice-stage{position:relative;width:min(320px,82vw);height:min(320px,82vw);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;isolation:isolate}
+.jarvis-ring{position:absolute;border:1px solid var(--snoop-accent);border-radius:50%;box-shadow:0 0 15px var(--snoop-hud-glow),inset 0 0 14px var(--snoop-hud-glow);pointer-events:none}
+.jarvis-ring-outer{inset:0;border-style:dashed;border-width:1px;opacity:.7;animation:snoop-orbit 20s linear infinite}
+.jarvis-ring-middle{inset:19px;border-style:dotted;opacity:.76;animation:snoop-orbit 8s linear reverse infinite}
+.jarvis-ring-inner{inset:37px;border-width:2px;opacity:.9;animation:snoop-ring-breathe 2.8s ease-in-out infinite}
+.jarvis-core{width:58%;z-index:2;padding:13px;border:1px solid var(--snoop-hud-hairline);border-radius:50%;aspect-ratio:1;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,var(--snoop-hud-surface),var(--snoop-panel));box-shadow:0 0 25px var(--snoop-hud-glow)}
+.jarvis-core .snoop-wordmark{width:95%;max-width:180px}
+.jarvis-wave{z-index:3;display:flex;align-items:center;justify-content:center;gap:4px;height:24px;margin-top:-28px}
+.jarvis-wave span{width:3px;height:7px;border-radius:4px;background:var(--snoop-accent);box-shadow:0 0 7px var(--snoop-accent);animation:snoop-wave 1.1s ease-in-out infinite;animation-delay:calc(var(--wave-index)*-90ms)}
+.jarvis-phase{position:absolute;top:calc(100% - 19px);color:var(--snoop-foreground);font:700 14px/1.3 var(--font-body);letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:9px}
+.jarvis-status-dot{width:8px;height:8px;border-radius:50%;background:var(--snoop-accent);box-shadow:0 0 9px var(--snoop-accent);animation:snoop-ring-breathe 1.1s ease infinite}
+.jarvis-phase-caption{position:absolute;top:calc(100% + 12px);font-size:10px;color:var(--snoop-muted);letter-spacing:.15em;white-space:nowrap}
+.jarvis-voice-layer[data-voice-phase="processing"] .jarvis-ring-outer{animation-duration:4s}
+.jarvis-voice-layer[data-voice-phase="processing"] .jarvis-wave span{animation-duration:.52s}
+.jarvis-voice-layer[data-voice-phase="starting"] .jarvis-wave span{animation-duration:2s}
+@keyframes snoop-route-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes snoop-layer-show{from{opacity:0}to{opacity:1}}
+@keyframes snoop-orbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes snoop-ring-breathe{0%,100%{opacity:.52;scale:.99}50%{opacity:1;scale:1.02}}
+@keyframes snoop-wave{0%,100%{height:4px;opacity:.5}50%{height:23px;opacity:1}}
+@media(prefers-reduced-motion:reduce){
+ .premium-shell :where(button,a,input,textarea,select){transition:none!important}
+ .premium-main>div:not([hidden]),.snoop-dock-hud-ring,.jarvis-ring,.jarvis-status-dot,.jarvis-wave span,.jarvis-voice-layer{animation:none!important}
+ .snoop-hud-kpi:hover{transform:none}
+}
