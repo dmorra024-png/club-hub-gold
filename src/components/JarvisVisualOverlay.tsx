@@ -1,6 +1,6 @@
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /**
  * Presentation only. JARVIS engine, microphone permissions and voice events are
@@ -27,7 +27,7 @@ export function JarvisVisualOverlay() {
         <div className="jarvis-ring jarvis-ring-inner" aria-hidden="true" />
         <div className="jarvis-core"><SnoopWordmark /></div>
         <div className="jarvis-wave" aria-hidden="true">
-          {Array.from({length:11},(_,i)=><span key={i} style={{"--wave-index":i} as React.CSSProperties}/>)}
+          {Array.from({length:11},(_,i)=><span key={i} style={{"--wave-index":i} as CSSProperties}/>)}
         </div>
         <div className="jarvis-phase"><span className="jarvis-status-dot" aria-hidden="true"/>{text}</div>
         <div className="jarvis-phase-caption">SNOOP · ASISTENTE INTELIGENTE</div>
