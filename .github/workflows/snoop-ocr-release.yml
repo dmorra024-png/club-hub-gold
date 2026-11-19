@@ -114,7 +114,7 @@ jobs:
           if(!r.ok||!j.success)throw Error('Cannot verify active Worker; refuse deployment');
           const all=Array.isArray(j.result)?j.result:j.result?.deployments;
           const v=all?.[0]?.versions??[];
-          if(v.length!==1||v[0].version_id!=='73809943-f772-45d0-8b9d-7199b78fe5d9'||Number(v[0].percentage)!==100)
+          if(v.length!==1||v[0].version_id!=='433f3f80-d0ec-43fd-b4f6-23af6ed5e5c6'||Number(v[0].percentage)!==100)
             throw Error('LIVE_WORKER_CHANGED_SINCE_AUDIT; deployment refused');
           console.log('ACTIVE_V89_VERSION_CONFIRMED');
           NODE
@@ -257,7 +257,7 @@ jobs:
           set -euo pipefail
           curl -fsS -o /dev/null --max-time 30 "$APP_URL/auth"
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
-          for asset in /ocr/tesseract.min.js /ocr/worker.min.js /ocr/lang/eng.traineddata.gz; do
+          for asset in /ocr/tesseract.min.js /ocr/worker.min.js /ocr/lang/eng.traineddata.gz /ocr/lang/spa.traineddata.gz; do
             status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$APP_URL$asset")
             test "$status" = 200 || { echo "Local OCR missing asset: $asset ($status)"; exit 1; }
           done
