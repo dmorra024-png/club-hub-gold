@@ -5,6 +5,10 @@ on:
       - integration/snoop-monederosocio-management-20261118
     paths:
       - scripts/isolated-ocr-overlay.mjs
+      - src/lib/local-document-mrz.ts
+      - src/lib/local-document-ocr.ts
+      - tests/local-document-mrz.test.ts
+      - src/routes/_authenticated/soci.nuovo.tsx
       - .github/workflows/snoop-ocr-isolated-verify.yml
 permissions:
   contents: read
