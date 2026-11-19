@@ -27,6 +27,8 @@ jobs:
           bun run typecheck
       - name: Build actual Cloudflare Worker without publishing
         env:
+          SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+          SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
           VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder_for_build_only
           SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
