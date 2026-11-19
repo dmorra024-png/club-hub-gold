@@ -146,12 +146,7 @@ async function authenticate(){
  try{
   state.me=await api('/me');
   if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}
-  if(state.me.emailVerified===true){
-   // The database links memberships by auth.uid() and confirmed account email,
-   // enforcing unique member per club and current active status. No code input.
-   try{await api('/memberships/sync',{method:'POST',body:{}});}
-   catch{/* A transient sync failure must not log the member out. */}
-  }
+  // Linking requires the six-digit email code; never auto-link by matching email.
   await refreshClubs();
  }catch(e){
   resetClub();state.me=null;state.clubs=[];state.page='login';
@@ -161,7 +156,20 @@ async function authenticate(){
  }
 }
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
-document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}});
+async function submitClaim(form){
+ const code=String(new FormData(form).get('code')||'').trim();
+ if(!/^\\d{6}$/.test(code))return notify('Introduce los 6 números del correo.',true);
+ state.pending=true;render();
+ try{
+  await api('/link/claim',{method:'POST',body:{code}});
+  state.pending=false;state.message='Carnet activado correctamente.';state.error=false;
+  await refreshClubs();
+ }catch(e){state.pending=false;state.page='link';notify(e.message||'Código inválido o caducado.',true);}
+}
+document.addEventListener('submit',e=>{
+ if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}
+ if(e.target.id==='claim-form'){e.preventDefault();void submitClaim(e.target);}
+});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
 switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
