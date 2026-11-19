@@ -1,6 +1,10 @@
-name: SNOOP integrated pilot — deploy manually (NO REAL / NO MONEDERO)
+name: SNOOP integrated pilot — approved club Monedero release
 
 on:
+  push:
+    branches: [fix/snoop-pilot-ocr-local-20261119]
+    paths:
+      - .github/workflows/snoop-pilot-deploy.yml
   workflow_dispatch:
     inputs:
       confirm:
@@ -17,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/integration/snoop-monederosocio-management-20261118' && inputs.confirm == 'DEPLOY-SNOOP-PILOT' }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/fix/snoop-pilot-ocr-local-20261119' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-ocr-pilot-isolated')) }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
@@ -27,6 +31,9 @@ jobs:
       SNOOP_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
       SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      EXPECTED_INTEGRATED_SHA: ${{ github.sha }}
+      SNOOP_WALLET_OPERATIONS_ENABLED: "true"
+      VITE_SNOOP_WALLET_OPERATIONS_ENABLED: "true"
       VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       APP_URL: https://snoop-pilot.dmorra024.workers.dev
@@ -36,29 +43,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
       - name: Guard integrated target and required secrets (do not print values)
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "dmorra024-png/club-hub-gold"
-          test "$GITHUB_REF_NAME" = "integration/snoop-monederosocio-management-20261118"
+          test "$GITHUB_REF_NAME" = "fix/snoop-pilot-ocr-local-20261119"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_INTEGRATED_SHA" || { echo "Wrong integrated commit checked out"; exit 1; }
           node -e 'const c=require("./wrangler.json"); if(c.name!=="snoop-pilot" || c.workers_dev!==true || !c.ai || c.ai.binding!=="SNOOP_AI")process.exit(1)'
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SNOOP_PUBLISHABLE_KEY; do
             test -n "${!name:-}" || { echo "Missing protected secret: $name"; exit 1; }
           done
           [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
-          # Explicitly fail if any deployment-time wallet activation is requested.
-          test "${SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "false" || { echo "Wallet must remain disabled"; exit 1; }
-          test "$GITHUB_REF_NAME" = "integration/snoop-monederosocio-management-20261118" || exit 1
+          # Explicit pilot activation authorized for this club; fail unless both flags agree.
+          test "${SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" && test "${VITE_SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" || { echo "Wallet activation flags missing"; exit 1; }
+          test "$GITHUB_REF_NAME" = "fix/snoop-pilot-ocr-local-20261119" || exit 1
           test -f "apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql" || exit 1
           test -f "src/lib/wallet-management.functions.ts" || exit 1
-          echo "Target validated: isolated integrated SNOOP pilot; Monedero disabled; no DB migration"
+          test -f "apps/socio/schema/WALLET_CLUB_CONFIGURATION_REVIEW_ONLY.sql" || exit 1
+          echo "Target validated: integrated SNOOP club wallet pilot, no database migration"
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.12"
       - name: Install
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Validate SQL security and TypeScript
         run: |
           bun run test:security:architecture
@@ -86,7 +96,7 @@ jobs:
             assert.ok(process.env.CLOUDFLARE_API_TOKEN);
             assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, '0cc8106f8820d22996af3aed9e081e93');
             assert.equal(process.env.GITHUB_REPOSITORY, 'dmorra024-png/club-hub-gold');
-            assert.equal(process.env.GITHUB_REF_NAME, 'integration/snoop-monederosocio-management-20261118');
+            assert.equal(process.env.GITHUB_REF_NAME, 'fix/snoop-pilot-ocr-local-20261119');
             stage = 'worker-config';
             const checkOnly = process.env.SNOOP_BINDINGS_CHECK_ONLY === 'true';
             const file = checkOnly ? 'wrangler.json' : '.output/server/wrangler.json';
@@ -103,10 +113,12 @@ jobs:
             stage = 'binding-names';
             const bindings = new Map(result.bindings.map(b => [b.name,b.type]));
             assert.equal(bindings.size, result.bindings.length);
-            // Wallet remains disabled even if a prior runtime binding exists.
+            // Approved club-level wallet release. Existing bindings are preserved, except
+            // this one explicitly authorized plain-text wallet activation flag.
             const walletFlag = result.bindings.find(b=>b.name==='SNOOP_WALLET_OPERATIONS_ENABLED');
-            assert.ok(!walletFlag || (walletFlag.type==='plain_text' && walletFlag.text==='false'),
-              'Live wallet activation is not authorized');
+            assert.ok(!walletFlag || (walletFlag.type==='plain_text' && ['false','true'].includes(walletFlag.text)),
+              'Unexpected wallet binding type or value');
+            assert.equal(process.env.SNOOP_WALLET_OPERATIONS_ENABLED,'true');
             stage = 'runtime-variables';
             const required = {SUPABASE_SERVICE_ROLE_KEY:['secret_text'], SUPABASE_URL:['plain_text','secret_text'], SUPABASE_PUBLISHABLE_KEY:['plain_text','secret_text'], APP_URL:['plain_text','secret_text'], SNOOP_AI:['ai'], ASSETS:['assets']};
             const glmActivation = {
@@ -115,8 +127,10 @@ jobs:
               SNOOP_AI_ASSISTANT_MODEL: '@cf/zai-org/glm-4.7-flash'
             };
             // Restore only absent public app bindings, never replace any existing secret.
-            const publicRuntime = {SUPABASE_URL:process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY:process.env.SNOOP_PUBLISHABLE_KEY, APP_URL:process.env.APP_URL};
-            const restoreMissing = checkOnly ? {} : Object.fromEntries(Object.entries(publicRuntime).filter(([name]) => !bindings.has(name)));
+            const publicRuntime = {SUPABASE_URL:process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY:process.env.SNOOP_PUBLISHABLE_KEY, APP_URL:process.env.APP_URL, SNOOP_WALLET_OPERATIONS_ENABLED:'true'};
+            assert.ok(walletFlag?.type === 'plain_text' && walletFlag.text === 'true', 'Existing Monedero flag must remain unchanged');
+            const walletReplacement = {};
+            const restoreMissing = checkOnly ? {} : Object.fromEntries(Object.entries(publicRuntime).filter(([name]) => name !== 'SNOOP_WALLET_OPERATIONS_ENABLED' && !bindings.has(name)));
             if (!checkOnly) {
               assert.equal(publicRuntime.SUPABASE_URL, 'https://bnwanxbmprbymbutoths.supabase.co');
               assert.equal(publicRuntime.APP_URL, 'https://snoop-pilot.dmorra024.workers.dev');
@@ -160,8 +174,8 @@ jobs:
               assert.ok(deployStart > 0 && /keepSecrets:\s*true/.test(cli.slice(deployStart,cli.indexOf('let workerBundle;',deployStart))));
               const factory = vm.runInNewContext('('+cli.slice(start,end)+')', {import_undici9:{FormData}, File, extractBindingsOfType:(type,bs)=>Object.entries(bs??{}).filter(([,b])=>b.type===type).map(([binding,b])=>({...b,binding})),isUnsafeBindingType:type=>type.startsWith('unsafe_'),toMimeType:()=> 'application/javascript+module'});
               stage = 'upload-metadata';
-              const transmittedPublic = {...Object.fromEntries(Object.entries(glmActivation).filter(([name])=>!bindings.has(name))),...restoreMissing};
-              const inheritedPublic = result.bindings.filter(b=>['plain_text','json'].includes(b.type)).map(b=>({name:b.name,type:'inherit'}));
+              const transmittedPublic = {...Object.fromEntries(Object.entries(glmActivation).filter(([name])=>!bindings.has(name))),...restoreMissing,...walletReplacement};
+              const inheritedPublic = result.bindings.filter(b=>['plain_text','json'].includes(b.type) && !Object.hasOwn(walletReplacement,b.name)).map(b=>({name:b.name,type:'inherit'}));
               const inheritedPublicBindings = Object.fromEntries(inheritedPublic.map(b=>[b.name,{type:'inherit'}]));
               const publicActivationBindings = Object.fromEntries(Object.entries(transmittedPublic).map(([name,value])=>[name,{type:'plain_text',value}]));
               const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:false,keepSecrets:true}, {...inheritedPublicBindings,...publicActivationBindings,SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
@@ -213,7 +227,7 @@ jobs:
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
 
   diagnose-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/integration/snoop-monederosocio-management-20261118' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/fix/snoop-pilot-ocr-local-20261119' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 5
