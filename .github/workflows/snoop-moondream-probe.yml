@@ -1,0 +1,32 @@
+name: SNOOP Moondream synthetic provider diagnosis (no ID data)
+on:
+  push:
+    branches: [integration/snoop-monederosocio-management-20261118]
+    paths: [.github/workflows/snoop-moondream-probe.yml]
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Call model using synthetic tiny PNG; print only status and shape
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const model='@cf/moondream/moondream3.1-9B-A2B';
+          const account='0cc8106f8820d22996af3aed9e081e93';
+          const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==';
+          const url='https://api.cloudflare.com/client/v4/accounts/'+account+'/ai/run/'+model;
+          let response;
+          try { response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({task:'query',image,question:'What is this? Respond in one sentence.'}),signal:AbortSignal.timeout(25000)});}
+          catch(e){console.log(JSON.stringify({stage:'request',failure:'NETWORK_OR_TIMEOUT'}));process.exit(1)}
+          const data=await response.json().catch(()=>({}));
+          const result=data.result??{};
+          console.log(JSON.stringify({stage:'model',status:response.status,success:data.success===true,errorCodes:(data.errors??[]).map(x=>x.code),resultKeys:Object.keys(result),answerType:typeof result.answer,answerLength:typeof result.answer==='string'?result.answer.length:0}));
+          // 403 is inconclusive: deployment token might not allow direct AI REST.
+          if(response.status===403) console.log('REST_PERMISSION_UNVERIFIED: worker binding may still have permission');
+          NODE
