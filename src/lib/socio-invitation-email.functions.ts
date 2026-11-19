@@ -46,7 +46,7 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
     const fullName = [member.first_name, member.last_name].filter(Boolean).join(" ");
     const { data: code, error: codeError } = await (context.supabase as any)
       .rpc("socio_issue_member_claim", { p_club_id: clubId, p_member_id: data.memberId });
-    if (codeError || typeof code !== "string" || !/^\\d{6}$/.test(code))
+    if (codeError || typeof code !== "string" || !/^\d{6}$/.test(code))
       throw new Error("No se pudo generar el código de 6 cifras. Verifica la configuración del servidor.");
     const html = `<html lang="es"><body style="background:#0a1425;color:#f3f6fa;padding:28px;font:16px Arial,sans-serif">
       <main style="max-width:520px;margin:auto">
