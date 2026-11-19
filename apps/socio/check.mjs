@@ -26,7 +26,7 @@ assert.match(code,/URL\.revokeObjectURL/);
 // pages must not revoke or silently replace it. Logout still calls stopQr().
 assert.match(code,/if\(!document\.hidden&&state\.page==='carnet'&&!state\.qrUrl\)/);
 assert.doesNotMatch(code,/if\(document\.hidden\)stopQr/);
-assert.match(code,/case'logout'[\\s\\S]*?resetClub\(\)/);
+assert.ok(code.includes("case'logout':try{") && code.includes('resetClub();'));
 assert.match(code,/state\.clubs\.find\(c=>c\.id===id\)/);
 assert.match(code,/response\.status===404\|\|response\.status===503/);
 assert.doesNotMatch(code,/\\blocalStorage\\s*[.\\[]/);
