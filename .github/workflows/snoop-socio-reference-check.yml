@@ -4,6 +4,10 @@ on:
     branches: [fix/snoop-socio-auth-ui-reference-20261119]
     paths:
       - .github/workflows/snoop-socio-reference-check.yml
+      - apps/socio/main.js
+      - apps/socio/styles.css
+      - apps/socio/auth-supabase.mjs
+      - apps/socio/auth-supabase.test.mjs
 permissions:
   contents: read
 jobs:
