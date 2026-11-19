@@ -6,6 +6,7 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { UserRound, Wallet, Package, Boxes, ChevronRight } from "lucide-react";
+import { SnoopGoldIcon } from "@/components/SnoopGoldIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -126,7 +127,8 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
             <li key={item.key}>
               <Link to={item.href} className="premium-activity">
                 <span className="premium-activity-icon">
-                  <Icon aria-hidden="true" />
+                  <span className="snoop-activity-gold-icon"><SnoopGoldIcon kind={item.kind==="cash"?"wallet":item.kind==="product"?"productos":item.kind==="inventory"?"productos":"socios"}/></span>
+                  <span className="snoop-activity-legacy-icon"><Icon aria-hidden="true" /></span>
                 </span>
                 <span className="premium-activity-copy">
                   <span>{item.title}</span>
