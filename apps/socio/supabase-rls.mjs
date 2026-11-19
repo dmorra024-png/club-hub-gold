@@ -50,7 +50,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
   },
   async claimAndConsumeLinkChallenge({code,authUserId}={}){
    if(authUserId!==actorId)throw fail('SOCIO_IDENTITY_SCOPE',403);
-   if(typeof code!=='string'||!/^[a-f0-9]{48}$/.test(code))throw fail('SOCIO_LINK_CODE_INVALID',400);
+   if(typeof code!=='string'||!/^\d{6}$/.test(code))throw fail('SOCIO_LINK_CODE_INVALID',400);
    // The RPC alone owns the transaction and performs fresh user, staff,
    // membership and challenge verification in the database. The browser
    // cannot supply clubId/memberId/userId or control a verified link.
