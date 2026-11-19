@@ -33,6 +33,7 @@ function qrPreview(club){
 }
 async function setupApi(page){
  let loggedIn=false;
+ let firstClubLinked=false;
  let secondClubLinked=false;
  let holdNextClubAWallet=false,releaseHeldWallet=null,heldWalletReached=null;
  const heldWalletHit=new Promise(resolve=>{heldWalletReached=resolve;});
@@ -53,14 +54,15 @@ async function setupApi(page){
   if(path==='/auth/signup')return response({message:'Signup de prueba deshabilitado'},503);
   if(!loggedIn)return response({message:'Not authorized'},401);
   if(path==='/me')return response({authenticated:true,email:testEmail,emailVerified:true});
-  if(path==='/memberships/sync'){secondClubLinked=true;return response({synced:true,linkedCount:1});}
+  if(path==='/memberships/sync')return response({message:'Código requerido'},409);
   if(path==='/link/claim'&&method==='POST'){
    let input={};try{input=JSON.parse(request.postData()||'{}')}catch{}
-   if(input.code!=='c'.repeat(48))return response({message:'Código inválido'},403);
-   secondClubLinked=true;return response({linked:true});
+   if(input.code==='123456'&&!firstClubLinked){firstClubLinked=true;return response({linked:true});}
+   if(input.code==='654321'&&firstClubLinked&&!secondClubLinked){secondClubLinked=true;return response({linked:true});}
+   return response({message:'Código inválido o utilizado'},403);
   }
   if(path==='/clubs')return response({clubs:[
-   {id:idA,name:'SNOOP Club Demo Palma',status:'active',walletEnabled:true},
+   ...(firstClubLinked?[{id:idA,name:'SNOOP Club Demo Palma',status:'active',walletEnabled:true}]:[]),
    ...(secondClubLinked?[{id:idB,name:'SNOOP Club Demo Madrid',status:'active',walletEnabled:true}]:[])
   ]});
   const match=path.match(/^\/clubs\/([0-9a-f-]+)\/(carnet|carnet\/qr|wallet|wallet\/movements)$/i);
@@ -111,6 +113,13 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="email"]').fill(testEmail);
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
+  await page.getByRole('heading',{name:'Introduce tu código'}).waitFor({timeout:15000});
+  assert.equal(hits.some(h=>h==='POST /memberships/sync'),false);
+  await page.locator('input[name="code"]').fill('000000');
+  await page.getByRole('button',{name:'Activar mi carnet'}).click();
+  await page.getByText('Código inválido o utilizado').waitFor();
+  await page.locator('input[name="code"]').fill('123456');
+  await page.getByRole('button',{name:'Activar mi carnet'}).click();
   await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor({timeout:15000});
   await page.getByText('Socio Nº 00124').waitFor();
   await page.getByText('25,75 €').waitFor();
@@ -124,10 +133,13 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('button',{name:'Volver al carnet'}).click();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('heading',{name:'Mis clubes'}).waitFor();
-  // A verified account automatically gets eligible clubs. No staff-issued code
-  // should ever be visible or typed by the customer.
-  assert.equal(await page.locator('input[name="code"]').count(),0);
-  assert.equal(hits.some(h=>h==='POST /link/claim'),false);
+  // The second club cannot be linked by matching an email alone.
+  assert.equal(await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).count(),0);
+  await page.getByRole('button',{name:'Vincular otro club'}).click();
+  await page.getByRole('heading',{name:'Introduce tu código'}).waitFor();
+  await page.locator('input[name="code"]').fill('654321');
+  await page.getByRole('button',{name:'Activar mi carnet'}).click();
+  await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
   await page.getByRole('heading',{name:'SNOOP Club Demo Madrid'}).waitFor();
   await page.getByText('Socio Nº 00077').waitFor();
