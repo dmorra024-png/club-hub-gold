@@ -58,6 +58,8 @@ test('refresh rotates both HttpOnly tokens; logout clears cookies',async()=>{
  assert.equal(refreshed.status,200);
  assert.ok(getCookie(refreshed,'__Host-snoop_socio_at').includes('new-access'));
  assert.ok(getCookie(refreshed,'__Host-snoop_socio_rt').includes('new-refresh'));
+ const cookies=refreshed.headers.getSetCookie?.()||[refreshed.headers.get('set-cookie')||''];
+ assert.ok(cookies.some(x=>x.startsWith('__Host-snoop_socio_rt=')&&x.includes('Max-Age=31536000')),'refresh cookie remains across long app closures');
  const out=await auth.logout({request:req(getCookie(refreshed,'__Host-snoop_socio_at'))});
  assert.equal(out.status,200);
  assert.match(out.headers.get('set-cookie'),/Max-Age=0/);
