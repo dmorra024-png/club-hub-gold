@@ -37,7 +37,7 @@ import {
 } from "@/lib/member-administration";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
-import { readLocalDocumentFromImages } from "@/lib/local-document-ocr";
+import { extractMemberFieldsWithMistral, mistralDocumentOcrStatus } from "@/lib/mistral-documents.functions";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
@@ -118,6 +118,8 @@ function NewSocio() {
   const conversation = useRef<ConversationState | null>(null);
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
+  const mistralStatus = useServerFn(mistralDocumentOcrStatus);
+  const mistralExtract = useServerFn(extractMemberFieldsWithMistral);
 
 
   // Document scan (OCR of DNI / passport)
@@ -339,47 +341,53 @@ function NewSocio() {
     }
   }
 
-  // Offline DNI/passport OCR: never send identity photos to a third-party AI model.
+  // Explicitly-consented external document reading. Disabled server-side until
+  // paid provider secret and Zero Data Retention approval are configured.
   async function scanDocuments(files: FileList | File[]) {
     const list = Array.from(files).slice(0, 2);
-    if (!list.length) return;
+    if (!list.length || scanStatus === "scanning") return;
     const initial = { ...formRef.current };
     setScanStatus("scanning");
     try {
-      const compressed: Blob[] = [];
-      for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-      const previews = await Promise.all(compressed.map(
-        (blob) => new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error("No se pudo abrir la imagen"));
-          reader.readAsDataURL(blob);
-        }),
-      ));
-      setScanPreviews(previews);
-      // Keep the existing required-document photo even if OCR fails.
-      set("dni_file", new File([compressed[0]], "dni.jpg", { type: "image/jpeg" }));
-      set("dni_preview", previews[0]);
-
-      const result = await readLocalDocumentFromImages(list);
-      if (!result) {
-        toast.warning("No se detectó texto legible. Prueba una foto más nítida o rellena los datos manualmente.");
+      const status = await mistralStatus();
+      if (!status.enabled) {
+        toast.error("La lectura IA de documentos todavía no está autorizada. Introduce los datos manualmente.");
         return;
       }
-      const fields = result.fields;
-      const suggestions = [
+      const consent = window.confirm(
+        "La foto del documento será enviada a Mistral AI en la UE para extraer nombre y datos de identidad. " +
+        "No se usará para JARVIS ni para entrenar SNOOP. Confirma que tienes autorización para tratar el documento y enviarlo a este proveedor. ¿Continuar?",
+      );
+      if (!consent) return;
+      const compressed: Blob[] = [];
+      for (const file of list) compressed.push(await compressImage(file, 1600, 0.85));
+      const previews = await Promise.all(compressed.map((blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No se pudo abrir la imagen"));
+        reader.readAsDataURL(blob);
+      })));
+      setScanPreviews(previews);
+      const images = await Promise.all(compressed.map(async (blob) => ({
+        base64: await blobToBase64(blob),
+        mimeType: "image/jpeg" as const,
+      })));
+      const { fields } = await mistralExtract({ data: { images, consent: true } });
+      const suggestions: [string, string][] = [
         ["Nombre", fields.first_name], ["Apellidos", fields.last_name],
         ["Nacimiento", fields.birth_date], ["Documento", fields.dni_number],
         ["Dirección", fields.address], ["Localidad", fields.city],
         ["Código postal", fields.postal_code],
-      ].filter((item): item is [string, string] => Boolean(item[1]));
+      ].filter((row): row is [string, string] => !!row[1]);
       if (!suggestions.length) {
-        window.alert("El OCR local ha detectado texto, pero no pudo identificar campos con seguridad. Comprueba el documento y escribe los datos manualmente.\n\n" + result.rawText.slice(0, 1100));
+        toast.warning("La IA no ha identificado campos fiables. Introduce los datos manualmente.");
         return;
       }
-      const label = result.verified ? "MRZ verificada" : "OCR visual SIN VERIFICAR";
-      const reviewText = suggestions.map(([name,value]) => name + ": " + value).join("\n");
-      if (!window.confirm(label + "\n\n" + reviewText + "\n\nComprueba cada dato con el documento antes de rellenar. ¿Aplicar sugerencias?")) return;
+      if (!window.confirm("Datos propuestos por la IA (SIN VERIFICAR):\\n\\n" +
+        suggestions.map(([label, value]) => label + ": " + value).join("\\n") +
+        "\\n\\nComprueba el documento. ¿Aplicar estos campos?")) return;
+      set("dni_file", new File([compressed[0]], "dni.jpg", { type: "image/jpeg" }));
+      set("dni_preview", previews[0]);
       setForm((current) => mergeUneditedValues(current, initial, {
         first_name: fields.first_name || current.first_name,
         last_name: fields.last_name || current.last_name,
@@ -389,11 +397,9 @@ function NewSocio() {
         city: fields.city || current.city,
         postal_code: fields.postal_code || current.postal_code,
       }));
-      toast.success(result.verified
-        ? "Datos MRZ leídos. Comprueba los campos."
-        : "Sugerencias OCR aplicadas: verifica todos los datos antes de guardar.");
-    } catch (e: any) {
-      toast.error(e?.message ?? "No se pudo leer el documento en este dispositivo");
+      toast.success("Campos reconocidos: revisa todos los datos antes de guardar.");
+    } catch {
+      toast.error("No se pudo completar la lectura IA. Ningún dato fue aplicado.");
     } finally {
       setScanStatus("idle");
     }
@@ -644,7 +650,7 @@ function NewSocio() {
                 Escanear documento
               </div>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                Fotografía el documento o elige una imagen de la galería. La lectura es local y los datos deben revisarse antes de guardar.
+                Saca una foto o elígela de la galería. Lectura con IA externa únicamente con consentimiento. Confirma los datos antes de guardar.
               </p>
             </div>
           </div>
