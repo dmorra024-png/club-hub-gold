@@ -1,0 +1,45 @@
+name: SNOOP Socio original-design and stale-session verification (no deploy)
+on:
+  push:
+    branches: [fix/snoop-socio-auth-ui-reference-20261119]
+    paths:
+      - .github/workflows/snoop-socio-reference-check.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Check full Socio application and stale cookie tests without accessing club data
+        run: |
+          node --check apps/socio/main.js
+          node --check apps/socio/auth-supabase.mjs
+          node apps/socio/check.mjs
+          node --test apps/socio/auth-supabase.test.mjs apps/socio/account-completion.test.mjs apps/socio/club-theme.test.mjs apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/http.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
+          node apps/socio/build-public.mjs
+      - name: Verify approved home UI elements and no fabricated balances or mock QR
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const c=readFileSync('apps/socio/main.js','utf8');
+          const css=readFileSync('apps/socio/styles.css','utf8');
+          for(const name of ['member-premium-card','member-premium-qr','socio-premium-wallet','socio-premium-history','socio-premium-dock']){
+            assert.ok(c.includes(name),'Markup missing '+name);
+            assert.ok(css.includes('.'+name),'Style missing '+name);
+          }
+          assert.match(c,/state\.qrUrl\?/);
+          assert.match(c,/Number\.isSafeInteger\(state\.wallet\.balanceCents\)/);
+          assert.match(css,/\.member-premium-card::after/);
+          assert.match(css,/repeat\(5,minmax\(0,1fr\)\)/);
+          console.log('PASS approved layout structure with QR and financial data sourced from verified API only');
+          NODE
+      - name: Do not deploy
+        run: echo "Testing only"
