@@ -37,7 +37,7 @@ import {
 } from "@/lib/member-administration";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
-import { extractMemberFieldsWithMistral, mistralDocumentOcrStatus } from "@/lib/mistral-documents.functions";
+import { readDocumentWithCloudflare, documentAiPilotStatus } from "@/lib/cloudflare-documents.functions";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
@@ -118,8 +118,8 @@ function NewSocio() {
   const conversation = useRef<ConversationState | null>(null);
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
-  const mistralStatus = useServerFn(mistralDocumentOcrStatus);
-  const mistralExtract = useServerFn(extractMemberFieldsWithMistral);
+  const mistralStatus = useServerFn(documentAiPilotStatus);
+  const mistralExtract = useServerFn(readDocumentWithCloudflare);
 
 
   // Document scan (OCR of DNI / passport)
@@ -341,8 +341,7 @@ function NewSocio() {
     }
   }
 
-  // Explicitly-consented external document reading. Disabled server-side until
-  // paid provider secret and Zero Data Retention approval are configured.
+  // Explicitly consented identity OCR on the existing Workers AI binding; no new key.
   async function scanDocuments(files: FileList | File[]) {
     const list = Array.from(files).slice(0, 2);
     if (!list.length || scanStatus === "scanning") return;
@@ -351,11 +350,11 @@ function NewSocio() {
     try {
       const status = await mistralStatus();
       if (!status.enabled) {
-        toast.error("La lectura IA de documentos todavía no está autorizada. Introduce los datos manualmente.");
+        toast.error("El lector de documentos IA no está disponible en este piloto. Introduce los datos manualmente.");
         return;
       }
       const consent = window.confirm(
-        "La foto del documento será enviada a Mistral AI en la UE para extraer nombre y datos de identidad. " +
+        "La foto del documento se procesará mediante Cloudflare Workers AI para extraer los datos de identidad. " +
         "No se usará para JARVIS ni para entrenar SNOOP. Confirma que tienes autorización para tratar el documento y enviarlo a este proveedor. ¿Continuar?",
       );
       if (!consent) return;
