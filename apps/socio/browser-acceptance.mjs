@@ -129,7 +129,8 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByText('Aportación Palma').waitFor();
   assert.equal(await page.getByText('Recarga Madrid').count(),0);
   await page.getByRole('button',{name:'Volver al carnet'}).click();
-  await page.getByRole('button',{name:'Mis clubes'}).click();
+  await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
+   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('heading',{name:'Mis clubes'}).waitFor();
   assert.equal(await page.getByText('SNOOP Club Demo Madrid').count(),0,'Unlinked club must remain hidden');
   await page.getByRole('button',{name:'Vincular otro club'}).click();
@@ -137,7 +138,8 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="code"]').fill('c'.repeat(24)+' '+'c'.repeat(24));
   await page.getByRole('button',{name:'Vincular mi carnet'}).click();
   await page.locator('.socio-hello p').getByText('SNOOP Club Demo Palma').waitFor();
-  await page.getByRole('button',{name:'Mis clubes'}).click();
+  await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
+   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
   await page.locator('.socio-hello p').getByText('SNOOP Club Demo Madrid').waitFor();
   await page.locator('.member-premium-card').getByText('00077').waitFor();
@@ -148,7 +150,8 @@ async function runBrowser(browserType,deviceName,options){
   assert.equal(await page.getByText('Aportación Palma').count(),0);
   await page.screenshot({path:join(screenshotDir,deviceName+'-wallet.png'),fullPage:true});
   await page.getByRole('button',{name:'Volver al carnet'}).click();
-  await page.getByRole('button',{name:'Mis clubes'}).click();
+  await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
+   await page.getByRole('button',{name:'Mis clubes'}).click();
   fixture.holdNextWallet();
   await page.getByRole('button',{name:/SNOOP Club Demo Palma/}).click();
   await fixture.heldWalletHit;
