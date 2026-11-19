@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { Link, Navigate } from "@tanstack/react-router";
-import { Wallet, Users, ShoppingCart, Package, Layers3 } from "lucide-react";
+import { SnoopGoldIcon } from "@/components/SnoopGoldIcon";
 import { ClubActivities } from "@/components/ClubActivities";
 
 
@@ -80,7 +80,7 @@ function Home() {
         <h1>Bienvenido, <span>{clubName}</span></h1>
       </div>
       <section className="snoop-approved-cash" aria-labelledby="snoop-cash-label">
-        <div className="snoop-approved-cash-icon" aria-hidden="true"><Wallet size={34} strokeWidth={1.5}/></div>
+        <div className="snoop-approved-cash-icon" aria-hidden="true"><SnoopGoldIcon kind="wallet"/></div>
         <div className="snoop-approved-cash-info">
           <h2 id="snoop-cash-label">{isAdmin?"Caja de hoy":"Mi caja de hoy"}</h2>
           <strong aria-live="polite">{canSeeCash?(summaryVisible?euro(cashCents):cashError?"No disponible":"—"):"Acceso restringido"}</strong>
@@ -89,10 +89,10 @@ function Home() {
         {canSeeCash&&cashError&&<button type="button" className="snoop-ref-retry" onClick={retryCash}>Reintentar</button>}
       </section>
       <nav className="snoop-approved-shortcuts" aria-label="Accesos rápidos">
-        {can("manage_members")&&<Link to="/soci"><Users aria-hidden="true"/><span>Socios</span></Link>}
-        {can("use_cash")&&<Link to="/soci/gestisci"><ShoppingCart aria-hidden="true"/><span>Pedidos</span></Link>}
-        {can("manage_products")&&<Link to="/productos"><Package aria-hidden="true"/><span>Productos</span></Link>}
-        {can("manage_products")&&<Link to="/productos"><Layers3 aria-hidden="true"/><span>Stock</span></Link>}
+        {can("manage_members")&&<Link to="/soci"><SnoopGoldIcon kind="socios"/><span>Socios</span></Link>}
+        {can("use_cash")&&<Link to="/soci/gestisci"><SnoopGoldIcon kind="pedidos"/><span>Pedidos</span></Link>}
+        {can("manage_products")&&<Link to="/productos"><SnoopGoldIcon kind="productos"/><span>Productos</span></Link>}
+        {can("manage_products")&&<Link to="/productos"><SnoopGoldIcon kind="stock"/><span>Stock</span></Link>}
       </nav>
       <div className="snoop-approved-activity"><ClubActivities/></div>
     </SnoopLayout>
