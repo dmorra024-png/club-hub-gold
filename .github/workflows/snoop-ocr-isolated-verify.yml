@@ -5,7 +5,8 @@ on:
       - integration/snoop-monederosocio-management-20261118
     paths:
       - scripts/isolated-ocr-overlay.mjs
-      - src/lib/mistral-documents.functions.ts
+      - src/lib/cloudflare-documents.functions.ts
+      - tests/cloudflare-document-ocr.test.ts
       - src/routes/_authenticated/soci.nuovo.tsx
       - .github/workflows/snoop-ocr-isolated-verify.yml
 permissions:
@@ -56,6 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           bun install
+          node --test tests/cloudflare-document-ocr.test.ts
           bun run typecheck
           bun run build:worker
           bun run worker:dry-run
