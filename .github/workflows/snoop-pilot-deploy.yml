@@ -1,10 +1,12 @@
-name: SNOOP integrated pilot — approved club Monedero release
+name: SNOOP pilot — isolated local OCR camera and gallery hotfix
 
 on:
   push:
     branches: [fix/snoop-pilot-ocr-local-20261119]
     paths:
       - .github/workflows/snoop-pilot-deploy.yml
+      - src/routes/_authenticated/soci.nuovo.tsx
+      - src/lib/document-ocr.ts
   workflow_dispatch:
     inputs:
       confirm:
