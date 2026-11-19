@@ -29,7 +29,7 @@ test('QR signature, other-club, inactive membership and expiration rejected',asy
  assert.equal((await verifyCardQr(qr,{clubId:b,secret,now:now+1000,memberActive:true})).ok,false);
  assert.equal((await verifyCardQr(qr,{clubId:a,secret,now:now+41000,memberActive:true})).ok,false);
  assert.equal((await verifyCardQr(qr,{clubId:a,secret,now:now+1000,memberActive:false})).ok,false);
- const parts=qr.split('.');parts[2]='A'+parts[2].slice(1);
+ const parts=qr.split('.');parts[2]=(parts[2][0]==='A'?'B':'A')+parts[2].slice(1);
  assert.equal((await verifyCardQr(parts.join('.'),{clubId:a,secret,now,memberActive:true})).ok,false);
 });
 test('wallet prevents double-operation, unconfirmed write and overdraft',()=>{
