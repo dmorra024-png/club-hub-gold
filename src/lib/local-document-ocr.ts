@@ -30,22 +30,39 @@ function localEngine(): Promise<LocalTesseract> {
   return loader;
 }
 
-async function bottomCrop(blob: Blob): Promise<HTMLCanvasElement> {
-  const bitmap = await createImageBitmap(blob);
-  try {
-    const canvas = document.createElement("canvas");
-    const y = Math.round(bitmap.height * 0.56);
-    canvas.width = bitmap.width;
-    canvas.height = Math.max(1, bitmap.height - y);
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("No se pudo preparar la imagen para OCR");
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bitmap, 0, y, bitmap.width, bitmap.height - y, 0, 0, canvas.width, canvas.height);
-    return canvas;
-  } finally {
-    bitmap.close();
+/**
+ * Keep the source camera resolution until OCR finishes. The original
+ * compressed upload preview can be small enough to destroy MRZ glyphs.
+ * Limit output dimensions so Android/iOS do not allocate huge WASM bitmaps.
+ */
+async function cropForMrz(
+  image: ImageBitmap,
+  topRatio: number,
+  threshold = false,
+): Promise<HTMLCanvasElement> {
+  const top = Math.floor(image.height * topRatio);
+  const height = Math.max(1, image.height - top);
+  const targetWidth = Math.min(2600, Math.max(image.width, 1600));
+  const scale = targetWidth / image.width;
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = Math.min(2400, Math.round(height * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("No se pudo preparar la imagen para OCR");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, top, image.width, height, 0, 0, canvas.width, canvas.height);
+  if (threshold) {
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = pixels.data;
+    for (let p = 0; p < data.length; p += 4) {
+      const luma = (data[p] * 77 + data[p + 1] * 150 + data[p + 2] * 29) / 256;
+      const value = luma > 145 ? 255 : 0;
+      data[p] = data[p + 1] = data[p + 2] = value;
+    }
+    ctx.putImageData(pixels, 0, 0);
   }
+  return canvas;
 }
 
 function combinedParse(texts: string[]): MrzParseResult | null {
@@ -76,13 +93,27 @@ export async function readLocalMrzFromImages(files: readonly Blob[]): Promise<Mr
       tessedit_pageseg_mode: "6",
     });
     const texts: string[] = [];
-    // Scan the bottom first (MRZ position), then the full image if necessary.
     for (const file of files) {
-      const cropped = await bottomCrop(file);
-      texts.push((await worker.recognize(cropped)).data.text);
-      if (combinedParse(texts)) return combinedParse(texts);
-      texts.push((await worker.recognize(file)).data.text);
-      if (combinedParse(texts)) return combinedParse(texts);
+      const bitmap = await createImageBitmap(file);
+      try {
+        // Passport booklets may have the MRZ in the bottom quarter.
+        // ID cards have MRZ across the lower half; try both separately.
+        for (const ratio of [0.68, 0.48, 0]) {
+          const region = await cropForMrz(bitmap, ratio);
+          const found = (await worker.recognize(region)).data.text;
+          texts.push(found);
+          const verified = combinedParse(texts);
+          if (verified) return verified;
+        }
+        // Contrast preprocessing can recover thin OCR-B glyphs on patterned
+        // passport paper. No data is accepted without check digits.
+        const highContrast = await cropForMrz(bitmap, 0.56, true);
+        texts.push((await worker.recognize(highContrast)).data.text);
+        const verified = combinedParse(texts);
+        if (verified) return verified;
+      } finally {
+        bitmap.close();
+      }
     }
     return combinedParse(texts);
   } finally {
