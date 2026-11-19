@@ -7,7 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
 import { workersAiBinding } from "./workers-ai.server";
 import { z } from "zod";
-import { DOCUMENT_MODEL, documentFields, imageInput, parseMoondreamAnswer, prompt } from "./cloudflare-document-parser";
+import { DOCUMENT_MODEL, documentFields, imageInput, parseCloudflareVisionAnswer, prompt } from "./cloudflare-document-parser";
 
 function enabled(): boolean {
   return process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
@@ -29,9 +29,12 @@ export const readDocumentWithCloudflare = createServerFn({ method: "POST" })
       let reply: unknown;
       try {
         reply = await binding.run(DOCUMENT_MODEL, {
-          task: "query",
-          image: `data:${image.mimeType};base64,${image.base64}`,
-          question: prompt,
+          messages: [{ role: "user", content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.base64}` } },
+          ] }],
+          max_completion_tokens: 420,
+          temperature: 0,
         });
       } catch {
         // Provider errors may contain request metadata; never log raw contents.
