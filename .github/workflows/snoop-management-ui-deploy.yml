@@ -1,4 +1,4 @@
-name: SNOOP pilot approved management dashboard layout deploy
+name: SNOOP pilot rollback to pre-JARVIS management dashboard
 
 on:
   push:
