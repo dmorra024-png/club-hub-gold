@@ -24,7 +24,6 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad
 import {
   getAdministrativeAiStatus,
   extractMemberFields,
-  extractMemberFieldsFromImages,
   transcribeAudio,
 } from "@/lib/voice-agent.functions";
 import {
@@ -38,6 +37,7 @@ import {
 } from "@/lib/member-administration";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
+import { readLocalMrzFromImages } from "@/lib/local-document-ocr";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
@@ -119,7 +119,6 @@ function NewSocio() {
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
 
-  const extractFromImages = useServerFn(extractMemberFieldsFromImages);
 
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
@@ -340,67 +339,48 @@ function NewSocio() {
     }
   }
 
-  // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
+  // Offline DNI/passport OCR: never send identity photos to a third-party AI model.
   async function scanDocuments(files: FileList | File[]) {
-    const initial = { ...formRef.current };
-    const status = await aiStatus();
-    if (!status.documents)
-      return toast.error(
-        "Procesamiento de documentos no autorizado. Introduce los datos manualmente.",
-      );
-    if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
-      return;
     const list = Array.from(files).slice(0, 2);
-    if (list.length === 0) return;
+    if (!list.length) return;
+    const initial = { ...formRef.current };
     setScanStatus("scanning");
     try {
-      // Compress + convert each file
       const compressed: Blob[] = [];
       for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-
-      // Preview URLs
-      const previews = await Promise.all(
-        compressed.map(
-          (b) =>
-            new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = () => res(r.result as string);
-              r.readAsDataURL(b);
-            }),
-        ),
-      );
-      setScanPreviews(previews);
-
-      // Base64 payload for the AI Gateway
-      const images = await Promise.all(
-        compressed.map(async (b) => ({
-          base64: await blobToBase64(b),
-          mimeType: "image/jpeg",
-        })),
-      );
-
-      const { fields } = await extractFromImages({ data: { images } });
-
-      setForm((f) =>
-        mergeUneditedValues(f, initial, {
-          first_name: fields.first_name || f.first_name,
-          last_name: fields.last_name || f.last_name,
-          birth_date: fields.birth_date || f.birth_date,
-          dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-          address: fields.address || f.address,
-          city: fields.city || f.city,
-          postal_code: fields.postal_code || f.postal_code,
+      const previews = await Promise.all(compressed.map(
+        (blob) => new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error("No se pudo abrir la imagen"));
+          reader.readAsDataURL(blob);
         }),
-      );
-
-      // Reuse the front photo (first image) as the required DNI photo
-      const front = compressed[0];
-      set("dni_file", new File([front], "dni.jpg", { type: "image/jpeg" }));
+      ));
+      setScanPreviews(previews);
+      // Keep the existing required-document photo even if OCR fails.
+      set("dni_file", new File([compressed[0]], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
 
-      toast.success("Datos rellenados desde el documento");
+      const result = await readLocalMrzFromImages(compressed);
+      if (!result) {
+        toast.warning("No se pudo verificar la zona MRZ. Revisa la foto o introduce los datos manualmente.");
+        return;
+      }
+      const fields = result.fields;
+      if (!window.confirm(
+        `Lectura local verificada. Comprueba antes de aplicar:\\n\\n` +
+        `Nombre: ${fields.first_name}\\nApellidos: ${fields.last_name}\\n` +
+        `Nacimiento: ${fields.birth_date}\\nDocumento: ${fields.dni_number}\\n\\n¿Rellenar estos campos?`,
+      )) return;
+      setForm((current) => mergeUneditedValues(current, initial, {
+        first_name: fields.first_name || current.first_name,
+        last_name: fields.last_name || current.last_name,
+        birth_date: fields.birth_date || current.birth_date,
+        dni_number: fields.dni_number || current.dni_number,
+      }));
+      toast.success("Datos MRZ leídos en este dispositivo. Revisa todos los campos.");
     } catch (e: any) {
-      toast.error(e.message ?? "No se pudo leer el documento");
+      toast.error(e?.message ?? "No se pudo leer el documento en este dispositivo");
     } finally {
       setScanStatus("idle");
     }
