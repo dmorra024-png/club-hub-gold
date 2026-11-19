@@ -7,9 +7,7 @@ test("pins existing Cloudflare vision model (not paid external endpoint)", () =>
 });
 test("validates synthetic structured identity without guessing", () => {
   const result = parseMoondreamAnswer({
-    answer: ```json
-{"first_name":"ANA MARIA","last_name":"GARCIA","birth_date":"1990-05-13","dni_number":"12345678Z","address":"","city":"","postal_code":""}
-```,
+    answer: '```json\\n{"first_name":"ANA MARIA","last_name":"GARCIA","birth_date":"1990-05-13","dni_number":"12345678Z","address":"","city":"","postal_code":""}\\n```',
   });
   assert.equal(result.birth_date, "1990-05-13");
   assert.equal(result.dni_number, "12345678Z");
