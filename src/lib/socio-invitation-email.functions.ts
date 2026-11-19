@@ -11,9 +11,9 @@ const safe = (value: string) => value.replace(/[&<>"']/g, char =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 
 /**
- * One-click staff invitation: the one-use challenge stays server-side and is
- * sent directly to the member email on file. Member ownership is verified
- * on login via server-side email matching; no manual codes or QR are issued.
+ * Invitation sent to the member's verified address. With no dedicated SMTP
+ * provider, return only a pre-filled mailto draft to the authenticated staff
+ * client; never simulate delivery. No codes, QR or expiring URL are issued.
  */
 export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
   .middleware([requireClubMemberAuth])
@@ -21,9 +21,6 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const clubId = await requireOperationalClub(context, "manage_members");
     const env = (globalThis as any).__env__ ?? process.env;
-    if (!env.EMAIL_API_KEY || !env.EMAIL_FROM)
-      throw new Error("Email App Socio no configurado. No se ha enviado ningún correo.");
-
     // Scope the recipient by the current authorized club; never accept an
     // address or a club identifier from the browser.
     const { data: member, error: memberError } = await context.supabase
@@ -55,14 +52,20 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
       <p>Inicia sesión o crea tu cuenta con <strong>este mismo correo</strong>. Tu carnet se vinculará automáticamente después de confirmar tu dirección.</p>
       <p style="font-size:13px;color:#bdc7d5">Utiliza el correo electrónico que facilitaste al club. La identidad y la pertenencia al club se verifican antes de mostrar el carnet.</p>
       </main></body></html>`;
+    const subject = `SNOOP Socio · Invitación de ${clubName}`;
+    const text = `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre la aplicación: ${link.href}\nRegístrate o inicia sesión con el mismo correo de tu ficha de socio. Tu carnet se vinculará después de verificarlo.\n`;
+    // Fail-safe manual email: no provider is configured in the pilot Worker.
+    // The operator must explicitly press Send in their mail app.
+    if (!env.EMAIL_API_KEY || !env.EMAIL_FROM)
+      return { status: "manual" as const, recipient, subject, text };
     try {
       // API acceptance is not proof of inbox delivery. Keep feedback precise.
       const result = await sendProviderEmail({
         to: recipient,
         from: env.EMAIL_FROM,
-        subject: `SNOOP Socio · Invitación de ${clubName}`,
+        subject,
         html,
-        text: `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre la aplicación SNOOP Socio: ${link.href}\nRegístrate o inicia sesión con el mismo correo.\n`,
+        text,
         idempotency_key: crypto.randomUUID(),
       }, { apiKey: env.EMAIL_API_KEY, from: env.EMAIL_FROM, endpoint: "https://api.resend.com/emails" });
       if (!result.message_id) throw new Error("Proveedor sin confirmación");
