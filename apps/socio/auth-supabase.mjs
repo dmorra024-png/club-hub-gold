@@ -51,7 +51,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  async function call(path,{method='GET',body,accessToken}={}){
   const res=await fetcher(base+path,{method,headers:{
    apikey:publishableKey,'content-type':'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{})
-  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'error',signal:AbortSignal.timeout(8000)});
+  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'manual',signal:AbortSignal.timeout(8000)});
   if(!res.ok)return null;
   return res.json().catch(()=>null);
  }
@@ -79,7 +79,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
     method:'POST',
     headers:{apikey:publishableKey,'content-type':'application/json'},
     body:JSON.stringify({email,password}),
-    redirect:'error',signal:AbortSignal.timeout(8000)
+    redirect:'manual',signal:AbortSignal.timeout(8000)
    });
    status=result.status;
   }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
@@ -113,7 +113,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    result=await fetcher(base+'/resend',{method:'POST',
     headers:{apikey:publishableKey,'content-type':'application/json'},
     body:JSON.stringify({type:'signup',email}),
-    redirect:'error',signal:AbortSignal.timeout(8000)});
+    redirect:'manual',signal:AbortSignal.timeout(8000)});
   }catch{return failed(503,'RESEND_UNAVAILABLE');}
   if(!result.ok)return failed(result.status===429?429:503,'RESEND_UNAVAILABLE');
   return response({accepted:true,message:'Si la cuenta está pendiente, recibirás otro enlace.'});
@@ -125,7 +125,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   try{
    result=await fetcher(base+'/recover?redirect_to='+encodeURIComponent(signupRedirectUrl+'?snoop_recovery=1'),{
     method:'POST',headers:{apikey:publishableKey,'content-type':'application/json'},
-    body:JSON.stringify({email}),redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({email}),redirect:'manual',signal:AbortSignal.timeout(8000)
    });
   }catch{return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');}
   if(!result.ok)return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');
@@ -144,7 +144,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    result=await fetcher(base+'/user',{
     method:'PUT',headers:{apikey:publishableKey,authorization:'Bearer '+token,
      'content-type':'application/json'},
-    body:JSON.stringify({password}),redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({password}),redirect:'manual',signal:AbortSignal.timeout(8000)
    });
   }catch{return failed(503,'RECOVERY_PROVIDER_UNAVAILABLE');}
   if(!result.ok)return failed(403,'RECOVERY_REJECTED');
@@ -168,7 +168,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    result=await fetcher(base+'/user',{
     method:'PUT',headers:{apikey:publishableKey,authorization:'Bearer '+login.access_token,
      'content-type':'application/json'},
-    body:JSON.stringify({password:newPassword}),redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({password:newPassword}),redirect:'manual',signal:AbortSignal.timeout(8000)
    });
   }catch{return failed(503,'PROVIDER_UNAVAILABLE');}
   if(!result.ok)return failed(403,'PASSWORD_REJECTED');
@@ -177,7 +177,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  const logout=async({request})=>{
   const token=tokenIn(request,ACCESS);
   // Best effort remote revocation, but browser cookies are ALWAYS revoked locally.
-  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(4000)});}catch{}}
+  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(4000)});}catch{}}
   return response({signedOut:true},200,clear());
  };
  const refresh=async({request})=>{
