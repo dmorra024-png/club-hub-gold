@@ -1,0 +1,262 @@
+name: SNOOP pilot approved management dashboard layout deploy
+
+on:
+  push:
+    branches: [feature/snoop-management-approved-desktop-ui-20261119]
+    paths:
+      - .github/workflows/snoop-management-ui-deploy.yml
+      - src/routes/_authenticated/soci.nuovo.tsx
+      - src/lib/qwen-id-fields.ts
+      - src/lib/qwen-id.functions.ts
+      - tests/qwen-id-fields.test.ts
+      - src/styles.css
+      - src/routes/_authenticated/index.tsx
+      - src/components/SnoopLayout.tsx
+      - src/components/ClubThemeSettingsPanel.tsx
+      - src/lib/snoop-themes.ts
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY-SNOOP-PILOT to authorize isolated pilot deployment"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snoop-pilot-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-snoop:
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/feature/snoop-management-approved-desktop-ui-20261119' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-management-reference-ui-isolated')) }}
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+      SNOOP_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
+      SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      EXPECTED_INTEGRATED_SHA: ${{ github.sha }}
+      SNOOP_WALLET_OPERATIONS_ENABLED: "true"
+      VITE_SNOOP_WALLET_OPERATIONS_ENABLED: "true"
+      VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      APP_URL: https://snoop-pilot.dmorra024.workers.dev
+      CI: "true"
+    steps:
+      - name: Checkout only SNOOP branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Guard integrated target and required secrets (do not print values)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "dmorra024-png/club-hub-gold"
+          test "$GITHUB_REF_NAME" = "feature/snoop-management-approved-desktop-ui-20261119"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_INTEGRATED_SHA" || { echo "Wrong integrated commit checked out"; exit 1; }
+          node -e 'const c=require("./wrangler.json"); if(c.name!=="snoop-pilot" || c.workers_dev!==true || !c.ai || c.ai.binding!=="SNOOP_AI")process.exit(1)'
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SNOOP_PUBLISHABLE_KEY; do
+            test -n "${!name:-}" || { echo "Missing protected secret: $name"; exit 1; }
+          done
+          [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
+          # Explicit pilot activation authorized for this club; fail unless both flags agree.
+          test "${SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" && test "${VITE_SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" || { echo "Wallet activation flags missing"; exit 1; }
+          test "$GITHUB_REF_NAME" = "feature/snoop-management-approved-desktop-ui-20261119" || exit 1
+          test -f "apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql" || exit 1
+          test -f "src/lib/wallet-management.functions.ts" || exit 1
+          test -f "apps/socio/schema/WALLET_CLUB_CONFIGURATION_REVIEW_ONLY.sql" || exit 1
+          echo "Target validated: integrated SNOOP club wallet pilot, no database migration"
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - name: Install
+        run: bun install
+      - name: Validate SQL security and TypeScript
+        run: |
+          bun run test:security:architecture
+          bun run test:voice:activation
+          bun run test:security:initialization
+          bun run typecheck
+          node --test tests/qwen-id-fields.test.ts tests/snoop-theme-composition.test.mjs
+      - name: Build Cloudflare Worker (only public key embedded)
+        shell: bash
+        env:
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          bun run build:worker
+          bun run worker:dry-run
+          bun run test:security:bundle
+      - name: Verify and preserve existing SNOOP bindings (no secret writes)
+        run: &snoop_binding_preservation |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFile, writeFile} from 'node:fs/promises';
+          import vm from 'node:vm';
+          let stage = 'target-environment';
+          try {
+            assert.ok(process.env.CLOUDFLARE_API_TOKEN);
+            assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, '0cc8106f8820d22996af3aed9e081e93');
+            assert.equal(process.env.GITHUB_REPOSITORY, 'dmorra024-png/club-hub-gold');
+            assert.equal(process.env.GITHUB_REF_NAME, 'feature/snoop-management-approved-desktop-ui-20261119');
+            stage = 'worker-config';
+            const checkOnly = process.env.SNOOP_BINDINGS_CHECK_ONLY === 'true';
+            const file = checkOnly ? 'wrangler.json' : '.output/server/wrangler.json';
+            const config = JSON.parse(await readFile(file, 'utf8'));
+            assert.equal(config.name, 'snoop-pilot');
+            assert.equal(config.ai?.binding, 'SNOOP_AI');
+            assert.equal(config.assets?.binding, 'ASSETS');
+            stage = 'settings-response';
+            const response = await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/snoop-pilot/settings', {method:'GET',headers:{Authorization:`Bearer ${process.env.CLOUDFLARE_API_TOKEN}`},redirect:'error',signal:AbortSignal.timeout(30000)});
+            const json = await response.json();
+            const result = {http:response.status,success:response.ok && json.success === true,bindings:json.result?.bindings};
+            console.log(JSON.stringify({http:result.http,error_codes:(json.errors??[]).map(e=>e.code).filter(c=>typeof c==='number')}));
+            assert.ok(result.success && result.http === 200 && Array.isArray(result.bindings));
+            stage = 'binding-names';
+            const bindings = new Map(result.bindings.map(b => [b.name,b.type]));
+            assert.equal(bindings.size, result.bindings.length);
+            // Approved club-level wallet release. Existing bindings are preserved, except
+            // this one explicitly authorized plain-text wallet activation flag.
+            const walletFlag = result.bindings.find(b=>b.name==='SNOOP_WALLET_OPERATIONS_ENABLED');
+            assert.ok(!walletFlag || (walletFlag.type==='plain_text' && ['false','true'].includes(walletFlag.text)),
+              'Unexpected wallet binding type or value');
+            assert.equal(process.env.SNOOP_WALLET_OPERATIONS_ENABLED,'true');
+            stage = 'runtime-variables';
+            const required = {SUPABASE_SERVICE_ROLE_KEY:['secret_text'], SUPABASE_URL:['plain_text','secret_text'], SUPABASE_PUBLISHABLE_KEY:['plain_text','secret_text'], APP_URL:['plain_text','secret_text'], SNOOP_AI:['ai'], ASSETS:['assets']};
+            const glmActivation = {
+              AI_VOICE_INTENTS_ENABLED: 'true',
+              SNOOP_AI_FREE_TIER_CONFIRMED: 'true',
+              SNOOP_AI_ASSISTANT_MODEL: '@cf/zai-org/glm-4.7-flash'
+            };
+            // Restore only absent public app bindings, never replace any existing secret.
+            const publicRuntime = {SUPABASE_URL:process.env.SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY:process.env.SNOOP_PUBLISHABLE_KEY, APP_URL:process.env.APP_URL, SNOOP_WALLET_OPERATIONS_ENABLED:'true'};
+            assert.ok(walletFlag?.type === 'plain_text' && walletFlag.text === 'true', 'Existing Monedero flag must remain unchanged');
+            const walletReplacement = {};
+            const restoreMissing = checkOnly ? {} : Object.fromEntries(Object.entries(publicRuntime).filter(([name]) => name !== 'SNOOP_WALLET_OPERATIONS_ENABLED' && !bindings.has(name)));
+            if (!checkOnly) {
+              assert.equal(publicRuntime.SUPABASE_URL, 'https://bnwanxbmprbymbutoths.supabase.co');
+              assert.equal(publicRuntime.APP_URL, 'https://snoop-pilot.dmorra024.workers.dev');
+              assert.match(publicRuntime.SUPABASE_PUBLISHABLE_KEY ?? '', /^sb_publishable_[A-Za-z0-9_-]+$/);
+            }
+            for (const [name, value] of Object.entries(glmActivation)) {
+              assert.equal(config.vars?.[name], value, 'Unexpected GLM activation configuration');
+            }
+            for (const name of Object.keys(config.vars ?? {})) {
+              if (!(name in glmActivation)) required[name] ??= ['plain_text'];
+            }
+            for (const [name,expected] of Object.entries(config.vars ?? {})) {
+              const live = result.bindings.find(b=>b.name===name);
+              if (name in glmActivation && !live) continue; // first activation only
+              assert.ok(live?.type==='plain_text' && live.text===String(expected));
+            }
+            for (const [name,expected] of Object.entries({SUPABASE_URL:'https://bnwanxbmprbymbutoths.supabase.co',APP_URL:'https://snoop-pilot.dmorra024.workers.dev'})) {
+              const live = result.bindings.find(b=>b.name===name);
+              if (live?.type==='plain_text') assert.equal(new URL(live.text).href,new URL(expected).href);
+            }
+            const report = Object.entries(required).map(([name,types]) => ({name,type:bindings.get(name) ?? 'MISSING',restoring:Object.hasOwn(restoreMissing,name),valid:types.includes(bindings.get(name)) || Object.hasOwn(restoreMissing,name)}));
+            console.log(JSON.stringify({http:result.http,required:report}));
+            assert.ok(report.every(b => b.valid));
+            stage = 'resource-bindings';
+            const inheritedTypes = ['plain_text','json','secret_text','secret_key'];
+            const extra = result.bindings.filter(b => !inheritedTypes.includes(b.type) && !((b.name === 'SNOOP_AI' && b.type === 'ai') || (b.name === 'ASSETS' && b.type === 'assets')));
+            console.log(JSON.stringify({unaccounted_resource_bindings:extra.map(b=>({name:b.name,type:b.type}))}));
+            assert.equal(extra.length, 0, 'An undeclared resource binding would not be preserved');
+            stage = 'ai-options';
+            const ai = result.bindings.find(b=>b.name==='SNOOP_AI');
+            assert.ok(!ai.staging && !ai.raw && !config.ai.staging && !config.ai.raw);
+            if (!checkOnly) {
+              stage = 'wrangler-version';
+              assert.equal(JSON.parse(await readFile('node_modules/wrangler/package.json','utf8')).version, '4.157.0');
+              stage = 'wrangler-source';
+              const cli = await readFile('node_modules/wrangler/wrangler-dist/cli.js','utf8');
+              const start = cli.indexOf('function createWorkerUploadForm(');
+              const end = cli.indexOf('\nvar import_undici9,',start);
+              assert.ok(start > 0 && end > start);
+              const deployStart = cli.indexOf('async function deploy(props, config2, buildResult, options)');
+              assert.ok(deployStart > 0 && /keepSecrets:\s*true/.test(cli.slice(deployStart,cli.indexOf('let workerBundle;',deployStart))));
+              const factory = vm.runInNewContext('('+cli.slice(start,end)+')', {import_undici9:{FormData}, File, extractBindingsOfType:(type,bs)=>Object.entries(bs??{}).filter(([,b])=>b.type===type).map(([binding,b])=>({...b,binding})),isUnsafeBindingType:type=>type.startsWith('unsafe_'),toMimeType:()=> 'application/javascript+module'});
+              stage = 'upload-metadata';
+              const transmittedPublic = {...Object.fromEntries(Object.entries(glmActivation).filter(([name])=>!bindings.has(name))),...restoreMissing,...walletReplacement};
+              const inheritedPublic = result.bindings.filter(b=>['plain_text','json'].includes(b.type) && !Object.hasOwn(walletReplacement,b.name)).map(b=>({name:b.name,type:'inherit'}));
+              const inheritedPublicBindings = Object.fromEntries(inheritedPublic.map(b=>[b.name,{type:'inherit'}]));
+              const publicActivationBindings = Object.fromEntries(Object.entries(transmittedPublic).map(([name,value])=>[name,{type:'plain_text',value}]));
+              const metadata = JSON.parse(factory({main:{name:'proof.mjs',type:'esm',content:'export default {}'},keepVars:false,keepSecrets:true}, {...inheritedPublicBindings,...publicActivationBindings,SNOOP_AI:{type:'ai'},ASSETS:{type:'assets'}}).get('metadata'));
+              assert.deepEqual([...metadata.keep_bindings].sort(), ['secret_text','secret_key'].sort());
+              assert.deepEqual(metadata.bindings.filter(b=>b.type==='inherit'), inheritedPublic);
+              assert.deepEqual(metadata.bindings.filter(b=>b.type==='plain_text'), Object.entries(transmittedPublic).map(([name,text])=>({name,type:'plain_text',text})));
+              assert.deepEqual(metadata.bindings.filter(b=>!['plain_text','inherit'].includes(b.type)).map(b=>({name:b.name,type:b.type})), [{name:'SNOOP_AI',type:'ai'},{name:'ASSETS',type:'assets'}]);
+              assert.equal(metadata.bindings.length, Object.keys(transmittedPublic).length+inheritedPublic.length+2);
+              // Preserve existing variables by name and secrets by type. Restore only absent
+              // non-secret Supabase public URL/key and app origin; never change existing secrets.
+              config.vars = transmittedPublic;
+              stage = 'config-allowlist';
+              const allowedConfigKeys = ['compatibility_date','$schema','name','main','compatibility_flags','workers_dev','preview_urls','assets','ai','no_bundle','rules','triggers','vars'];
+              assert.ok(Object.keys(config).every(key=>allowedConfigKeys.includes(key)));
+              stage = 'scheduled-triggers';
+              assert.deepEqual(config.triggers, {crons:['*/5 * * * *']});
+              stage = 'resource-config';
+              assert.ok(Object.keys(config.ai).every(key=>['binding','remote'].includes(key)));
+              assert.ok(Object.keys(config.assets).every(key=>['binding','directory'].includes(key)));
+              stage = 'write-local-config';
+              // Named inheritance preserves existing public/JSON bindings without resending their values.
+              // Keep-by-type can suppress additions of the same type; secrets remain type-inherited.
+              config.unsafe = {bindings:inheritedPublic};
+              await writeFile(file, JSON.stringify(config,null,2)+'\n');
+              console.log(JSON.stringify({wrangler:'4.157.0',payload_keep_bindings:metadata.keep_bindings,resources:metadata.bindings.map(b=>({name:b.name,type:b.type})),secret_values_sent:false}));
+            }
+            console.log('SNOOP_BINDINGS_PRESERVATION_OK');
+          } catch {
+            // Never print error.message/stack/assertion values: they may contain runtime secrets.
+            console.error(JSON.stringify({error:'SNOOP_BINDINGS_PRESERVATION_FAILED',stage}));
+            console.error('SNOOP binding preservation not proven; deployment blocked. No secret values logged.');
+            process.exitCode = 1;
+          }
+          NODE
+      - name: Deploy only snoop-pilot on the selected Cloudflare account
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Validate the generated config still targets exactly snoop-pilot.
+          node -e 'const c=require("./.output/server/wrangler.json");if(c.name!=="snoop-pilot")throw Error("Wrong Worker target")'
+          npx wrangler deploy --config .output/server/wrangler.json
+      - name: Verify restored runtime and unauthenticated voice boundary (no user data)
+        run: node scripts/verify-snoop-runtime.mjs
+      - name: Sanity check HTTPS (does not register users)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS -o /dev/null --max-time 30 "$APP_URL/auth"
+          echo "SNOOP pilot is reachable at the configured HTTPS origin."
+
+  diagnose-snoop:
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/feature/snoop-management-approved-desktop-ui-20261119' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
+    runs-on: ubuntu-24.04
+    environment: snoop-pilot
+    timeout-minutes: 5
+    env:
+      SNOOP_CHECK_APP_URL: ${{ inputs.confirm == 'CHECK-SNOOP-APP-URL' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Single GET of SNOOP settings (HTTP status and error codes only)
+        if: ${{ inputs.confirm != 'CHECK-SNOOP-BINDINGS' }}
+        run: node scripts/diagnose-snoop-access.mjs
+      - name: Read-only SNOOP binding inventory
+        if: ${{ inputs.confirm == 'CHECK-SNOOP-BINDINGS' }}
+        env:
+          SNOOP_BINDINGS_CHECK_ONLY: "true"
+        run: *snoop_binding_preservation
