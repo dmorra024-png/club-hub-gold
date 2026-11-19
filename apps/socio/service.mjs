@@ -33,7 +33,16 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
  return {
   async clubs(actor){
    const list=await owned(actor);
-   return{clubs:list.map(m=>({id:m.clubId,name:m.clubName,status:'active',walletEnabled:m.walletEnabled}))};
+   const themes=await Promise.all(list.map(async m=>{
+    try {
+     const id=await repository.themeForClub(m.clubId);
+     return ['navy-gold','graphite-copper','aubergine-amethyst',
+      'petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'].includes(id)
+       ?id:'navy-gold';
+    } catch {return 'navy-gold';}
+   }));
+   return{clubs:list.map((m,i)=>({id:m.clubId,name:m.clubName,status:'active',
+    walletEnabled:m.walletEnabled,themeId:themes[i]}))};
   },
   async syncClubs(actor){
    verifiedActor(actor);
