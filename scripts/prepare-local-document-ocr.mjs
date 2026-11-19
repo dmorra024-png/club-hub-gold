@@ -24,8 +24,18 @@ await requiredCopy(
   from("@tesseract.js-data", "eng", "4.0.0_best_int", "eng.traineddata.gz"),
   join(out, "lang", "eng.traineddata.gz"),
 );
-await requiredCopy(
-  from("@tesseract.js-data", "spa", "4.0.0_best_int", "spa.traineddata.gz"),
-  join(out, "lang", "spa.traineddata.gz"),
-);
+// Spanish package layout differs across model releases; resolve only a packaged,
+// locally available traineddata model and fail rather than fetching from a CDN.
+async function packagedSpanishData() {
+  const root = from("@tesseract.js-data", "spa");
+  const top = await readdir(root, { withFileTypes: true });
+  for (const dir of ["4.0.0_best_int", "4.0.0"]) {
+    if (!top.some((item) => item.isDirectory() && item.name === dir)) continue;
+    const candidate = join(root, dir, "spa.traineddata.gz");
+    try { if ((await stat(candidate)).isFile()) return candidate; } catch {}
+  }
+  const names = top.map((x) => x.name);
+  throw new Error("Spanish traineddata missing from pinned local package: " + names.join(","));
+}
+await requiredCopy(await packagedSpanishData(), join(out, "lang", "spa.traineddata.gz"));
 console.log(`Local OCR assets ready: ${filenames.length} core files; only own-origin paths`);
