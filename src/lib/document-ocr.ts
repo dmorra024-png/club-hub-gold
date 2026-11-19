@@ -38,7 +38,7 @@ function parsedNames(s: string) {
 }
 // ICAO 9303 TD1 (DNI) / TD3 (passport) machine readable zones. Accept checked values only.
 export function parseMRZ(text: string): Partial<DocumentFields> {
-  const lines = text.split(/\r?\n/).map(upper).filter(Boolean);
+  const lines = text.split(/\r?\n/).map(upper).filter(s => s.length >= 25 && s.includes("<"));
   for (let i = 0; i < lines.length; i++) {
     const a = lines[i], b = lines[i + 1], c = lines[i + 2];
     if (/^[A-Z<I][A-Z<][A-Z<]{3}/.test(a) && a.length === 30 && b?.length === 30 && c?.length === 30) {
@@ -62,9 +62,9 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   const result: Partial<DocumentFields> = {};
   const joined = lines.join("\n");
-  const dni = joined.match(/\b(?:DNI|NIE|N[ÚU]M(?:ERO)?\.?\s*(?:DE\s*)?(?:DOCUMENTO|IDENTIDAD))\s*[:#-]?\s*([XYZ]?\d{7,8}[A-Z])\b/i);
+  const dni = joined.match(/\b(?:DNI|NIE|DOCUMENTO|DOC\.?\s*N\.?|N[ÚU]M(?:ERO)?\.?\s*(?:DE\s*)?(?:DOCUMENTO|IDENTIDAD))\s*[:#-]?\s*([XYZ]?\d{7,8}[A-Z])\b/i);
   if (dni) result.dni_number = dni[1].toUpperCase();
-  const dateIndex = lines.findIndex(s => /(?:FECHA\s*(?:DE\s*)?NACIMIENTO|NACIMIENTO|DATE\s*OF\s*BIRTH|BIRTH|F\.\s*NAC\.?)/i.test(s));
+  const dateIndex = lines.findIndex(s => /(?:FECHA\s*(?:DE\s*)?NACIMIENTO|NACIMIENTO|DATA\s*(?:DI\s*)?NASCITA|NASCITA|DATE\s*OF\s*BIRTH|BIRTH|F\.\s*NAC\.?)/i.test(s));
   const birthContext = dateIndex < 0 ? "" : lines.slice(dateIndex, dateIndex + 3).join(" ");
   const dateMatch = birthContext.match(/(\d{2})[\/.\-](\d{2})[\/.\-](\d{4})/);
   if (dateMatch) {
@@ -79,8 +79,8 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
     const inline = lines[match].replace(label, "").replace(/^\s*[:\-]\s*/, "").trim();
     return inline || lines[match + 1] || "";
   };
-  const first = pick(/^(?:(?:NOMBRE|NOMBRES|NAME|GIVEN\s*NAMES?)\b|NOM\b)\s*/i);
-  const last = pick(/^(?:APELLIDOS?|SURNAME|SURNAMES?|APELLIDO\s*1\s*\/\s*2)\b\s*/i);
+  const first = pick(/^(?:(?:NOMBRE|NOMBRES|NOME|NAME|GIVEN\s*NAMES?)\b|NOM\b)\s*/i);
+  const last = pick(/^(?:APELLIDOS?|COGNOME|SURNAME|SURNAMES?|APELLIDO\s*1\s*\/\s*2)\b\s*/i);
   const plausibleName = (s: string) => /^[\p{L} .'-]{2,80}$/u.test(s) &&
     !/\b(?:NACIMIENTO|FECHA|SEXO|NACIONALIDAD|DOCUMENTO|EXPEDICI[ÓO]N|DOMICILIO)\b/i.test(s);
   if (plausibleName(first)) result.first_name = first;
@@ -93,7 +93,7 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
       && !/^(?:NOMBRE|APELLIDOS?|NACIMIENTO|LOCALIDAD|MUNICIPIO|PROVINCIA|NATIONALITY)/i.test(address)) {
     result.address = address;
   }
-  const city = pick(/^(?:LOCALIDAD|MUNICIPIO|CIUDAD|CITY|POBLACI[ÓO]N)\b\s*/i);
+  const city = pick(/^(?:LOCALIDAD|MUNICIPIO|CIUDAD|CITY|CITT[ÀA]|COMUNE|POBLACI[ÓO]N)\b\s*/i);
   if (city && /^[\p{L} .'-]{2,65}$/u.test(city)) result.city = city;
   // Never infer an address/city from unrelated fields or an unlabeled number.
   return result;
@@ -106,8 +106,13 @@ export async function scanDocumentLocally(images: Blob[]): Promise<{ fields: Doc
     for (const img of images) {
       const url = URL.createObjectURL(img);
       try {
-        const { data } = await worker.recognize(url);
-        texts.push(data.text);
+        // The first pass captures printed field labels, the second improves
+        // reading the dense machine-readable lines near the document edge.
+        await worker.setParameters({ tessedit_pageseg_mode: "11" });
+        const general = await worker.recognize(url);
+        await worker.setParameters({ tessedit_pageseg_mode: "6" });
+        const structured = await worker.recognize(url);
+        texts.push(general.data.text, structured.data.text);
       } finally { URL.revokeObjectURL(url); }
     }
     const rawText = texts.join("\n");
