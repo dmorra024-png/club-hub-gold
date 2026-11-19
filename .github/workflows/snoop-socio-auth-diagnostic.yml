@@ -22,7 +22,7 @@ jobs:
             ('expired-refresh','POST','/api/socio/auth/refresh',b'{}',{'Cookie':'__Host-snoop_socio_at=invalid.synthetic.token; __Host-snoop_socio_rt=synthetic','Origin':origin,'Content-Type':'application/json'}),
           ]
           for label,method,path,data,headers in scenarios:
-            req=urllib.request.Request(origin+path,method=method,data=data,headers=headers)
+            req=urllib.request.Request(origin+path,method=method,data=data,headers={**{'User-Agent':'curl/8.0','Accept':'application/json'},**headers})
             try:
               with urllib.request.urlopen(req,timeout=18) as r: status=r.status;body=r.read(1600)
             except urllib.error.HTTPError as e: status=e.code;body=e.read(1600)
