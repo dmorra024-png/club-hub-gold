@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/snoop-socio-reference-browser.yml
       - apps/socio/browser-acceptance.mjs
+      - apps/socio/main.js
+      - apps/socio/styles.css
 permissions:
   contents: read
 jobs:
