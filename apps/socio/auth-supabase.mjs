@@ -83,7 +83,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    });
    status=result.status;
   }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
-  if(status>=500||status===429||status===401||status===403||status===404||status===0)
+  if(status>=300&&status<400||status>=500||status===429||status===401||status===403||status===404||status===0)
    return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');
   if(status===400)return failed(400,'SIGNUP_REJECTED');
   // 409/422 can indicate an existing account; reply generically to avoid enumeration.
