@@ -120,7 +120,7 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
   await page.locator('.socio-hello p').getByText('SNOOP Club Demo Palma').waitFor({timeout:15000});
   await page.locator('.member-premium-card').getByText('00124').waitFor();
-  await page.getByText('25,75 €').waitFor();
+  await page.locator('.wallet-balance').getByText('25,75 €').waitFor();
   await page.locator('img[alt="QR temporal de socio"]').waitFor();
   await mkdir(screenshotDir,{recursive:true});
   await page.screenshot({path:join(screenshotDir,deviceName+'-carnet.png'),fullPage:true});
@@ -143,7 +143,7 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
   await page.locator('.socio-hello p').getByText('SNOOP Club Demo Madrid').waitFor();
   await page.locator('.member-premium-card').getByText('00077').waitFor();
-  await page.getByText('60,00 €').waitFor();
+  await page.locator('.wallet-balance').getByText('60,00 €').waitFor();
   assert.equal(await page.locator('.member-premium-card').getByText('00124').count(),0);
   await page.locator('.socio-premium-wallet').click();
   await page.getByText('Recarga Madrid').waitFor();
@@ -169,11 +169,11 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
   await page.locator('.socio-hello p').getByText('SNOOP Club Demo Palma').waitFor();
-  await page.getByText('25,75 €').waitFor();
+  await page.locator('.wallet-balance').getByText('25,75 €').waitFor();
   fixture.releaseWallet();
   await page.waitForTimeout(250);
   assert.equal(await page.getByText('999,99 €').count(),0,'Stale wallet response leaked across sign-out');
-  await page.getByText('25,75 €').waitFor();
+  await page.locator('.wallet-balance').getByText('25,75 €').waitFor();
   // Account settings must remain available to the member. Requiring the old
   // password prevents an already unlocked browser from silently changing it.
   await page.getByRole('button',{name:'Abrir menú de clubes'}).click();
