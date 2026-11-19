@@ -38,6 +38,6 @@ jobs:
           const response=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/ai/run/'+model,{method:'POST',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});
           const data=await response.json().catch(()=>({}));
           const result=data.result??{};
-          console.log(JSON.stringify({status:response.status,success:data.success===true,errorCodes:(data.errors??[]).map(e=>e.code),resultType:typeof result,resultKeys:Object.keys(result),responseType:typeof result.response,responseLength:typeof result.response==='string'?result.response.length:0,responseSample:typeof result.response==='string'?result.response.slice(0,100):null}));
+          console.log(JSON.stringify({status:response.status,success:data.success===true,errorCodes:(data.errors??[]).map(e=>e.code),resultType:typeof result,resultKeys:Object.keys(result),responseType:typeof result.response,responseLength:typeof result.response==='string'?result.response.length:0,responseSample:typeof result.response==='string'?result.response.slice(0,100):null,choiceText:typeof result.choices?.[0]?.message?.content==='string'?result.choices[0].message.content.slice(0,200):null}));
           if(!response.ok||!data.success)process.exit(1);
           NODE
