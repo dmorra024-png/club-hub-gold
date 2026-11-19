@@ -40,6 +40,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
+import { scanDocumentLocally } from "@/lib/document-ocr";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
   component: NewSocio,
@@ -124,6 +125,8 @@ function NewSocio() {
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+  const [ocrReviewed, setOcrReviewed] = useState(true);
+  const [ocrMessage, setOcrMessage] = useState("");
 
   useEffect(() => {
     voiceMounted.current = true;
@@ -342,65 +345,46 @@ function NewSocio() {
 
   // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
   async function scanDocuments(files: FileList | File[]) {
-    const initial = { ...formRef.current };
-    const status = await aiStatus();
-    if (!status.documents)
-      return toast.error(
-        "Procesamiento de documentos no autorizado. Introduce los datos manualmente.",
-      );
-    if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
-      return;
     const list = Array.from(files).slice(0, 2);
-    if (list.length === 0) return;
+    if (!list.length) return;
+    const initial = { ...formRef.current };
     setScanStatus("scanning");
+    setOcrReviewed(true);
+    setOcrMessage("");
     try {
-      // Compress + convert each file
       const compressed: Blob[] = [];
       for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-
-      // Preview URLs
-      const previews = await Promise.all(
-        compressed.map(
-          (b) =>
-            new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = () => res(r.result as string);
-              r.readAsDataURL(b);
-            }),
-        ),
-      );
+      const previews = await Promise.all(compressed.map((blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No se pudo abrir la foto"));
+        reader.readAsDataURL(blob);
+      })));
       setScanPreviews(previews);
-
-      // Base64 payload for the AI Gateway
-      const images = await Promise.all(
-        compressed.map(async (b) => ({
-          base64: await blobToBase64(b),
-          mimeType: "image/jpeg",
-        })),
-      );
-
-      const { fields } = await extractFromImages({ data: { images } });
-
-      setForm((f) =>
-        mergeUneditedValues(f, initial, {
-          first_name: fields.first_name || f.first_name,
-          last_name: fields.last_name || f.last_name,
-          birth_date: fields.birth_date || f.birth_date,
-          dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-          address: fields.address || f.address,
-          city: fields.city || f.city,
-          postal_code: fields.postal_code || f.postal_code,
-        }),
-      );
-
-      // Reuse the front photo (first image) as the required DNI photo
+      const { fields } = await scanDocumentLocally(compressed);
+      const found = Object.entries(fields).filter(([, value]) => Boolean(value)).map(([key]) => key);
+      if (!found.length) {
+        setOcrMessage("No se han leído datos fiables. Prueba con otra foto o introduce los datos a mano.");
+        toast.error("No se han podido leer los datos del documento");
+      } else {
+        setForm((current) => mergeUneditedValues(current, initial, {
+          first_name: fields.first_name || current.first_name,
+          last_name: fields.last_name || current.last_name,
+          birth_date: fields.birth_date || current.birth_date,
+          dni_number: fields.dni_number || current.dni_number,
+          address: fields.address || current.address,
+          city: fields.city || current.city,
+          postal_code: fields.postal_code || current.postal_code,
+        }));
+        setOcrReviewed(false);
+        setOcrMessage(`Lectura local: ${found.length} campos. Comprueba los datos con el documento antes de guardar; los dudosos quedan vacíos.`);
+        toast.info("Verifica los datos extraídos");
+      }
       const front = compressed[0];
       set("dni_file", new File([front], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
-
-      toast.success("Datos rellenados desde el documento");
     } catch (e: any) {
-      toast.error(e.message ?? "No se pudo leer el documento");
+      toast.error(e?.message || "No se pudo leer el documento");
     } finally {
       setScanStatus("idle");
     }
@@ -431,6 +415,7 @@ function NewSocio() {
 
   async function submit(confirmedCents?: number) {
     setRegistrationError("");
+    if (!ocrReviewed) return failRegistration("Comprueba y confirma los datos del documento antes de guardar.");
     if (savingRef.current || !navigator.onLine)
       return failRegistration("Espera a que termine el envío y comprueba la conexión.");
     if (!form.first_name.trim() || !form.last_name.trim())
@@ -674,6 +659,17 @@ function NewSocio() {
             />
           </label>
         </div>
+        {ocrMessage && (
+          <div className="mt-3 text-sm space-y-2" aria-live="polite">
+            <p className="text-muted-foreground">{ocrMessage}</p>
+            {!ocrReviewed && (
+              <label className="flex gap-2 items-start cursor-pointer">
+                <input type="checkbox" checked={ocrReviewed} onChange={(e) => setOcrReviewed(e.target.checked)} className="mt-1" />
+                <span>He comprobado los datos con el documento original.</span>
+              </label>
+            )}
+          </div>
+        )}
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
             {scanPreviews.map((src, i) => (
