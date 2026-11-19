@@ -1,0 +1,72 @@
+name: SNOOP approved compact activity and JARVIS UI checks
+on:
+  push:
+    branches: [fix/snoop-home-density-activity-jarvis-20261119]
+    paths:
+      - .github/workflows/snoop-home-density-check.yml
+      - src/components/SnoopGoldIcon.tsx
+      - src/components/SnoopReferenceWaves.tsx
+      - src/components/ClubActivities.tsx
+      - src/components/SnoopLayout.tsx
+      - src/routes/_authenticated/index.tsx
+      - src/styles.css
+      - src/components/ClubActivities.tsx
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: "1.3.12"}
+      - run: bun install
+      - name: Compile and maintain existing security, scanning and voice behavior
+        run: |
+          bun run typecheck
+          bun run test:security:architecture
+          bun run test:voice:activation
+          node --test tests/qwen-id-fields.test.ts tests/snoop-theme-composition.test.mjs
+      - name: Check reference composition and privacy boundaries
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const read=x=>readFileSync(x,'utf8');
+          const home=read('src/routes/_authenticated/index.tsx'),
+                shell=read('src/components/SnoopLayout.tsx'),
+                icons=read('src/components/SnoopGoldIcon.tsx'),
+                waves=read('src/components/SnoopReferenceWaves.tsx'),
+                styles=read('src/styles.css'),
+                themes=read('src/lib/snoop-themes.ts');
+          for(const word of ['snoop-approved-cash','snoop-approved-shortcuts','ClubActivities','canSeeCash','SnoopGoldIcon'])assert.ok(home.includes(word),word);
+          for(const name of ['socios','pedidos','productos','stock','wallet'])assert.ok(icons.includes('kind==="'+name+'"'),name);
+          for(const word of ['SnoopReferenceWaves','premium-bottom-nav','snoop:voice-toggle','SnoopWordmark'])assert.ok(shell.includes(word),word);
+          assert.ok(waves.includes('snoop-reference-waves-top')&&waves.includes('snoop-reference-waves-bottom'));
+          assert.match(styles,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+          assert.match(styles,/snoop-gold-icon/);
+          assert.match(styles,/snoop-reference-waves-bottom/);
+          assert.ok(!home.includes('432,80'),'No placeholder cash amount must appear');
+          assert.ok(!home.includes('Turnos de hoy'),'No rejected shift card');
+          for(const id of ['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'])assert.ok(themes.includes('"'+id+'"'));
+          const activities=read('src/components/ClubActivities.tsx');
+          assert.ok(activities.includes('premium-activity-right'));
+          assert.ok(activities.includes('item.detail.slice("Importe: ".length)'));
+          assert.match(styles,/grid-template-columns:38px minmax\\(0,1fr\\) auto/);
+          assert.match(styles,/snoop-approved-assistant-mark/);
+          console.log('PASS: compact reference activities, real amounts, enlarged JARVIS within the four equal navigation slots');
+          NODE
+      - name: Build without releasing
+        env:
+          SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+          SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
+          VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder_for_build_only
+          SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder_for_build_only
+        run: |
+          bun run build:worker
+          bun run worker:dry-run
+          bun run test:security:bundle
