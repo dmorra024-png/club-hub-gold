@@ -4,6 +4,7 @@ on:
     branches: [fix/snoop-socio-auth-ui-reference-20261119]
     paths:
       - .github/workflows/snoop-socio-reference-browser.yml
+      - apps/socio/browser-acceptance.mjs
 permissions:
   contents: read
 jobs:
