@@ -15,7 +15,6 @@ import {
   ScanLine,
   UserRound,
   Bell,
-  Mic,
 } from "lucide-react";
 import type { Permission } from "@/lib/access-context";
 import { useAuth } from "@/hooks/useAuth";
@@ -125,11 +124,9 @@ export function SnoopLayout({
         >
           {open ? <X /> : <Menu />}
         </button>
-        {!home && (
-          <Link to="/" aria-label="SNOOP — Inicio" className="premium-header-brand">
-            <SnoopWordmark />
-          </Link>
-        )}
+        <Link to="/" aria-label="SNOOP — Inicio" className="premium-header-brand">
+          <SnoopWordmark />
+        </Link>
         <Link
           to="/actividades"
           className="premium-header-button"
@@ -246,7 +243,7 @@ export function SnoopLayout({
           }
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
-          <Mic aria-hidden="true" />
+          <span className="snoop-approved-assistant-mark" aria-hidden="true"><SnoopWordmark /></span>
           <span>JARVIS</span>
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
