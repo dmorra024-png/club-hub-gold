@@ -34,7 +34,13 @@ function makeFixture(){
    }
    return{linkedCount:proposal.eligible.length};
   },
-  async claimAndConsumeLinkChallenge(){return{ok:false}},
+  async claimAndConsumeLinkChallenge({code,authUserId}){
+   const target=code==='123456'?cards[0]:code==='654321'?cards[1]:null;
+   if(!target||authUserId!==user)return{ok:false};
+   if(links.some(x=>x.clubId===target.clubId&&x.memberId===target.memberId))return{ok:false};
+   links.push({authUserId,clubId:target.clubId,memberId:target.memberId,status:'verified'});
+   return{ok:true};
+  },
   async walletForMember(clubId,memberId){return{balanceCents:clubId===a?5000:clubId===b?1800:0}},
   async walletMovementsForMember(clubId){return[{deltaCents:clubId===a?5000:1800,balanceCents:clubId===a?5000:1800,createdAt:'2026-11-17T12:00:00Z',label:'Recarga'}]},
   async isMemberActive(clubId,memberId){return cards.some(x=>x.clubId===clubId&&x.memberId===memberId&&x.active)},
@@ -48,14 +54,15 @@ function makeFixture(){
  const png=new Uint8Array([137,80,78,71,13,10,26,10,...new Array(24).fill(0)]);
  const handle=makeSocioHttpHandler({service,authenticate,renderQrPng:async()=>png,origin});
  const get=(path,as='socio')=>handle(new Request(origin+'/api/socio'+path,{headers:{authorization:as}}));
- const post=(path,as='socio')=>handle(new Request(origin+'/api/socio'+path,{method:'POST',headers:{authorization:as,origin,'content-type':'application/json'},body:'{}'}));
+ const post=(path,as='socio',body={})=>handle(new Request(origin+'/api/socio'+path,{method:'POST',headers:{authorization:as,origin,'content-type':'application/json'},body:JSON.stringify(body)}));
  return{get,post,service,links};
 }
 test('login account can link two independently verified clubs, each with separate QR, member number and wallet',async()=>{
  const x=makeFixture();
  assert.deepEqual((await(await x.get('/clubs')).json()).clubs,[]);
- const syn=await(await x.post('/memberships/sync')).json();
- assert.equal(syn.linkedCount,2);
+ assert.equal((await x.post('/memberships/sync')).status,409);
+ assert.deepEqual(await(await x.post('/link/claim','socio',{code:'123456'})).json(),{linked:true});
+ assert.deepEqual(await(await x.post('/link/claim','socio',{code:'654321'})).json(),{linked:true});
  const linked=(await(await x.get('/clubs')).json()).clubs;
  assert.equal(linked.length,2);
  assert.equal((await(await x.get('/clubs/'+a+'/carnet')).json()).memberNumber,'0124');
@@ -68,7 +75,7 @@ test('login account can link two independently verified clubs, each with separat
  assert.equal(movements.items[0].balanceCents,1800);
 });
 test('different Socio account does not inherit other memberships, wallets or QR',async()=>{
- const x=makeFixture();await x.post('/memberships/sync');
+ const x=makeFixture();await x.post('/link/claim','socio',{code:'123456'});
  assert.equal((await(await x.get('/clubs','other')).json()).clubs.length,0);
  assert.equal((await x.get('/clubs/'+a+'/carnet','other')).status,404);
  assert.equal((await x.get('/clubs/'+b+'/wallet','other')).status,404);
