@@ -291,3 +291,5 @@ jobs:
 # User-authorized Spanish printed-text OCR pilot release; deploy only after checks.
 
 # Release on 2026-11-19: includes multilingual-worker API correction.
+
+# Camera/gallery + offline Spanish/English VIZ OCR release, verified against active v92.
