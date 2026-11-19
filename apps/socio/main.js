@@ -66,7 +66,7 @@ function shell(body){
  const nav=state.me?.authenticated?'<nav class="socio-dock socio-premium-dock" aria-label="Navegación del socio">'+
   '<button type="button" data-action="home" '+(!active?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon">⌂</span><span>Inicio</span></button>'+
   '<button type="button" data-action="movements" '+(!wallet?'disabled':'')+' aria-current="'+(state.page==='movements')+'"><span class="dock-icon">▱</span><span>Monedero</span></button>'+
-  '<button type="button" class="socio-central-qr" data-action="refresh-qr" '+(!active?'disabled':'')+' aria-label="Actualizar código QR"><span class="dock-icon">▦</span><span>QR</span></button>'+
+  '<button type="button" class="socio-central-qr" data-action="home" '+(!active?'disabled':'')+' aria-label="Actualizar código QR"><span class="dock-icon">▦</span><span>QR</span></button>'+
   '<button type="button" data-action="movements" '+(!wallet?'disabled':'')+' aria-label="Historial del monedero"><span class="dock-icon">◷</span><span>Historial</span></button>'+
   '<button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon">♙</span><span>Perfil</span></button>'+
   '</nav>':'';
@@ -150,7 +150,7 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 }
 function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'forgot':forgotPage();break;case'recovery':recoveryPage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
-async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;applySocioTheme(c.themeId);state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet(),refreshRecentMovements()]);}
+async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;applySocioTheme(c.themeId);state.member=null;state.wallet=null;state.movements=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet(),refreshRecentMovements()]);}
 async function refreshCarnet(){
  const id=state.selected;
  if(!id||document.hidden||state.page!=='carnet')return;
