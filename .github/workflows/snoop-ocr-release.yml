@@ -114,7 +114,7 @@ jobs:
           if(!r.ok||!j.success)throw Error('Cannot verify active Worker; refuse deployment');
           const all=Array.isArray(j.result)?j.result:j.result?.deployments;
           const v=all?.[0]?.versions??[];
-          if(v.length!==1||v[0].version_id!=='c2528187-da23-40b6-b8f3-e38185155e74'||Number(v[0].percentage)!==100)
+          if(v.length!==1||v[0].version_id!=='73809943-f772-45d0-8b9d-7199b78fe5d9'||Number(v[0].percentage)!==100)
             throw Error('LIVE_WORKER_CHANGED_SINCE_AUDIT; deployment refused');
           console.log('ACTIVE_V89_VERSION_CONFIRMED');
           NODE
