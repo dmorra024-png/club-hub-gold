@@ -97,7 +97,7 @@ async function setupApi(page){
  return {hits,heldWalletHit,holdNextWallet:()=>{holdNextClubAWallet=true;},releaseWallet:()=>{releaseHeldWallet?.();}};
 }
 async function runBrowser(browserType,deviceName,options){
- const browser=await browserType.launch({headless:true});
+ const browser=await browserType.launch({headless:true,...(browserType===chromium&&process.env.SNOOP_CHROME_BIN?{executablePath:process.env.SNOOP_CHROME_BIN}: {})});
  const context=await browser.newContext({
   viewport:options.viewport,deviceScaleFactor:2,isMobile:options.mobile,
   hasTouch:true,serviceWorkers:'block',locale:'es-ES'
@@ -203,7 +203,7 @@ async function runBrowser(browserType,deviceName,options){
  }finally{await browser.close();}
 }
 async function testUnavailableBackend(browserType,deviceName){
- const browser=await browserType.launch({headless:true});
+ const browser=await browserType.launch({headless:true,...(browserType===chromium&&process.env.SNOOP_CHROME_BIN?{executablePath:process.env.SNOOP_CHROME_BIN}: {})});
  const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
  const page=await context.newPage();
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -223,7 +223,7 @@ async function testUnavailableBackend(browserType,deviceName){
 const port=await listen();
 try{
  await runBrowser(chromium,'android-chromium',{viewport:{width:390,height:844},mobile:true});
- await runBrowser(webkit,'iphone-webkit',{viewport:{width:375,height:812},mobile:true});
+ if(process.env.SNOOP_BROWSER_CHROMIUM_ONLY!=='true')await runBrowser(webkit,'iphone-webkit',{viewport:{width:375,height:812},mobile:true});
  await testUnavailableBackend(chromium,'android-chromium');
- await testUnavailableBackend(webkit,'iphone-webkit');
+ if(process.env.SNOOP_BROWSER_CHROMIUM_ONLY!=='true')await testUnavailableBackend(webkit,'iphone-webkit');
 }finally{await close();}
