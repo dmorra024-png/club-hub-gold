@@ -11,15 +11,16 @@ const service={
  card:async(a,c)=>{calls.push(['card',c]);return{memberNumber:'124',clubId:c,active:true};},
  wallet:async(a,c)=>({balanceCents:5000}),
  walletMovements:async(a,c)=>({items:[]}),
+ stableQr:async(a,c)=>{calls.push(['stableQr',c]);return{token:'SNOOP:0000124'}},
  qr:async(a,c)=>{calls.push(['qr',c]);return{token:'TOKEN',expiresIn:40}}
 };
 const PNG=new Uint8Array([137,80,78,71,13,10,26,10,...Array(30).fill(0)]);
-const handler=makeSocioHttpHandler({service,authenticate:async req=>req.headers.get('authorization')==='test'?actor:null,renderQrPng:async token=>{assert.equal(token,'TOKEN');return PNG;},origin});
+const handler=makeSocioHttpHandler({service,authenticate:async req=>req.headers.get('authorization')==='test'?actor:null,renderQrPng:async token=>{assert.equal(token,'SNOOP:0000124');return PNG;},origin});
 const req=(p,opts={})=>new Request(origin+'/api/socio'+p,opts);
 test('anonymous cannot read clubs, card or wallet',async()=>{for(const p of ['/clubs','/clubs/'+club+'/carnet','/clubs/'+club+'/wallet'])assert.equal((await handler(req(p))).status,401);});
 test('authenticated member receives card and club-scoped wallet, never cacheable',async()=>{const auth={Authorization:'test'};const clubs=await handler(req('/clubs',{headers:auth}));assert.equal(clubs.status,200);assert.equal(clubs.headers.get('cache-control'),'no-store, private');assert.equal((await clubs.json()).clubs[0].name,'Prueba');
  const card=await handler(req('/clubs/'+club+'/carnet',{headers:auth}));assert.equal((await card.json()).memberNumber,'124');
- const qr=await handler(req('/clubs/'+club+'/carnet/qr',{headers:auth}));assert.equal(qr.status,200);assert.equal(qr.headers.get('content-type'),'image/png');assert.match(qr.headers.get('cache-control'),/no-store/);
+ const qr=await handler(req('/clubs/'+club+'/carnet/qr',{headers:auth}));assert.equal(qr.status,200);assert.equal(qr.headers.get('content-type'),'image/png');assert.match(qr.headers.get('cache-control'),/no-store/);assert.ok(calls.some(x=>x[0]==='stableQr'));assert.equal(calls.some(x=>x[0]==='qr'),false);
 });
 test('mutation is blocked without same-origin and JSON; never trust caller-supplied actor',async()=>{const post={method:'POST',headers:{'content-type':'application/json'},body:'{}'};
  assert.equal((await handler(req('/memberships/sync',post))).status,403);
