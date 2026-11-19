@@ -1,0 +1,1 @@
+Read-only acceptance probe after isolated SNOOP Socio pilot deployment. Do not expose credentials, user data or response bodies. Check actual status codes and binding types.
