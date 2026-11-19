@@ -20,7 +20,7 @@ if(!base.includes(oldImport)) throw Error("Baseline AI import drifted");
 base=base.replace(oldImport,"");
 const anchor='import { useWhisperDictation } from "@/hooks/useWhisperDictation";';
 if(!base.includes(anchor)) throw Error("Baseline import hook drifted");
-base=base.replace(anchor, anchor+'\nimport { readLocalMrzFromImages } from "@/lib/local-document-ocr";');
+base=base.replace(anchor, anchor+'\nimport { readLocalDocumentFromImages } from "@/lib/local-document-ocr";');
 const hook="  const extractFromImages = useServerFn(extractMemberFieldsFromImages);\n";
 if(!base.includes(hook)) throw Error("Baseline OCR hook drifted");
 base=base.replace(hook,"");
@@ -29,7 +29,7 @@ base=base.slice(0,s)+reader+base.slice(e);
 const hint="Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.";
 if(base.includes(hint))base=base.replace(hint,"Fotografía la zona MRZ del documento. La lectura se hace en este dispositivo; confirma los datos antes de guardar.");
 await writeFile(join(baseline,file),base);
-const copyPaths=["src/lib/local-document-mrz.ts","src/lib/local-document-ocr.ts","scripts/prepare-local-document-ocr.mjs","tests/local-document-mrz.test.ts"];
+const copyPaths=["src/lib/local-document-mrz.ts","src/lib/local-document-ocr.ts","src/lib/local-document-visual.ts","scripts/prepare-local-document-ocr.mjs","tests/local-document-mrz.test.ts"];
 for(const p of copyPaths) { await mkdir(join(baseline,p.split("/").slice(0,-1).join("/")),{recursive:true});await copyFile(join(ocr,p),join(baseline,p));}
 const pkgPath=join(baseline,"package.json");const pkg=JSON.parse(await readFile(pkgPath,"utf8"));
 for(const s of ["dev","build","build:dev","build:worker","build:worker:test"]){
@@ -37,6 +37,6 @@ for(const s of ["dev","build","build:dev","build:worker","build:worker:test"]){
   if(!pkg.scripts[s]) throw Error("Missing baseline build command "+s);
   pkg.scripts[s]=prefix+pkg.scripts[s];
 }
-for (const [name,version] of Object.entries({"tesseract.js":"7.0.0","tesseract.js-core":"7.0.0","@tesseract.js-data/eng":"1.0.0"})) pkg.dependencies[name]=version;
+for (const [name,version] of Object.entries({"tesseract.js":"7.0.0","tesseract.js-core":"7.0.0","@tesseract.js-data/eng":"1.0.0","@tesseract.js-data/spa":"1.0.0"})) pkg.dependencies[name]=version;
 await writeFile(pkgPath,JSON.stringify(pkg,null,2)+"\n");
 console.log("ISOLATED_OCR_OVERLAY_OK");
