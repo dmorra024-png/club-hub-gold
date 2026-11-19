@@ -4,6 +4,35 @@ const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
   pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
 const endpoint = '/api/socio';
+// Receive the invitation only from the email link fragment. The bearer token
+// is kept in tab-scoped storage across email confirmation, never a URL query,
+// log, persistent localStorage key or visible text field.
+const INVITE_STORE = 'snoop-socio-pending-invite';
+function captureEmailInvitation(){
+ const raw=location.hash.startsWith('#')?location.hash.slice(1):'';
+ const candidate=new URLSearchParams(raw).get('invite');
+ if(candidate && /^[a-f0-9]{48}$/.test(candidate)){
+  sessionStorage.setItem(INVITE_STORE,candidate);
+  history.replaceState(history.state,'',location.pathname+location.search);
+ }
+}
+captureEmailInvitation();
+async function claimEmailInvitation(){
+ const code=sessionStorage.getItem(INVITE_STORE);
+ if(!code)return null;
+ if(!/^[a-f0-9]{48}$/.test(code)){sessionStorage.removeItem(INVITE_STORE);return null;}
+ try{
+  const result=await api('/link/claim',{method:'POST',body:{code}});
+  if(result?.linked!==true)throw Error('La invitación no pudo vincularse.');
+  sessionStorage.removeItem(INVITE_STORE);
+  return true;
+ }catch{
+  // One-use or expired links can be re-sent from the member's club.
+  sessionStorage.removeItem(INVITE_STORE);
+  return false;
+ }
+}
+
 const themeIds=['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'];
 const themes={
  'navy-gold':['#050C17','#0B1827','#13263B','#E5BC78','#F3F4F7','#A7B3C2','#41516A','#091321'],
@@ -66,8 +95,7 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 '<p class="muted align-center">La dirección debe coincidir con la facilitada al club. La vinculación se verificará antes de mostrar cualquier carnet.</p>'+
 '<button class="btn small end" data-action="install">Instalar SNOOP Socio</button>');}
 function verifyPage(){shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">Confirma tu dirección</h1><p class="lede">Si el registro es válido, recibirás las instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.</p></section><button class="btn primary" data-action="login">Ir al inicio de sesión</button>');}
-function linkPage(){shell('<section><div class="kicker">Vinculación segura</div><h1 class="title">Vincula tu carnet</h1><p class="lede">Tu cuenta está lista. Para acceder a la tarjeta de un club necesitamos comprobar que eres realmente su socio. Pide al personal un código de vinculación temporal.</p></section>'+
-'<section class="panel"><form id="link-form" class="stack"><label class="field">Código de vinculación<input name="code" autocomplete="off" spellcheck="false" minlength="6" maxlength="64" required placeholder="Código facilitado en el club"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>Vincular mi carnet</button></form></section>'+
+function linkPage(){shell('<section><div class="kicker">Vinculación segura</div><h1 class="title">Vincula tu carnet</h1><p class="lede">Tu cuenta está lista. Pide al club que pulse «Enviar email App Socio» desde tu ficha. Abre el enlace del correo en este teléfono: tu carnet se vinculará automáticamente, sin copiar códigos.</p></section>'+
 '<button class="btn ghost" data-action="reload-clubs">Actualizar mis clubes</button>');}
 function clubsPage(){shell('<section><div class="kicker">Tu cuenta, tus clubes</div><h1 class="title">Mis clubes</h1><p class="lede">Cada club tiene su propio carnet, número de socio y saldo independiente.</p></section>'+
 '<div class="list">'+state.clubs.map(c=>'<button class="club-option '+(c.id===state.selected?'selected':'')+'" data-action="select-club" data-id="'+safe(c.id)+'"><div><strong>'+safe(c.name)+'</strong><span>'+safe(c.status||'')+'</span></div><span>Ver carnet →</span></button>').join('')+'</div>'+
@@ -147,11 +175,17 @@ async function authenticate(){
  try{
   state.me=await api('/me');
   if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}
+  let inviteResult=null;
   if(state.me.emailVerified===true){
+   inviteResult=await claimEmailInvitation();
    try{await api('/memberships/sync',{method:'POST',body:{}});}
-   catch{/* Manual one-use staff link is the secure fallback when auto-link is unavailable. */}
+   catch{/* Verified email invitation remains the supported secure path. */}
   }
   await refreshClubs();
+  if(inviteResult===false){
+   state.message='El enlace de invitación no es válido o ha caducado. Solicita al club que vuelva a enviarlo.';
+   state.error=true;render();
+  }
  }catch(e){
   resetClub();state.me=null;state.clubs=[];state.page='login';
   state.message=e?.status===401?'':(e?.message||'No se puede conectar con el servicio de socios.');
@@ -160,10 +194,9 @@ async function authenticate(){
  }
 }
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
-async function submitLink(form){state.pending=true;render();try{await api('/link/claim',{method:'POST',body:{code:String(new FormData(form).get('code')||'').trim()}});state.pending=false;state.message='';await refreshClubs();}catch(e){state.pending=false;notify(e.message||'No se pudo vincular el carnet.',true);}}
-document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}});
+document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');sessionStorage.removeItem(INVITE_STORE);}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.page==='carnet'&&!state.qrUrl)void refreshCarnet();});
 // The browser reclaims object URLs at document unload; navigation does not revoke a valid permanent card.
