@@ -1498,7 +1498,7 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 .snoop-reference-home .premium-activity-icon svg{height:23px;width:23px}
 @media(min-width:1024px){
  .premium-shell-home .premium-main{max-width:none;width:100%;padding:24px clamp(20px,2vw,37px) 60px}
- .premium-shell-home .premium-main>div:last-child{display:block!important;padding:0!important}
+ .premium-shell-home .premium-main>div:last-child:not([hidden]){display:block!important;padding:0!important}
  .premium-shell-home .premium-topbar{height:74px;max-width:none;padding-inline:clamp(20px,2vw,37px)}
  .premium-shell-home .premium-main{padding-top:74px}
  .snoop-desktop-rail{background:linear-gradient(150deg,var(--snoop-panel),var(--snoop-bg));border-right:1px solid var(--snoop-border)}
