@@ -1,0 +1,35 @@
+name: SNOOP Socio runtime auth diagnosis (no credentials)
+on:
+  push:
+    branches: [fix/snoop-socio-auth-ui-reference-20261119]
+    paths:
+      - .github/workflows/snoop-socio-runtime-diagnosis.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Probe existing live Worker with synthetic credentials only
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const origin='https://snoop-socio-pilot.dmorra024.workers.dev';
+          const probes=[
+            {label:'no-session',method:'GET',path:'/api/socio/me'},
+            {label:'malformed-existing-cookie',method:'GET',path:'/api/socio/me',cookie:'__Host-snoop_socio_at=invalid.synthetic.token; __Host-snoop_socio_rt=synthetic'},
+            {label:'invalid-login-input',method:'POST',path:'/api/socio/auth/login',body:{email:'not-a-user@example.invalid',password:''}},
+            {label:'synthetic-nonexistent-account-login',method:'POST',path:'/api/socio/auth/login',body:{email:'not-a-user@example.invalid',password:'DummyNotReal1234!'}},
+            {label:'malformed-signup-input',method:'POST',path:'/api/socio/auth/signup',body:{email:'invalid',password:'x'}},
+            {label:'malformed-refresh',method:'POST',path:'/api/socio/auth/refresh',body:{}},
+          ];
+          for(const p of probes){
+            const opts={method:p.method,headers:{'accept':'application/json','user-agent':'curl/8.0'}};
+            if(p.cookie)opts.headers.cookie=p.cookie;
+            if(p.body){opts.headers.origin=origin;opts.headers['content-type']='application/json';opts.body=JSON.stringify(p.body);}
+            const res=await fetch(origin+p.path,{...opts,signal:AbortSignal.timeout(15000)});
+            let value={};try{value=await res.json()}catch{}
+            console.log(JSON.stringify({scenario:p.label,http:res.status,code:value.code??null,cache:res.headers.get('cache-control')}));
+          }
+          NODE
