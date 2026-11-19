@@ -13,16 +13,31 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
     steps:
+      - name: Generate a synthetic non-personal identity card image
+        shell: bash
+        run: |
+          python3 -m venv /tmp/snoop-sample-venv
+          /tmp/snoop-sample-venv/bin/pip install -q Pillow
+          /tmp/snoop-sample-venv/bin/python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          image=Image.new('RGB',(650,310),'white')
+          draw=ImageDraw.Draw(image)
+          font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',26)
+          lines=['TEST DOCUMENT - SAMPLE ONLY','FIRST NAME: ANA','LAST NAME: GARCIA','DATE OF BIRTH: 13/05/1990','DOCUMENT NO: TEST1234']
+          for i,line in enumerate(lines):draw.text((20,20+50*i),line,fill='black',font=font)
+          image.save('/tmp/snoop-synthetic-ocr.jpg',quality=85)
+          PY
       - name: Call model using synthetic tiny PNG; print only status and shape
         shell: bash
         run: |
           node --input-type=module <<'NODE'
           const model='@cf/moondream/moondream3.1-9B-A2B';
           const account='0cc8106f8820d22996af3aed9e081e93';
-          const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==';
+          const {readFileSync}=await import('node:fs');
+          const image='data:image/jpeg;base64,'+readFileSync('/tmp/snoop-synthetic-ocr.jpg').toString('base64');
           const url='https://api.cloudflare.com/client/v4/accounts/'+account+'/ai/run/'+model;
           let response;
-          try { response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({task:'query',image,question:'What is this? Respond in one sentence.'}),signal:AbortSignal.timeout(25000)});}
+          try { response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({task:'query',image,question:'Read the FIRST NAME on this test document. Return just the name.'}),signal:AbortSignal.timeout(25000)});}
           catch(e){console.log(JSON.stringify({stage:'request',failure:'NETWORK_OR_TIMEOUT'}));process.exit(1)}
           const data=await response.json().catch(()=>({}));
           const result=data.result??{};
