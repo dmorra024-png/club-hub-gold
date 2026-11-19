@@ -1,0 +1,42 @@
+name: Repair Socio pilot Bun lockfile (isolated branch)
+on:
+  push:
+    branches:
+      - fix/snoop-socio-six-digit-email-flow-20261119
+    paths:
+      - .github/workflows/socio-lock-repair.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  repair:
+    if: github.repository == 'dmorra024-png/club-hub-gold' && github.ref_name == 'fix/snoop-socio-six-digit-email-flow-20261119'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/snoop-socio-six-digit-email-flow-20261119
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+      - name: Repair only missing dependency lock entries
+        run: |
+          set -euo pipefail
+          bun install --ignore-scripts
+          git diff --check
+          test -z "$(git diff --name-only -- . ':!bun.lock')"
+          test -n "$(git diff --name-only -- bun.lock)"
+          git diff --stat -- bun.lock
+          bun install --frozen-lockfile --ignore-scripts
+      - name: Commit only bun.lock on isolated branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- bun.lock
+          git commit -m 'chore(socio): sync Bun lockfile for existing tesseract dependency'
+          header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $header" push https://github.com/dmorra024-png/club-hub-gold.git HEAD:refs/heads/fix/snoop-socio-six-digit-email-flow-20261119
