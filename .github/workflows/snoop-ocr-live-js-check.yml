@@ -1,0 +1,36 @@
+name: SNOOP OCR live JS diagnosis (read only)
+on:
+  push:
+    branches:
+      - integration/snoop-monederosocio-management-20261118
+    paths:
+      - .github/workflows/snoop-ocr-live-js-check.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'dmorra024-png/club-hub-gold'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Inspect public scanner JS and PWA cache (no credentials)
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const origin='https://snoop-pilot.dmorra024.workers.dev';
+          async function check(path) {
+            const r=await fetch(origin+path,{headers:{'Cache-Control':'no-cache'},redirect:'manual'});
+            const type=r.headers.get('content-type')??'';
+            const source= type.includes('text')||type.includes('javascript') ? await r.text() : '';
+            console.log(JSON.stringify({
+              path,http:r.status,content_type:type,length:source.length,
+              legacyDenied:source.includes('Procesamiento de documentos no autorizado'),
+              legacyHint:source.includes('Haz 1 o 2 fotos del DNI'),
+              newLocalHint:source.includes('Fotografía la zona MRZ')||source.includes('Fotograf'),
+              newCode:source.includes('Lectura local verificada')||source.includes('Datos MRZ leídos'),
+              cacheControl:r.headers.get('cache-control'),
+              etag:r.headers.get('etag')
+            }));
+          }
+          for(const path of ['/assets/soci.nuovo-WvegYhX8.js','/auth','/sw.js','/ocr/tesseract.min.js']) await check(path);
+          NODE
