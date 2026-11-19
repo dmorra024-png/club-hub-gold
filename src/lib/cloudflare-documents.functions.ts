@@ -7,7 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
 import { workersAiBinding } from "./workers-ai.server";
 import { z } from "zod";
-import { DOCUMENT_MODEL, documentFields, parseMoondreamAnswer } from "./cloudflare-document-parser";
+import { DOCUMENT_MODEL, documentFields, parseMoondreamAnswer, prompt } from "./cloudflare-document-parser";
 
 function enabled(): boolean {
   return process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
