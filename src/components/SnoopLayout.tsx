@@ -2,6 +2,7 @@ import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
+import { SnoopReferenceWaves } from "@/components/SnoopReferenceWaves";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Home,
@@ -100,6 +101,7 @@ export function SnoopLayout({
       <a href="#main-content" className="premium-skip">
         Ir al contenido
       </a>
+      {home && <SnoopReferenceWaves />}
       <aside className="snoop-desktop-rail" aria-label="Navegación de escritorio">
         <Link to="/" className="snoop-rail-logo" aria-label="SNOOP — Inicio"><SnoopWordmark /></Link>
         <p className="snoop-rail-club">{access.clubName || "SNOOP"}</p>
@@ -127,13 +129,14 @@ export function SnoopLayout({
         <Link to="/" aria-label="SNOOP — Inicio" className="premium-header-brand">
           <SnoopWordmark />
         </Link>
-        <Link
+        {home ? <div className="snoop-approved-header-actions">
+          <Link to="/actividades" className="premium-header-button" aria-label="Ver actividades del club"><Bell /></Link>
+          <Link to="/perfil" className="premium-header-button snoop-approved-header-user" aria-label="Mi perfil"><UserRound /></Link>
+        </div> : <Link
           to="/actividades"
           className="premium-header-button"
           aria-label="Ver actividades del club"
-        >
-          <Bell />
-        </Link>
+        ><Bell /></Link>}
       </header>
       {open && (
         <>
