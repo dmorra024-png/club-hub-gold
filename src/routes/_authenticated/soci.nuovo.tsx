@@ -361,9 +361,9 @@ function NewSocio() {
       set("dni_file", new File([compressed[0]], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
 
-      const result = await readLocalMrzFromImages(compressed);
+      const result = await readLocalMrzFromImages(list);
       if (!result) {
-        toast.warning("No se pudo verificar la zona MRZ. Revisa la foto o introduce los datos manualmente.");
+        toast.warning("No se pudieron leer las líneas MRZ. Acerca la cámara a las dos líneas inferiores del pasaporte o al reverso del DNI y prueba otra vez.");
         return;
       }
       const fields = result.fields;
