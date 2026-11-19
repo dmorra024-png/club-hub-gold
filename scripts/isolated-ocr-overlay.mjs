@@ -37,7 +37,7 @@ if(baseUiStart<0 || modernUiStart<0 || baseUiEnd<0 || modernUiEnd<0)
 base=base.slice(0,baseUiStart)+modern.slice(modernUiStart,modernUiEnd)+base.slice(baseUiEnd);
 await writeFile(join(baseline,file),base);
 
-const copyPaths=["src/lib/cloudflare-documents.functions.ts","tests/cloudflare-document-ocr.test.ts"];
+const copyPaths=["src/lib/cloudflare-documents.functions.ts","src/lib/cloudflare-document-parser.ts","tests/cloudflare-document-ocr.test.ts"];
 for(const p of copyPaths) {
   await mkdir(join(baseline,p.split("/").slice(0,-1).join("/")),{recursive:true});
   await copyFile(join(ocr,p),join(baseline,p));
