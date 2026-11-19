@@ -37,7 +37,7 @@ import {
 } from "@/lib/member-administration";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
-import { readLocalMrzFromImages } from "@/lib/local-document-ocr";
+import { readLocalDocumentFromImages } from "@/lib/local-document-ocr";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
@@ -361,24 +361,37 @@ function NewSocio() {
       set("dni_file", new File([compressed[0]], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
 
-      const result = await readLocalMrzFromImages(list);
+      const result = await readLocalDocumentFromImages(list);
       if (!result) {
-        toast.warning("No se pudieron leer las líneas MRZ. Acerca la cámara a las dos líneas inferiores del pasaporte o al reverso del DNI y prueba otra vez.");
+        toast.warning("No se detectó texto legible. Prueba una foto más nítida o rellena los datos manualmente.");
         return;
       }
       const fields = result.fields;
-      if (!window.confirm(
-        `Lectura local verificada. Comprueba antes de aplicar:\n\n` +
-        `Nombre: ${fields.first_name}\nApellidos: ${fields.last_name}\n` +
-        `Nacimiento: ${fields.birth_date}\nDocumento: ${fields.dni_number}\n\n¿Rellenar estos campos?`,
-      )) return;
+      const suggestions = [
+        ["Nombre", fields.first_name], ["Apellidos", fields.last_name],
+        ["Nacimiento", fields.birth_date], ["Documento", fields.dni_number],
+        ["Dirección", fields.address], ["Localidad", fields.city],
+        ["Código postal", fields.postal_code],
+      ].filter((item): item is [string, string] => Boolean(item[1]));
+      if (!suggestions.length) {
+        window.alert("El OCR local ha detectado texto, pero no pudo identificar campos con seguridad. Comprueba el documento y escribe los datos manualmente.\n\n" + result.rawText.slice(0, 1100));
+        return;
+      }
+      const label = result.verified ? "MRZ verificada" : "OCR visual SIN VERIFICAR";
+      const reviewText = suggestions.map(([name,value]) => name + ": " + value).join("\n");
+      if (!window.confirm(label + "\n\n" + reviewText + "\n\nComprueba cada dato con el documento antes de rellenar. ¿Aplicar sugerencias?")) return;
       setForm((current) => mergeUneditedValues(current, initial, {
         first_name: fields.first_name || current.first_name,
         last_name: fields.last_name || current.last_name,
         birth_date: fields.birth_date || current.birth_date,
         dni_number: fields.dni_number || current.dni_number,
+        address: fields.address || current.address,
+        city: fields.city || current.city,
+        postal_code: fields.postal_code || current.postal_code,
       }));
-      toast.success("Datos MRZ leídos en este dispositivo. Revisa todos los campos.");
+      toast.success(result.verified
+        ? "Datos MRZ leídos. Comprueba los campos."
+        : "Sugerencias OCR aplicadas: verifica todos los datos antes de guardar.");
     } catch (e: any) {
       toast.error(e?.message ?? "No se pudo leer el documento en este dispositivo");
     } finally {
