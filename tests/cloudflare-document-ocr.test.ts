@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseMoondreamAnswer, DOCUMENT_MODEL } from "../src/lib/cloudflare-documents.functions.ts";
+import { parseMoondreamAnswer, DOCUMENT_MODEL } from "../src/lib/cloudflare-document-parser.ts";
 
 test("pins existing Cloudflare vision model (not paid external endpoint)", () => {
   assert.equal(DOCUMENT_MODEL, "@cf/moondream/moondream3.1-9B-A2B");
