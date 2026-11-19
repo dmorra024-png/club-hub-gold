@@ -1889,3 +1889,157 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
   .premium-shell-home .snoop-approved-activity .premium-activity{min-height:62px}
   .premium-shell-home .snoop-approved-activity .premium-activity-icon{width:42px;height:42px}
 }
+
+
+/* SNOOP: ONE shared design shell throughout Gestionale.
+   Prior versions gated gold/blue curves, balanced header and four-slot footer
+   behind .premium-shell-home, making pages visually regress on navigation. */
+.premium-shell.snoop-unified-shell{
+  --snoop-shell-edge:color-mix(in srgb,var(--snoop-accent) 70%,var(--snoop-electric));
+  background:
+    radial-gradient(ellipse 92% 39% at 48% 10%,color-mix(in srgb,var(--snoop-electric) 17%,transparent),transparent 81%),
+    radial-gradient(ellipse 100% 45% at 35% 76%,color-mix(in srgb,var(--snoop-electric) 9%,transparent),transparent 85%),
+    var(--snoop-canvas);
+  color:var(--snoop-foreground);
+  min-height:100svh;
+  overflow-x:clip;
+}
+.premium-shell.snoop-unified-shell .snoop-reference-waves{z-index:0}
+.premium-shell.snoop-unified-shell .snoop-reference-waves-top{height:300px!important;top:0}
+.premium-shell.snoop-unified-shell .snoop-reference-waves-bottom{top:clamp(635px,76svh,920px);height:360px!important}
+.premium-shell.snoop-unified-shell .premium-topbar{
+  position:absolute;
+  top:env(safe-area-inset-top,0px);
+  left:0;right:0;
+  height:90px;
+  width:100%;max-width:1100px;
+  margin-inline:auto;
+  display:grid;
+  grid-template-columns:minmax(44px,1fr) minmax(0,54%) minmax(68px,1fr);
+  align-items:center;
+  padding:0 clamp(10px,2.5vw,22px);
+  background:transparent!important;
+  z-index:36;
+  pointer-events:none;
+}
+.premium-shell.snoop-unified-shell .premium-topbar>*{pointer-events:auto}
+.premium-shell.snoop-unified-shell .premium-topbar>.premium-header-button:first-child{
+  justify-self:start;visibility:visible;pointer-events:auto;
+}
+.premium-shell.snoop-unified-shell .premium-header-brand{
+  grid-column:2;position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:min(51vw,296px);
+  max-width:none;display:block;
+  margin:0;
+  filter:drop-shadow(0 0 7px color-mix(in srgb,var(--snoop-accent) 74%,transparent));
+}
+.premium-shell.snoop-unified-shell .premium-header-brand .snoop-wordmark,
+.premium-shell.snoop-unified-shell .premium-header-brand .snoop-lettering{display:block;width:100%;height:auto}
+.premium-shell.snoop-unified-shell .premium-header-brand:after{
+  content:"";position:absolute;left:8%;right:8%;bottom:-12px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--snoop-accent) 30%,var(--snoop-electric) 65%,transparent);
+  box-shadow:0 0 12px 4px color-mix(in srgb,var(--snoop-electric) 60%,transparent);
+}
+.premium-shell.snoop-unified-shell .snoop-approved-header-actions{
+  grid-column:3;justify-self:end;display:flex;align-items:center;gap:clamp(2px,1vw,9px);
+}
+.premium-shell.snoop-unified-shell .snoop-approved-header-actions .premium-header-button{
+  display:grid;place-items:center;flex:0 0 clamp(32px,8vw,44px);width:clamp(32px,8vw,44px);height:42px;
+  color:var(--snoop-accent);border:0;background:transparent;border-radius:50%;padding:5px;
+}
+.premium-shell.snoop-unified-shell .snoop-approved-header-actions .snoop-approved-header-user{
+  border:1px solid var(--snoop-accent);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home){
+  position:relative;z-index:1;
+  padding-top:calc(108px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(122px + var(--snoop-safe-bottom));
+}
+.premium-shell.snoop-unified-shell .premium-page-heading{
+  border-bottom:1px solid var(--snoop-border);padding-bottom:14px;margin-bottom:21px;
+}
+.premium-shell.snoop-unified-shell .premium-page-heading h1{
+  color:var(--snoop-foreground);font-family:"Snoop Cash","Space Grotesk",system-ui,sans-serif;
+  font-size:clamp(22px,5.1vw,32px);font-weight:600;letter-spacing:0;
+}
+.premium-shell.snoop-unified-shell .premium-page-heading p{color:var(--snoop-muted)}
+.premium-shell.snoop-unified-shell .premium-main :where(.rounded-xl,.rounded-2xl){
+  border-color:var(--snoop-border);
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav{
+  position:fixed;left:0;right:0;bottom:0;
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  height:calc(94px + var(--snoop-safe-bottom));
+  padding:8px 6px calc(10px + var(--snoop-safe-bottom));
+  gap:0;
+  background:linear-gradient(180deg,var(--snoop-panel),var(--snoop-canvas));
+  border:1px solid var(--snoop-shell-edge);border-bottom:0;
+  border-radius:21px 21px 0 0;
+  box-shadow:0 -2px 18px color-mix(in srgb,var(--snoop-electric) 56%,transparent),
+             0 -1px 14px color-mix(in srgb,var(--snoop-accent) 51%,transparent);
+  z-index:40;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>:is(a,button){
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  flex:1 1 0;width:100%;min-width:0;height:72px;min-height:72px;
+  gap:4px;top:auto;inset:auto;transform:none;
+  margin:0;padding:4px 0;background:transparent;border:0;border-radius:0;box-shadow:none;
+  font:600 clamp(11px,2.7vw,14px)/1.1 "Snoop Cash","Space Grotesk",system-ui,sans-serif;
+  color:var(--snoop-foreground);text-align:center;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>:is(a,button):not(:last-child):before{
+  content:"";position:absolute;right:0;top:11px;bottom:11px;width:1px;
+  background:color-mix(in srgb,var(--snoop-accent) 55%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav .snoop-dock-icon{
+  display:block;width:34px!important;height:34px!important;flex:0 0 34px;
+  overflow:visible;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--snoop-accent) 38%,transparent));
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>:is(a,button)[aria-current="page"]{color:var(--snoop-accent)}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>:is(a,button)[aria-current="page"]:after{
+  content:"";position:absolute;bottom:2px;left:22%;right:22%;height:2px;background:var(--snoop-accent);
+  box-shadow:0 0 8px 3px color-mix(in srgb,var(--snoop-accent) 49%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-qr:after{display:none}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice{gap:0;overflow:visible}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice>.snoop-approved-assistant-mark{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  position:relative;width:clamp(60px,17vw,78px);height:clamp(60px,17vw,78px);
+  flex:0 0 clamp(60px,17vw,78px);margin:0;transform:translateY(-12px);
+  padding:7px 5px 5px;border:2px solid var(--snoop-accent);border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--snoop-electric) 10%,var(--snoop-panel)),var(--snoop-canvas) 70%);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--snoop-electric) 77%,transparent),
+             0 0 0 5px color-mix(in srgb,var(--snoop-accent) 64%,transparent),
+             0 0 14px 4px color-mix(in srgb,var(--snoop-electric) 72%,transparent),
+             0 0 19px color-mix(in srgb,var(--snoop-accent) 76%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice .snoop-dock-icon{
+  width:28px!important;height:28px!important;flex-basis:28px;
+}
+.premium-shell.snoop-unified-shell .snoop-jarvis-microbrand{
+  display:block;font:650 9px/1 "Snoop Cash","Space Grotesk",system-ui,sans-serif;
+  color:var(--snoop-accent);letter-spacing:.09em;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice>span:last-child{
+  position:relative;top:-9px;font:650 11px/1 "Snoop Cash","Space Grotesk",system-ui,sans-serif;
+  color:var(--snoop-accent);letter-spacing:.05em;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>:is(a,button):focus-visible{outline:2px solid var(--snoop-accent);outline-offset:-2px}
+@media(max-width:390px){
+  .premium-shell.snoop-unified-shell .premium-header-brand{width:min(47vw,210px)}
+  .premium-shell.snoop-unified-shell .premium-topbar{grid-template-columns:minmax(33px,1fr) minmax(0,50%) minmax(66px,1fr);padding-inline:9px}
+  .premium-shell.snoop-unified-shell .snoop-approved-header-actions{gap:0}
+  .premium-shell.snoop-unified-shell .premium-bottom-nav .snoop-dock-icon{width:31px!important;height:31px!important;flex-basis:31px}
+}
+@media(min-width:1024px){
+  .premium-shell.snoop-unified-shell .premium-topbar{
+    left:248px;right:0;width:calc(100% - 248px);max-width:none;
+  }
+  .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home){padding-bottom:70px}
+  .premium-shell.snoop-unified-shell .premium-bottom-nav{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .premium-shell.snoop-unified-shell .premium-bottom-nav>*{transition:none!important}
+}
