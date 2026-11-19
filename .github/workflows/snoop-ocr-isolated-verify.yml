@@ -5,12 +5,7 @@ on:
       - integration/snoop-monederosocio-management-20261118
     paths:
       - scripts/isolated-ocr-overlay.mjs
-      - src/lib/local-document-mrz.ts
-      - src/lib/local-document-ocr.ts
-      - src/lib/local-document-visual.ts
-      - tests/local-document-visual.test.ts
-      - scripts/prepare-local-document-ocr.mjs
-      - tests/local-document-mrz.test.ts
+      - src/lib/mistral-documents.functions.ts
       - src/routes/_authenticated/soci.nuovo.tsx
       - .github/workflows/snoop-ocr-isolated-verify.yml
 permissions:
@@ -52,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --name-only | sort > /tmp/changed
-          printf 'package.json\nsrc/routes/_authenticated/soci.nuovo.tsx\n' | sort > /tmp/allowed
+          printf '%s\n' src/routes/_authenticated/soci.nuovo.tsx | sort > /tmp/allowed
           diff -u /tmp/allowed /tmp/changed
           git status --short
       - name: Install, test, typecheck and build production Worker (no upload)
@@ -61,8 +56,6 @@ jobs:
         run: |
           set -euo pipefail
           bun install
-          node scripts/prepare-local-document-ocr.mjs
-          node --test tests/local-document-mrz.test.ts tests/local-document-visual.test.ts
           bun run typecheck
           bun run build:worker
           bun run worker:dry-run
