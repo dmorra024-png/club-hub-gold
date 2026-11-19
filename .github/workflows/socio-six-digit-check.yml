@@ -1,0 +1,24 @@
+name: SNOOP Socio six-digit isolated checks
+on:
+  pull_request:
+    paths:
+      - 'apps/socio/**'
+      - 'src/lib/socio-invitation-email.functions.ts'
+      - 'src/components/SocioClientLinkPanel.tsx'
+      - 'tests/socio-six-digit-flow.test.mjs'
+      - '.github/workflows/socio-six-digit-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --check apps/socio/main.js
+      - run: node --check apps/socio/service.mjs
+      - run: node --check apps/socio/supabase-rls.mjs
+      - run: node --test tests/socio-six-digit-flow.test.mjs
