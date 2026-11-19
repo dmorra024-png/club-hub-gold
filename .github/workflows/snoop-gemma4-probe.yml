@@ -1,0 +1,43 @@
+name: SNOOP Gemma 4 synthetic document OCR check (no personal data)
+on:
+  push:
+    branches: [integration/snoop-monederosocio-management-20261118]
+    paths: [.github/workflows/snoop-gemma4-probe.yml]
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Create synthetic printed document
+        shell: bash
+        run: |
+          python3 -m venv /tmp/snoop-ocr-venv
+          /tmp/snoop-ocr-venv/bin/pip install -q Pillow
+          /tmp/snoop-ocr-venv/bin/python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          im=Image.new('RGB',(650,310),'white')
+          d=ImageDraw.Draw(im)
+          f=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',26)
+          for i,s in enumerate(['TEST DOCUMENT SAMPLE ONLY','FIRST NAME: ANA','LAST NAME: GARCIA','DATE OF BIRTH: 13/05/1990','DOCUMENT NO: TEST1234']):
+              d.text((20,20+i*50),s,fill='black',font=f)
+          im.save('/tmp/snoop-test.jpg',quality=85)
+          PY
+      - name: Invoke Gemma 4 on synthetic image and record response shape only
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const img='data:image/jpeg;base64,'+readFileSync('/tmp/snoop-test.jpg').toString('base64');
+          const model='@cf/google/gemma-4-26b-a4b-it';
+          const body={messages:[{role:'user',content:[{type:'text',text:'Read ONLY the FIRST NAME field from this fictional sample document. Respond just with the name.'},{type:'image_url',image_url:{url:img}}]}],max_completion_tokens:120};
+          const response=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/ai/run/'+model,{method:'POST',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});
+          const data=await response.json().catch(()=>({}));
+          const result=data.result??{};
+          console.log(JSON.stringify({status:response.status,success:data.success===true,errorCodes:(data.errors??[]).map(e=>e.code),resultType:typeof result,resultKeys:Object.keys(result),responseType:typeof result.response,responseLength:typeof result.response==='string'?result.response.length:0,responseSample:typeof result.response==='string'?result.response.slice(0,100):null}));
+          if(!response.ok||!data.success)process.exit(1);
+          NODE
