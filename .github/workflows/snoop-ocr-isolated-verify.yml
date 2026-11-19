@@ -6,6 +6,7 @@ on:
     paths:
       - scripts/isolated-ocr-overlay.mjs
       - src/lib/cloudflare-documents.functions.ts
+      - src/lib/cloudflare-document-parser.ts
       - tests/cloudflare-document-ocr.test.ts
       - src/routes/_authenticated/soci.nuovo.tsx
       - .github/workflows/snoop-ocr-isolated-verify.yml
