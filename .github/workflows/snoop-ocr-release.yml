@@ -291,3 +291,5 @@ jobs:
 # Release on 2026-11-19: includes multilingual-worker API correction.
 
 # Camera/gallery + offline Spanish/English VIZ OCR release, verified against active v92.
+
+# User-authorized Moondream free Workers AI pilot release with consent and isolated source tests.
