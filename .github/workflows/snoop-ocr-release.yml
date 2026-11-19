@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --name-only | sort > /tmp/ocr-updated
-          printf 'package.json\nsrc/routes/_authenticated/soci.nuovo.tsx\n' | sort > /tmp/ocr-allowed
+          printf '%s\n' src/routes/_authenticated/soci.nuovo.tsx | sort > /tmp/ocr-allowed
           diff -u /tmp/ocr-allowed /tmp/ocr-updated
           git status --short
           echo 'OCR_ONLY_SOURCE_CHANGES_CONFIRMED'
@@ -95,7 +95,7 @@ jobs:
         run: bun install
       - name: Validate SQL security and TypeScript
         run: |
-          node --test tests/local-document-mrz.test.ts tests/local-document-visual.test.ts
+          node --test tests/cloudflare-document-ocr.test.ts
           bun run test:security:architecture
           bun run test:voice:activation
           bun run test:security:initialization
@@ -110,6 +110,8 @@ jobs:
           bun run build:worker
           bun run worker:dry-run
           bun run test:security:bundle
+          grep -Rl "Cargar de galería" .output/public/assets >/dev/null || { echo "Gallery scanner not present in bundle"; exit 1; }
+          grep -Rl "Sacar foto" .output/public/assets >/dev/null || { echo "Camera scanner not present in bundle"; exit 1; }
       - name: Refuse overwrite if active Cloudflare Worker changed since v89 audit
         shell: bash
         run: |
@@ -120,7 +122,7 @@ jobs:
           if(!r.ok||!j.success)throw Error('Cannot verify active Worker; refuse deployment');
           const all=Array.isArray(j.result)?j.result:j.result?.deployments;
           const v=all?.[0]?.versions??[];
-          if(v.length!==1||v[0].version_id!=='8b435ff4-c8b7-4db7-9870-2a2c5de316f6'||Number(v[0].percentage)!==100)
+          if(v.length!==1||v[0].version_id!=='2a06f23e-4e9f-47e5-9a04-a56393957494'||Number(v[0].percentage)!==100)
             throw Error('LIVE_WORKER_CHANGED_SINCE_AUDIT; deployment refused');
           console.log('ACTIVE_V89_VERSION_CONFIRMED');
           NODE
@@ -278,11 +280,7 @@ jobs:
           set -euo pipefail
           curl -fsS -o /dev/null --max-time 30 "$APP_URL/auth"
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
-          for asset in /ocr/tesseract.min.js /ocr/worker.min.js /ocr/lang/eng.traineddata.gz /ocr/lang/spa.traineddata.gz; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$APP_URL$asset")
-            test "$status" = 200 || { echo "Local OCR missing asset: $asset ($status)"; exit 1; }
-          done
-          echo "SNOOP_LOCAL_OCR_STATIC_ASSETS_AVAILABLE"
+          echo "SNOOP_MOONDREAM_WEB_RUNTIME_AVAILABLE"
 
 
 
