@@ -34,7 +34,7 @@ jobs:
           import {readFileSync} from 'node:fs';
           const img='data:image/jpeg;base64,'+readFileSync('/tmp/snoop-test.jpg').toString('base64');
           const model='@cf/google/gemma-4-26b-a4b-it';
-          const body={messages:[{role:'user',content:[{type:'text',text:'Read ONLY the FIRST NAME field from this fictional sample document. Respond just with the name.'},{type:'image_url',image_url:{url:img}}]}],max_completion_tokens:300,chat_template_kwargs:{enable_thinking:false}};
+          const body={messages:[{role:'user',content:[{type:'text',text:'Read the fictional sample identity document and return ONLY valid JSON with these keys: first_name,last_name,birth_date,dni_number,address,city,postal_code. Date format YYYY-MM-DD. Return empty string if missing. Never invent information.'},{type:'image_url',image_url:{url:img}}]}],max_completion_tokens:520,chat_template_kwargs:{enable_thinking:false}};
           const response=await fetch('https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/ai/run/'+model,{method:'POST',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});
           const data=await response.json().catch(()=>({}));
           const result=data.result??{};
