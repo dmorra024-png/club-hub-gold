@@ -3,6 +3,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { SnoopReferenceWaves } from "@/components/SnoopReferenceWaves";
+import { SnoopDockIcon } from "@/components/SnoopDockIcon";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Home,
@@ -94,14 +95,14 @@ export function SnoopLayout({
   };
   return (
     <div
-      className={`premium-shell ${home ? "premium-shell-home" : ""}`}
+      className={`premium-shell snoop-unified-shell ${home ? "premium-shell-home" : ""}`}
       data-keyboard-open={keyboard}
       data-menu-open={open}
     >
       <a href="#main-content" className="premium-skip">
         Ir al contenido
       </a>
-      {home && <SnoopReferenceWaves />}
+      <SnoopReferenceWaves />
       <aside className="snoop-desktop-rail" aria-label="Navegación de escritorio">
         <Link to="/" className="snoop-rail-logo" aria-label="SNOOP — Inicio"><SnoopWordmark /></Link>
         <p className="snoop-rail-club">{access.clubName || "SNOOP"}</p>
@@ -129,14 +130,10 @@ export function SnoopLayout({
         <Link to="/" aria-label="SNOOP — Inicio" className="premium-header-brand">
           <SnoopWordmark />
         </Link>
-        {home ? <div className="snoop-approved-header-actions">
+        <div className="snoop-approved-header-actions">
           <Link to="/actividades" className="premium-header-button" aria-label="Ver actividades del club"><Bell /></Link>
           <Link to="/perfil" className="premium-header-button snoop-approved-header-user" aria-label="Mi perfil"><UserRound /></Link>
-        </div> : <Link
-          to="/actividades"
-          className="premium-header-button"
-          aria-label="Ver actividades del club"
-        ><Bell /></Link>}
+        </div>
       </header>
       {open && (
         <>
@@ -207,7 +204,7 @@ export function SnoopLayout({
       </main>
       <nav aria-label="Navegación principal" className="premium-bottom-nav" hidden={keyboard}>
         <Link to="/" aria-current={pathname === "/" ? "page" : undefined}>
-          <Home aria-hidden="true" />
+          <SnoopDockIcon kind="home" />
           <span>Home</span>
         </Link>
         {can("manage_members") ? (
@@ -217,7 +214,7 @@ export function SnoopLayout({
             className="premium-qr"
             aria-label="Escanear socio para dispensación"
           >
-            <QrAccessIcon />
+            <SnoopDockIcon kind="qr" />
             <span>QR</span>
           </Link>
         ) : (
@@ -246,11 +243,11 @@ export function SnoopLayout({
           }
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
-          <span className="snoop-approved-assistant-mark" aria-hidden="true"><SnoopWordmark /></span>
+          <span className="snoop-approved-assistant-mark" aria-hidden="true"><SnoopDockIcon kind="jarvis" /><span className="snoop-jarvis-microbrand">SNOOP</span></span>
           <span>JARVIS</span>
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
-          <UserRound aria-hidden="true" />
+          <SnoopDockIcon kind="profile" />
           <span>Perfil</span>
         </Link>
       </nav>
@@ -258,22 +255,3 @@ export function SnoopLayout({
   );
 }
 
-function QrAccessIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 2H4a2 2 0 0 0-2 2v4m14-6h4a2 2 0 0 1 2 2v4M2 16v4a2 2 0 0 0 2 2h4m14-6v4a2 2 0 0 1-2 2h-4" />
-      <rect x="6" y="6" width="4" height="4" rx=".4" />
-      <rect x="14" y="6" width="4" height="4" rx=".4" />
-      <rect x="6" y="14" width="4" height="4" rx=".4" />
-      <path d="M14 14h4v4h-4zM16 14v2h2" />
-    </svg>
-  );
-}
