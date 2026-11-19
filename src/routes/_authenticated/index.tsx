@@ -9,7 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { Link, Navigate } from "@tanstack/react-router";
 import { Wallet, Users, ShoppingCart, Package, Layers3 } from "lucide-react";
-import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { ClubActivities } from "@/components/ClubActivities";
 
 
@@ -78,7 +77,6 @@ function Home() {
   return (
     <SnoopLayout home contentClassName="snoop-approved-home">
       <div className="snoop-approved-welcome">
-        <Link to="/" className="snoop-approved-brand" aria-label="SNOOP — Inicio"><SnoopWordmark /></Link>
         <h1>Bienvenido, <span>{clubName}</span></h1>
       </div>
       <section className="snoop-approved-cash" aria-labelledby="snoop-cash-label">
