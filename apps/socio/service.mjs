@@ -71,6 +71,15 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
    const item=await membership(actor,clubId);
    return{memberNumber:item.memberNumber,clubId:item.clubId,active:true};
   },
+  // Permanent membership ID card: never expires or changes when the user
+  // changes tabs, backgrounds the app, or reopens it. It is identification
+  // ONLY; every scan requires authorized staff + current membership checks.
+  async stableQr(actor,clubId){
+   const item=await membership(actor,clubId);
+   if(typeof item.memberNumber!=='string'||!/^\\d{1,12}$/.test(item.memberNumber))
+    throw error('MEMBER_NUMBER_INVALID',503);
+   return{token:'SNOOP:'+item.memberNumber};
+  },
   async qr(actor,clubId){
    const item=await membership(actor,clubId);
    const token=await issueCardQr({clubId:item.clubId,memberId:item.memberId,now:now(),secret:signingSecret,ttl:40});
