@@ -52,15 +52,14 @@ test('signed QR rejected across clubs, staff must be authorized',async()=>{
  await assert.rejects(svc.scan({...staff,userId:undefined},token),{code:'SCANNER_UNAUTHORIZED'});
 });
 test('challenge cannot be claimed by simply knowing email or arbitrary code',async()=>{
- await assert.rejects(svc.linkMembership(actor,'abcdef12'),{code:'LINK_NOT_AUTHORIZED'});
+ await assert.rejects(svc.linkMembership(actor,'123456'),{code:'LINK_NOT_AUTHORIZED'});
  await assert.rejects(svc.linkMembership(actor,'1'),{code:'LINK_CODE_INVALID'});
- await assert.rejects(svc.linkMembership({...actor,emailVerified:false},'abcdef12'),{code:'SOCIO_UNAUTHORIZED'});
+ await assert.rejects(svc.linkMembership({...actor,emailVerified:false},'123456'),{code:'SOCIO_UNAUTHORIZED'});
 });
 
-test('verified account can synchronize eligible club memberships without a second password',async()=>{
- assert.deepEqual(await svc.syncClubs({...actor,email:'SOCIO@example.com'}),{synced:true,linkedCount:2});
+test('membership email matching never bypasses the six-digit claim',async()=>{
+ await assert.rejects(svc.syncClubs({...actor,email:'SOCIO@example.com'}),{code:'EMAIL_AUTO_LINK_DISABLED'});
  await assert.rejects(svc.syncClubs({...actor,emailVerified:false,email:'socio@example.com'}),{code:'SOCIO_UNAUTHORIZED'});
- await assert.rejects(svc.syncClubs({...actor,email:'invalid-email'}),{code:'VERIFIED_EMAIL_REQUIRED'});
 });
 
 test('wallet history returns scoped integer-cent movements for member club A only',async()=>{
