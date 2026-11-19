@@ -40,7 +40,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
-import { scanDocumentLocally } from "@/lib/document-ocr";
+import { scanMemberIdentityWithQwen } from "@/lib/qwen-id.functions";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
   component: NewSocio,
@@ -121,13 +121,14 @@ function NewSocio() {
   const transcribe = useServerFn(transcribeAudio);
 
   const extractFromImages = useServerFn(extractMemberFieldsFromImages);
+  const scanQwen = useServerFn(scanMemberIdentityWithQwen);
 
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
   const [ocrReviewed, setOcrReviewed] = useState(true);
   const [ocrMessage, setOcrMessage] = useState("");
-  const [ocrText, setOcrText] = useState("");
+
 
   useEffect(() => {
     voiceMounted.current = true;
@@ -348,46 +349,44 @@ function NewSocio() {
   async function scanDocuments(files: FileList | File[]) {
     const list = Array.from(files).slice(0, 2);
     if (!list.length) return;
+    // Explicit user consent is required because these photos contain sensitive personal data.
+    if (!window.confirm("La foto del documento se enviará a Cloudflare Workers AI (Qwen) para extraer los datos. No se enviará a otros proveedores ni se guardará por este escáner. ¿Continuar?")) return;
     const initial = { ...formRef.current };
     setScanStatus("scanning");
     setOcrReviewed(true);
     setOcrMessage("");
-    setOcrText("");
     try {
       const compressed: Blob[] = [];
-      for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-      const previews = await Promise.all(compressed.map((blob) => new Promise<string>((resolve, reject) => {
+      for (const file of list) compressed.push(await compressImage(file, 1200, 0.72));
+      const previews = await Promise.all(compressed.map(blob => new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result));
         reader.onerror = () => reject(new Error("No se pudo abrir la foto"));
         reader.readAsDataURL(blob);
       })));
+      const images = await Promise.all(compressed.map(async blob => ({
+        base64: await blobToBase64(blob), mimeType: "image/jpeg" as const
+      })));
+      const { fields } = await scanQwen({ data: { consent: true, images } });
       setScanPreviews(previews);
-      const { fields, rawText } = await scanDocumentLocally(compressed);
-      setOcrText(rawText.trim());
-      const found = Object.entries(fields).filter(([, value]) => Boolean(value)).map(([key]) => key);
-      if (!found.length) {
-        setOcrMessage(rawText.trim() ? "El OCR ha visto texto, pero no ha podido identificar los campos. Abre «Texto leído» para comprobarlo." : "No se ha detectado texto legible en la imagen. Prueba una foto más cercana, con buena luz.");
-        toast.error("No se han podido leer los datos del documento");
-      } else {
-        setForm((current) => mergeUneditedValues(current, initial, {
-          first_name: fields.first_name || current.first_name,
-          last_name: fields.last_name || current.last_name,
-          birth_date: fields.birth_date || current.birth_date,
-          dni_number: fields.dni_number || current.dni_number,
-          address: fields.address || current.address,
-          city: fields.city || current.city,
-          postal_code: fields.postal_code || current.postal_code,
-        }));
-        setOcrReviewed(false);
-        setOcrMessage(`Lectura local: ${found.length} campos. Comprueba los datos con el documento antes de guardar; los dudosos quedan vacíos.`);
-        toast.info("Verifica los datos extraídos");
-      }
-      const front = compressed[0];
-      set("dni_file", new File([front], "dni.jpg", { type: "image/jpeg" }));
+      setForm(current => mergeUneditedValues(current, initial, {
+        first_name: fields.first_name || current.first_name,
+        last_name: fields.last_name || current.last_name,
+        birth_date: fields.birth_date || current.birth_date,
+        dni_number: fields.dni_number || current.dni_number,
+        address: fields.address || current.address,
+        city: fields.city || current.city,
+        postal_code: fields.postal_code || current.postal_code
+      }));
+      setOcrReviewed(false);
+      setOcrMessage("La IA ha leído el documento. Comprueba los datos antes de guardar.");
+      const first = compressed[0];
+      set("dni_file", new File([first], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
-    } catch (e: any) {
-      toast.error(e?.message || "No se pudo leer el documento");
+      toast.success("Datos leídos. Comprueba los campos.");
+    } catch (error: any) {
+      setOcrMessage("La foto no se ha podido procesar. No se han cambiado los datos.");
+      toast.error(error?.message || "No se pudo leer el documento");
     } finally {
       setScanStatus("idle");
     }
@@ -669,12 +668,6 @@ function NewSocio() {
               </label>
             )}
           </div>
-        )}
-        {ocrText && (
-          <details className="mt-3 rounded-xl border border-neon/20 p-3 text-sm">
-            <summary className="cursor-pointer text-neon">Texto leído (solo en este dispositivo)</summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words text-muted-foreground max-h-40 overflow-y-auto">{ocrText}</pre>
-          </details>
         )}
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
