@@ -132,15 +132,22 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
                 </span>
                 <span className="premium-activity-copy">
                   <span>{item.title}</span>
-                  <small>{item.detail}</small>
+                  <small>{!expanded && item.kind === "cash" && item.detail.startsWith("Importe: ")
+                    ? "Operación registrada"
+                    : item.detail}</small>
                   {item.status === "cancelled" && <FinancialRecordStatus status={item.status} />}
                 </span>
-                <time
-                  dateTime={item.at}
-                  title={new Date(item.at).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}
-                >
-                  {relativeActivityTime(item.at)}
-                </time>
+                <span className="premium-activity-right">
+                  {!expanded && item.kind === "cash" && item.detail.startsWith("Importe: ") && (
+                    <strong className="premium-activity-amount">{item.detail.slice("Importe: ".length)}</strong>
+                  )}
+                  <time
+                    dateTime={item.at}
+                    title={new Date(item.at).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}
+                  >
+                    {relativeActivityTime(item.at)}
+                  </time>
+                </span>
               </Link>
               {expanded && canAudit && item.orderId && (
                 <div className="flex justify-end gap-4 px-3 pb-3 text-sm">
