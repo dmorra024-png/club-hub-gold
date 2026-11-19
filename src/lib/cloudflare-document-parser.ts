@@ -19,7 +19,7 @@ export const documentFields = z.object({
 });
 type Fields = z.infer<typeof documentFields>;
 const empty = (): Fields => documentFields.parse({});
-const prompt = [
+export const prompt = [
   "Read this identity document photograph. Return only one JSON object, no markdown:",
   '{"first_name":"","last_name":"","birth_date":"","dni_number":"","address":"","city":"","postal_code":""}',
   "Read visible Spanish, French, Italian or English printed or handwritten text.",
