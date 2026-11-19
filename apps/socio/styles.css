@@ -140,3 +140,38 @@ body{background:radial-gradient(ellipse at 70% -5%,var(--navy2),transparent 59%)
  font-weight:600;letter-spacing:.045em;
 }
 .wallet-amount{font-family:"Snoop Display","Space Grotesk",system-ui,sans-serif;font-weight:600}
+
+/* Seven member-app design identities. Layout shapes, heading rhythm and
+   membership-card treatments follow the club's theme; QR stays white/scannable. */
+[data-snoop-theme="navy-gold"] .carnet{border-radius:20px}
+[data-snoop-theme="graphite-copper"] .panel,
+[data-snoop-theme="graphite-copper"] .carnet,
+[data-snoop-theme="graphite-copper"] .wallet,
+[data-snoop-theme="graphite-copper"] .btn{border-radius:4px!important}
+[data-snoop-theme="graphite-copper"] .title,
+[data-snoop-theme="graphite-copper"] .club-heading{text-transform:uppercase;letter-spacing:.12em}
+[data-snoop-theme="graphite-copper"] .socio-dock{border-top:2px solid var(--gold)!important}
+[data-snoop-theme="aubergine-amethyst"] .panel,
+[data-snoop-theme="aubergine-amethyst"] .carnet,
+[data-snoop-theme="aubergine-amethyst"] .wallet{border-radius:33px 9px 33px 9px!important}
+[data-snoop-theme="aubergine-amethyst"] .title{font-style:italic;letter-spacing:.065em}
+[data-snoop-theme="aubergine-amethyst"] .carnet-member-number{text-align:center}
+[data-snoop-theme="petrol-titanium"] .panel,
+[data-snoop-theme="petrol-titanium"] .carnet,
+[data-snoop-theme="petrol-titanium"] .wallet{border-radius:12px!important;border-left:3px solid var(--gold)!important}
+[data-snoop-theme="petrol-titanium"] .title{letter-spacing:.09em}
+[data-snoop-theme="ivory-champagne"] .panel,
+[data-snoop-theme="ivory-champagne"] .carnet,
+[data-snoop-theme="ivory-champagne"] .wallet{border-radius:3px!important;box-shadow:0 14px 28px #30251f16!important}
+[data-snoop-theme="ivory-champagne"] .title{letter-spacing:.12em;font-weight:600}
+[data-snoop-theme="ivory-champagne"] .btn{border-radius:3px!important}
+[data-snoop-theme="ruby-gold"] .panel,
+[data-snoop-theme="ruby-gold"] .carnet,
+[data-snoop-theme="ruby-gold"] .wallet{border-radius:8px 29px 8px 29px!important}
+[data-snoop-theme="ruby-gold"] .carnet-member-number{font-size:24px}
+[data-snoop-theme="ruby-gold"] .socio-dock{border-top:2px solid var(--gold)!important}
+[data-snoop-theme="emerald-gold"] .panel,
+[data-snoop-theme="emerald-gold"] .carnet,
+[data-snoop-theme="emerald-gold"] .wallet{border-radius:25px 25px 7px 7px!important}
+[data-snoop-theme="emerald-gold"] .club-heading{letter-spacing:.075em}
+[data-snoop-theme="emerald-gold"] .carnet-topline{justify-content:center}
