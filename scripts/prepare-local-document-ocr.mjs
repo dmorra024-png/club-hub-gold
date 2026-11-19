@@ -24,4 +24,8 @@ await requiredCopy(
   from("@tesseract.js-data", "eng", "4.0.0_best_int", "eng.traineddata.gz"),
   join(out, "lang", "eng.traineddata.gz"),
 );
+await requiredCopy(
+  from("@tesseract.js-data", "spa", "4.0.0_best_int", "spa.traineddata.gz"),
+  join(out, "lang", "spa.traineddata.gz"),
+);
 console.log(`Local OCR assets ready: ${filenames.length} core files; only own-origin paths`);
