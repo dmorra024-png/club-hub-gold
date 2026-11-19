@@ -638,27 +638,24 @@ function NewSocio() {
               Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.
             </p>
           </div>
-          <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
-            <Camera className="w-4 h-4" />
-            {scanStatus === "scanning"
-              ? "Leyendo..."
-              : scanPreviews.length
-                ? "Volver a escanear"
-                : "Escanear"}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className={`cursor-pointer min-h-12 rounded-xl border border-neon/40 text-neon hover:bg-neon/10 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : ""}`}>
+            <Camera className="w-5 h-5" />
+            {scanStatus === "scanning" ? "Leyendo..." : "Sacar foto"}
+            <input type="file" accept="image/*" capture="environment" className="sr-only"
               disabled={scanStatus === "scanning"}
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length) scanDocuments(e.target.files);
-                e.target.value = "";
-              }}
-            />
+              onChange={(e) => { if (e.target.files?.length) void scanDocuments(e.target.files); e.target.value = ""; }} />
+          </label>
+          <label className={`cursor-pointer min-h-12 rounded-xl border border-neon/40 text-neon hover:bg-neon/10 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : ""}`}>
+            <ScanLine className="w-5 h-5" />
+            {scanStatus === "scanning" ? "Leyendo..." : "Añadir foto de galería"}
+            <input type="file" accept="image/*" multiple className="sr-only"
+              disabled={scanStatus === "scanning"}
+              onChange={(e) => { if (e.target.files?.length) void scanDocuments(e.target.files); e.target.value = ""; }} />
           </label>
         </div>
+
         {ocrMessage && (
           <div className="mt-3 text-sm space-y-2" aria-live="polite">
             <p className="text-muted-foreground">{ocrMessage}</p>
