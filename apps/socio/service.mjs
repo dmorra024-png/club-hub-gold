@@ -76,7 +76,7 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
   // ONLY; every scan requires authorized staff + current membership checks.
   async stableQr(actor,clubId){
    const item=await membership(actor,clubId);
-   if(typeof item.memberNumber!=='string'||!/^\\d{1,12}$/.test(item.memberNumber))
+   if(typeof item.memberNumber!=='string'||!/^\d{1,12}$/.test(item.memberNumber))
     throw error('MEMBER_NUMBER_INVALID',503);
    return{token:'SNOOP:'+item.memberNumber};
   },
