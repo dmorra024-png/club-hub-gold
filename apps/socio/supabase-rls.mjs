@@ -69,7 +69,27 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
    if(typeof value!=='boolean')throw fail('SOCIO_LINK_BAD_DATA');
    return{ok:value};
   },
-  async autoLinkForVerifiedEmail(){throw fail('SOCIO_AUTOLINK_WRITE_DISABLED');},
+  async autoLinkForVerifiedEmail({authUserId,verifiedEmail,emailConfirmed}={}){
+   // Account email is verified by Supabase Auth and the trusted service actor.
+   // A caller cannot supply the email to the SQL RPC; auth.uid() is authoritative.
+   if(authUserId!==actorId||emailConfirmed!==true||
+      typeof verifiedEmail!=='string'||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(verifiedEmail))
+    throw fail('SOCIO_AUTOLINK_NOT_AUTHORIZED',403);
+   let res;
+   try{
+    res=await fetcher(root+'/rpc/socio_link_by_verified_email',{
+     method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+accessToken,
+      accept:'application/json','content-type':'application/json'},
+     body:'{}',redirect:'error',signal:AbortSignal.timeout(8000)
+    });
+   }catch{throw fail('SOCIO_AUTOLINK_UNAVAILABLE');}
+   if(!res.ok)throw fail('SOCIO_AUTOLINK_UNAVAILABLE',res.status===401||res.status===403?403:503);
+   let linkedCount;
+   try{linkedCount=await res.json();}catch{throw fail('SOCIO_AUTOLINK_BAD_DATA');}
+   if(!Number.isSafeInteger(linkedCount)||linkedCount<0||linkedCount>1000)
+    throw fail('SOCIO_AUTOLINK_BAD_DATA');
+   return {linkedCount};
+  },
   async isMemberActive(){throw fail('STAFF_SCANNER_ADAPTER_REQUIRED');},
   async consumeQrNonce(){throw fail('STAFF_SCANNER_REPLAY_STORE_REQUIRED');}
  };
