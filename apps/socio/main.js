@@ -2,7 +2,7 @@
 // No demo accounts, fabricated balances or operational QR tokens. No credentials in localStorage.
 const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
-  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
+  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
 const endpoint = '/api/socio';
 const themeIds=['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'];
 const themes={
@@ -47,7 +47,7 @@ async function api(path,{method='GET',body}={}){
   }
   return value;
 }
-function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}}
+function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}state.qrClub=null;}
 function resetClub(){applySocioTheme('navy-gold');state.sessionEpoch++;stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
 function brand(){return '<header class="brand"><div class="brand-identity"><img class="brand-wordmark" src="./snoop-wordmark.svg" alt="SNOOP" width="172" height="24"/><div class="subbrand">SOCIO · CARNET DIGITAL</div></div>'+
 (state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
@@ -96,10 +96,12 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 }
 function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
-async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;state.sessionEpoch++;stopQr();state.selected=c.id;applySocioTheme(c.themeId);state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
+async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;const changed=state.selected!==c.id;state.sessionEpoch++;if(changed)stopQr();state.selected=c.id;applySocioTheme(c.themeId);state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
 async function refreshCarnet(){
  const id=state.selected;
  if(!id||document.hidden||state.page!=='carnet')return;
+ // The permanent member card is not a time-limited transaction QR.
+ if(state.qrUrl&&state.qrClub===id&&state.member){render();return;}
  const requestId=++state.qrRequest;
  const current=()=>state.selected===id&&state.page==='carnet'&&!document.hidden&&state.qrRequest===requestId;
  try{
@@ -116,8 +118,7 @@ async function refreshCarnet(){
   const uri=URL.createObjectURL(blob);
   if(!current()){URL.revokeObjectURL(uri);return;}
   if(state.qrUrl)URL.revokeObjectURL(state.qrUrl);
-  state.qrUrl=uri;state.message='';state.error=false;render();
-  if(!state.qrRefresh)state.qrRefresh=setInterval(()=>{if(!document.hidden&&state.page==='carnet'&&!state.pending)void refreshCarnet();},20000);
+  state.qrUrl=uri;state.qrClub=id;state.message='';state.error=false;render();
  }catch(e){
   if(!current())return;
   stopQr();notify(e.message||'Carnet no disponible.',true);
@@ -162,9 +163,9 @@ async function submitAuth(form){const values=new FormData(form);const email=Stri
 async function submitLink(form){state.pending=true;render();try{await api('/link/claim',{method:'POST',body:{code:String(new FormData(form).get('code')||'').trim()}});state.pending=false;state.message='';await refreshClubs();}catch(e){state.pending=false;notify(e.message||'No se pudo vincular el carnet.',true);}}
 document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}if(e.target.id==='link-form'){e.preventDefault();void submitLink(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';stopQr();break;case'profile':state.page='profile';stopQr();break;case'link':state.page='link';stopQr();break;case'home':state.page='carnet';void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;stopQr();void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)stopQr();else if(state.page==='carnet')void refreshCarnet();});
-window.addEventListener('pagehide',stopQr);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.page==='carnet'&&!state.qrUrl)void refreshCarnet();});
+// The browser reclaims object URLs at document unload; navigation does not revoke a valid permanent card.
 if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
 render();void authenticate();
