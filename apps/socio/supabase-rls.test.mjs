@@ -32,7 +32,7 @@ test('server-side claim RPC uses own verified JWT and only a temporary secret',a
   if(url.endsWith('/rpc/socio_claim_member'))return Response.json(true);
   return Response.json([]);
  });
- const code='a'.repeat(48);
+ const code='012345';
  assert.deepEqual(await r.claimAndConsumeLinkChallenge({code,authUserId:uid}),{ok:true});
  assert.equal(events.length,1);
  assert.match(events[0].url,/\/rpc\/socio_claim_member$/);
@@ -44,7 +44,7 @@ test('server-side claim RPC uses own verified JWT and only a temporary secret',a
  assert.equal(events.length,1);
 });
 test('claim RPC rejects spent tokens, fails closed on missing RPC or corrupt reply',async()=>{
- const code='b'.repeat(48);
+ const code='987654';
  const spent=make(async()=>Response.json(false));
  assert.deepEqual(await spent.claimAndConsumeLinkChallenge({code,authUserId:uid}),{ok:false});
  const unavailable=make(async()=>Response.json({message:'RPC missing'},{status:404}));
