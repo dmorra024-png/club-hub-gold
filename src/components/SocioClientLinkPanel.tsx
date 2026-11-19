@@ -20,9 +20,18 @@ export function SocioClientLinkPanel({ memberId }: { memberId: string }) {
     setStatus("");
     try {
       const result = await sendSocioInvitationEmail({ data: { memberId } });
-      if (result.status !== "accepted") throw new Error("Envío no confirmado");
-      setStatus("Correo aceptado por el proveedor. Comprueba la entrega con el destinatario.");
-      toast.success("Invitación SNOOP Socio aceptada por el proveedor de correo.");
+      if (result.status === "manual") {
+        // Opens the device's configured mail composer; the operator explicitly
+        // sends the email. Never display a sent status before they do so.
+        const mailto = "mailto:" + encodeURIComponent(result.recipient)
+          + "?subject=" + encodeURIComponent(result.subject)
+          + "&body=" + encodeURIComponent(result.text);
+        setStatus("Email preparado. Pulsa Enviar en tu aplicación de correo.");
+        window.location.assign(mailto);
+      } else if (result.status === "accepted") {
+        setStatus("Correo aceptado por el proveedor. Entrega en bandeja de entrada no confirmada.");
+        toast.success("Invitación aceptada por el proveedor de correo.");
+      } else throw new Error("Envío no confirmado");
     } catch (e) {
       const message = e instanceof Error ? e.message : "No se pudo enviar la invitación.";
       setStatus(message);
