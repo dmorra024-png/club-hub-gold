@@ -1,4 +1,4 @@
-name: SNOOP pilot — OCR parser correction and gallery hotfix
+name: SNOOP pilot — typed Tesseract OCR hotfix
 
 on:
   push:
