@@ -20,12 +20,12 @@ create policy snoop_club_themes_read on public.snoop_club_themes
 for select to authenticated using (
   (exists (
     select 1 from public.user_roles r
-    where r.user_id = (select auth.uid()) and r.club_id = club_id
-  ) and public.can_operate_club(club_id, null))
+    where r.user_id = (select auth.uid()) and r.club_id = snoop_club_themes.club_id
+  ) and public.can_operate_club(snoop_club_themes.club_id, null))
   or exists (
     select 1 from public.socio_membership_links s
     where s.auth_user_id = (select auth.uid())
-      and s.club_id = club_id and s.status = 'verified'
+      and s.club_id = snoop_club_themes.club_id and s.status = 'verified'
       and s.revoked_at is null
   )
 );
