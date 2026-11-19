@@ -1,0 +1,33 @@
+name: SNOOP Socio live auth boundary diagnostics
+on:
+  push:
+    branches: [feature/snoop-premium-club-themes-20261118]
+    paths:
+      - .github/workflows/snoop-socio-auth-diagnostic.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe signed-out, stale-cookie and refresh flows without real identities
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,json
+          origin='https://snoop-socio-pilot.dmorra024.workers.dev'
+          scenarios=[
+            ('signed-out','GET','/api/socio/me',None,{}),
+            ('expired-cookie','GET','/api/socio/me',None,{'Cookie':'__Host-snoop_socio_at=invalid.synthetic.token; __Host-snoop_socio_rt=synthetic'}),
+            ('expired-refresh','POST','/api/socio/auth/refresh',b'{}',{'Cookie':'__Host-snoop_socio_at=invalid.synthetic.token; __Host-snoop_socio_rt=synthetic','Origin':origin,'Content-Type':'application/json'}),
+          ]
+          for label,method,path,data,headers in scenarios:
+            req=urllib.request.Request(origin+path,method=method,data=data,headers=headers)
+            try:
+              with urllib.request.urlopen(req,timeout=18) as r: status=r.status;body=r.read(1600)
+            except urllib.error.HTTPError as e: status=e.code;body=e.read(1600)
+            except Exception as e:print(json.dumps({'probe':label,'network_failure':type(e).__name__}));continue
+            try: result=json.loads(body)
+            except: result={}
+            print(json.dumps({'probe':label,'http':status,'code':result.get('code'),'has_message':bool(result.get('message'))}))
+          PY
