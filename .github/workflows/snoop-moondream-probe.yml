@@ -26,7 +26,7 @@ jobs:
           catch(e){console.log(JSON.stringify({stage:'request',failure:'NETWORK_OR_TIMEOUT'}));process.exit(1)}
           const data=await response.json().catch(()=>({}));
           const result=data.result??{};
-          console.log(JSON.stringify({stage:'model',status:response.status,success:data.success===true,errorCodes:(data.errors??[]).map(x=>x.code),resultKeys:Object.keys(result),answerType:typeof result.answer,answerLength:typeof result.answer==='string'?result.answer.length:0}));
+          console.log(JSON.stringify({stage:'model',status:response.status,success:data.success===true,errorCodes:(data.errors??[]).map(x=>x.code),topKeys:Object.keys(data),resultType:Array.isArray(data.result)?'array':typeof data.result,resultKeys:Object.keys(result),answerType:typeof result.answer,answerLength:typeof result.answer==='string'?result.answer.length:0,syntheticResultSample:JSON.stringify(data).slice(0,900)}));
           // 403 is inconclusive: deployment token might not allow direct AI REST.
           if(response.status===403) console.log('REST_PERMISSION_UNVERIFIED: worker binding may still have permission');
           NODE
