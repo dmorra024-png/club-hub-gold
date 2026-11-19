@@ -111,7 +111,7 @@ export function SnoopLayout({
             </Link>
           ))}
         </nav>
-        <p className="snoop-rail-footer">SNOOP · CLUB MANAGEMENT</p>
+        <p className="snoop-rail-footer">SNOOP</p>
       </aside>
       <header className="premium-topbar">
         <button
