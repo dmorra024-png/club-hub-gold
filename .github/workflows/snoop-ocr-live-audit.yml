@@ -47,6 +47,18 @@ jobs:
             const metadata = doc.metadata??{};
             console.log(JSON.stringify({step:'active-version',version_id:v.version_id,percentage:v.percentage,number:doc.number,metadata:{created_on:metadata.created_on,source:metadata.source,tag:metadata.tag,message:metadata.message}}));
           }
+          const settingsUrl=`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/snoop-pilot/settings`;
+          const res=await fetch(settingsUrl,{headers:{Authorization:`Bearer ${process.env.CLOUDFLARE_API_TOKEN}`}});
+          const payload=await res.json();
+          const bindings=payload.result?.bindings??[];
+          console.log(JSON.stringify({step:'nonsecret-binding-audit',http:res.status,ok:payload.success===true,
+            flags:{
+              aiPersonalData:bindings.find(b=>b.name==='AI_PERSONAL_DATA_PROCESSING_ENABLED')?.text==='false'?'disabled':bindings.some(b=>b.name==='AI_PERSONAL_DATA_PROCESSING_ENABLED')?'other':'missing',
+              serviceRoleSecret:bindings.find(b=>b.name==='SUPABASE_SERVICE_ROLE_KEY')?.type==='secret_text',
+              aiBinding:bindings.find(b=>b.name==='SNOOP_AI')?.type==='ai',
+              assetsBinding:bindings.find(b=>b.name==='ASSETS')?.type==='assets',
+              publicVars:['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','APP_URL'].every(name=>['plain_text','secret_text'].includes(bindings.find(b=>b.name===name)?.type)),
+            }}));
           const publicResponse = await fetch('https://snoop-pilot.dmorra024.workers.dev/auth',{redirect:'manual'});
           console.log(JSON.stringify({step:'live-auth',http:publicResponse.status,redirect:publicResponse.headers.get('location')?.startsWith('/')??false}));
           if (publicResponse.status >= 500) process.exit(1);
