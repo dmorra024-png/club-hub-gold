@@ -1,14 +1,18 @@
-name: SNOOP pilot — Qwen Vision document scanner release
+name: SNOOP pilot — seven premium designs and Qwen preserved
 
 on:
   push:
-    branches: [feature/snoop-qwen-vision-id-20261119]
+    branches: [release/snoop-seven-designs-qwen-20261119]
     paths:
       - .github/workflows/snoop-pilot-deploy.yml
       - src/routes/_authenticated/soci.nuovo.tsx
       - src/lib/qwen-id-fields.ts
       - src/lib/qwen-id.functions.ts
       - tests/qwen-id-fields.test.ts
+      - src/styles.css
+      - src/components/SnoopLayout.tsx
+      - src/components/ClubThemeSettingsPanel.tsx
+      - src/lib/snoop-themes.ts
   workflow_dispatch:
     inputs:
       confirm:
@@ -25,7 +29,7 @@ concurrency:
 
 jobs:
   deploy-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/feature/snoop-qwen-vision-id-20261119' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-ocr-pilot-isolated')) }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/release/snoop-seven-designs-qwen-20261119' && ((github.event_name == 'workflow_dispatch' && inputs.confirm == 'DEPLOY-SNOOP-PILOT') || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-ocr-pilot-isolated')) }}
     runs-on: ubuntu-latest
     environment: snoop-pilot
     timeout-minutes: 20
@@ -53,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "dmorra024-png/club-hub-gold"
-          test "$GITHUB_REF_NAME" = "feature/snoop-qwen-vision-id-20261119"
+          test "$GITHUB_REF_NAME" = "release/snoop-seven-designs-qwen-20261119"
           test "$(git rev-parse HEAD)" = "$EXPECTED_INTEGRATED_SHA" || { echo "Wrong integrated commit checked out"; exit 1; }
           node -e 'const c=require("./wrangler.json"); if(c.name!=="snoop-pilot" || c.workers_dev!==true || !c.ai || c.ai.binding!=="SNOOP_AI")process.exit(1)'
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID SNOOP_PUBLISHABLE_KEY; do
@@ -62,7 +66,7 @@ jobs:
           [[ "$SNOOP_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo "Wrong public key type"; exit 1; }
           # Explicit pilot activation authorized for this club; fail unless both flags agree.
           test "${SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" && test "${VITE_SNOOP_WALLET_OPERATIONS_ENABLED:-false}" = "true" || { echo "Wallet activation flags missing"; exit 1; }
-          test "$GITHUB_REF_NAME" = "feature/snoop-qwen-vision-id-20261119" || exit 1
+          test "$GITHUB_REF_NAME" = "release/snoop-seven-designs-qwen-20261119" || exit 1
           test -f "apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql" || exit 1
           test -f "src/lib/wallet-management.functions.ts" || exit 1
           test -f "apps/socio/schema/WALLET_CLUB_CONFIGURATION_REVIEW_ONLY.sql" || exit 1
@@ -79,7 +83,7 @@ jobs:
           bun run test:voice:activation
           bun run test:security:initialization
           bun run typecheck
-          node --test tests/qwen-id-fields.test.ts
+          node --test tests/qwen-id-fields.test.ts tests/snoop-theme-composition.test.mjs
       - name: Build Cloudflare Worker (only public key embedded)
         shell: bash
         env:
@@ -101,7 +105,7 @@ jobs:
             assert.ok(process.env.CLOUDFLARE_API_TOKEN);
             assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, '0cc8106f8820d22996af3aed9e081e93');
             assert.equal(process.env.GITHUB_REPOSITORY, 'dmorra024-png/club-hub-gold');
-            assert.equal(process.env.GITHUB_REF_NAME, 'feature/snoop-qwen-vision-id-20261119');
+            assert.equal(process.env.GITHUB_REF_NAME, 'release/snoop-seven-designs-qwen-20261119');
             stage = 'worker-config';
             const checkOnly = process.env.SNOOP_BINDINGS_CHECK_ONLY === 'true';
             const file = checkOnly ? 'wrangler.json' : '.output/server/wrangler.json';
@@ -232,7 +236,7 @@ jobs:
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
 
   diagnose-snoop:
-    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/feature/snoop-qwen-vision-id-20261119' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
+    if: ${{ github.repository == 'dmorra024-png/club-hub-gold' && github.ref == 'refs/heads/release/snoop-seven-designs-qwen-20261119' && (inputs.confirm == 'DIAGNOSE-SNOOP-PILOT' || inputs.confirm == 'CHECK-SNOOP-APP-URL' || inputs.confirm == 'CHECK-SNOOP-BINDINGS') }}
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 5
