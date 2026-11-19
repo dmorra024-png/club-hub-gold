@@ -39,7 +39,7 @@ jobs:
         run: |
           bun install
           node apps/socio/check.mjs
-          node --test apps/socio/club-theme.test.mjs apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/account-completion.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
+          node --test apps/socio/cloudflare-fetch-compat.test.mjs apps/socio/club-theme.test.mjs apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/account-completion.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
           node apps/socio/build-public.mjs
           test -f apps/socio/dist/chakra-petch-latin-600.woff2
           test ! -f apps/socio/dist/worker.mjs
@@ -75,4 +75,6 @@ jobs:
           grep -q 'clearlyInvalidAccessToken' /tmp/socio-app.js || true
           CODE="$(curl -sS --max-time 30 -o /tmp/socio-unauth -w '%{http_code}' "$SOCIO_ORIGIN/api/socio/me")"
           test "$CODE" = 401
+          TEST_CODE="$(curl -sS --max-time 30 -o /tmp/socio-invalid-login -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Origin: $SOCIO_ORIGIN" -d '{\"email\":\"not-a-user@example.invalid\",\"password\":\"SyntheticNotAnAccount123!\"}' "$SOCIO_ORIGIN/api/socio/auth/login")"
+          test "$TEST_CODE" = 401 || { echo "LOGIN_PROVIDER_NOT_WORKING: expected 401, received $TEST_CODE"; exit 1; }
           echo "SNOOP_SOCIO_AUTH_AND_APPROVED_LAYOUT_DEPLOYED"
