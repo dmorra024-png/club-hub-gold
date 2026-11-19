@@ -224,7 +224,7 @@ export function SnoopLayout({
             aria-label="Lector QR no autorizado"
             title="Sin permiso de gestión de socios"
           >
-            <QrAccessIcon />
+            <SnoopDockIcon kind="qr" />
             <span>QR</span>
           </button>
         )}
