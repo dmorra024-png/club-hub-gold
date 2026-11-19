@@ -247,7 +247,7 @@ export function SnoopLayout({
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
           <Mic aria-hidden="true" />
-          <span>SNOOP</span>
+          <span>JARVIS</span>
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
           <UserRound aria-hidden="true" />
