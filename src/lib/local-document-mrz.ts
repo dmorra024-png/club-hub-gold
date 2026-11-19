@@ -60,9 +60,42 @@ function parseTd3(a: string, b: string): MrzParseResult | null {
   if (!validCheck(b.slice(0, 10) + b.slice(13, 20) + b.slice(21, 43), b[43])) return null;
   return { format: "TD3", verified: true, fields: { ...name, birth_date: dob, dni_number: number, address: "", city: "", postal_code: "" } };
 }
+/**
+ * OCR commonly inserts spaces, Unicode angle quotes, or merges both MRZ rows.
+ * Recover *candidate lines* only; original ICAO check digits still have to pass.
+ */
+function mrzCandidates(text: string): string[] {
+  const clean = (s: string) => s.toUpperCase()
+    .replace(/[«‹⟨〈﹤]/g, "<")
+    .replace(/\s/g, "")
+    .replace(/[^A-Z0-9<]/g, "");
+  const rows = text.split(/\r?\n/).map(clean).filter(Boolean);
+  const out = new Set<string>(rows);
+  for (const row of rows) {
+    // OCR may merge both passport lines into one line.
+    if (row.length >= 88 && row.length <= 92) {
+      for (let start = 0; start <= row.length - 88; start++) {
+        out.add(row.slice(start, start + 44));
+        out.add(row.slice(start + 44, start + 88));
+      }
+    }
+    // OCR noise at the margins: only accept slices with validated checksums.
+    for (const size of [30, 44]) {
+      if (row.length > size && row.length <= size + 5) {
+        for (let start = 0; start <= row.length - size; start++)
+          out.add(row.slice(start, start + size));
+      }
+    }
+    // Name line ends with non-semantic fillers, sometimes dropped by OCR.
+    if (row.startsWith("P") && row.includes("<<") && row.length >= 25 && row.length < 44)
+      out.add(row.padEnd(44, "<"));
+  }
+  return [...out];
+}
+
 /** Returns null unless all required ICAO MRZ check digits agree; never guesses data. */
 export function parseMrzText(text: string): MrzParseResult | null {
-  const lines = text.toUpperCase().split(/\r?\n/).map(s => s.replace(/\s/g, "").replace(/[^A-Z0-9<]/g, "")).filter(Boolean);
+  const lines = mrzCandidates(text);
   for (let i = 0; i + 2 < lines.length; i++) {
     const result = parseTd1(lines[i], lines[i + 1], lines[i + 2]);
     if (result) return result;
@@ -70,6 +103,16 @@ export function parseMrzText(text: string): MrzParseResult | null {
   for (let i = 0; i + 1 < lines.length; i++) {
     const result = parseTd3(lines[i], lines[i + 1]);
     if (result) return result;
+  }
+  // Candidate generation can append trimmed or padded lines after the original.
+  // Pair only adjacent OCR rows or their recovered variants in the same image.
+  for (const a of lines) {
+    if (a.length !== 44 || a[0] !== "P") continue;
+    for (const b of lines) {
+      if (b.length !== 44 || b === a) continue;
+      const result = parseTd3(a, b);
+      if (result) return result;
+    }
   }
   return null;
 }
