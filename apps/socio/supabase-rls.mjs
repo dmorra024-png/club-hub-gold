@@ -73,7 +73,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
    // Account email is verified by Supabase Auth and the trusted service actor.
    // A caller cannot supply the email to the SQL RPC; auth.uid() is authoritative.
    if(authUserId!==actorId||emailConfirmed!==true||
-      typeof verifiedEmail!=='string'||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(verifiedEmail))
+      typeof verifiedEmail!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(verifiedEmail))
     throw fail('SOCIO_AUTOLINK_NOT_AUTHORIZED',403);
    let res;
    try{
