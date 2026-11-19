@@ -77,6 +77,24 @@ jobs:
           bun run build:worker
           bun run worker:dry-run
           bun run test:security:bundle
+  email-secret-probe:
+    runs-on: ubuntu-24.04
+    environment: snoop-pilot
+    timeout-minutes: 3
+    env:
+      GITHUB_SNOOP_EMAIL_API_KEY: ${{ secrets.SNOOP_EMAIL_API_KEY }}
+      GITHUB_RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      GITHUB_EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+      GITHUB_SNOOP_RESEND_API_KEY: ${{ secrets.SNOOP_RESEND_API_KEY }}
+      GITHUB_EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+      GITHUB_SNOOP_EMAIL_FROM: ${{ secrets.SNOOP_EMAIL_FROM }}
+    steps:
+      - name: Probe existing provider credentials by presence only
+        run: |
+          node --input-type=module <<'NODE'
+          const keys=['GITHUB_SNOOP_EMAIL_API_KEY','GITHUB_RESEND_API_KEY','GITHUB_EMAIL_API_KEY','GITHUB_SNOOP_RESEND_API_KEY','GITHUB_EMAIL_FROM','GITHUB_SNOOP_EMAIL_FROM'];
+          console.log(JSON.stringify(Object.fromEntries(keys.map(name=>[name,Boolean(process.env[name])]))));
+          NODE
   email-provider-readiness:
     runs-on: ubuntu-24.04
     environment: snoop-pilot
