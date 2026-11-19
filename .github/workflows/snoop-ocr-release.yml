@@ -293,3 +293,5 @@ jobs:
 # Camera/gallery + offline Spanish/English VIZ OCR release, verified against active v92.
 
 # User-authorized Moondream free Workers AI pilot release with consent and isolated source tests.
+
+# User-requested Gemini-like free OCR fix: Gemma 4 (thinking disabled); synthetic OCR test passed.
