@@ -17,10 +17,12 @@ const clear=()=>[ACCESS+'=; '+common+'; Max-Age=0',REFRESH+'=; '+common+'; Max-A
 const encode=s=>encodeURIComponent(s);
 function sessionCookies(session){
  if(!session||typeof session.access_token!=='string'||typeof session.refresh_token!=='string'||session.access_token.length>9000||session.refresh_token.length>9000)throw Error('SESSION_INVALID');
- // Access token short-lived; refresh token never accessible to page JavaScript.
+ // Access token short-lived; rolling refresh cookie persists across app restarts.
+ // Its 365-day browser lifetime is NOT an authorization bypass: the Auth server
+ // may revoke, expire or reject refresh tokens at any time.
  const seconds=Number.isSafeInteger(session.expires_in)?Math.max(30,Math.min(session.expires_in,3600)):1800;
  return [ACCESS+'='+encode(session.access_token)+'; '+common+'; Max-Age='+seconds,
- REFRESH+'='+encode(session.refresh_token)+'; '+common+'; Max-Age=2592000'];
+ REFRESH+'='+encode(session.refresh_token)+'; '+common+'; Max-Age=31536000'];
 }
 function tokenIn(request,name){try{const raw=cookies(request)[name];return raw&&raw.length<10000?decodeURIComponent(raw):null;}catch{return null;}}
 const normalize=x=>typeof x==='string'?x.trim().toLowerCase():'';
