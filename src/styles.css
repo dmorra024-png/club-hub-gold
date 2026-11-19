@@ -1517,3 +1517,69 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
  .snoop-reference-home{padding:86px 18px calc(var(--snoop-nav-height) + var(--snoop-safe-bottom) + 30px)!important}
 }
 @media(max-width:380px){.snoop-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.snoop-shift-row{gap:7px;padding:10px 8px}.snoop-shift-pill{font-size:10px}.snoop-reference-cash,.snoop-reference-shifts{padding:17px}}
+
+
+/* SNOOP approved visual reference 2026-11-19:
+   four perfectly equal dock slots, one original wordmark, real club content,
+   seven palette-responsive light treatments. */
+:root{--snoop-electric:#18baff}
+[data-snoop-theme="graphite-copper"]{--snoop-electric:#b88769}
+[data-snoop-theme="aubergine-amethyst"]{--snoop-electric:#e1a6ff}
+[data-snoop-theme="petrol-titanium"]{--snoop-electric:#59e0e8}
+[data-snoop-theme="ivory-champagne"]{--snoop-electric:#e9ad69}
+[data-snoop-theme="ruby-gold"]{--snoop-electric:#ff8398}
+[data-snoop-theme="emerald-gold"]{--snoop-electric:#73d6ae}
+.snoop-approved-home{max-width:1240px}
+.premium-shell-home{background:radial-gradient(ellipse at 30% 18%,color-mix(in srgb,var(--snoop-electric) 16%,transparent),transparent 46%),radial-gradient(ellipse at 75% 76%,color-mix(in srgb,var(--snoop-accent) 12%,transparent),transparent 46%),var(--snoop-canvas)}
+.premium-shell-home::before{content:"";position:absolute;pointer-events:none;inset:0 0 auto;height:280px;opacity:.75;background:linear-gradient(133deg,transparent 18%,color-mix(in srgb,var(--snoop-accent) 45%,transparent) 20%,transparent 20.5%),radial-gradient(ellipse at 68% 12%,color-mix(in srgb,var(--snoop-electric) 24%,transparent),transparent 70%)}
+.snoop-approved-home>.snoop-approved-welcome{display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin:0 auto 25px}
+.snoop-approved-brand{display:block;width:min(62vw,260px);max-width:100%;filter:drop-shadow(0 0 15px color-mix(in srgb,var(--snoop-accent) 43%,transparent))}
+.snoop-approved-brand .snoop-wordmark{width:100%}
+.snoop-approved-welcome h1{font-family:"Snoop Cash",system-ui,sans-serif!important;text-transform:uppercase;font-weight:600;font-size:clamp(19px,4.8vw,29px);letter-spacing:.01em;line-height:1.35;color:var(--snoop-foreground);margin:0}
+.snoop-approved-welcome h1 span{color:var(--snoop-accent)}
+.snoop-approved-cash{position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;gap:16px;min-width:0;min-height:158px;padding:22px 21px;margin-bottom:23px;overflow:hidden;border:1.5px solid var(--snoop-accent);border-radius:23px;background:linear-gradient(119deg,color-mix(in srgb,var(--snoop-elevated) 68%,var(--snoop-canvas)),var(--snoop-canvas) 78%);box-shadow:0 0 13px color-mix(in srgb,var(--snoop-electric) 60%,transparent),0 0 24px color-mix(in srgb,var(--snoop-accent) 35%,transparent),inset 0 1px 0 var(--snoop-accent)}
+.snoop-approved-cash::before{content:"";position:absolute;pointer-events:none;z-index:-1;inset:0;background:linear-gradient(108deg,transparent 44%,color-mix(in srgb,var(--snoop-electric) 21%,transparent) 69%,transparent 85%)}
+.snoop-approved-cash::after{content:"";position:absolute;pointer-events:none;inset:0 auto auto 5%;width:74%;height:2px;background:linear-gradient(90deg,transparent,var(--snoop-electric),var(--snoop-accent),transparent);box-shadow:0 0 12px 3px color-mix(in srgb,var(--snoop-electric) 63%,transparent)}
+.snoop-approved-cash-icon{flex:none;display:grid;place-items:center;color:var(--snoop-accent);width:62px;height:62px;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--snoop-accent) 70%,transparent))}
+.snoop-approved-cash-icon svg{width:48px;height:48px}
+.snoop-approved-cash-info{min-width:0;flex:1;max-width:450px}
+.snoop-approved-cash h2{font-family:"Snoop Cash",system-ui,sans-serif!important;font-size:clamp(16px,4.2vw,23px);font-weight:600;text-transform:uppercase;letter-spacing:.025em;line-height:1.25;color:var(--snoop-foreground)}
+.snoop-approved-cash strong{display:block;font-family:"Snoop Cash",system-ui,sans-serif;font-weight:600;font-size:clamp(28px,8.2vw,52px);letter-spacing:-.015em;line-height:1.23;color:var(--snoop-foreground);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.snoop-approved-cash-bars{display:flex;align-items:flex-end;gap:5px;flex:none;align-self:center;height:68px;padding-bottom:5px;opacity:.8}
+.snoop-approved-cash-bars i{display:block;width:8px;border:1px solid var(--snoop-accent);background:linear-gradient(0deg,color-mix(in srgb,var(--snoop-accent) 15%,transparent),var(--snoop-accent));box-shadow:0 0 8px color-mix(in srgb,var(--snoop-accent) 44%,transparent)}
+.snoop-approved-cash-bars i:nth-child(1){height:28%}.snoop-approved-cash-bars i:nth-child(2){height:43%}.snoop-approved-cash-bars i:nth-child(3){height:57%}.snoop-approved-cash-bars i:nth-child(4){height:75%}.snoop-approved-cash-bars i:nth-child(5){height:96%}
+.snoop-approved-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 29px}
+.snoop-approved-shortcuts a{display:flex;min-width:0;min-height:125px;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:14px 7px;text-align:center;border:1px solid var(--snoop-border);border-radius:19px;background:linear-gradient(145deg,var(--snoop-elevated),var(--snoop-panel) 56%,var(--snoop-canvas));color:var(--snoop-foreground);box-shadow:0 1px 13px color-mix(in srgb,var(--snoop-electric) 25%,transparent),0 12px 0 -11px var(--snoop-accent),inset 0 1px color-mix(in srgb,var(--snoop-foreground) 7%,transparent);font-size:clamp(12px,3vw,15px);font-weight:550}
+.snoop-approved-shortcuts a svg{width:30px;height:30px;flex:none;color:var(--snoop-accent);stroke-width:1.5;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--snoop-accent) 50%,transparent))}
+.snoop-approved-shortcuts a:hover{border-color:var(--snoop-accent);box-shadow:0 0 18px color-mix(in srgb,var(--snoop-electric) 35%,transparent),0 0 10px color-mix(in srgb,var(--snoop-accent) 28%,transparent)}
+.snoop-approved-activity{min-width:0}
+.snoop-approved-activity .premium-activities{margin:0;padding:16px;border:1px solid var(--snoop-border);border-radius:20px;background:linear-gradient(135deg,var(--snoop-panel),var(--snoop-canvas));box-shadow:0 0 14px color-mix(in srgb,var(--snoop-electric) 19%,transparent),0 0 12px color-mix(in srgb,var(--snoop-accent) 20%,transparent),0 20px 28px #0002}
+.snoop-approved-activity .premium-section-heading h2{font-family:"Snoop Cash",system-ui,sans-serif!important;font-size:clamp(16px,4vw,23px);line-height:1.3;text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.snoop-approved-activity .premium-activity-list li+li{border-top:1px solid color-mix(in srgb,var(--snoop-border) 60%,transparent)}
+/* Dock: exactly 4 equal columns. Never scale or raise JARVIS, and never add a fifth slot. */
+.premium-shell .premium-bottom-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:8px 8px calc(10px + var(--snoop-safe-bottom));height:calc(92px + var(--snoop-safe-bottom));border-top:1px solid var(--snoop-accent);background:linear-gradient(180deg,color-mix(in srgb,var(--snoop-panel) 95%,transparent),var(--snoop-canvas));box-shadow:0 -3px 17px color-mix(in srgb,var(--snoop-accent) 25%,transparent),0 -1px 9px color-mix(in srgb,var(--snoop-electric) 35%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.premium-shell .premium-bottom-nav>:is(a,button){position:relative;width:100%;min-width:0;min-height:67px;height:67px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:6px 1px;border:0;border-radius:0;background:transparent;transform:none;top:auto;inset:auto;margin:0;color:var(--snoop-foreground);font-size:12px;font-weight:550}
+.premium-shell .premium-bottom-nav>:is(a,button)>svg{display:block;flex:none;width:27px;height:27px;stroke-width:1.8;margin:0;filter:none}
+.premium-shell .premium-bottom-nav>:is(a,button)>span{display:block;line-height:1.2;white-space:nowrap}
+.premium-shell .premium-bottom-nav>:is(a,button):not(:last-child)::before{content:"";position:absolute;right:0;top:13px;bottom:13px;width:1px;background:color-mix(in srgb,var(--snoop-border) 55%,transparent)}
+.premium-shell .premium-bottom-nav>.premium-dock-voice{border-radius:0;box-shadow:none}
+.premium-shell .premium-bottom-nav>.premium-dock-voice>svg{color:var(--snoop-accent);filter:drop-shadow(0 0 7px color-mix(in srgb,var(--snoop-accent) 50%,transparent))}
+.premium-shell .premium-bottom-nav>:is(a,button)[aria-current="page"]{color:var(--snoop-accent)}
+.premium-shell .premium-bottom-nav>:is(a,button)[aria-current="page"]::after{content:"";position:absolute;bottom:1px;left:25%;right:25%;height:2px;border-radius:5px;background:var(--snoop-accent);box-shadow:0 0 9px 2px color-mix(in srgb,var(--snoop-accent) 58%,transparent)}
+.premium-shell .premium-bottom-nav>.premium-qr::after{display:none}
+.premium-shell .premium-bottom-nav>:is(a,button):focus-visible{outline:2px solid var(--snoop-accent);outline-offset:-2px}
+@media(max-width:650px){
+ .snoop-approved-home{padding:80px 16px calc(124px + var(--snoop-safe-bottom))!important}
+ .snoop-approved-brand{width:clamp(170px,55vw,250px)}
+ .snoop-approved-shortcuts{gap:8px;grid-template-columns:repeat(4,minmax(0,1fr))}
+ .snoop-approved-shortcuts a{min-height:102px;border-radius:13px;gap:9px}
+ .snoop-approved-shortcuts a svg{width:27px;height:27px}
+ .snoop-approved-cash{min-height:138px;padding:16px;gap:10px}
+ .snoop-approved-cash-bars{height:54px;gap:3px}
+ .snoop-approved-cash-bars i{width:6px}
+ .snoop-approved-cash-icon{width:40px;height:50px}
+ .snoop-approved-cash-icon svg{width:37px;height:37px}
+}
+@media(max-width:370px){.snoop-approved-shortcuts{gap:5px}.snoop-approved-shortcuts a{font-size:11px;padding:8px 3px}.snoop-approved-cash-bars{display:none}.snoop-approved-cash strong{font-size:28px}}
+@media(min-width:1024px){.premium-shell .premium-bottom-nav{display:none!important}.snoop-approved-home{padding:82px 38px 60px!important}.snoop-approved-home>.snoop-approved-welcome{margin-bottom:35px}.snoop-approved-cash{max-width:920px;margin:0 auto 26px}.snoop-approved-shortcuts{max-width:1000px;margin:0 auto 32px}.snoop-approved-activity{max-width:1000px;margin:0 auto}}
+@media(prefers-reduced-motion:reduce){.snoop-approved-shortcuts a,.premium-bottom-nav>*{transition:none!important}}
