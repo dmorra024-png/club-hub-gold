@@ -7,7 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
 import { workersAiBinding } from "./workers-ai.server";
 import { z } from "zod";
-import { DOCUMENT_MODEL, documentFields, parseMoondreamAnswer, prompt } from "./cloudflare-document-parser";
+import { DOCUMENT_MODEL, documentFields, imageInput, parseMoondreamAnswer, prompt } from "./cloudflare-document-parser";
 
 function enabled(): boolean {
   return process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
@@ -40,7 +40,7 @@ export const readDocumentWithCloudflare = createServerFn({ method: "POST" })
       let fields: z.infer<typeof documentFields>;
       try { fields = parseMoondreamAnswer(reply); }
       catch { throw new Error("DOCUMENT_AI_COULD_NOT_READ_FIELDS"); }
-      for (const field of Object.keys(merged) as (keyof Fields)[])
+      for (const field of Object.keys(merged) as (keyof z.infer<typeof documentFields>)[])
         if (!merged[field] && fields[field]) merged[field] = fields[field];
     }
     return { fields: merged, source: "cloudflare-moondream" as const, verified: false };
