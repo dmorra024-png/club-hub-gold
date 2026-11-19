@@ -51,3 +51,5 @@ jobs:
           console.log(JSON.stringify({step:'live-auth',http:publicResponse.status,redirect:publicResponse.headers.get('location')?.startsWith('/')??false}));
           if (publicResponse.status >= 500) process.exit(1);
           NODE
+
+# Recheck current version before OCR-specific patch release.
