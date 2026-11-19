@@ -122,7 +122,7 @@ jobs:
           if(!r.ok||!j.success)throw Error('Cannot verify active Worker; refuse deployment');
           const all=Array.isArray(j.result)?j.result:j.result?.deployments;
           const v=all?.[0]?.versions??[];
-          if(v.length!==1||v[0].version_id!=='2a06f23e-4e9f-47e5-9a04-a56393957494'||Number(v[0].percentage)!==100)
+          if(v.length!==1||v[0].version_id!=='1cfce929-6d00-46e6-98fe-a6cad174e2dc'||Number(v[0].percentage)!==100)
             throw Error('LIVE_WORKER_CHANGED_SINCE_AUDIT; deployment refused');
           console.log('ACTIVE_V89_VERSION_CONFIRMED');
           NODE
@@ -280,7 +280,7 @@ jobs:
           set -euo pipefail
           curl -fsS -o /dev/null --max-time 30 "$APP_URL/auth"
           echo "SNOOP pilot is reachable at the configured HTTPS origin."
-          echo "SNOOP_MOONDREAM_WEB_RUNTIME_AVAILABLE"
+          echo "SNOOP_GEMMA4_VISION_RUNTIME_AVAILABLE"
 
 
 
