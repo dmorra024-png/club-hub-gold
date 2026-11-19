@@ -1,0 +1,23 @@
+name: SNOOP Mistral OCR prerequisite check (no document sent)
+on:
+  push:
+    branches:
+      - integration/snoop-monederosocio-management-20261118
+    paths:
+      - .github/workflows/snoop-mistral-prerequisites.yml
+permissions:
+  contents: read
+jobs:
+  prerequisites:
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 4
+    env:
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      SNOOP_MISTRAL_ZDR_APPROVED: ${{ vars.SNOOP_MISTRAL_ZDR_APPROVED }}
+    steps:
+      - name: Check prerequisites by presence only — no API request, no ID photos
+        shell: bash
+        run: |
+          if [[ -n "${MISTRAL_API_KEY:-}" ]]; then echo 'MISTRAL_KEY_CONFIGURED=true'; else echo 'MISTRAL_KEY_CONFIGURED=false'; fi
+          if [[ "${SNOOP_MISTRAL_ZDR_APPROVED:-}" == "true" ]]; then echo 'MISTRAL_ZDR_APPROVAL_RECORDED=true'; else echo 'MISTRAL_ZDR_APPROVAL_RECORDED=false'; fi

@@ -24,7 +24,6 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad
 import {
   getAdministrativeAiStatus,
   extractMemberFields,
-  extractMemberFieldsFromImages,
   transcribeAudio,
 } from "@/lib/voice-agent.functions";
 import {
@@ -38,6 +37,7 @@ import {
 } from "@/lib/member-administration";
 import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
+import { readDocumentWithCloudflare, documentAiPilotStatus } from "@/lib/cloudflare-documents.functions";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
@@ -118,8 +118,9 @@ function NewSocio() {
   const conversation = useRef<ConversationState | null>(null);
   const aiStatus = useServerFn(getAdministrativeAiStatus);
   const transcribe = useServerFn(transcribeAudio);
+  const mistralStatus = useServerFn(documentAiPilotStatus);
+  const mistralExtract = useServerFn(readDocumentWithCloudflare);
 
-  const extractFromImages = useServerFn(extractMemberFieldsFromImages);
 
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
@@ -340,67 +341,64 @@ function NewSocio() {
     }
   }
 
-  // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
+  // Explicitly consented identity OCR on the existing Workers AI binding; no new key.
   async function scanDocuments(files: FileList | File[]) {
-    const initial = { ...formRef.current };
-    const status = await aiStatus();
-    if (!status.documents)
-      return toast.error(
-        "Procesamiento de documentos no autorizado. Introduce los datos manualmente.",
-      );
-    if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
-      return;
     const list = Array.from(files).slice(0, 2);
-    if (list.length === 0) return;
+    if (!list.length || scanStatus === "scanning") return;
+    const initial = { ...formRef.current };
     setScanStatus("scanning");
     try {
-      // Compress + convert each file
+      const status = await mistralStatus();
+      if (!status.enabled) {
+        toast.error("El lector de documentos IA no está disponible en este piloto. Introduce los datos manualmente.");
+        return;
+      }
+      const consent = window.confirm(
+        "La foto del documento se procesará mediante Cloudflare Workers AI para extraer los datos de identidad. " +
+        "No se usará para JARVIS ni para entrenar SNOOP. Confirma que tienes autorización para tratar el documento y enviarlo a este proveedor. ¿Continuar?",
+      );
+      if (!consent) return;
       const compressed: Blob[] = [];
-      for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-
-      // Preview URLs
-      const previews = await Promise.all(
-        compressed.map(
-          (b) =>
-            new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = () => res(r.result as string);
-              r.readAsDataURL(b);
-            }),
-        ),
-      );
+      for (const file of list) compressed.push(await compressImage(file, 1600, 0.85));
+      const previews = await Promise.all(compressed.map((blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No se pudo abrir la imagen"));
+        reader.readAsDataURL(blob);
+      })));
       setScanPreviews(previews);
-
-      // Base64 payload for the AI Gateway
-      const images = await Promise.all(
-        compressed.map(async (b) => ({
-          base64: await blobToBase64(b),
-          mimeType: "image/jpeg",
-        })),
-      );
-
-      const { fields } = await extractFromImages({ data: { images } });
-
-      setForm((f) =>
-        mergeUneditedValues(f, initial, {
-          first_name: fields.first_name || f.first_name,
-          last_name: fields.last_name || f.last_name,
-          birth_date: fields.birth_date || f.birth_date,
-          dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-          address: fields.address || f.address,
-          city: fields.city || f.city,
-          postal_code: fields.postal_code || f.postal_code,
-        }),
-      );
-
-      // Reuse the front photo (first image) as the required DNI photo
-      const front = compressed[0];
-      set("dni_file", new File([front], "dni.jpg", { type: "image/jpeg" }));
+      const images = await Promise.all(compressed.map(async (blob) => ({
+        base64: await blobToBase64(blob),
+        mimeType: "image/jpeg" as const,
+      })));
+      const { fields } = await mistralExtract({ data: { images, consent: true } });
+      const suggestions: [string, string][] = [
+        ["Nombre", fields.first_name], ["Apellidos", fields.last_name],
+        ["Nacimiento", fields.birth_date], ["Documento", fields.dni_number],
+        ["Dirección", fields.address], ["Localidad", fields.city],
+        ["Código postal", fields.postal_code],
+      ].filter((row): row is [string, string] => !!row[1]);
+      if (!suggestions.length) {
+        toast.warning("La IA no ha identificado campos fiables. Introduce los datos manualmente.");
+        return;
+      }
+      if (!window.confirm("Datos propuestos por la IA (SIN VERIFICAR):\\n\\n" +
+        suggestions.map(([label, value]) => label + ": " + value).join("\\n") +
+        "\\n\\nComprueba el documento. ¿Aplicar estos campos?")) return;
+      set("dni_file", new File([compressed[0]], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
-
-      toast.success("Datos rellenados desde el documento");
-    } catch (e: any) {
-      toast.error(e.message ?? "No se pudo leer el documento");
+      setForm((current) => mergeUneditedValues(current, initial, {
+        first_name: fields.first_name || current.first_name,
+        last_name: fields.last_name || current.last_name,
+        birth_date: fields.birth_date || current.birth_date,
+        dni_number: fields.dni_number || current.dni_number,
+        address: fields.address || current.address,
+        city: fields.city || current.city,
+        postal_code: fields.postal_code || current.postal_code,
+      }));
+      toast.success("Campos reconocidos: revisa todos los datos antes de guardar.");
+    } catch {
+      toast.error("No se pudo completar la lectura IA. Ningún dato fue aplicado.");
     } finally {
       setScanStatus("idle");
     }
@@ -635,44 +633,60 @@ function NewSocio() {
         </button>
       )}
 
-      {/* Document scan (OCR): take 1-2 photos of the DNI, fields auto-fill */}
+      {/* Document scan: camera and gallery share the same local OCR pipeline. */}
       <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4">
-        <div className="flex items-center gap-4">
-          <div className="h-14 w-14 shrink-0 rounded-full flex items-center justify-center bg-gradient-neon text-primary-foreground glow-neon">
-            {scanStatus === "scanning" ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <ScanLine className="w-6 h-6" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
-              Escanear documento
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 shrink-0 rounded-full flex items-center justify-center bg-gradient-neon text-primary-foreground glow-neon">
+              {scanStatus === "scanning" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <ScanLine className="w-6 h-6" />
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.
-            </p>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-neon-dim">
+                Escanear documento
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Saca una foto o elígela de la galería. Lectura con IA externa únicamente con consentimiento. Confirma los datos antes de guardar.
+              </p>
+            </div>
           </div>
-          <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
-            <Camera className="w-4 h-4" />
-            {scanStatus === "scanning"
-              ? "Leyendo..."
-              : scanPreviews.length
-                ? "Volver a escanear"
-                : "Escanear"}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
-              disabled={scanStatus === "scanning"}
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length) scanDocuments(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className={`min-h-11 flex items-center justify-center gap-2 rounded-xl border border-neon/40 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neon ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-neon/10"}`}>
+              <Camera className="h-4 w-4 shrink-0" />
+              {scanStatus === "scanning" ? "Leyendo..." : "Sacar foto"}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                disabled={scanStatus === "scanning"}
+                aria-label="Sacar foto del documento"
+                onChange={(e) => {
+                  if (e.target.files?.length) void scanDocuments(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <label className={`min-h-11 flex items-center justify-center gap-2 rounded-xl border border-neon/40 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neon ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-neon/10"}`}>
+              <ScanLine className="h-4 w-4 shrink-0" />
+              {scanStatus === "scanning" ? "Leyendo..." : "Cargar de galería"}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="sr-only"
+                disabled={scanStatus === "scanning"}
+                aria-label="Cargar fotos del documento desde la galería"
+                onChange={(e) => {
+                  if (e.target.files?.length) void scanDocuments(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
         </div>
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">

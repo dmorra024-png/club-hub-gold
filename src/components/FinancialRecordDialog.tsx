@@ -1,4 +1,5 @@
 import { paymentMethodLabel } from "@/lib/administrative-payment";
+import { walletOrderPaymentState, walletCancel } from "@/lib/wallet-management.functions";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -57,6 +58,10 @@ export function FinancialRecordDialog({
     [refundMethod, setRefundMethod] = useState(""),
     [refundReason, setRefundReason] = useState(""),
     [refundConfirmed, setRefundConfirmed] = useState(false);
+  const [walletPayment,setWalletPayment]=useState<boolean|null>(null);
+  const [walletStatusError,setWalletStatusError]=useState(false);
+  const [walletUncertain,setWalletUncertain]=useState(false);
+  const walletCancelOperation=useRef<string|null>(null);
   const sending = useRef(false),
     sequence = useRef(0);
   const data = stored?.scope === scope ? stored.data : null,
@@ -88,13 +93,26 @@ export function FinancialRecordDialog({
       sequence.current++;
     };
   }, [scope, allowed, retry]);
+  useEffect(()=>{
+    if(!allowed)return;
+    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
+      setWalletPayment(false);setWalletStatusError(false);setWalletUncertain(false);
+      return;
+    }
+    let active=true;
+    setWalletPayment(null);setWalletStatusError(false);setWalletUncertain(false);
+    walletOrderPaymentState({data:{orderId}})
+      .then(result=>{if(active)setWalletPayment(result.wallet);})
+      .catch(()=>{if(active)setWalletStatusError(true);});
+    return()=>{active=false;};
+  },[scope,allowed,retry]);
   async function annul() {
     if (
       sending.current ||
       committed ||
       !order?.canCancel ||
       !can("use_cash") ||
-      reason.trim().length < 5
+      reason.trim().length < 5 || walletPayment===null || walletStatusError || walletUncertain
     )
       return;
     sending.current = true;
@@ -102,9 +120,15 @@ export function FinancialRecordDialog({
     setError("");
     const version = sequence.current;
     try {
-      await annulMemberFinancialRecord({
-        data: { memberId: memberId || data.memberId, orderId, reason: reason.trim() },
-      });
+      if(walletPayment){
+        walletCancelOperation.current??=crypto.randomUUID();
+        await walletCancel({data:{memberId:memberId||data.memberId,orderId,
+          reason:reason.trim(),operationId:walletCancelOperation.current,confirmed:true}});
+        walletCancelOperation.current=null;
+      }else{
+        await annulMemberFinancialRecord({data:{memberId:memberId||data.memberId,
+          orderId,reason:reason.trim()}});
+      }
       if (version !== sequence.current) return;
       setCommitted(true);
       window.dispatchEvent(new Event(RECORDS_CHANGED));
@@ -119,6 +143,7 @@ export function FinancialRecordDialog({
           );
       }
     } catch (e) {
+      if(walletPayment)setWalletUncertain(true);
       if (version === sequence.current)
         setError(
           e instanceof Error
@@ -134,7 +159,7 @@ export function FinancialRecordDialog({
     if (
       sending.current ||
       refundRecorded ||
-      !order?.canRefund ||
+      !order?.canRefund || walletPayment!==false ||
       !refundConfirmed ||
       !refundMethod ||
       refundReason.trim().length < 5
@@ -234,7 +259,10 @@ export function FinancialRecordDialog({
                 )}
               </div>
             )}
-            {order.status === "cancelled" && order.reversal && (
+            {order.status === "cancelled" && order.reversal && walletPayment===true && (
+              <p role="status" className="text-sm text-neon">Reembolso al Monedero integrado en la anulación. No registrar otro reembolso en efectivo.</p>
+            )}
+            {order.status === "cancelled" && order.reversal && walletPayment===false && (
               <div className="text-sm space-y-3 border-t border-border pt-3">
                 {order.reversal.refund ? (
                   <>
@@ -349,7 +377,7 @@ export function FinancialRecordDialog({
                 <Button
                   className="w-full"
                   variant="destructive"
-                  disabled={busy || reason.trim().length < 5}
+                  disabled={busy || reason.trim().length < 5 || walletPayment===null || walletStatusError || walletUncertain}
                   onClick={annul}
                 >
                   {busy ? "Anulando…" : "Confirmar anulación contable"}

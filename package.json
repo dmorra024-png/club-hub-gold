@@ -4,9 +4,9 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "dev": "node scripts/prepare-local-document-ocr.mjs && vite dev",
+    "build": "node scripts/prepare-local-document-ocr.mjs && vite build",
+    "build:dev": "node scripts/prepare-local-document-ocr.mjs && vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -24,8 +24,8 @@
     "test:sandbox:ai": "node scripts/test-administrative-ai.mjs",
     "test:sandbox:mobile": "node scripts/test-mobile-administration.mjs",
     "test:security:bundle": "node scripts/verify-client-secrets.mjs",
-    "build:worker": "SNOOP_RUNTIME=cloudflare vite build --mode pilot",
-    "build:worker:test": "SNOOP_RUNTIME=cloudflare vite build --mode sandbox",
+    "build:worker": "node scripts/prepare-local-document-ocr.mjs && SNOOP_RUNTIME=cloudflare vite build --mode pilot",
+    "build:worker:test": "node scripts/prepare-local-document-ocr.mjs && SNOOP_RUNTIME=cloudflare vite build --mode sandbox",
     "worker:dry-run": "WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --config .output/server/wrangler.json --outdir .sandbox/cloudflare-dry-run",
     "test:worker": "node scripts/prepare-worker-test.mjs && node scripts/test-worker.mjs",
     "pilot:database": "node scripts/prepare-pilot-database.mjs",
@@ -117,7 +117,10 @@
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
     "xlsx": "^0.18.5",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "tesseract.js": "7.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "tesseract.js-core": "7.0.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",

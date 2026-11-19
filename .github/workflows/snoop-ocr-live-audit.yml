@@ -1,0 +1,79 @@
+name: SNOOP OCR — verify actual live Worker (read only)
+
+on:
+  push:
+    branches:
+      - integration/snoop-monederosocio-management-20261118
+    paths:
+      - .github/workflows/snoop-ocr-live-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.repository == 'dmorra024-png/club-hub-gold'
+    runs-on: ubuntu-latest
+    environment: snoop-pilot
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - name: Verify live worker deployment metadata without changing anything
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then echo "AUDIT_MISSING_TOKEN"; exit 1; fi
+          node --input-type=module <<'NODE'
+          const base = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/snoop-pilot`;
+          async function get(path) {
+            const res = await fetch(base + path, {headers: {Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`}});
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok || !json.success) {
+              console.log(JSON.stringify({step:path,http:res.status,success:false,codes:(json.errors??[]).map(e=>e.code)}));
+              process.exit(1);
+            }
+            return json.result;
+          }
+          const deployments = await get('/deployments');
+          const all = Array.isArray(deployments) ? deployments : (deployments.deployments??[]);
+          if (!all.length) throw Error('NO_WORKER_DEPLOYMENTS');
+          const latest = all[0];
+          console.log(JSON.stringify({step:'active-deployments',count:all.length,latest:{id:latest.id,created_on:latest.created_on,strategy:latest.strategy,versions:(latest.versions??[]).map(v=>({version_id:v.version_id,percentage:v.percentage}))}}));
+          const versions = (latest.versions??[]).filter(v=>Number(v.percentage) > 0);
+          for (const v of versions) {
+            const doc = await get('/versions/'+encodeURIComponent(v.version_id));
+            const metadata = doc.metadata??{};
+            console.log(JSON.stringify({step:'active-version',version_id:v.version_id,percentage:v.percentage,number:doc.number,metadata:{created_on:metadata.created_on,source:metadata.source,tag:metadata.tag,message:metadata.message}}));
+          }
+          const settingsUrl=`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/snoop-pilot/settings`;
+          const res=await fetch(settingsUrl,{headers:{Authorization:`Bearer ${process.env.CLOUDFLARE_API_TOKEN}`}});
+          const payload=await res.json();
+          const bindings=payload.result?.bindings??[];
+          console.log(JSON.stringify({step:'nonsecret-binding-audit',http:res.status,ok:payload.success===true,
+            flags:{
+              aiPersonalData:bindings.find(b=>b.name==='AI_PERSONAL_DATA_PROCESSING_ENABLED')?.text==='false'?'disabled':bindings.some(b=>b.name==='AI_PERSONAL_DATA_PROCESSING_ENABLED')?'other':'missing',
+              serviceRoleSecret:bindings.find(b=>b.name==='SUPABASE_SERVICE_ROLE_KEY')?.type==='secret_text',
+              aiBinding:bindings.find(b=>b.name==='SNOOP_AI')?.type==='ai',
+              assetsBinding:bindings.find(b=>b.name==='ASSETS')?.type==='assets',
+              publicVars:['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','APP_URL'].every(name=>['plain_text','secret_text'].includes(bindings.find(b=>b.name===name)?.type)),
+            }}));
+          const src=await fetch('https://raw.githubusercontent.com/dmorra024-png/club-hub-gold/1aa5c77388a08d89fa63a4c0204ece8b54c00e79/wrangler.json');
+          if (src.ok && payload.success) {
+            const cfg=await src.json();
+            const named=Object.keys(cfg.vars??{});
+            const missing=named.filter(n=>!bindings.find(b=>b.name===n));
+            const mismatched=named.filter(n=>{const b=bindings.find(b=>b.name===n);return b && !['plain_text','json'].includes(b.type)});
+            console.log(JSON.stringify({step:'public-inherited-name-audit',expected:named.length,missing,mismatched}));
+          }
+          const publicResponse = await fetch('https://snoop-pilot.dmorra024.workers.dev/auth',{redirect:'manual'});
+          console.log(JSON.stringify({step:'live-auth',http:publicResponse.status,redirect:publicResponse.headers.get('location')?.startsWith('/')??false}));
+          if (publicResponse.status >= 500) process.exit(1);
+          NODE
+
+# Recheck current version before OCR-specific patch release.
+
+# Recheck live version before Moondream pilot deployment.
+
+# Confirm live version before Gemma OCR-only release.
