@@ -628,44 +628,60 @@ function NewSocio() {
         </button>
       )}
 
-      {/* Document scan (OCR): take 1-2 photos of the DNI, fields auto-fill */}
+      {/* Document scan: camera and gallery share the same local OCR pipeline. */}
       <div className="max-w-3xl mb-6 rounded-2xl border border-neon/30 bg-card/70 backdrop-blur p-4">
-        <div className="flex items-center gap-4">
-          <div className="h-14 w-14 shrink-0 rounded-full flex items-center justify-center bg-gradient-neon text-primary-foreground glow-neon">
-            {scanStatus === "scanning" ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <ScanLine className="w-6 h-6" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
-              Escanear documento
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 shrink-0 rounded-full flex items-center justify-center bg-gradient-neon text-primary-foreground glow-neon">
+              {scanStatus === "scanning" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <ScanLine className="w-6 h-6" />
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              Haz una foto nítida de la zona MRZ (líneas del reverso del DNI o del pasaporte). Lectura local: no se envían fotos a una IA externa. Revisa los campos.
-            </p>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-neon-dim">
+                Escanear documento
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Fotografía el documento o elige una imagen de la galería. La lectura es local y los datos deben revisarse antes de guardar.
+              </p>
+            </div>
           </div>
-          <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
-            <Camera className="w-4 h-4" />
-            {scanStatus === "scanning"
-              ? "Leyendo..."
-              : scanPreviews.length
-                ? "Volver a escanear"
-                : "Escanear"}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
-              disabled={scanStatus === "scanning"}
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length) scanDocuments(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className={`min-h-11 flex items-center justify-center gap-2 rounded-xl border border-neon/40 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neon ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-neon/10"}`}>
+              <Camera className="h-4 w-4 shrink-0" />
+              {scanStatus === "scanning" ? "Leyendo..." : "Sacar foto"}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                disabled={scanStatus === "scanning"}
+                aria-label="Sacar foto del documento"
+                onChange={(e) => {
+                  if (e.target.files?.length) void scanDocuments(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <label className={`min-h-11 flex items-center justify-center gap-2 rounded-xl border border-neon/40 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-neon ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-neon/10"}`}>
+              <ScanLine className="h-4 w-4 shrink-0" />
+              {scanStatus === "scanning" ? "Leyendo..." : "Cargar de galería"}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="sr-only"
+                disabled={scanStatus === "scanning"}
+                aria-label="Cargar fotos del documento desde la galería"
+                onChange={(e) => {
+                  if (e.target.files?.length) void scanDocuments(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
         </div>
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
