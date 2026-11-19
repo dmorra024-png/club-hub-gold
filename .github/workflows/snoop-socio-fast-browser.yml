@@ -1,0 +1,36 @@
+name: SNOOP Socio fast Chromium real UI acceptance
+on:
+  push:
+    branches: [fix/snoop-socio-auth-ui-reference-20261119]
+    paths:
+      - .github/workflows/snoop-socio-fast-browser.yml
+      - apps/socio/browser-acceptance.mjs
+permissions:
+  contents: read
+jobs:
+  chrome:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - name: Install locked dependencies without fetching browsers
+        run: bun install
+      - name: Exercise actual SNOOP Socio UI and fake-only API in system Chrome
+        env:
+          SNOOP_BROWSER_CHROMIUM_ONLY: "true"
+          SNOOP_CHROME_BIN: /usr/bin/google-chrome
+        run: |
+          test -x /usr/bin/google-chrome
+          node apps/socio/browser-acceptance.mjs
+      - name: Capture synthetic UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-socio-fast-chrome-captures
+          path: .sandbox/socio-browser/
+          if-no-files-found: ignore
