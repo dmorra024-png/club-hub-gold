@@ -2,6 +2,7 @@ import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
+import { JarvisVisualOverlay } from "@/components/JarvisVisualOverlay";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Home,
@@ -15,7 +16,6 @@ import {
   ScanLine,
   UserRound,
   Bell,
-  Mic,
 } from "lucide-react";
 import type { Permission } from "@/lib/access-context";
 import { useAuth } from "@/hooks/useAuth";
@@ -205,6 +205,7 @@ export function SnoopLayout({
         )}
         <div hidden={loading || !!accessError}>{children}</div>
       </main>
+      {!keyboard && <JarvisVisualOverlay />}
       <nav aria-label="Navegación principal" className="premium-bottom-nav" hidden={keyboard}>
         <Link to="/" aria-current={pathname === "/" ? "page" : undefined}>
           <Home aria-hidden="true" />
@@ -236,6 +237,8 @@ export function SnoopLayout({
           className="premium-dock-voice"
           aria-label="SNOOP"
           aria-pressed={voicePhase === "recording"}
+          data-voice-phase={voicePhase}
+          title="Activar asistente JARVIS"
           aria-busy={voicePhase === "starting" || voicePhase === "processing"}
           disabled={
             loading ||
@@ -246,8 +249,8 @@ export function SnoopLayout({
           }
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
-          <Mic aria-hidden="true" />
-          <span>SNOOP</span>
+          <span className="snoop-dock-hud" aria-hidden="true"><span className="snoop-dock-hud-ring"/><SnoopWordmark /></span>
+          <span>JARVIS</span>
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
           <UserRound aria-hidden="true" />
