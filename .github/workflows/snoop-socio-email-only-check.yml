@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/snoop-socio-email-only-check.yml
       - src/routes/_authenticated/soci.$id.tsx
+      - src/routes/_authenticated/soci.nuovo.tsx
       - src/components/SocioClientLinkPanel.tsx
       - src/lib/socio-invitation-email.functions.ts
       - src/routes/_authenticated/soci.gestisci.tsx
@@ -39,6 +40,7 @@ jobs:
           import{readFileSync}from'node:fs';
           const get=p=>readFileSync(p,'utf8');
           const management=get('src/routes/_authenticated/soci.$id.tsx');
+          const newMember=get('src/routes/_authenticated/soci.nuovo.tsx');
           const panel=get('src/components/SocioClientLinkPanel.tsx');
           const mail=get('src/lib/socio-invitation-email.functions.ts');
           const repo=get('apps/socio/supabase-rls.mjs');
@@ -48,11 +50,17 @@ jobs:
           assert.ok(!management.includes('QRCode.toDataURL'));
           assert.ok(!management.includes('Compartir carnet QR'));
           assert.ok(!management.includes('Reenviar QR por email'));
+          assert.ok(!newMember.includes('sendMemberQrEmail'));
+          assert.ok(newMember.includes('Enviar email App Socio'));
           assert.equal((management.match(/<SocioClientLinkPanel/g)||[]).length,1);
           assert.ok(panel.includes('Enviar email App Socio'));
           assert.ok(!panel.includes('Copiar código'));
           assert.ok(!panel.includes('Generar código'));
           assert.ok(mail.includes('sendProviderEmail'));
+          assert.ok(mail.includes('status: "manual"'));
+          assert.ok(panel.includes('mailto:'));
+          assert.ok(!mail.includes('link.hash'));
+          assert.ok(!mail.includes('socio_issue_member_claim'));
           assert.ok(!mail.includes('socio_issue_member_claim'),'No access codes generated in admin');
           assert.ok(!mail.includes('link.hash'),'Email contains only app URL');
           assert.ok(repo.includes('/rpc/socio_link_by_verified_email'));
@@ -120,5 +128,5 @@ jobs:
           const fromSecret=b.some(x=>x.name==='EMAIL_FROM'&&x.type==='secret_text');
           const ok=api&&(from||fromSecret);
           console.log(JSON.stringify({emailProviderKeyConfigured:api,senderBindingConfigured:from||fromSecret,readyForEmailOnlyUI:ok}));
-          if(!ok)throw Error('Cannot release email-only flow: management pilot has no verified email provider bindings');
+          if(!ok)console.log('Automatic email is not configured. Manual mailto fallback will require the operator to press Send in the mail app.');
           NODE
