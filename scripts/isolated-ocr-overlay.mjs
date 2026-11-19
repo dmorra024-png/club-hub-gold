@@ -29,7 +29,7 @@ base=base.slice(0,s)+reader+base.slice(e);
 const hint="Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.";
 if(base.includes(hint))base=base.replace(hint,"Fotografía la zona MRZ del documento. La lectura se hace en este dispositivo; confirma los datos antes de guardar.");
 await writeFile(join(baseline,file),base);
-const copyPaths=["src/lib/local-document-mrz.ts","src/lib/local-document-ocr.ts","src/lib/local-document-visual.ts","scripts/prepare-local-document-ocr.mjs","tests/local-document-mrz.test.ts"];
+const copyPaths=["src/lib/local-document-mrz.ts","src/lib/local-document-ocr.ts","src/lib/local-document-visual.ts","scripts/prepare-local-document-ocr.mjs","tests/local-document-mrz.test.ts","tests/local-document-visual.test.ts"];
 for(const p of copyPaths) { await mkdir(join(baseline,p.split("/").slice(0,-1).join("/")),{recursive:true});await copyFile(join(ocr,p),join(baseline,p));}
 const pkgPath=join(baseline,"package.json");const pkg=JSON.parse(await readFile(pkgPath,"utf8"));
 for(const s of ["dev","build","build:dev","build:worker","build:worker:test"]){
