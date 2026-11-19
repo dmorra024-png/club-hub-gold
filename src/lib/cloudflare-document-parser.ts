@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const DOCUMENT_MODEL = "@cf/moondream/moondream3.1-9B-A2B";
+export const DOCUMENT_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 export const imageInput = z.object({
   consent: z.literal(true),
   images: z.array(z.object({
@@ -26,10 +26,12 @@ export const prompt = [
   "Do not guess, do not infer, and use empty string for illegible or missing values.",
   "No explanations. This is OCR only; fields are unverified until a human checks.",
 ].join(" ");
-export function parseMoondreamAnswer(output: unknown): Fields {
-  const raw = output && typeof output === "object"
-    ? (output as { answer?: unknown }).answer
-    : null;
+export function parseCloudflareVisionAnswer(output: unknown): Fields {
+  const data = output && typeof output === "object" ? output as {
+    response?: unknown;
+    choices?: Array<{ message?: { content?: unknown } }>;
+  } : {};
+  const raw = data.choices?.[0]?.message?.content ?? data.response;
   if (typeof raw !== "string" || raw.length > 6000) throw new Error("INVALID_DOCUMENT_AI_RESPONSE");
   const cleaned = raw.trim().replace(/^\x60{3}(?:json)?\s*/i, "").replace(/\s*\x60{3}$/, "");
   const candidate = cleaned.match(/\{[\s\S]*\}/)?.[0];
