@@ -42,7 +42,7 @@ export const readDocumentWithCloudflare = createServerFn({ method: "POST" })
         throw new Error("DOCUMENT_AI_PROVIDER_UNAVAILABLE");
       }
       let fields: z.infer<typeof documentFields>;
-      try { fields = parseMoondreamAnswer(reply); }
+      try { fields = parseCloudflareVisionAnswer(reply); }
       catch { throw new Error("DOCUMENT_AI_COULD_NOT_READ_FIELDS"); }
       for (const field of Object.keys(merged) as (keyof z.infer<typeof documentFields>)[])
         if (!merged[field] && fields[field]) merged[field] = fields[field];
