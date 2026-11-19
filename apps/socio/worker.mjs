@@ -27,7 +27,7 @@ export async function handleSocioWorker(request,env){
   const renderQrSvg=async token=>{
    // Only trusted server-side signed QR payloads arrive here, never user-supplied text.
    const lib=await import('qrcode');
-   return lib.default.toString(token,{type:'svg',width:400,margin:2,errorCorrectionLevel:'M'});
+   return lib.default.toString(token,{type:'svg',width:600,margin:4,errorCorrectionLevel:'L',color:{dark:'#000000',light:'#FFFFFF'}});
   };
   const handle=createSocioApplication({
    supabaseUrl:env.SOCIO_SUPABASE_URL,
