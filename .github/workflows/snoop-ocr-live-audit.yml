@@ -59,6 +59,14 @@ jobs:
               assetsBinding:bindings.find(b=>b.name==='ASSETS')?.type==='assets',
               publicVars:['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','APP_URL'].every(name=>['plain_text','secret_text'].includes(bindings.find(b=>b.name===name)?.type)),
             }}));
+          const src=await fetch('https://raw.githubusercontent.com/dmorra024-png/club-hub-gold/1aa5c77388a08d89fa63a4c0204ece8b54c00e79/wrangler.json');
+          if (src.ok && payload.success) {
+            const cfg=await src.json();
+            const named=Object.keys(cfg.vars??{});
+            const missing=named.filter(n=>!bindings.find(b=>b.name===n));
+            const mismatched=named.filter(n=>{const b=bindings.find(b=>b.name===n);return b && !['plain_text','json'].includes(b.type)});
+            console.log(JSON.stringify({step:'public-inherited-name-audit',expected:named.length,missing,mismatched}));
+          }
           const publicResponse = await fetch('https://snoop-pilot.dmorra024.workers.dev/auth',{redirect:'manual'});
           console.log(JSON.stringify({step:'live-auth',http:publicResponse.status,redirect:publicResponse.headers.get('location')?.startsWith('/')??false}));
           if (publicResponse.status >= 500) process.exit(1);
