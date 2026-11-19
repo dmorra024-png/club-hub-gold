@@ -36,14 +36,11 @@ if(baseUiStart<0 || modernUiStart<0 || baseUiEnd<0 || modernUiEnd<0)
   throw Error("Scanner UI markers drifted: fail closed");
 base=base.slice(0,baseUiStart)+modern.slice(modernUiStart,modernUiEnd)+base.slice(baseUiEnd);
 await writeFile(join(baseline,file),base);
-const copyPaths=["src/lib/local-document-mrz.ts","src/lib/local-document-ocr.ts","src/lib/local-document-visual.ts","src/lib/mistral-documents.functions.ts","scripts/prepare-local-document-ocr.mjs","tests/local-document-mrz.test.ts","tests/local-document-visual.test.ts"];
-for(const p of copyPaths) { await mkdir(join(baseline,p.split("/").slice(0,-1).join("/")),{recursive:true});await copyFile(join(ocr,p),join(baseline,p));}
-const pkgPath=join(baseline,"package.json");const pkg=JSON.parse(await readFile(pkgPath,"utf8"));
-for(const s of ["dev","build","build:dev","build:worker","build:worker:test"]){
-  const prefix="node scripts/prepare-local-document-ocr.mjs && ";
-  if(!pkg.scripts[s]) throw Error("Missing baseline build command "+s);
-  pkg.scripts[s]=prefix+pkg.scripts[s];
+
+const copyPaths=["src/lib/mistral-documents.functions.ts"];
+for(const p of copyPaths) {
+  await mkdir(join(baseline,p.split("/").slice(0,-1).join("/")),{recursive:true});
+  await copyFile(join(ocr,p),join(baseline,p));
 }
-for (const [name,version] of Object.entries({"tesseract.js":"7.0.0","tesseract.js-core":"7.0.0","@tesseract.js-data/eng":"1.0.0","@tesseract.js-data/spa":"1.0.0"})) pkg.dependencies[name]=version;
-await writeFile(pkgPath,JSON.stringify(pkg,null,2)+"\n");
-console.log("ISOLATED_OCR_OVERLAY_OK");
+// No package change, no OCR worker, no model download, no schema migration.
+console.log("ISOLATED_MISTRAL_DOCUMENT_OVERLAY_READY");
