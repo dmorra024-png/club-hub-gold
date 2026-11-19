@@ -1,6 +1,6 @@
 // Public shell caching only. Never cache authenticated pages, QR images, API or wallet.
-const VERSION='snoop-socio-shell-v3';
-const SHELL=['./','./index.html','./styles.css','./main.js','./icon.svg','./snoop-wordmark.svg','./manifest.webmanifest'];
+const VERSION='snoop-socio-shell-v4';
+const SHELL=['./','./index.html','./styles.css','./main.js','./icon.svg','./snoop-wordmark.svg','./chakra-petch-latin-600.woff2','./manifest.webmanifest'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.includes('/api/')||e.request.headers.has('Authorization'))return;

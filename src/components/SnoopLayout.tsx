@@ -1,4 +1,5 @@
 import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
@@ -51,6 +52,7 @@ export function SnoopLayout({
 }) {
   const voicePhase = useVoicePhase();
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
+  useClubTheme(access.clubId);
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
@@ -99,6 +101,18 @@ export function SnoopLayout({
       <a href="#main-content" className="premium-skip">
         Ir al contenido
       </a>
+      <aside className="snoop-desktop-rail" aria-label="Navegación de escritorio">
+        <Link to="/" className="snoop-rail-logo" aria-label="SNOOP — Inicio"><SnoopWordmark /></Link>
+        <p className="snoop-rail-club">{access.clubName || "SNOOP"}</p>
+        <nav className="snoop-rail-links">
+          {visible.map(item => (
+            <Link key={item.to} to={item.to} aria-current={pathname === item.to ? "page" : undefined}>
+              <item.icon size={19} aria-hidden="true" /><span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+        <p className="snoop-rail-footer">SNOOP</p>
+      </aside>
       <header className="premium-topbar">
         <button
           ref={trigger}
