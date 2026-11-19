@@ -15,16 +15,12 @@ import {
   Trash2,
   FileCheck,
   ShoppingBag,
-  QrCode,
   Pencil,
   Save,
   X,
-  Mail,
-  Share2,
 } from "lucide-react";
 import { expiryBadge, formatPrice, signedUrl } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
-import QRCode from "qrcode";
 
 export const Route = createFileRoute("/_authenticated/soci/$id")({
   component: SocioDetail,
@@ -65,7 +61,6 @@ function SocioDetail() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [dniUrl, setDniUrl] = useState<string>("");
   const [sigUrl, setSigUrl] = useState<string>("");
-  const [qrUrl, setQrUrl] = useState<string>("");
   const renewalRequest = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [renewing, setRenewing] = useState(false);
@@ -75,87 +70,6 @@ function SocioDetail() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Member>>({});
   const [savingEdit, setSavingEdit] = useState(false);
-  const [resendingQr, setResendingQr] = useState(false);
-  const [qrMailStatus, setQrMailStatus] = useState("");
-  async function checkQrMail() {
-    try {
-      const { getMemberMailStatus } = await import("@/lib/member-mail.functions");
-      const { memberMailLabel } = await import("@/lib/member-mail-state");
-      const result = await getMemberMailStatus({ data: { memberId: member!.id } });
-      setQrMailStatus(memberMailLabel(result.status));
-    } catch {
-      setQrMailStatus("Estado no disponible: entrega no verificada.");
-    }
-  }
-
-  async function resendQr() {
-    if (!member) return;
-    if (!member.email) return toast.error("Este socio no tiene email");
-    setResendingQr(true);
-    try {
-      const { data: m2 } = await supabase
-        .from("members")
-        .select("club_id")
-        .eq("id", member.id)
-        .maybeSingle();
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("name")
-        .eq("id", (m2 as any)?.club_id ?? "")
-        .maybeSingle();
-      const { sendMemberQrEmail } = await import("@/lib/member-qr");
-      const mail = await sendMemberQrEmail({
-        memberId: member.id,
-        memberNumber: member.member_number,
-        fullName: `${member.first_name} ${member.last_name}`.trim(),
-        email: member.email,
-        clubName: (club as any)?.name ?? "Club",
-      });
-      const { memberMailLabel } = await import("@/lib/member-mail-state");
-      setQrMailStatus(memberMailLabel(mail.status));
-      toast.info(memberMailLabel(mail.status));
-    } catch (e: any) {
-      toast.error(e.message ?? "No se pudo reenviar");
-    } finally {
-      setResendingQr(false);
-    }
-  }
-
-  // A local-only fallback when the transactional email provider is not configured.
-  // Never sends the QR to a server or to another app without an explicit tap.
-  async function shareQr() {
-    if (!member || !qrUrl) return;
-    try {
-      const encoded = qrUrl.split(",")[1];
-      if (!encoded) throw new Error("QR no disponible");
-      const raw = atob(encoded);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const filename = `snoop-carnet-${member.member_number.replace(/[^0-9]/g, "")}.png`;
-      const file = new File([bytes], filename, { type: "image/png" });
-      const name = [member.first_name, member.last_name].join(" ").trim();
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: "Carnet QR SNOOP", text: `Carnet QR de ${name}` });
-        } catch (error) {
-          if ((error as Error)?.name !== "AbortError") throw error;
-        }
-      } else {
-        const url = URL.createObjectURL(file);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-        toast.info("QR descargado. Puedes adjuntarlo a un email.");
-      }
-    } catch {
-      toast.error("No se pudo compartir el QR. Usa la imagen del carnet.");
-    }
-  }
-
   async function saveEdit() {
     if (!member || savingEdit || !navigator.onLine) return;
     if (!form.first_name?.trim() || !form.last_name?.trim())
@@ -205,16 +119,6 @@ function SocioDetail() {
       setDniUrl(await signedUrl((m as any).dni_photo_path).catch(() => ""));
     if ((m as any).signature_path)
       setSigUrl(await signedUrl((m as any).signature_path).catch(() => ""));
-    if ((m as any).member_number) {
-      try {
-        const url = await QRCode.toDataURL(`SNOOP:${(m as any).member_number}`, {
-          margin: 1,
-          width: 320,
-          color: { dark: "#39FF14", light: "#00000000" },
-        });
-        setQrUrl(url);
-      } catch {}
-    }
   }
   useEffect(() => {
     load();
@@ -476,55 +380,7 @@ function SocioDetail() {
 
         {/* Right: actions */}
         <div className="space-y-6">
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 flex flex-col items-center text-center">
-            <div className="flex items-center gap-2 mb-3">
-              <QrCode className="w-4 h-4 text-neon" />
-              <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Carnet QR</div>
-            </div>
-            {qrUrl ? (
-              <img src={qrUrl} alt={`QR socio ${member.member_number}`} className="w-44 h-44" />
-            ) : (
-              <div className="w-44 h-44 flex items-center justify-center text-muted-foreground text-xs">
-                Generando…
-              </div>
-            )}
-            <div className="font-display text-neon tracking-[0.3em] mt-3">
-              {member.member_number}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Escanea el QR o dicta el número para abrir esta ficha.
-            </p>
-            <button
-              type="button"
-              onClick={() => void shareQr()}
-              disabled={!qrUrl}
-              className="mt-4 w-full flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-2.5 rounded-lg text-[11px] uppercase tracking-widest font-semibold disabled:opacity-50"
-              title="Compartir el QR como imagen desde este dispositivo"
-            >
-              <Share2 className="w-3.5 h-3.5" /> Compartir carnet QR
-            </button>
-            <p className="text-[10px] text-muted-foreground mt-2">
-              Puedes elegir tu app de email o descargar la imagen. No se envía automáticamente.
-            </p>
-            <button
-              type="button"
-              onClick={resendQr}
-              disabled={resendingQr || !member.email}
-              className="mt-2 w-full flex items-center justify-center gap-2 border border-neon/40 text-neon py-2 rounded-lg text-[11px] uppercase tracking-widest hover:bg-neon/10 disabled:opacity-50"
-              title={member.email ? "" : "Este socio no tiene email"}
-            >
-              <Mail className="w-3.5 h-3.5" />{" "}
-              {resendingQr ? "Solicitando…" : "Reenviar QR por email"}
-            </button>
-            <button type="button" className="mt-2 text-sm underline" onClick={checkQrMail}>
-              Consultar estado del email QR
-            </button>
-            {qrMailStatus && (
-              <p role="status" className="text-xs mt-2">
-                {qrMailStatus}
-              </p>
-            )}
-          </div>
+          <SocioClientLinkPanel memberId={id} />
 
           <button
             onClick={nuevoPedido}
@@ -595,7 +451,6 @@ function SocioDetail() {
         </div>
       </div>
       <MemberDiscounts memberId={id} />
-      <SocioClientLinkPanel memberId={id} />
       <WalletTopupPanel memberId={id} />
       <MemberOrderHistory memberId={id} />
     </SnoopLayout>
