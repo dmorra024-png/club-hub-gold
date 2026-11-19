@@ -1,0 +1,38 @@
+name: SNOOP Socio original design mobile acceptance (no deployment)
+on:
+  push:
+    branches: [fix/snoop-socio-auth-ui-reference-20261119]
+    paths:
+      - .github/workflows/snoop-socio-reference-browser.yml
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - name: Install dependencies and browsers
+        run: |
+          bun install
+          npm install --prefix apps/socio --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright-core@1.57.0
+          apps/socio/node_modules/.bin/playwright-core install --with-deps chromium webkit
+      - name: Exercise Android Chromium and iPhone WebKit with fake API only
+        run: node apps/socio/browser-acceptance.mjs
+      - name: Store synthetic screen captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-socio-approved-layout-mobile
+          path: .sandbox/socio-browser/
+          if-no-files-found: ignore
+          retention-days: 5
+      - run: echo "No real users, no secret access and no deployment"
