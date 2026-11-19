@@ -58,8 +58,7 @@ export function parseMoondreamAnswer(output: unknown): Fields {
   return fields;
 }
 function enabled(): boolean {
-  return process.env.SNOOP_DOCUMENT_AI_PILOT_ENABLED === "true" &&
-    process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
+  return process.env.SNOOP_RESOURCE_NAMESPACE === "snoop-pilot" &&
     process.env.AI_PROVIDER === "cloudflare";
 }
 export const documentAiPilotStatus = createServerFn({ method: "GET" })
