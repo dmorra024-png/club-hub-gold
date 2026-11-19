@@ -35,3 +35,20 @@ test("rejects invalid MRZ check digits and arbitrary OCR text", () => {
 test("check digit examples", () => {
   assert.equal(mrzCheckDigit("L898902C<"), "3");
 });
+
+test("accepts a passport MRZ with OCR spacing, angle quotes and missing trailing fillers", () => {
+  const [name, numbers] = makeTD3().split("\n");
+  const fragmentedName = name.slice(0, 30).replace(/</g, "«");
+  const spacedNumbers = numbers.replace(/(.{11})/g, "$1 ");
+  const result = parseMrzText(fragmentedName + "\n" + spacedNumbers);
+  assert.equal(result?.format, "TD3");
+  assert.equal(result?.fields.dni_number, "PA123456");
+});
+test("accepts MRZ passport with harmless margin characters", () => {
+  const [a,b] = makeTD3().split("\n");
+  const result = parseMrzText("XX" + a + "\n" + b + "<<");
+  assert.equal(result?.fields.first_name, "ANA MARIA");
+});
+test("does not bypass ICAO checksums when OCR mistakes a birth-date digit", () => {
+  assert.equal(parseMrzText(makeTD3().replace("920102", "920103")), null);
+});
