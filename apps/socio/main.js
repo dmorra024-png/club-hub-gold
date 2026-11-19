@@ -79,9 +79,9 @@ function carnetPage(){
  shell('<section class="socio-welcome"><div class="kicker">MI CLUB</div><h1 class="club-heading">'+safe(c.name)+'</h1><p class="muted">Tu acceso privado SNOOP</p></section>'+
  '<section class="carnet" aria-label="Tarjeta digital del socio"><div class="carnet-topline"><span>SNOOP · SOCIO</span><span class="carnet-active">● Activo</span></div>'+
  '<div class="carnet-member-number">'+(state.member?.memberNumber?'SOCIO Nº '+safe(state.member.memberNumber):'CARNET PENDIENTE')+'</div>'+
- '<div class="qr-frame">'+(state.qrUrl?'<img alt="QR temporal de socio" src="'+state.qrUrl+'"/>':'<div class="qr-empty">'+unavailable+'</div>')+'</div>'+
+ '<div class="qr-frame">'+(state.qrUrl?'<img alt="QR permanente de socio" src="'+state.qrUrl+'"/>':'<div class="qr-empty">'+unavailable+'</div>')+'</div>'+
  '<p class="muted">'+(state.qrUrl?'Muestra este código al personal':'El QR solo aparece con una vinculación válida y conexión activa.')+'</p>'+
- '<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Actualizar QR</button></section>'+
+ '<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Mostrar QR</button></section>'+
  (c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">Saldo monedero</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Ver movimientos</button></section>':'')+
  '<button class="btn ghost end" data-action="clubs">Mis clubes</button>');
 }
