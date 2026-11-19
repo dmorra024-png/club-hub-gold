@@ -58,7 +58,7 @@ export function parseMRZ(text: string): Partial<DocumentFields> {
   }
   return {};
 }
-function parseVisibleText(text: string): Partial<DocumentFields> {
+export function parseVisibleText(text: string): Partial<DocumentFields> {
   const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   const result: Partial<DocumentFields> = {};
   const joined = lines.join("\n");
@@ -98,27 +98,65 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
   // Never infer an address/city from unrelated fields or an unlabeled number.
   return result;
 }
+// Improve the small, low-contrast print without sending the photo off-device.
+// The image must be a document crop/photo, never a screenshot of the application.
+async function prepareOCRImage(source: Blob, mrzOnly: boolean): Promise<Blob> {
+  const bitmap = await createImageBitmap(source);
+  try {
+    const croppedY = mrzOnly ? Math.floor(bitmap.height * 0.58) : 0;
+    const sourceHeight = bitmap.height - croppedY;
+    const scale = Math.min(3, 2600 / Math.max(bitmap.width, sourceHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("No se pudo preparar la imagen");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, croppedY, bitmap.width, sourceHeight, 0, 0, canvas.width, canvas.height);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      const value = 0.299 * pixels.data[i] + 0.587 * pixels.data[i + 1] + 0.114 * pixels.data[i + 2];
+      const enhanced = Math.max(0, Math.min(255, (value - 128) * 1.7 + 128));
+      pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = enhanced;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error("No se pudo preparar el OCR")), "image/png")
+    );
+  } finally {
+    bitmap.close();
+  }
+}
+
 export async function scanDocumentLocally(images: Blob[]): Promise<{ fields: DocumentFields; rawText: string }> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker(["spa", "eng"]);
   try {
     const texts: string[] = [];
-    for (const img of images) {
-      const url = URL.createObjectURL(img);
-      try {
-        // The first pass captures printed field labels, the second improves
-        // reading the dense machine-readable lines near the document edge.
-        await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-        const general = await worker.recognize(url);
-        await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
-        const structured = await worker.recognize(url);
-        texts.push(general.data.text, structured.data.text);
-      } finally { URL.revokeObjectURL(url); }
+    for (const image of images) {
+      // OCR on enhanced full photograph and enlarged lower region for MRZ.
+      const variants = [
+        { blob: await prepareOCRImage(image, false), psm: PSM.SPARSE_TEXT },
+        { blob: await prepareOCRImage(image, true), psm: PSM.SINGLE_BLOCK },
+      ];
+      for (const variant of variants) {
+        const url = URL.createObjectURL(variant.blob);
+        try {
+          await worker.setParameters({ tessedit_pageseg_mode: variant.psm });
+          const { data } = await worker.recognize(url);
+          texts.push(data.text);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
     }
     const rawText = texts.join("\n");
     const visible = parseVisibleText(rawText);
     const mrz = parseMRZ(rawText);
     const fields = { ...empty(), ...visible, ...Object.fromEntries(Object.entries(mrz).filter(([, v]) => !!v)) };
     return { fields, rawText };
-  } finally { await worker.terminate(); }
+  } finally {
+    await worker.terminate();
+  }
 }
