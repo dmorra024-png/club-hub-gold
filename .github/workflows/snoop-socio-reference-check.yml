@@ -8,6 +8,9 @@ on:
       - apps/socio/styles.css
       - apps/socio/auth-supabase.mjs
       - apps/socio/auth-supabase.test.mjs
+      - apps/socio/cloudflare-fetch-compat.test.mjs
+      - apps/socio/socio-role.mjs
+      - apps/socio/supabase-rls.mjs
 permissions:
   contents: read
 jobs:
@@ -26,7 +29,7 @@ jobs:
           node --check apps/socio/main.js
           node --check apps/socio/auth-supabase.mjs
           node apps/socio/check.mjs
-          node --test apps/socio/auth-supabase.test.mjs apps/socio/account-completion.test.mjs apps/socio/club-theme.test.mjs apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/http.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
+          node --test apps/socio/cloudflare-fetch-compat.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/account-completion.test.mjs apps/socio/club-theme.test.mjs apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/http.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs
           node apps/socio/build-public.mjs
       - name: Verify approved home UI elements and no fabricated balances or mock QR
         run: |
