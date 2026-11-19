@@ -4,35 +4,6 @@ const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
   pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
 const endpoint = '/api/socio';
-// Receive the invitation only from the email link fragment. The bearer token
-// is kept in tab-scoped storage across email confirmation, never a URL query,
-// log, persistent localStorage key or visible text field.
-const INVITE_STORE = 'snoop-socio-pending-invite';
-function captureEmailInvitation(){
- const raw=location.hash.startsWith('#')?location.hash.slice(1):'';
- const candidate=new URLSearchParams(raw).get('invite');
- if(candidate && /^[a-f0-9]{48}$/.test(candidate)){
-  sessionStorage.setItem(INVITE_STORE,candidate);
-  history.replaceState(history.state,'',location.pathname+location.search);
- }
-}
-captureEmailInvitation();
-async function claimEmailInvitation(){
- const code=sessionStorage.getItem(INVITE_STORE);
- if(!code)return null;
- if(!/^[a-f0-9]{48}$/.test(code)){sessionStorage.removeItem(INVITE_STORE);return null;}
- try{
-  const result=await api('/link/claim',{method:'POST',body:{code}});
-  if(result?.linked!==true)throw Error('La invitación no pudo vincularse.');
-  sessionStorage.removeItem(INVITE_STORE);
-  return true;
- }catch{
-  // One-use or expired links can be re-sent from the member's club.
-  sessionStorage.removeItem(INVITE_STORE);
-  return false;
- }
-}
-
 const themeIds=['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'];
 const themes={
  'navy-gold':['#050C17','#0B1827','#13263B','#E5BC78','#F3F4F7','#A7B3C2','#41516A','#091321'],
@@ -175,17 +146,13 @@ async function authenticate(){
  try{
   state.me=await api('/me');
   if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}
-  let inviteResult=null;
   if(state.me.emailVerified===true){
-   inviteResult=await claimEmailInvitation();
+   // The database links memberships by auth.uid() and confirmed account email,
+   // enforcing unique member per club and current active status. No code input.
    try{await api('/memberships/sync',{method:'POST',body:{}});}
-   catch{/* Verified email invitation remains the supported secure path. */}
+   catch{/* A transient sync failure must not log the member out. */}
   }
   await refreshClubs();
-  if(inviteResult===false){
-   state.message='El enlace de invitación no es válido o ha caducado. Solicita al club que vuelva a enviarlo.';
-   state.error=true;render();
-  }
  }catch(e){
   resetClub();state.me=null;state.clubs=[];state.page='login';
   state.message=e?.status===401?'':(e?.message||'No se puede conectar con el servicio de socios.');
@@ -196,7 +163,7 @@ async function authenticate(){
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
 document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');sessionStorage.removeItem(INVITE_STORE);}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.page==='carnet'&&!state.qrUrl)void refreshCarnet();});
 // The browser reclaims object URLs at document unload; navigation does not revoke a valid permanent card.
