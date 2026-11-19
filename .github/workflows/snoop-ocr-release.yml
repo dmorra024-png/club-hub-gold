@@ -89,7 +89,7 @@ jobs:
         run: bun install
       - name: Validate SQL security and TypeScript
         run: |
-          node --test tests/local-document-mrz.test.ts
+          node --test tests/local-document-mrz.test.ts tests/local-document-visual.test.ts
           bun run test:security:architecture
           bun run test:voice:activation
           bun run test:security:initialization
