@@ -158,7 +158,7 @@ async function authenticate(){
 async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
 async function submitClaim(form){
  const code=String(new FormData(form).get('code')||'').trim();
- if(!/^\\d{6}$/.test(code))return notify('Introduce los 6 números del correo.',true);
+ if(!/^\d{6}$/.test(code))return notify('Introduce los 6 números del correo.',true);
  state.pending=true;render();
  try{
   await api('/link/claim',{method:'POST',body:{code}});
