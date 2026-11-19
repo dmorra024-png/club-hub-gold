@@ -3,13 +3,21 @@ import assert from 'node:assert/strict';
 import {createSupabaseSocioAuth} from './auth-supabase.mjs';
 const uid='c319b1ed-9389-4c81-9e7f-42f808d95c34';
 const origin='https://socio.example.test',supabase='https://example.supabase.co';
+const testJwt=(suffix='session')=>[
+ Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),
+ Buffer.from(JSON.stringify({sub:uid,exp:Math.floor(Date.now()/1000)+3600,iss:'https://example.supabase.co/auth/v1'})).toString('base64url'),
+ 'testsignature'+suffix
+].join('.');
+const accessTest=testJwt('access'),newTest=testJwt('new-access');
+const refreshTest='11111111-2222-4333-8444-555555555555',newRefreshTest='66666666-7777-4888-8999-000000000000';
+
 function fixture({allow=true,confirmed=true}={}){
  const hits=[];
  const fetcher=async(url,opts)=>{
   hits.push({url,opts});
   if(url.includes('/signup?redirect_to='))return Response.json({id:uid});
-  if(url.includes('grant_type=password'))return Response.json({access_token:'session-access',refresh_token:'session-refresh',expires_in:1800});
-  if(url.includes('grant_type=refresh_token'))return Response.json({access_token:'new-access',refresh_token:'new-refresh',expires_in:1800});
+  if(url.includes('grant_type=password'))return Response.json({access_token:accessTest,refresh_token:refreshTest,expires_in:1800});
+  if(url.includes('grant_type=refresh_token'))return Response.json({access_token:newTest,refresh_token:newRefreshTest,expires_in:1800});
   if(url.endsWith('/user'))return Response.json({id:uid,email:'socio@example.com',email_confirmed_at:confirmed?'2026-11-17T00:00:00Z':null});
   if(url.endsWith('/logout'))return Response.json({});
   return Response.json({}, {status:404});
@@ -35,7 +43,7 @@ test('login checks verified user and server authorization then sets HttpOnly Sec
  const r=await auth.login({input:{email:'socio@example.com',password:'correctHorse123!'}});
  assert.equal(r.status,200);
  const cookie=getCookie(r,'__Host-snoop_socio_at');
- assert.ok(cookie.includes('session-access'));
+ assert.ok(cookie.includes(accessTest));
  assert.match(r.headers.get('set-cookie'),/HttpOnly/);
  assert.match(r.headers.get('set-cookie'),/SameSite=Strict/);
  assert.match(r.headers.get('set-cookie'),/Secure/);
@@ -56,8 +64,8 @@ test('refresh rotates both HttpOnly tokens; logout clears cookies',async()=>{
  const refCookie=getCookie(login,'__Host-snoop_socio_rt');
  const refreshed=await auth.refresh({request:req(refCookie)});
  assert.equal(refreshed.status,200);
- assert.ok(getCookie(refreshed,'__Host-snoop_socio_at').includes('new-access'));
- assert.ok(getCookie(refreshed,'__Host-snoop_socio_rt').includes('new-refresh'));
+ assert.ok(getCookie(refreshed,'__Host-snoop_socio_at').includes(newTest));
+ assert.ok(getCookie(refreshed,'__Host-snoop_socio_rt').includes(newRefreshTest));
  const out=await auth.logout({request:req(getCookie(refreshed,'__Host-snoop_socio_at'))});
  assert.equal(out.status,200);
  assert.match(out.headers.get('set-cookie'),/Max-Age=0/);
@@ -110,4 +118,24 @@ test('rejected registration cannot masquerade as verification email',async()=>{
  assert.equal(result.status,400);
  assert.equal(result.headers.get('set-cookie'),null);
  assert.equal(JSON.stringify(await result.json()).includes('Password rejected'),false);
+});
+
+test('stale and malformed access cookie fails as signed-out without contacting provider',async()=>{
+ const {auth,hits}=fixture();
+ const invalid=['invalid.synthetic.token','short','abc.def.ghi',testJwt('expired')];
+ for(const token of invalid.slice(0,3)){
+  const actor=await auth.authenticate(req('__Host-snoop_socio_at='+encodeURIComponent(token)));
+  assert.equal(actor,null);
+ }
+ const expired=[
+  Buffer.from(JSON.stringify({alg:'HS256'})).toString('base64url'),
+  Buffer.from(JSON.stringify({sub:uid,exp:Math.floor(Date.now()/1000)-3600})).toString('base64url'),
+  'testsigned'
+ ].join('.');
+ assert.equal(await auth.authenticate(req('__Host-snoop_socio_at='+expired)),null);
+ assert.equal(hits.length,0);
+ const refresh=await auth.refresh({request:req('__Host-snoop_socio_rt=synthetic')});
+ assert.equal(refresh.status,401);
+ assert.match(refresh.headers.get('set-cookie'),/Max-Age=0/);
+ assert.equal(hits.length,0);
 });
