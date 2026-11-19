@@ -1,4 +1,4 @@
-name: Qwen vision synthetic ID test (no deployment)
+name: Qwen vision synthetic & degraded ID tests (no deployment)
 
 on:
   push:
@@ -45,6 +45,14 @@ jobs:
           for i,line in enumerate(rows):
             d.text((65,65+i*98),line,fill="#111111",font=title if i==0 else body)
           image.save("/tmp/snoop-synthetic-id.png")
+          from PIL import ImageFilter,ImageEnhance
+          tilted=image.rotate(2.0,resample=Image.Resampling.BICUBIC,expand=False,fillcolor="#eee5d6")
+          smaller=tilted.resize((1050,665),Image.Resampling.LANCZOS)
+          blurred=smaller.filter(ImageFilter.GaussianBlur(0.7))
+          reduced=ImageEnhance.Contrast(blurred).enhance(0.8)
+          reduced.save("/tmp/snoop-synthetic-id-degraded.png")
           PY
       - name: Run Qwen multimodal test on synthetic-only image
-        run: node scripts/test-qwen-id-vision.mjs
+        run: |
+          node scripts/test-qwen-id-vision.mjs
+          TEST_IMAGE_PATH=/tmp/snoop-synthetic-id-degraded.png TEST_IMAGE_LABEL=synthetic-rotated-blurred node scripts/test-qwen-id-vision.mjs
