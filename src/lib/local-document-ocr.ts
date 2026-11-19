@@ -1,4 +1,5 @@
 import { parseMrzText, type MrzParseResult } from "./local-document-mrz";
+import { parsePrintedDocumentText, type VisualDocumentFields } from "./local-document-visual";
 
 type LocalTesseract = {
   createWorker: (languages: string, oem?: number, options?: Record<string, unknown>) => Promise<{
@@ -71,6 +72,43 @@ function combinedParse(texts: string[]): MrzParseResult | null {
     if (match) return match;
   }
   return parseMrzText(texts.join("\n"));
+}
+
+export type LocalDocumentResult =
+  | { format: "TD1" | "TD3"; verified: true; fields: MrzParseResult["fields"]; rawText: "" }
+  | { format: "PRINTED"; verified: false; fields: VisualDocumentFields; rawText: string };
+
+/**
+ * Returns MRZ-verified fields when available, otherwise conservatively
+ * labeled printed fields and a human-readable OCR preview. Never uploads.
+ */
+export async function readLocalDocumentFromImages(files: readonly Blob[]): Promise<LocalDocumentResult | null> {
+  const mrz = await readLocalMrzFromImages(files);
+  if (mrz) return { ...mrz, rawText: "" };
+  const tesseract = await localEngine();
+  const worker = await tesseract.createWorker("spa+eng", 1, {
+    workerPath: new URL("/ocr/worker.min.js", location.origin).href,
+    corePath: new URL("/ocr/core", location.origin).href,
+    langPath: new URL("/ocr/lang", location.origin).href,
+    workerBlobURL: false,
+  });
+  try {
+    await worker.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "3" });
+    const texts: string[] = [];
+    for (const file of files) {
+      const bitmap = await createImageBitmap(file);
+      try {
+        const image = await cropForMrz(bitmap, 0);
+        texts.push((await worker.recognize(image)).data.text);
+      } finally { bitmap.close(); }
+    }
+    const rawText=texts.join("\n").trim().slice(0, 6000);
+    if (!rawText) return null;
+    const fields=parsePrintedDocumentText(rawText);
+    return {format:"PRINTED",verified:false,fields,rawText};
+  } finally {
+    await worker.terminate();
+  }
 }
 
 /**
