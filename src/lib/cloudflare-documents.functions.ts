@@ -33,7 +33,8 @@ export const readDocumentWithCloudflare = createServerFn({ method: "POST" })
             { type: "text", text: prompt },
             { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.base64}` } },
           ] }],
-          max_completion_tokens: 420,
+          max_completion_tokens: 520,
+          chat_template_kwargs: { enable_thinking: false },
           temperature: 0,
         });
       } catch {
