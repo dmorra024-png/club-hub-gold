@@ -72,7 +72,7 @@ export function makeSocioHttpHandler({service,serviceFactory,authenticate,render
    if(resource==='carnet/qr'){
     if(typeof renderQrPng!=='function'&&typeof renderQrSvg!=='function')return fail('QR_RENDERER_NOT_CONFIGURED',503);
     // QR issuance is authorized and scoped before any rendering.
-    const proposal=await scopedService.qr(actor,clubId);
+    const proposal=typeof scopedService.stableQr==='function' ? await scopedService.stableQr(actor,clubId) : await scopedService.qr(actor,clubId);
     if(typeof renderQrSvg==='function'){
      const svg=await renderQrSvg(proposal.token);
      // The SVG encoder is a trusted backend component; still reject active markup.
