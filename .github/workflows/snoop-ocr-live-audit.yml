@@ -73,3 +73,5 @@ jobs:
           NODE
 
 # Recheck current version before OCR-specific patch release.
+
+# Recheck live version before Moondream pilot deployment.
