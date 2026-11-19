@@ -22,7 +22,11 @@ for(const critical of ['Mis clubes','Registrarme','Iniciar sesión','Saldo moned
 assert.match(code,/credentials:'include'/);
 assert.match(code,/cache:'no-store'/);
 assert.match(code,/URL\.revokeObjectURL/);
-assert.match(code,/if\(document\.hidden\)stopQr/);
+// The member's printed/digital QR is permanent. Backgrounding or switching
+// pages must not revoke or silently replace it. Logout still calls stopQr().
+assert.match(code,/if\(!document\.hidden&&state\.page==='carnet'&&!state\.qrUrl\)/);
+assert.doesNotMatch(code,/if\(document\.hidden\)stopQr/);
+assert.match(code,/case'logout'[\\s\\S]*?resetClub\(\)/);
 assert.match(code,/state\.clubs\.find\(c=>c\.id===id\)/);
 assert.match(code,/response\.status===404\|\|response\.status===503/);
 assert.doesNotMatch(code,/\\blocalStorage\\s*[.\\[]/);
