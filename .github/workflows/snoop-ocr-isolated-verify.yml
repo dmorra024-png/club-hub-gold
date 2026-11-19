@@ -7,6 +7,9 @@ on:
       - scripts/isolated-ocr-overlay.mjs
       - src/lib/local-document-mrz.ts
       - src/lib/local-document-ocr.ts
+      - src/lib/local-document-visual.ts
+      - tests/local-document-visual.test.ts
+      - scripts/prepare-local-document-ocr.mjs
       - tests/local-document-mrz.test.ts
       - src/routes/_authenticated/soci.nuovo.tsx
       - .github/workflows/snoop-ocr-isolated-verify.yml
@@ -59,7 +62,7 @@ jobs:
           set -euo pipefail
           bun install
           node scripts/prepare-local-document-ocr.mjs
-          node --test tests/local-document-mrz.test.ts
+          node --test tests/local-document-mrz.test.ts tests/local-document-visual.test.ts
           bun run typecheck
           bun run build:worker
           bun run worker:dry-run
