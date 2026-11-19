@@ -54,7 +54,7 @@ jobs:
           const activities=read('src/components/ClubActivities.tsx');
           assert.ok(activities.includes('premium-activity-right'));
           assert.ok(activities.includes('item.detail.slice("Importe: ".length)'));
-          assert.match(styles,/grid-template-columns:38px minmax\\(0,1fr\\) auto/);
+          assert.ok(styles.includes('grid-template-columns:38px minmax(0,1fr) auto'));
           assert.match(styles,/snoop-approved-assistant-mark/);
           console.log('PASS: compact reference activities, real amounts, enlarged JARVIS within the four equal navigation slots');
           NODE
