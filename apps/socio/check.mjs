@@ -18,7 +18,7 @@ assert.match(html,/manifest\.webmanifest/);
 assert.match(css,/--gold:#e5bc78/);
 assert.match(code,/snoop-wordmark\.svg/);
 assert.match(sw,/snoop-wordmark\.svg/);
-for(const critical of ['Mis clubes','Registrarme','Iniciar sesión','Saldo monedero','Vincula tu carnet'])assert.ok(code.includes(critical),`Missing UI: ${critical}`);
+for(const critical of ['Mis clubes','Registrarme','Iniciar sesión','Saldo monedero','Introduce tu código'])assert.ok(code.includes(critical),`Missing UI: ${critical}`);
 assert.match(code,/credentials:'include'/);
 assert.match(code,/cache:'no-store'/);
 assert.match(code,/URL\.revokeObjectURL/);
