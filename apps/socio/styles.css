@@ -175,3 +175,8 @@ body{background:radial-gradient(ellipse at 70% -5%,var(--navy2),transparent 59%)
 [data-snoop-theme="emerald-gold"] .wallet{border-radius:25px 25px 7px 7px!important}
 [data-snoop-theme="emerald-gold"] .club-heading{letter-spacing:.075em}
 [data-snoop-theme="emerald-gold"] .carnet-topline{justify-content:center}
+
+/* Permanent member card: optically simple, high-contrast QR sized for real optical scanners. */
+.carnet .qr-frame{width:min(88vw,370px,100%)!important;max-width:370px!important;aspect-ratio:1!important;margin:14px auto 12px!important;padding:0!important;border:12px solid #fff!important;border-radius:8px!important;background:#fff!important;box-shadow:0 4px 22px #0003!important}
+.carnet .qr-frame img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;image-rendering:pixelated!important;filter:none!important;background:#fff!important}
+@media(max-width:370px){.carnet{padding-inline:12px!important}.carnet .qr-frame{width:min(89vw,325px,100%)!important;border-width:9px!important}}
