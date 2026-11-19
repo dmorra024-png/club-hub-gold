@@ -26,7 +26,7 @@ begin
  perform 1 from public.members m join public.clubs c on c.id=m.club_id
  where m.id=p_member_id and m.club_id=p_club_id and c.active
   and m.expires_at>=current_date
-  and m.email is not null and btrim(m.email) ~ '^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$'
+  and m.email is not null and btrim(m.email) like '%@%.%'
   and exists(select 1 from public.socio_member_cards card
    where card.member_id=m.id and card.club_id=m.club_id
     and card.active and card.revoked_at is null)
