@@ -1776,3 +1776,116 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 }
 @media(min-width:1024px){.snoop-reference-waves-top{height:360px!important}.snoop-reference-waves-bottom{top:800px}}
 @media(prefers-reduced-motion:reduce){.snoop-reference-waves svg{animation:none!important}}
+
+
+/* Reference-image correction: keep the functional data but remove the
+   oversized activity feed and generic icon sizing from the first releases. */
+.premium-shell-home .snoop-approved-cash{
+  min-height:clamp(110px,24vw,156px);
+  padding-block:clamp(11px,2.3vw,17px);
+  margin-bottom:clamp(16px,3.2vw,23px);
+}
+.premium-shell-home .snoop-approved-shortcuts{margin-bottom:clamp(18px,3.7vw,26px)}
+.premium-shell-home .snoop-approved-shortcuts a{
+  min-height:clamp(86px,18.5vw,139px);
+  gap:clamp(5px,1.5vw,12px);
+}
+.premium-shell-home .snoop-approved-shortcuts a .snoop-gold-icon{
+  width:clamp(36px,10.3vw,55px)!important;
+  height:clamp(36px,10.3vw,55px)!important;
+}
+.premium-shell-home .snoop-approved-activity .premium-activities{
+  padding:clamp(11px,2.5vw,19px);
+  border-color:var(--snoop-electric);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--snoop-electric) 50%,transparent),
+     0 0 12px 2px color-mix(in srgb,var(--snoop-electric) 55%,transparent),
+     0 0 16px color-mix(in srgb,var(--snoop-accent) 35%,transparent);
+}
+.premium-shell-home .snoop-approved-activity .premium-section-heading{
+  margin-bottom:3px;min-height:33px;gap:8px;justify-content:space-between;
+}
+.premium-shell-home .snoop-approved-activity .premium-section-heading h2{
+  font-size:clamp(13px,3.4vw,21px)!important;letter-spacing:-.015em;
+}
+.premium-shell-home .snoop-approved-activity .premium-section-heading:before{
+  width:23px;height:23px;flex-shrink:0;
+  background:var(--snoop-accent);
+  filter:drop-shadow(0 0 5px var(--snoop-accent));
+}
+.premium-shell-home .snoop-approved-activity .premium-see-all{
+  font-family:"Snoop Cash",system-ui,sans-serif;
+  font-size:clamp(10px,2.4vw,13px);letter-spacing:.01em;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-list li{
+  padding:0;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity{
+  display:grid;grid-template-columns:38px minmax(0,1fr) auto;
+  gap:clamp(7px,1.7vw,12px);
+  align-items:center;min-height:clamp(59px,14vw,74px);
+  padding:5px 1px;text-decoration:none;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-icon{
+  width:38px;height:38px;flex:0 0 38px;
+  border-radius:10px;border-color:var(--snoop-border);
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-icon .snoop-activity-gold-icon{
+  width:30px;height:30px;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-copy{
+  display:flex;flex-direction:column;gap:1px;line-height:1.18;min-width:0;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-copy>span:first-child{
+  font-size:clamp(12px,2.7vw,15px);font-weight:650;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-copy>small{
+  font-size:clamp(10px,2.35vw,13px);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-right{
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;
+  gap:4px;min-width:0;text-align:right;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-amount{
+  color:var(--snoop-foreground);font-size:clamp(12px,2.7vw,15px);
+  white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums;
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-right time{
+  display:block;font-size:clamp(10px,2.25vw,12px);
+  white-space:nowrap;color:var(--snoop-muted);
+}
+.premium-shell-home .snoop-approved-activity .premium-activity-list li+li{
+  border-top:1px solid color-mix(in srgb,var(--snoop-electric) 44%,var(--snoop-border));
+}
+.premium-shell-home .snoop-reference-waves-bottom{
+  top:clamp(635px,76svh,920px);
+}
+.premium-shell-home .premium-bottom-nav{
+  border-radius:clamp(18px,4vw,28px) clamp(18px,4vw,28px) 0 0;
+  box-shadow:0 0 12px 3px color-mix(in srgb,var(--snoop-electric) 64%,transparent),
+     0 0 20px color-mix(in srgb,var(--snoop-accent) 52%,transparent),
+     inset 0 2px 0 color-mix(in srgb,var(--snoop-accent) 77%,transparent);
+}
+.premium-shell-home .premium-bottom-nav>.premium-dock-voice>.snoop-approved-assistant-mark{
+  width:clamp(67px,18vw,92px);height:clamp(67px,18vw,92px);
+  flex-basis:clamp(67px,18vw,92px);transform:translateY(-16px);
+  border-width:2px;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--snoop-electric) 86%,transparent),
+     0 0 0 6px color-mix(in srgb,var(--snoop-accent) 77%,transparent),
+     0 0 18px 4px color-mix(in srgb,var(--snoop-electric) 80%,transparent),
+     0 0 26px color-mix(in srgb,var(--snoop-accent) 83%,transparent);
+}
+.premium-shell-home .premium-bottom-nav>.premium-dock-voice>span:last-child{
+  top:-11px;letter-spacing:.025em;
+}
+@media(max-width:370px){
+  .premium-shell-home .snoop-approved-activity .premium-activity{grid-template-columns:35px minmax(0,1fr) auto;gap:5px}
+  .premium-shell-home .snoop-approved-activity .premium-activity-icon{width:35px;height:35px}
+  .premium-shell-home .snoop-approved-activity .premium-activity-copy>span:first-child{font-size:11px}
+  .premium-shell-home .snoop-approved-activity .premium-activity-right time{font-size:9px}
+}
+@media(min-width:1024px){
+  .premium-shell-home .snoop-approved-activity .premium-activity{min-height:62px}
+  .premium-shell-home .snoop-approved-activity .premium-activity-icon{width:42px;height:42px}
+}
