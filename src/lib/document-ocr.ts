@@ -64,8 +64,9 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
   const joined = lines.join("\n");
   const dni = joined.match(/\b(?:DNI|NIE|N[ÚU]M(?:ERO)?\.?\s*(?:DE\s*)?(?:DOCUMENTO|IDENTIDAD))\s*[:#-]?\s*([XYZ]?\d{7,8}[A-Z])\b/i);
   if (dni) result.dni_number = dni[1].toUpperCase();
-  const dateLine = lines.find(s => /(?:FECHA\s*DE\s*NACIMIENTO|NACIMIENTO|DATE\s*OF\s*BIRTH|BIRTH)/i.test(s));
-  const dateMatch = dateLine?.match(/(\d{2})[\/.\-](\d{2})[\/.\-](\d{4})/);
+  const dateIndex = lines.findIndex(s => /(?:FECHA\s*(?:DE\s*)?NACIMIENTO|NACIMIENTO|DATE\s*OF\s*BIRTH|BIRTH|F\.\s*NAC\.?)/i.test(s));
+  const birthContext = dateIndex < 0 ? "" : lines.slice(dateIndex, dateIndex + 3).join(" ");
+  const dateMatch = birthContext.match(/(\d{2})[\/.\-](\d{2})[\/.\-](\d{4})/);
   if (dateMatch) {
     const [_, dd, mm, yyyy] = dateMatch;
     const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
@@ -78,20 +79,22 @@ function parseVisibleText(text: string): Partial<DocumentFields> {
     const inline = lines[match].replace(label, "").replace(/^\s*[:\-]\s*/, "").trim();
     return inline || lines[match + 1] || "";
   };
-  const first = pick(/^(?:NOMBRE|GIVEN\s*NAMES?)\b\s*/i);
-  const last = pick(/^(?:APELLIDOS?|SURNAMES?)\b\s*/i);
-  if (first && /^[\p{L} .'-]{2,80}$/u.test(first)) result.first_name = first;
-  if (last && /^[\p{L} .'-]{2,100}$/u.test(last)) result.last_name = last;
+  const first = pick(/^(?:(?:NOMBRE|NOMBRES|NAME|GIVEN\s*NAMES?)\b|NOM\b)\s*/i);
+  const last = pick(/^(?:APELLIDOS?|SURNAME|SURNAMES?|APELLIDO\s*1\s*\/\s*2)\b\s*/i);
+  const plausibleName = (s: string) => /^[\p{L} .'-]{2,80}$/u.test(s) &&
+    !/\b(?:NACIMIENTO|FECHA|SEXO|NACIONALIDAD|DOCUMENTO|EXPEDICI[ÓO]N|DOMICILIO)\b/i.test(s);
+  if (plausibleName(first)) result.first_name = first;
+  if (plausibleName(last)) result.last_name = last;
   const postal = joined.match(/\b\d{5}\b/);
   if (postal && /(?:DOMICILIO|DIRECCI[ÓO]N|ADDRESS|RESIDENCIA|LOCALIDAD|MUNICIPIO|CP|C\.P\.)/i.test(joined))
     result.postal_code = postal[0];
-  const address = pick(/^(?:DOMICILIO|DIRECCI[ÓO]N|ADDRESS|ADRESSE)\\b\\s*/i);
-  if (address && /^.{5,100}$/.test(address) && /[\\p{L}]/u.test(address)
+  const address = pick(/^(?:DOMICILIO|DIRECCI[ÓO]N|ADDRESS|ADRESSE)\b\s*/i);
+  if (address && /^.{5,100}$/.test(address) && /[\p{L}]/u.test(address)
       && !/^(?:NOMBRE|APELLIDOS?|NACIMIENTO|LOCALIDAD|MUNICIPIO|PROVINCIA|NATIONALITY)/i.test(address)) {
     result.address = address;
   }
-  const city = pick(/^(?:LOCALIDAD|MUNICIPIO|CIUDAD|CITY|POBLACI[ÓO]N)\\b\\s*/i);
-  if (city && /^[\\p{L} .'-]{2,65}$/u.test(city)) result.city = city;
+  const city = pick(/^(?:LOCALIDAD|MUNICIPIO|CIUDAD|CITY|POBLACI[ÓO]N)\b\s*/i);
+  if (city && /^[\p{L} .'-]{2,65}$/u.test(city)) result.city = city;
   // Never infer an address/city from unrelated fields or an unlabeled number.
   return result;
 }
