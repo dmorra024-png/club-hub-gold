@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const DOCUMENT_MODEL = "@cf/moondream/moondream3.1-9B-A2B";
-const imageInput = z.object({
+export const imageInput = z.object({
   consent: z.literal(true),
   images: z.array(z.object({
     base64: z.string().min(100).max(5_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
@@ -18,7 +18,6 @@ export const documentFields = z.object({
   postal_code: z.string().max(15).default(""),
 });
 type Fields = z.infer<typeof documentFields>;
-const empty = (): Fields => documentFields.parse({});
 export const prompt = [
   "Read this identity document photograph. Return only one JSON object, no markdown:",
   '{"first_name":"","last_name":"","birth_date":"","dni_number":"","address":"","city":"","postal_code":""}',
