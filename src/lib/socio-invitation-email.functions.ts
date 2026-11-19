@@ -12,8 +12,8 @@ const safe = (value: string) => value.replace(/[&<>"']/g, char =>
 
 /**
  * One-click staff invitation: the one-use challenge stays server-side and is
- * sent directly to the member email on file. Never return the secret to staff,
- * never store it in browser state or analytics, never display a copy button.
+ * sent directly to the member email on file. Member ownership is verified
+ * on login via server-side email matching; no manual codes or QR are issued.
  */
 export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
   .middleware([requireClubMemberAuth])
@@ -39,17 +39,9 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
     if (!z.string().email().safeParse(recipient).success)
       throw new Error("Corrige el correo del socio antes de enviar la invitación.");
 
-    // Verify provider configuration BEFORE generating a 10-minute challenge.
-    const { data: code, error: issueError } = await (context.supabase as any)
-      .rpc("socio_issue_member_claim", { p_club_id: clubId, p_member_id: member.id });
-    if (issueError || typeof code !== "string" || !/^[a-f0-9]{48}$/.test(code))
-      throw new Error("No se pudo autorizar la invitación SNOOP Socio.");
-
+    // The app links the member after verified email authentication.
+    // No expiring invitation code or duplicate enrollment QR is generated.
     const link = new URL(SOCIO_APP_URL);
-    // Fragment avoids placing the bearer token in HTTP requests, referrers,
-    // reverse-proxy access logs, analytics query strings or URL paths.
-    link.hash = "invite=" + code;
-
     const { data: club } = await context.supabase
       .from("clubs").select("name").eq("id", clubId).maybeSingle();
     const clubName = club?.name ?? "tu club";
@@ -61,7 +53,7 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
       <p>${safe(clubName)} te invita a utilizar tu carnet digital SNOOP Socio.</p>
       <p><a href="${safe(link.href)}" style="display:inline-block;padding:15px 22px;background:#e5bc78;color:#101925;text-decoration:none;border-radius:8px;font-weight:700">Abrir SNOOP Socio</a></p>
       <p>Inicia sesión o crea tu cuenta con <strong>este mismo correo</strong>. Tu carnet se vinculará automáticamente después de confirmar tu dirección.</p>
-      <p style="font-size:13px;color:#bdc7d5">Por seguridad, este enlace es personal, de un solo uso y válido durante 10 minutos. Si caduca, solicita otro correo a tu club.</p>
+      <p style="font-size:13px;color:#bdc7d5">Utiliza el correo electrónico que facilitaste al club. La identidad y la pertenencia al club se verifican antes de mostrar el carnet.</p>
       </main></body></html>`;
     try {
       // API acceptance is not proof of inbox delivery. Keep feedback precise.
@@ -70,13 +62,13 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
         from: env.EMAIL_FROM,
         subject: `SNOOP Socio · Invitación de ${clubName}`,
         html,
-        text: `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre este enlace personal (válido 10 minutos): ${link.href}\nRegístrate o inicia sesión con el mismo correo.\n`,
+        text: `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre la aplicación SNOOP Socio: ${link.href}\nRegístrate o inicia sesión con el mismo correo.\n`,
         idempotency_key: crypto.randomUUID(),
       }, { apiKey: env.EMAIL_API_KEY, from: env.EMAIL_FROM, endpoint: "https://api.resend.com/emails" });
       if (!result.message_id) throw new Error("Proveedor sin confirmación");
       return { status: "accepted" as const };
     } catch {
-      // Do not return the unused one-use claim to the client.
+      // Provider delivery is not guaranteed by API acceptance.
       throw new Error("El proveedor no confirmó el envío. Comprueba la configuración de correo.");
     }
   });
