@@ -9,7 +9,7 @@ export function createSocioRolePolicy({url,publishableKey,fetcher=fetch}){
   if(!/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(userId||'')||!accessToken)return false;
   try{
    const response=await fetcher(url+'/rest/v1/user_roles?select=role&user_id=eq.'+encodeURIComponent(userId),{
-    method:'GET',headers:{apikey:publishableKey,authorization:'Bearer '+accessToken,accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(8000)
+    method:'GET',headers:{apikey:publishableKey,authorization:'Bearer '+accessToken,accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(8000)
    });
    if(!response.ok)return false;
    const rows=await response.json();
