@@ -31,7 +31,7 @@ export const scanMemberIdentityWithQwen = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(async ({ data }) => {
     // Dedicated privacy gate, independent of JARVIS.
-    if (process.env.SNOOP_QWEN_DOCUMENT_PILOT_ENABLED !== "true")
+    if (process.env.SNOOP_RESOURCE_NAMESPACE !== "snoop-pilot")
       throw new Error("Escáner IA no autorizado en este entorno");
     if (process.env.AI_PROVIDER !== "cloudflare")
       throw new Error("Escáner IA disponible solo con Cloudflare");
