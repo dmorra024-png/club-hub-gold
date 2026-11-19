@@ -1,4 +1,4 @@
-name: SNOOP pilot — isolated local OCR camera and gallery hotfix
+name: SNOOP pilot — OCR parser correction and gallery hotfix
 
 on:
   push:
