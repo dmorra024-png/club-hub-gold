@@ -117,7 +117,7 @@ function carnetPage(){
  '<div class="member-premium-state"><span>Estado</span><strong>'+(active?'<i aria-hidden="true"></i> Socio activo':'Pendiente de verificación')+'</strong></div>'+
  '</div><div class="member-premium-qr"><div class="member-premium-qr-inner">'+actualQr+'</div></div></section>'+
  (club.walletEnabled?
- '<button type="button" class="socio-premium-wallet" data-action="movements"><span class="wallet-sign" aria-hidden="true">▣</span><span class="wallet-copy"><strong>Monedero</strong><small>Saldo disponible</small></span><strong class="wallet-balance">'+safe(amount)+'</strong><span aria-hidden="true">›</span></button>':'')+
+ '<button type="button" class="socio-premium-wallet" data-action="movements" aria-label="Saldo monedero y movimientos"><span class="wallet-sign" aria-hidden="true">▣</span><span class="wallet-copy"><strong>Monedero</strong><small>Saldo disponible</small></span><strong class="wallet-balance">'+safe(amount)+'</strong><span aria-hidden="true">›</span></button>':'')+
  '<section class="socio-premium-history"><div class="socio-history-heading"><h2>Últimas actividades</h2>'+(club.walletEnabled?'<button type="button" data-action="movements">Ver todo ›</button>':'')+'</div>'+
  (club.walletEnabled?'<div class="socio-activity-list">'+recent+'</div>':'<p class="socio-empty-activity">El monedero no está activado para este club.</p>')+'</section>');
 }
