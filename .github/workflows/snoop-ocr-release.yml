@@ -266,3 +266,5 @@ jobs:
 
 
 # Scan-only retry: original camera pixels and resilient MRZ line parsing.
+
+# User-authorized Spanish printed-text OCR pilot release; deploy only after checks.
