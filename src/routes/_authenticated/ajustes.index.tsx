@@ -3,6 +3,7 @@ import { SnoopLayout } from "@/components/SnoopLayout";
 import { BadgeEuro, Users, ShieldCheck, Cable, BarChart3, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ClubWalletSettingsPanel } from "@/components/ClubWalletSettingsPanel";
+import { ClubThemeSettingsPanel } from "@/components/ClubThemeSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/ajustes/")({
   component: AjustesIndex,
@@ -40,6 +41,7 @@ function AjustesIndex() {
         {can("view_reports") && <Tile to="/ajustes/informes" icon={BarChart3} title="Informes" text="Informes y estadísticas autorizados para tu rol." />}
         <Tile to="/perfil" icon={UserRound} title="Mi perfil" text="Datos de acceso y cambio de contraseña." />
       </div>
+      <ClubThemeSettingsPanel />
     </SnoopLayout>
   );
 }
