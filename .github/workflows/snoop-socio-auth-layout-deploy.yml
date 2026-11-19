@@ -75,6 +75,6 @@ jobs:
           grep -q 'clearlyInvalidAccessToken' /tmp/socio-app.js || true
           CODE="$(curl -sS --max-time 30 -o /tmp/socio-unauth -w '%{http_code}' "$SOCIO_ORIGIN/api/socio/me")"
           test "$CODE" = 401
-          TEST_CODE="$(curl -sS --max-time 30 -o /tmp/socio-invalid-login -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Origin: $SOCIO_ORIGIN" -d '{\"email\":\"not-a-user@example.invalid\",\"password\":\"SyntheticNotAnAccount123!\"}' "$SOCIO_ORIGIN/api/socio/auth/login")"
+          TEST_CODE="$(curl -sS --max-time 30 -o /tmp/socio-invalid-login -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Origin: $SOCIO_ORIGIN" -d '{"email":"not-a-user@example.invalid","password":"SyntheticNotAnAccount123!"}' "$SOCIO_ORIGIN/api/socio/auth/login")"
           test "$TEST_CODE" = 401 || { echo "LOGIN_PROVIDER_NOT_WORKING: expected 401, received $TEST_CODE"; exit 1; }
           echo "SNOOP_SOCIO_AUTH_AND_APPROVED_LAYOUT_DEPLOYED"
