@@ -26,8 +26,15 @@ if(!base.includes(hook)) throw Error("Baseline OCR hook drifted");
 base=base.replace(hook,"");
 const s=base.indexOf(startMark), e=base.indexOf("\n  const voice = useWhisperDictation",s);
 base=base.slice(0,s)+reader+base.slice(e);
-const hint="Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.";
-if(base.includes(hint))base=base.replace(hint,"Fotografía la zona MRZ del documento. La lectura se hace en este dispositivo; confirma los datos antes de guardar.");
+// Keep every unrelated form element untouched. Replace exactly the OCR scanner
+// entry widget, preserving existing preview and the rest of Crear socio.
+const baseUiStart=base.indexOf("      {/* Document scan (OCR):");
+const modernUiStart=modern.indexOf("      {/* Document scan: camera and gallery");
+const baseUiEnd=base.indexOf("\n        {scanPreviews.length > 0 && (",baseUiStart);
+const modernUiEnd=modern.indexOf("\n        {scanPreviews.length > 0 && (",modernUiStart);
+if(baseUiStart<0 || modernUiStart<0 || baseUiEnd<0 || modernUiEnd<0)
+  throw Error("Scanner UI markers drifted: fail closed");
+base=base.slice(0,baseUiStart)+modern.slice(modernUiStart,modernUiEnd)+base.slice(baseUiEnd);
 await writeFile(join(baseline,file),base);
 const copyPaths=["src/lib/local-document-mrz.ts","src/lib/local-document-ocr.ts","src/lib/local-document-visual.ts","scripts/prepare-local-document-ocr.mjs","tests/local-document-mrz.test.ts","tests/local-document-visual.test.ts"];
 for(const p of copyPaths) { await mkdir(join(baseline,p.split("/").slice(0,-1).join("/")),{recursive:true});await copyFile(join(ocr,p),join(baseline,p));}
