@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { Camera, Check, Loader2, Mic, ScanLine, Square, X } from "lucide-react";
 import { CONTRACT_TEXT_ES, CONTRACT_VERSION, compressImage, formatPrice, uploadToSnoopDocs } from "@/lib/snoop";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
-import { extractMemberFields, extractMemberFieldsFromImages, transcribeAudio } from "@/lib/voice-agent.functions";
+import { extractMemberFields, transcribeAudio } from "@/lib/voice-agent.functions";
+import { scanDocumentLocally } from "@/lib/document-ocr";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
@@ -130,11 +131,13 @@ function NewSocio() {
   formRef.current = form;
   const transcribe = useServerFn(transcribeAudio);
   const extract = useServerFn(extractMemberFields);
-  const extractFromImages = useServerFn(extractMemberFieldsFromImages);
+
 
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+  const [ocrReviewed, setOcrReviewed] = useState(true);
+  const [ocrMessage, setOcrMessage] = useState("");
 
   useEffect(() => {
     supabase.from("membership_plans").select("id,name,duration_days,price_cents").eq("active", true).order("sort_order")
@@ -262,6 +265,8 @@ function NewSocio() {
     const list = Array.from(files).slice(0, 2);
     if (list.length === 0) return;
     setScanStatus("scanning");
+    setOcrReviewed(true);
+    setOcrMessage("");
     try {
       // Compress + convert each file
       const compressed: Blob[] = [];
@@ -280,23 +285,28 @@ function NewSocio() {
       );
       setScanPreviews(previews);
 
-      // Base64 payload for the AI Gateway
-      const images = await Promise.all(
-        compressed.map(async (b) => ({ base64: await blobToBase64(b), mimeType: "image/jpeg" })),
-      );
-
-      const { fields } = await extractFromImages({ data: { images } });
-
-      setForm((f) => ({
-        ...f,
-        first_name: fields.first_name || f.first_name,
-        last_name: fields.last_name || f.last_name,
-        birth_date: fields.birth_date || f.birth_date,
-        dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-        address: fields.address || f.address,
-        city: fields.city || f.city,
-        postal_code: fields.postal_code || f.postal_code,
-      }));
+      // Local OCR: document images never leave the device for extraction.
+      const { fields } = await scanDocumentLocally(compressed);
+      const recognized = Object.entries(fields).filter(([, v]) => !!v).map(([k]) => k);
+      if (!recognized.length) {
+        setOcrMessage("No se han leído datos fiables. Prueba con otra foto o rellena el formulario a mano.");
+        toast.error("No se han leído datos fiables del documento");
+      } else {
+        // Never overwrite manually entered information. Review is compulsory before saving.
+        setForm((f) => ({
+          ...f,
+          first_name: f.first_name || fields.first_name,
+          last_name: f.last_name || fields.last_name,
+          birth_date: f.birth_date || fields.birth_date,
+          dni_number: f.dni_number || fields.dni_number,
+          address: f.address || fields.address,
+          city: f.city || fields.city,
+          postal_code: f.postal_code || fields.postal_code,
+        }));
+        setOcrReviewed(false);
+        setOcrMessage(`Lectura local: ${recognized.length} campos. Comprueba todos los datos con el documento antes de guardar. Los campos dudosos quedan vacíos.`);
+        toast.info("Comprueba los datos extraídos antes de guardar");
+      }
 
       // Reuse the front photo (first image) as the required DNI photo
       const front = compressed[0];
@@ -351,6 +361,7 @@ function NewSocio() {
   }
 
   async function submit() {
+    if (!ocrReviewed) return toast.error("Revisa y confirma los datos del documento antes de guardar");
     if (!form.first_name.trim() || !form.last_name.trim()) return toast.error("Falta nombre y apellido");
     const req = (k: keyof FieldConfigMap) => fieldCfg[k].visible && fieldCfg[k].required;
     const vis = (k: keyof FieldConfigMap) => fieldCfg[k].visible;
@@ -515,6 +526,19 @@ function NewSocio() {
             />
           </label>
         </div>
+        {ocrMessage && (
+          <div className="mt-3 text-sm space-y-2" aria-live="polite">
+            <p className="text-muted-foreground">{ocrMessage}</p>
+            {!ocrReviewed && (
+              <label className="flex gap-2 items-start cursor-pointer">
+                <input type="checkbox" checked={ocrReviewed}
+                  onChange={(e) => setOcrReviewed(e.target.checked)}
+                  className="mt-1" />
+                <span>He comprobado los datos del socio con el documento original.</span>
+              </label>
+            )}
+          </div>
+        )}
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
             {scanPreviews.map((src, i) => (
