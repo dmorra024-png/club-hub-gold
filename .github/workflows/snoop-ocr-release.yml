@@ -120,7 +120,7 @@ jobs:
           if(!r.ok||!j.success)throw Error('Cannot verify active Worker; refuse deployment');
           const all=Array.isArray(j.result)?j.result:j.result?.deployments;
           const v=all?.[0]?.versions??[];
-          if(v.length!==1||v[0].version_id!=='433f3f80-d0ec-43fd-b4f6-23af6ed5e5c6'||Number(v[0].percentage)!==100)
+          if(v.length!==1||v[0].version_id!=='8b435ff4-c8b7-4db7-9870-2a2c5de316f6'||Number(v[0].percentage)!==100)
             throw Error('LIVE_WORKER_CHANGED_SINCE_AUDIT; deployment refused');
           console.log('ACTIVE_V89_VERSION_CONFIRMED');
           NODE
@@ -247,6 +247,21 @@ jobs:
             console.error('SNOOP binding preservation not proven; deployment blocked. No secret values logged.');
             process.exitCode = 1;
           }
+          NODE
+      - name: Verify inherited binding names and types before deploy
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFile} from 'node:fs/promises';
+          const config=JSON.parse(await readFile('.output/server/wrangler.json','utf8'));
+          const url='https://api.cloudflare.com/client/v4/accounts/0cc8106f8820d22996af3aed9e081e93/workers/scripts/snoop-pilot/settings';
+          const response=await fetch(url,{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN}});
+          const doc=await response.json();
+          if(!response.ok||doc.success!==true)throw Error('Cloudflare bindings unavailable');
+          const bindings=new Map((doc.result.bindings??[]).map(b=>[b.name,b.type]));
+          const expected=(config.unsafe?.bindings??[]).map(b=>b.name);
+          const missing=expected.filter(name=>!['plain_text','json'].includes(bindings.get(name)));
+          console.log(JSON.stringify({step:'binding-inheritance',expected:expected.length,missing_names:missing}));
+          if(missing.length)throw Error('Inherited binding mismatch: refuse deployment');
           NODE
       - name: Deploy only snoop-pilot on the selected Cloudflare account
         shell: bash
