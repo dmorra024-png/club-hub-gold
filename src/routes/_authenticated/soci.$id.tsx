@@ -214,7 +214,7 @@ function SocioDetail() {
   const badge = expiryBadge(member.expires_at);
 
   return (
-    <SnoopLayout contentClassName="!pb-[calc(var(--snoop-nav-height,100px)+var(--snoop-safe-bottom,0px)+64px)]">
+    <SnoopLayout contentClassName="snoop-member-home-type !pb-[calc(var(--snoop-nav-height,100px)+var(--snoop-safe-bottom,0px)+64px)]">
       <AdministrativePaymentDialog
         key={`${paymentOpen}:${newPlanId}:${paymentMethod}`}
         open={paymentOpen}
