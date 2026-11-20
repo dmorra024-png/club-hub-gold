@@ -244,7 +244,7 @@ export function SnoopLayout({
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
           <span className="snoop-approved-assistant-mark" aria-hidden="true"><SnoopDockIcon kind="jarvis" /><span className="snoop-jarvis-microbrand">SNOOP</span></span>
-          <span>JARVIS</span>
+          
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
           <SnoopDockIcon kind="profile" />
