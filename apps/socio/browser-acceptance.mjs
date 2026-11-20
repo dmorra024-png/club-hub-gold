@@ -17,7 +17,7 @@ const server=createServer(async(req,res)=>{
  try{
   const name=new URL(req.url,'http://127.0.0.1').pathname;
   const file=name==='/'?'index.html':name.replace(/^\//,'');
-  if(!['index.html','styles.css','main.js','manifest.webmanifest','sw.js','icon.svg','snoop-wordmark.svg'].includes(file)){
+  if(!['index.html','styles.css','approved-ui.css','main.js','manifest.webmanifest','sw.js','icon.svg','snoop-wordmark.svg'].includes(file)){
    res.writeHead(404);return res.end();
   }
   const body=await readFile(join(dir,file));
@@ -120,17 +120,18 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByText('Código inválido o utilizado').waitFor();
   await page.locator('input[name="code"]').fill('123456');
   await page.getByRole('button',{name:'Activar mi carnet'}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor({timeout:15000});
-  await page.getByText('Socio Nº 00124').waitFor();
-  await page.getByText('25,75 €').waitFor();
+  await page.locator('.approved-welcome').getByText('SNOOP Club Demo Palma').waitFor({timeout:15000});
+  await page.locator('.card-number').getByText('00124').waitFor();
+  await page.getByText('25,75 €').first().waitFor();
   await page.locator('img[alt="QR permanente de socio"]').waitFor();
   await mkdir(screenshotDir,{recursive:true});
   await page.screenshot({path:join(screenshotDir,deviceName+'-carnet.png'),fullPage:true});
   // Financial readings must be limited to the currently selected club.
-  await page.getByRole('button',{name:'Movimientos'}).click();
+  await page.getByRole('button',{name:'Historial'}).click();
   await page.getByText('Aportación Palma').waitFor();
   assert.equal(await page.getByText('Recarga Madrid').count(),0);
   await page.getByRole('button',{name:'Volver al carnet'}).click();
+  await page.getByRole('button',{name:'Menú'}).click();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('heading',{name:'Mis clubes'}).waitFor();
   // The second club cannot be linked by matching an email alone.
@@ -139,17 +140,19 @@ async function runBrowser(browserType,deviceName,options){
   await page.getByRole('heading',{name:'Introduce tu código'}).waitFor();
   await page.locator('input[name="code"]').fill('654321');
   await page.getByRole('button',{name:'Activar mi carnet'}).click();
+  await page.getByRole('button',{name:'Menú'}).click();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('button',{name:/SNOOP Club Demo Madrid/}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Madrid'}).waitFor();
-  await page.getByText('Socio Nº 00077').waitFor();
-  await page.getByText('60,00 €').waitFor();
-  assert.equal(await page.getByText('Socio Nº 00124').count(),0);
-  await page.getByRole('button',{name:'Movimientos'}).click();
+  await page.locator('.approved-welcome').getByText('SNOOP Club Demo Madrid').waitFor();
+  await page.locator('.card-number').getByText('00077').waitFor();
+  await page.getByText('60,00 €').first().waitFor();
+  assert.equal(await page.locator('.card-number').getByText('00124').count(),0);
+  await page.getByRole('button',{name:'Historial'}).click();
   await page.getByText('Recarga Madrid').waitFor();
   assert.equal(await page.getByText('Aportación Palma').count(),0);
   await page.screenshot({path:join(screenshotDir,deviceName+'-wallet.png'),fullPage:true});
   await page.getByRole('button',{name:'Volver al carnet'}).click();
+  await page.getByRole('button',{name:'Menú'}).click();
   await page.getByRole('button',{name:'Mis clubes'}).click();
   fixture.holdNextWallet();
   await page.getByRole('button',{name:/SNOOP Club Demo Palma/}).click();
@@ -167,8 +170,8 @@ async function runBrowser(browserType,deviceName,options){
   await page.locator('input[name="email"]').fill(testEmail);
   await page.locator('input[name="password"]').fill(testPassword);
   await page.getByRole('button',{name:'Iniciar sesión'}).click();
-  await page.getByRole('heading',{name:'SNOOP Club Demo Palma'}).waitFor();
-  await page.getByText('25,75 €').waitFor();
+  await page.locator('.approved-welcome').getByText('SNOOP Club Demo Palma').waitFor();
+  await page.getByText('25,75 €').first().waitFor();
   fixture.releaseWallet();
   await page.waitForTimeout(250);
   assert.equal(await page.getByText('999,99 €').count(),0,'Stale wallet response leaked across sign-out');
