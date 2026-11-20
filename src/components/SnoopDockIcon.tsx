@@ -31,11 +31,18 @@ export function SnoopDockIcon({kind}:{kind:SnoopDockIconKind}){
       <path d="M17 21 32 9l15 12" stroke="#fff8d6" strokeWidth="1.1" opacity=".65"/>
     </>}
     {kind==="qr" && <>
-      <rect x="7" y="7" width="20" height="20" rx="4" stroke={`url(#${metal})`} strokeWidth="3.5"/>
-      <rect x="37" y="7" width="20" height="20" rx="4" stroke={`url(#${metal})`} strokeWidth="3.5"/>
-      <rect x="7" y="37" width="20" height="20" rx="4" stroke={`url(#${metal})`} strokeWidth="3.5"/>
-      <path d="M13 13h8v8h-8zM43 13h8v8h-8zM13 43h8v8h-8z" fill={`url(#${metal})`}/>
-      <path d="M39 38h6v6h-6zM50 39h7v6h-7zM38 50h7v7h-7zM51 50v7h7" stroke={`url(#${metal})`} strokeWidth="3" strokeLinejoin="round"/>
+      {/* Classic QR finder pattern, optically aligned with the other dock icons.
+          It is an icon only: real scanning is handled by the unchanged route. */}
+      <g stroke={`url(#${metal})`} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="square">
+        <path d="M6 24V7h18M40 7h17v17M6 40v17h18" />
+        <path d="M11 11h12v12H11zM41 11h12v12H41zM11 41h12v12H11z" />
+      </g>
+      <g fill={`url(#${metal})`}>
+        <rect x="15" y="15" width="5" height="5" rx=".5"/>
+        <rect x="45" y="15" width="5" height="5" rx=".5"/>
+        <rect x="15" y="45" width="5" height="5" rx=".5"/>
+        <path d="M31 11h5v6h-5zM30 22h6v6h-6zM30 33h6v6h-6zM40 30h6v6h-6zM51 30h6v6h-6zM41 40h6v6h-6zM52 41h5v5h-5zM30 45h6v6h-6zM40 51h6v6h-6zM52 52h6v6h-6z"/>
+      </g>
     </>}
     {kind==="profile" && <>
       <circle cx="32" cy="20" r="11" fill={`url(#${inner})`} stroke={`url(#${metal})`} strokeWidth="3.8"/>
