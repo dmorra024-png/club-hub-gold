@@ -117,6 +117,16 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
     } catch (error) {
       // Never expose API keys, recipient addresses, OTPs, or provider response bodies.
       // Only classify the trusted HTTP status returned by our own email adapter.
+      if (mailjetSelected) {
+        if (error instanceof EmailAPIError) {
+          if (error.status === 401 || error.status === 403)
+            throw new Error("Mailjet rechazó la clave o el remitente verificado.");
+          if (error.status === 429)
+            throw new Error("Mailjet ha limitado temporalmente los envíos.");
+          throw new Error("Mailjet no aceptó el envío (HTTP " + error.status + ").");
+        }
+        throw new Error("Mailjet no confirmó el envío. Comprueba el remitente y la cuenta.");
+      }
       if (error instanceof EmailAPIError) {
         if (error.status === 401)
           throw new Error("Resend rechazó la clave API (401). Comprueba EMAIL_API_KEY.");
