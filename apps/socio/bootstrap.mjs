@@ -12,7 +12,7 @@ import {createSocioRolePolicy} from './socio-role.mjs';
 export function createSocioApplication({supabaseUrl,publishableKey,origin,qrSigningSecret,authorizeSocioUser,renderQrPng,renderQrSvg,fetcher=fetch}){
  if(typeof renderQrPng!=='function'&&typeof renderQrSvg!=='function')throw Error('SOCIO_PRODUCTION_ADAPTERS_REQUIRED');
  const checkSocio=typeof authorizeSocioUser==='function'?authorizeSocioUser:createSocioRolePolicy({url:supabaseUrl,publishableKey,fetcher});
- const auth=createSupabaseSocioAuth({url:supabaseUrl,publishableKey,signupRedirectUrl:origin+'/',authorizeSocioUser:checkSocio,fetcher});
+ const auth=createSupabaseSocioAuth({url:supabaseUrl,publishableKey,signupRedirectUrl:origin+'/',registrationUrl:supabaseUrl+'/functions/v1/snoop-socio-register',authorizeSocioUser:checkSocio,fetcher});
  return makeSocioHttpHandler({
   origin,auth,authenticate:auth.authenticate,renderQrPng,renderQrSvg,
   serviceFactory:actor=>{
