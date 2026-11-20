@@ -85,7 +85,16 @@ function Home() {
           <h2 id="snoop-cash-label">{isAdmin?"Caja de hoy":"Mi caja de hoy"}</h2>
           <strong aria-live="polite">{canSeeCash?(summaryVisible?euro(cashCents):cashError?"No disponible":"—"):"Acceso restringido"}</strong>
         </div>
-        <div className="snoop-approved-cash-bars" aria-hidden="true"><i/><i/><i/><i/><i/></div>
+        <div className="snoop-approved-cash-trend" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none" focusable="false">
+            <path d="M9 12v43h46" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" opacity=".7"/>
+            <path d="m15 43 12-11 9 6 15-19" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="m43 19h8v8" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="15" cy="43" r="2.5" fill="currentColor"/>
+            <circle cx="27" cy="32" r="2.5" fill="currentColor"/>
+            <circle cx="36" cy="38" r="2.5" fill="currentColor"/>
+          </svg>
+        </div>
         {canSeeCash&&cashError&&<button type="button" className="snoop-ref-retry" onClick={retryCash}>Reintentar</button>}
       </section>
       <nav className="snoop-approved-shortcuts" aria-label="Accesos rápidos">
