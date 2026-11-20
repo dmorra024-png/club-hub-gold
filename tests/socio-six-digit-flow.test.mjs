@@ -46,3 +46,9 @@ test('SQL proposal has single-use, expiry, verified-email and per-challenge gues
 });
 
 test('Socio Auth never uses unsupported Worker redirect error policy',()=>{ const src=read('apps/socio/auth-supabase.mjs'); assert.doesNotMatch(src,/redirect:\s*['\"]error['\"]/); assert.match(src,/redirect:\s*['\"]manual['\"]/); });
+
+test('client activation validates exactly six ASCII digits, never a literal backslash-d',()=>{
+ const src=read('apps/socio/main.js');
+ assert.match(src,/if\(!\/\^\[0-9\]\{6\}\$\/\.test\(code\)\)/);
+ assert.doesNotMatch(src,/if\(!\/\^\\\\d\{6\}\$\/\.test\(code\)\)/);
+});
