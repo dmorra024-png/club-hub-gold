@@ -1,0 +1,1 @@
+Authorized SNOOP pilot release: typography only in existing member detail page, matching approved Home. Preserve existing app behavior, member data, QR, emails, backend, service bindings. CI guards exact two-source-file diff and runs typecheck, build, dry run and binding verification before deployment.
