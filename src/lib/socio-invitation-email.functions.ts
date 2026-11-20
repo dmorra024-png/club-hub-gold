@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
 import { requireOperationalClub } from "@/lib/club-access.server";
 import { EmailAPIError, sendProviderEmail } from "@/lib/email-provider.server";
@@ -20,7 +21,7 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const clubId = await requireOperationalClub(context, "manage_members");
     const env = (globalThis as any).__env__ ?? process.env;
-    if (!env.EMAIL_API_KEY || !env.EMAIL_FROM)
+    if (!env.EMAIL_API_KEY || !env.EMAIL_FROM || !env.SUPABASE_SERVICE_ROLE_KEY || !env.SUPABASE_URL)
       throw new Error("Envío automático no configurado. Configura el proveedor de correo.");
     // Scope the recipient by the current authorized club; never accept an
     // address or a club identifier from the browser.
@@ -44,23 +45,43 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
       .from("clubs").select("name").eq("id", clubId).maybeSingle();
     const clubName = club?.name ?? "tu club";
     const fullName = [member.first_name, member.last_name].filter(Boolean).join(" ");
-    const { data: code, error: codeError } = await (context.supabase as any)
-      .rpc("socio_issue_member_claim", { p_club_id: clubId, p_member_id: data.memberId });
-    if (codeError || typeof code !== "string" || !/^\d{6}$/.test(code))
-      throw new Error("No se pudo generar el código de 6 cifras. Verifica la configuración del servidor.");
+    // Issue the ONE code via Supabase Auth Admin WITHOUT sending Supabase email.
+    // It confirms the email when redeemed, then links the member card.
+    // No service-role value is ever returned to the browser.
+    const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: token, error: tokenError } = await admin.auth.admin.generateLink({
+      type: "magiclink", email: recipient, options: { redirectTo: SOCIO_APP_URL },
+    });
+    const code = token?.properties?.email_otp;
+    if (tokenError || typeof code !== "string" || !/^\\d{6}$/.test(code))
+      throw new Error("No se pudo generar el código único de socio. Comprueba la configuración de autenticación.");
+    // An existing management account cannot be enrolled as a Socio identity.
+    if (!token?.user?.id) throw new Error("No se pudo verificar la cuenta invitada.");
+    const { data: staff, error: staffError } = await admin.from("user_roles")
+      .select("user_id").eq("user_id", token.user.id).limit(1);
+    if (staffError || (staff && staff.length))
+      throw new Error("La dirección pertenece a una cuenta del personal. Usa otro correo para SNOOP Socio.");
+    const { data: issued, error: issueError } = await (context.supabase as any)
+      .rpc("socio_issue_member_claim_from_auth", {
+        p_club_id: clubId, p_member_id: data.memberId, p_code: code,
+      });
+    if (issueError || issued !== true)
+      throw new Error("No se pudo crear la activación de carnet. Comprueba la pertenencia del socio.");
     const html = `<html lang="es"><body style="background:#0a1425;color:#f3f6fa;padding:28px;font:16px Arial,sans-serif">
       <main style="max-width:520px;margin:auto">
       <h1 style="color:#e5bc78">SNOOP SOCIO</h1>
       <p>Hola ${safe(fullName)},</p>
       <p>${safe(clubName)} te invita a utilizar tu carnet digital SNOOP Socio.</p>
       <p><a href="${safe(link.href)}" style="display:inline-block;padding:15px 22px;background:#e5bc78;color:#101925;text-decoration:none;border-radius:8px;font-weight:700">Abrir SNOOP Socio</a></p>
-      <p>Regístrate con este mismo correo y confirma tu dirección. Después introduce este código de activación:</p>
+      <p>En SNOOP Socio crea tu contraseña e introduce este único código para verificar el correo y activar tu carnet. No necesitas confirmar otro email:</p>
       <p style="font-size:32px;letter-spacing:7px;font-weight:700;color:#e5bc78">${code}</p>
       <p>El código caduca en 10 minutos y solo se puede utilizar una vez. Si caduca, solicita otro correo al club.</p>
       <p style="font-size:13px;color:#bdc7d5">Utiliza el correo electrónico que facilitaste al club. La identidad y la pertenencia al club se verifican antes de mostrar el carnet.</p>
       </main></body></html>`;
     const subject = `SNOOP Socio · Invitación de ${clubName}`;
-    const text = `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre la aplicación: ${link.href}\nRegístrate con este mismo correo y confirma tu cuenta. Código de activación de 6 cifras: ${code}. Válido 10 minutos, una sola vez.\n`;
+    const text = `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre la aplicación: ${link.href}\nEn la app SNOOP Socio crea tu contraseña e introduce este código único para activar tu cuenta y carnet: ${code}. Válido 10 minutos, una sola vez.\n`;
     try {
       // API acceptance is not proof of inbox delivery. Keep feedback precise.
       const result = await sendProviderEmail({
