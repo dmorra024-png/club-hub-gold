@@ -2,7 +2,7 @@
 // No demo accounts, fabricated balances or operational QR tokens. No credentials in localStorage.
 const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
-  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
+  pending:false,pendingRegistration:null,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
 const endpoint = '/api/socio';
 const themeIds=['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'];
 const themes={
@@ -65,7 +65,9 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 '<div class="divider"></div><button class="btn ghost" style="width:100%" data-action="'+(reg?'login':'register')+'">'+(reg?'Ya tengo cuenta':'Crear una cuenta')+'</button></section>'+
 '<p class="muted align-center">La dirección debe coincidir con la facilitada al club. La vinculación se verificará antes de mostrar cualquier carnet.</p>'+
 '<button class="btn small end" data-action="install">Instalar SNOOP Socio</button>');}
-function verifyPage(){shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">Confirma tu dirección</h1><p class="lede">Si el registro es válido, recibirás las instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.</p></section><button class="btn primary" data-action="login">Ir al inicio de sesión</button>');}
+function activatePage(){shell('<section><div class="kicker">Activación de carnet</div><h1 class="title">Introduce tus 6 números</h1><p class="lede">El club ya ha enviado el código a tu email. Este mismo código verifica tu dirección y activa tu cuenta: no recibirás un segundo correo.</p></section>'+
+'<section class="panel"><form id="activation-form" class="stack"><label class="field">Código recibido por email<input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" autocomplete="one-time-code" required placeholder="000000"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Activando…':'Activar cuenta y carnet')+'</button></form></section>'+
+'<button class="btn ghost" data-action="register">Volver a crear cuenta</button>');}
 function linkPage(){shell('<section><div class="kicker">Activación de carnet</div><h1 class="title">Introduce tu código</h1><p class="lede">El club ha enviado a tu correo un código de 6 números. Escríbelo aquí una sola vez para vincular tu carnet.</p></section>'+
 '<section class="panel"><form id="claim-form" class="stack"><label class="field">Código de socio<input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" autocomplete="one-time-code" required placeholder="000000"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Verificando…':'Activar mi carnet')+'</button></form></section>'+
 '<button class="btn ghost" data-action="reload-clubs">Ya he activado mi carnet</button>');}
@@ -94,7 +96,7 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 (state.movements===null?'<div class="status">Consultando movimientos…</div>':items?'<div class="list">'+items+'</div>':'<div class="status">No hay movimientos registrados.</div>')+
 '<button class="btn end" data-action="home">Volver al carnet</button>');
 }
-function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
+function render(){switch(state.page){case'register':authPage('register');break;case'activate':activatePage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
 async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;const changed=state.selected!==c.id;state.sessionEpoch++;if(changed)stopQr();state.selected=c.id;applySocioTheme(c.themeId);if(changed)state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
 async function refreshCarnet(){
@@ -156,7 +158,32 @@ async function authenticate(){
   render();
  }
 }
-async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
+async function submitAuth(form){
+ const values=new FormData(form),email=String(values.get('email')||'').trim().toLowerCase(),password=String(values.get('password')||'');
+ const reg=state.page==='register';
+ if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);
+ state.email=email;
+ if(reg){
+  // Only keep password in memory while entering the club's existing email code.
+  // No Supabase signup and no second confirmation email at this stage.
+  state.pendingRegistration={email,password};state.page='activate';state.message='';state.error=false;render();return;
+ }
+ state.pending=true;render();
+ try{await api('/auth/login',{method:'POST',body:{email,password}});state.pending=false;state.message='';await authenticate();}
+ catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}
+}
+async function submitActivation(form){
+ const pending=state.pendingRegistration;
+ if(!pending){state.page='register';return notify('Introduce tu correo y una contraseña.',true);}
+ const code=String(new FormData(form).get('code')||'').trim();
+ if(!/^\\d{6}$/.test(code))return notify('Introduce los 6 números recibidos por email.',true);
+ state.pending=true;render();
+ try{
+  await api('/auth/activate',{method:'POST',body:{email:pending.email,password:pending.password,code}});
+  state.pendingRegistration=null;state.pending=false;state.message='';state.error=false;
+  await authenticate();
+ }catch(e){state.pending=false;state.page='activate';notify(e.message||'No se pudo activar la cuenta.',true);}
+}
 async function submitClaim(form){
  const code=String(new FormData(form).get('code')||'').trim();
  if(!/^\d{6}$/.test(code))return notify('Introduce los 6 números del correo.',true);
@@ -170,9 +197,10 @@ async function submitClaim(form){
 document.addEventListener('submit',e=>{
  if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}
  if(e.target.id==='claim-form'){e.preventDefault();void submitClaim(e.target);}
+ if(e.target.id==='activation-form'){e.preventDefault();void submitActivation(e.target);}
 });
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.pendingRegistration=null;state.page='login';break;case'register':state.pendingRegistration=null;state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.page==='carnet'&&!state.qrUrl)void refreshCarnet();});
 // The browser reclaims object URLs at document unload; navigation does not revoke a valid permanent card.
