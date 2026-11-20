@@ -214,7 +214,7 @@ function SocioDetail() {
   const badge = expiryBadge(member.expires_at);
 
   return (
-    <SnoopLayout>
+    <SnoopLayout contentClassName="!pb-[calc(var(--snoop-nav-height,100px)+var(--snoop-safe-bottom,0px)+64px)]">
       <AdministrativePaymentDialog
         key={`${paymentOpen}:${newPlanId}:${paymentMethod}`}
         open={paymentOpen}
@@ -232,17 +232,17 @@ function SocioDetail() {
         <ArrowLeft className="w-4 h-4" /> Volver
       </Link>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid min-w-0 w-full max-w-full grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
         {/* Left: identity */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 backdrop-blur">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
+        <div className="min-w-0 w-full space-y-4 md:col-span-2 md:space-y-6">
+          <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6 backdrop-blur">
+            <div className="flex min-w-0 items-start justify-between gap-4 flex-wrap">
+              <div className="min-w-0 max-w-full break-words">
                 <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Nº socio</div>
                 <div className="font-display text-2xl text-neon tracking-[0.25em] mt-0.5">
                   {member.member_number}
                 </div>
-                <h1 className="font-display text-3xl text-foreground mt-3">
+                <h1 className="font-display text-2xl sm:text-3xl text-foreground mt-3 break-words">
                   {member.first_name} {member.last_name}
                 </h1>
                 <div className="text-sm text-muted-foreground mt-1">{member.dni_number}</div>
@@ -325,7 +325,7 @@ function SocioDetail() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 text-sm">
+              <div className="grid min-w-0 grid-cols-1 min-[390px]:grid-cols-2 md:grid-cols-3 gap-4 mt-6 text-sm">
                 <Stat label="F. nacimiento" value={member.birth_date} />
                 <Stat label="Ciudad" value={member.city ?? "—"} />
                 <Stat label="Teléfono" value={member.phone ?? "—"} />
@@ -341,18 +341,18 @@ function SocioDetail() {
           </div>
 
           {/* DNI */}
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
+          <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6">
             <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-3">DNI</div>
             {dniUrl ? (
-              <img src={dniUrl} alt="DNI" className="max-w-full rounded-lg border border-border" />
+              <img src={dniUrl} alt="DNI" className="block w-full max-w-full max-h-[260px] h-auto object-contain object-left rounded-lg border border-border bg-black/20" />
             ) : (
               <div className="text-muted-foreground text-sm">Sin foto</div>
             )}
           </div>
 
           {/* Contract */}
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6">
+            <div className="flex min-w-0 items-center gap-2 mb-3">
               <FileCheck className="w-4 h-4 text-neon" />
               <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
                 Contrato firmado
@@ -360,7 +360,7 @@ function SocioDetail() {
             </div>
             {member.contract_signed_at ? (
               <>
-                <div className="text-xs text-muted-foreground mb-3">
+                <div className="text-xs text-muted-foreground mb-3 break-words">
                   Firmado el {new Date(member.contract_signed_at).toLocaleString("es-ES")} · versión{" "}
                   {member.contract_version}
                 </div>
@@ -368,7 +368,7 @@ function SocioDetail() {
                   <img
                     src={sigUrl}
                     alt="Firma"
-                    className="max-w-xs bg-black rounded-lg border border-border"
+                    className="block w-full max-w-[320px] max-h-[160px] h-auto object-contain bg-black rounded-lg border border-border"
                   />
                 )}
               </>
@@ -379,12 +379,12 @@ function SocioDetail() {
         </div>
 
         {/* Right: actions */}
-        <div className="space-y-6">
+        <div className="min-w-0 w-full space-y-4 md:space-y-6">
           <SocioClientLinkPanel memberId={id} />
 
           <button
             onClick={nuevoPedido}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon"
+            className="w-full min-w-0 min-h-11 flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon"
           >
             <ShoppingBag className="w-4 h-4" /> Hacer pedido
           </button>
@@ -401,7 +401,7 @@ function SocioDetail() {
                 setNewPlanId(e.target.value);
                 renewalRequest.current = null;
               }}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
+              className="w-full min-w-0 max-w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
             >
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -419,7 +419,7 @@ function SocioDetail() {
                   setPaymentMethod(e.target.value);
                   renewalRequest.current = null;
                 }}
-                className="w-full bg-input border border-border p-2"
+                className="w-full min-w-0 max-w-full bg-input border border-border rounded-md p-2"
               >
                 <option value="cash">Efectivo</option>
                 <option value="card">Tarjeta</option>
@@ -430,7 +430,7 @@ function SocioDetail() {
             <button
               onClick={() => renew()}
               disabled={renewing}
-              className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
+              className="mt-3 w-full min-h-11 bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
             >
               {renewing ? "..." : "Renovar"}
             </button>
