@@ -32,7 +32,7 @@ const userVerified=u=>u&&typeof u.id==='string'&&typeof u.email==='string'&&type
  * deny management/super-admin identities, and permit only socio accounts.
  * Do not use Supabase user_metadata for this check.
  */
-export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fetcher=fetch,authorizeSocioUser}){
+export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,registrationUrl,fetcher=fetch,authorizeSocioUser}){
  if(typeof url!=='string'||!/^https:\/\/[^/]+$/.test(url)||typeof publishableKey!=='string'||!publishableKey||typeof authorizeSocioUser!=='function')throw Error('SOCIO_AUTH_NOT_CONFIGURED');
  if(typeof signupRedirectUrl!=='string'||!signupRedirectUrl.startsWith('https://')||new URL(signupRedirectUrl).search||new URL(signupRedirectUrl).hash)throw Error('SOCIO_SIGNUP_REDIRECT_REQUIRED');
  const base=url+'/auth/v1';
@@ -79,6 +79,34 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   // provider authorization/configuration errors as successful email dispatch.
   return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
  };
+ // The only signup path used by Socio: the already emailed six-digit code
+ // authorizes server-side account creation and confirmation in a separate
+ // Supabase Edge Function. No second confirmation email is sent.
+ const activate=async({input})=>{
+  const email=normalize(input?.email),password=input?.password,code=input?.code;
+  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254||
+   typeof password!=='string'||password.length<10||password.length>128||
+   typeof code!=='string'||!/^[0-9]{6}$/.test(code))
+   return failed(400,'INVALID_INPUT');
+  if(typeof registrationUrl!=='string'||!registrationUrl.startsWith(url+'/functions/v1/'))
+   return failed(503,'REGISTRATION_UNAVAILABLE');
+  try{
+   const result=await fetcher(registrationUrl,{
+    method:'POST',redirect:'manual',
+    headers:{'content-type':'application/json','accept':'application/json'},
+    body:JSON.stringify({email,password,code}),signal:AbortSignal.timeout(20000)
+   });
+   if(result.status!==201){
+    const status=[400,403,409].includes(result.status)?result.status:503;
+    return response({code:'REGISTRATION_FAILED',message: status===403?
+      'Código de 6 cifras incorrecto, caducado o ya utilizado. Pide otro al club.':
+      status===409?'Este correo no se puede registrar de nuevo. Si ya tienes cuenta, inicia sesión.':
+      'No se pudo completar el registro. Comprueba el código.'},status);
+   }
+   // This account is already confirmed via the emailed club code.
+   return login({input:{email,password}});
+  }catch{return failed(503,'REGISTRATION_UNAVAILABLE');}
+ };
  const login=async({input})=>{
   const email=normalize(input?.email),password=input?.password;
   if(!email||typeof password!=='string'||password.length>128)return failed(401,'INVALID_LOGIN');
@@ -104,5 +132,5 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
- return{authenticate,signup,login,logout,refresh};
+ return{authenticate,signup,activate,login,logout,refresh};
 }
