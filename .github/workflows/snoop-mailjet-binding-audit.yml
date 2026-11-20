@@ -1,0 +1,52 @@
+name: Audit SNOOP Mailjet bindings and candidate
+on:
+  push:
+    branches: [feature/snoop-socio-mailjet-email-20261120]
+    paths:
+      - docs/SNOOP_MAILJET_AUDIT_TRIGGER.md
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.3.12'}
+      - run: bun install --frozen-lockfile
+      - name: Assert exact provider contract, syntax, type safety
+        run: |
+          set -euo pipefail
+          node --test tests/socio-mailjet-provider.test.mjs tests/socio-six-digit-flow.test.mjs
+          bun run typecheck
+      - name: Check Mailjet binding existence and types, never values
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          assert.ok(process.env.CLOUDFLARE_API_TOKEN);
+          const u='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/settings';
+          const r=await fetch(u,{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000),redirect:'manual'});
+          assert.equal(r.status,200,'Cloudflare Worker settings not accessible');
+          const j=await r.json();
+          assert.equal(j.success,true);
+          const b=j.result?.bindings||[];
+          for(const [name,valid] of [
+            ['MAILJET_API_KEY',['secret_text']],
+            ['MAILJET_SECRET_KEY',['secret_text']],
+            ['MAILJET_FROM',['plain_text','secret_text']]
+          ]){
+            const found=b.find(x=>x.name===name);
+            assert.ok(found,'Missing Mailjet binding: '+name);
+            assert.ok(valid.includes(found.type),'Incorrect binding type for '+name);
+            console.log(name+' exists, type='+found.type+' (value omitted)');
+          }
+          for(const name of ['EMAIL_API_KEY','EMAIL_FROM','SUPABASE_SERVICE_ROLE_KEY']){
+            assert.ok(b.some(x=>x.name===name),'Expected existing binding missing: '+name);
+          }
+          console.log('MAILJET_READ_ONLY_BINDINGS_PASS; no secrets printed or changed');
+          NODE
