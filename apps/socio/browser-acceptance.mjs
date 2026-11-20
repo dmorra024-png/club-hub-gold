@@ -132,6 +132,12 @@ async function runBrowser(browserType,deviceName,options){
   assert.equal(await page.getByText('Recarga Madrid').count(),0);
   await page.getByRole('button',{name:'Volver al carnet'}).click();
   await page.getByRole('button',{name:'Menú'}).click();
+  // Menu must open INSIDE the visible viewport on Android and iPhone,
+  // not outside the left side when the trigger is the left header control.
+  const menuBounds=await page.locator('.approved-brand .menu').boundingBox();
+  assert(menuBounds,'Menu was not rendered');
+  assert(menuBounds.x>=-1,'Menu clipped off left edge: '+JSON.stringify(menuBounds));
+  assert(menuBounds.x+menuBounds.width<=options.viewport.width+1,'Menu clipped off right edge: '+JSON.stringify(menuBounds));
   await page.getByRole('button',{name:'Mis clubes'}).click();
   await page.getByRole('heading',{name:'Mis clubes'}).waitFor();
   // The second club cannot be linked by matching an email alone.
