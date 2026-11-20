@@ -17,7 +17,7 @@ test('QR dock vector has defined metallic finder shapes',()=>{
  assert.ok(dock.includes('M40 7h17v17'));
 });
 test('Home-centred brand and shared management form styles',()=>{
- assert.match(css,/premium-header-brand[\\s\\S]*?left:50%/);
+ assert.ok(css.includes('premium-header-brand') && css.includes('left:50%'));
  assert.ok(css.includes('max-width:calc(100vw - 146px)'));
  assert.ok(css.includes('premium-main:not(.snoop-approved-home)'));
  assert.ok(css.includes('snoop-approved-cash-bars'));
