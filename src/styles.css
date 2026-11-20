@@ -2219,3 +2219,70 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
     z-index:2;
   }
 }
+
+
+/* 2026-11-20 • Optical alignment and clean chart icon (gestionale only). */
+.premium-shell.snoop-unified-shell .premium-bottom-nav > .premium-dock-voice {
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  padding:0;
+  overflow:visible;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav > .premium-dock-voice > .snoop-approved-assistant-mark {
+  position:relative;
+  width:clamp(58px,16vw,70px);
+  height:clamp(58px,16vw,70px);
+  flex:0 0 clamp(58px,16vw,70px);
+  transform:translateY(10px);
+  margin:0 auto;
+  box-sizing:border-box;
+  border:1.5px solid var(--snoop-accent);
+  border-radius:50%;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb,var(--snoop-electric) 48%,transparent),
+    0 0 11px 2px color-mix(in srgb,var(--snoop-electric) 42%,transparent),
+    inset 0 1px 0 color-mix(in srgb,var(--snoop-foreground) 35%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav > .premium-dock-voice > .snoop-approved-assistant-mark .snoop-dock-icon {
+  width:26px!important;
+  height:26px!important;
+  flex-basis:auto;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav > .premium-dock-voice .snoop-jarvis-microbrand {
+  font-size:9px;
+  line-height:1.1;
+}
+/* Differentiate finance analytics from cellular signal-strength bars. */
+.premium-shell-home .snoop-approved-cash-trend {
+  flex:0 0 clamp(42px,11vw,62px);
+  width:clamp(42px,11vw,62px);
+  height:clamp(42px,11vw,62px);
+  display:grid;
+  place-items:center;
+  color:var(--snoop-accent);
+  opacity:.92;
+  margin-left:clamp(2px,1vw,8px);
+  filter:drop-shadow(0 0 5px color-mix(in srgb,var(--snoop-accent) 44%,transparent));
+}
+.premium-shell-home .snoop-approved-cash-trend svg {
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+@media(max-width:370px){
+  .premium-shell-home .snoop-approved-cash-trend{
+    flex-basis:36px;
+    width:36px;
+    height:36px;
+    margin-left:0;
+  }
+}
+/* Make footer dividers stop short of the assistant's luminous ring. */
+.premium-shell.snoop-unified-shell .premium-bottom-nav > :is(a,button):not(:last-child)::before {
+  top:17px;
+  bottom:17px;
+  opacity:.65;
+}
