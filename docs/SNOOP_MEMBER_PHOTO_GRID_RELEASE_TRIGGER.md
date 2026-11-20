@@ -1,0 +1,1 @@
+Visual-only: restore two-column member detail and edit form, center DNI, enlarge signature within full preview. Preserve all database, QR, authentication, email and business logic. Guard diff and require build/typecheck before pilot deploy.
