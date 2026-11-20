@@ -29,63 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE="$(git rev-parse origin/restore/snoop-socio-approved-ui-20261120)"
-          changed="$(git diff --name-only "$BASE" HEAD -- src apps/socio | grep -v '^apps/socio/main.js
-        run: |
-          set -euo pipefail
-          node apps/socio/check.mjs
-          node --test apps/socio/*.test.mjs tests/socio-six-digit-flow.test.mjs tests/socio-first-invite-code-entry.test.mjs
-          node apps/socio/build-public.mjs
-          test -s apps/socio/dist/approved-ui.css
-          grep -q 'approved-member-card' apps/socio/dist/approved-ui.css
-          grep -q 'approved-dock' apps/socio/dist/main.js
-          WRANGLER_SEND_METRICS=false bunx wrangler deploy --dry-run --config apps/socio/wrangler.pilot.jsonc --outdir .sandbox/socio-approved-ui-dry-run
-  deploy:
-    needs: verify
-    runs-on: ubuntu-24.04
-    environment: snoop-pilot
-    timeout-minutes: 15
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
-      SOCIO_ORIGIN: https://snoop-socio-pilot.dmorra024.workers.dev
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - uses: oven-sh/setup-bun@v2
-        with: {bun-version: '1.3.12'}
-      - run: bun install --frozen-lockfile
-      - name: Confirm existing Worker bindings without reading secret values
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-socio-pilot/settings';
-          const res=await fetch(url,{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(20000)});
-          assert.equal(res.status,200);
-          const j=await res.json();assert.equal(j.success,true);
-          const bs=j.result?.bindings||[];
-          for(const [name,type] of [['SOCIO_QR_SIGNING_KEY_BASE64','secret_text'],['SOCIO_SUPABASE_PUBLISHABLE_KEY','secret_text'],['ASSETS','assets']])
-            assert.ok(bs.some(b=>b.name===name&&b.type===type),'Required Socio binding missing: '+name);
-          console.log('Existing bindings confirmed. Values are not read or changed.');
-          NODE
-      - name: Publish approved Socio frontend while retaining Worker secrets
-        run: |
-          set -euo pipefail
-          node apps/socio/build-public.mjs
-          WRANGLER_SEND_METRICS=false bunx wrangler deploy --config apps/socio/wrangler.pilot.jsonc --keep-vars
-      - name: Confirm new UI live and anonymous isolation intact
-        run: |
-          set -euo pipefail
-          curl -fsS --max-time 25 "$SOCIO_ORIGIN/" -o /tmp/socio-index
-          grep -q 'approved-ui.css' /tmp/socio-index
-          curl -fsS --max-time 25 "$SOCIO_ORIGIN/approved-ui.css" -o /tmp/approved-ui
-          grep -q 'approved-member-card' /tmp/approved-ui
-          curl -fsS --max-time 25 "$SOCIO_ORIGIN/main.js" -o /tmp/socio-main
-          grep -q 'approved-dock' /tmp/socio-main
-          code="$(curl -sS --max-time 25 -o /tmp/socio-anon -w '%{http_code}' "$SOCIO_ORIGIN/api/socio/me")"
-          test "$code" = 401
-          grep -q 'first-invite-code' /tmp/socio-main
-          echo 'SNOOP_SOCIO_FIRST_INVITE_LIVE_PASS'
- || true)"
+          changed="$(git diff --name-only "$BASE" HEAD -- src apps/socio | grep -v '^apps/socio/main.js$' || true)"
           test -z "$changed" || { echo 'Unexpected source changes'; echo "$changed"; exit 1; }
       - name: Full isolated member checks and approved UI contract
         run: |
