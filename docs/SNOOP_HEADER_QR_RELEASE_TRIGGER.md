@@ -1,0 +1,1 @@
+SNOOP management only: restore true physical viewport-centered wordmark, replace visually noisy QR dock icon with clean scan frame. No SNOOP Socio/backend/data/email modification. Follow established scoped preflight, typecheck, dry-run and existing Worker bindings.
