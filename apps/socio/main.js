@@ -176,7 +176,7 @@ async function submitActivation(form){
  const pending=state.pendingRegistration;
  if(!pending){state.page='register';return notify('Introduce tu correo y una contraseña.',true);}
  const code=String(new FormData(form).get('code')||'').trim();
- if(!/^\\d{6}$/.test(code))return notify('Introduce los 6 números recibidos por email.',true);
+ if(!/^[0-9]{6}$/.test(code))return notify('Introduce los 6 números recibidos por email.',true);
  state.pending=true;render();
  try{
   await api('/auth/activate',{method:'POST',body:{email:pending.email,password:pending.password,code}});
