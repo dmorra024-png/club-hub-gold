@@ -18,7 +18,7 @@ test('offline preview is standalone and scripts load AFTER app DOM, without real
   assert.match(html,/SnoopDemo2026!/);
   assert.match(html,/NO VÁLIDO PARA ESCANEAR/);
   assert.match(html,/Mis clubes/);
-  assert.match(html,/Saldo monedero/);
+  assert.match(html,/Saldo disponible/);
   assert.doesNotMatch(html,/<script[^>]+src=/);
   assert.doesNotMatch(html,/navigator\.serviceWorker\.register/);
   assert.doesNotMatch(html,/SUPABASE_SERVICE_ROLE_KEY|DEEPGRAM_API_KEY|sb_secret_/);
