@@ -52,3 +52,5 @@ test('client activation validates exactly six ASCII digits, never a literal back
  assert.match(src,/if\(!\/\^\[0-9\]\{6\}\$\/\.test\(code\)\)/);
  assert.doesNotMatch(src,/if\(!\/\^\\\\d\{6\}\$\/\.test\(code\)\)/);
 });
+
+test('Cloudflare RLS fetch uses supported redirect mode',()=>{ const src=read('apps/socio/supabase-rls.mjs'); assert.ok(src.includes("redirect:'manual'")); assert.ok(!src.includes("redirect:'error'")); });
