@@ -180,3 +180,32 @@ body{background:radial-gradient(ellipse at 70% -5%,var(--navy2),transparent 59%)
 .carnet .qr-frame{width:min(88vw,370px,100%)!important;max-width:370px!important;aspect-ratio:1!important;margin:14px auto 12px!important;padding:0!important;border:12px solid #fff!important;border-radius:8px!important;background:#fff!important;box-shadow:0 4px 22px #0003!important}
 .carnet .qr-frame img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;image-rendering:pixelated!important;filter:none!important;background:#fff!important}
 @media(max-width:370px){.carnet{padding-inline:12px!important}.carnet .qr-frame{width:min(89vw,325px,100%)!important;border-width:9px!important}}
+
+
+/* SNOOP Socio premium compact carnet — visual-only refinements, no API or QR changes. */
+:root{--snoop-nav-height:74px}
+.shell{gap:16px!important;padding-top:calc(env(safe-area-inset-top,0px) + 20px)!important;padding-bottom:calc(var(--snoop-nav-height) + env(safe-area-inset-bottom,0px) + 22px)!important}
+.brand{min-height:54px!important}
+.brand-wordmark{width:164px!important}
+.subbrand{font-size:9px!important;letter-spacing:.21em!important}
+.menu-trigger{width:40px!important;height:40px!important;border-radius:12px!important}
+.socio-welcome{padding:2px 3px 0!important}
+.socio-welcome .kicker{font-size:10px!important}
+.socio-welcome .club-heading{margin:5px 0 2px!important;font-size:clamp(22px,6vw,29px)!important}
+.socio-welcome .muted{font-size:12px!important;line-height:1.3!important}
+.carnet{padding:20px 19px 18px!important;border:1px solid color-mix(in srgb,var(--gold) 65%,transparent)!important;border-radius:20px!important;box-shadow:0 15px 35px #0002!important}
+.carnet::before{opacity:.045!important}
+.carnet-topline{font-size:11px!important;letter-spacing:.075em!important}
+.carnet-divider{color:var(--muted);margin:0 3px}
+.carnet-active{font-size:11px!important;display:inline-flex;align-items:center;gap:6px;padding:5px 10px!important;color:var(--white)!important}
+.active-dot{display:inline-block;width:6px;height:6px;background:var(--gold);border-radius:50%}
+.carnet-member-number{font-size:clamp(15px,4vw,19px)!important;margin:18px 0 8px!important;text-align:center!important;letter-spacing:.075em!important}
+.carnet .qr-frame{width:min(65vw,250px,100%)!important;max-width:250px!important;aspect-ratio:1!important;border:9px solid white!important;border-radius:9px!important;margin:10px auto 9px!important;padding:3px!important;box-shadow:0 3px 12px #0002!important}
+.carnet .muted{font-size:11px!important;margin:8px 0 0!important}
+.socio-dock{height:calc(var(--snoop-nav-height) + env(safe-area-inset-bottom,0px))!important;padding:8px max(12px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom,0px))!important;border-top-color:color-mix(in srgb,var(--gold) 20%,transparent)!important}
+.socio-dock button{min-height:54px!important;gap:5px!important;font-size:10.5px!important;font-weight:600;opacity:.9}
+.socio-dock button[aria-current=true]{opacity:1}
+.socio-dock .dock-icon{height:22px;width:22px;display:block!important;font-size:0!important}
+.socio-dock .dock-icon svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.socio-dock button:disabled{opacity:.32!important}
+@media(max-width:370px){.carnet{padding-inline:13px!important}.carnet .qr-frame{width:min(68vw,238px,100%)!important;border-width:8px!important}}

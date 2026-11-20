@@ -1,0 +1,1 @@
+Read-only anonymous authentication health check for the separate SNOOP Socio pilot. Do not enroll real accounts or expose credentials.

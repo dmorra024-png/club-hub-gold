@@ -1,0 +1,34 @@
+name: Verify SNOOP Socio pilot HTTPS (read only)
+on:
+  push:
+    branches: [fix/snoop-socio-six-digit-email-flow-20261119]
+    paths: [docs/SOCIO_SIX_DIGIT_SMOKE_TRIGGER.md]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.repository == 'dmorra024-png/club-hub-gold'
+    runs-on: ubuntu-24.04
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - name: Inspect public response status and expected static tokens
+        run: |
+          node --input-type=module <<'NODE'
+          const origin='https://snoop-socio-pilot.dmorra024.workers.dev';
+          for(const path of ['/','/main.js','/api/socio/me']){
+           const r=await fetch(origin+path,{redirect:'manual',signal:AbortSignal.timeout(15000),headers:{'cache-control':'no-cache'}});
+           const body=await r.text();
+           console.log(JSON.stringify({path,status:r.status,contentType:r.headers.get('content-type'),bodyLength:body.length,
+            expectedText:path==='/main.js'?body.includes('Introduce tu código'):path==='/'?body.includes('SNOOP'):undefined,
+            apiCode:path==='/api/socio/me'?(()=>{try{return JSON.parse(body).code}catch{return 'NON_JSON'}})():undefined}));
+          }
+          NODE
+      - name: Verify deployed binding names and types, not secret contents
+        run: |
+          node --input-type=module <<'NODE'
+          const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-socio-pilot/settings',{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(15000)});
+          const j=await r.json();
+          console.log(JSON.stringify({status:r.status,success:j.success,bindings:(j.result?.bindings||[]).map(x=>({name:x.name,type:x.type}))}));
+          NODE

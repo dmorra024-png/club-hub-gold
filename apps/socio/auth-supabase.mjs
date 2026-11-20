@@ -39,8 +39,9 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  async function call(path,{method='GET',body,accessToken}={}){
   const res=await fetcher(base+path,{method,headers:{
    apikey:publishableKey,'content-type':'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{})
-  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'error',signal:AbortSignal.timeout(8000)});
-  if(!res.ok)return null;
+  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'manual',signal:AbortSignal.timeout(8000)});
+  // Never follow an upstream redirect: the Supabase bearer token must remain scoped.
+  if(!res.ok || (res.status>=300&&res.status<400))return null;
   return res.json().catch(()=>null);
  }
  const authUser=async token=>token?call('/user',{accessToken:token}):null;
@@ -56,27 +57,52 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,accessToken)))return null;
   return{userId:user.id,email:user.email,emailVerified:true,accountType:'socio',accessToken};
  };
- const signup=async({input})=>{
-  const email=normalize(input?.email),password=input?.password;
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||typeof password!=='string'||password.length<10||password.length>128)return failed(400,'INVALID_CREDENTIALS');
-  // Avoid account existence or membership enumeration; no access cookies are issued.
-  // Fail visibly on provider outages instead of pretending a verification email was dispatched.
-  let status=0;
+ // Deprecated password signup would send a second Supabase confirmation email.
+ // Reject it: only the club-issued magiclink email OTP enables Socio setup.
+ const signup=async()=>response({
+   code:'USE_CLUB_CODE',
+   message:'Solicita el código de 6 cifras al club y utilízalo para activar tu cuenta.'
+ },409);
+ // The club sends ONE Supabase Auth OTP via Resend before account setup.
+ // Supabase validates email possession with the same six digits that link the
+ // membership in the club. No second confirmation email or admin key here.
+ const activate=async({input})=>{
+  const email=normalize(input?.email),password=input?.password,code=input?.code;
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||
+   typeof password!=='string'||password.length<10||password.length>128||
+   typeof code!=='string'||!/^[0-9]{6}$/.test(code))
+   return failed(400,'INVALID_INPUT');
   try{
-   const result=await fetcher(base+'/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{
-    method:'POST',
+   const r=await fetcher(base+'/verify',{
+    method:'POST',redirect:'manual',
     headers:{apikey:publishableKey,'content-type':'application/json'},
-    body:JSON.stringify({email,password}),
-    redirect:'error',signal:AbortSignal.timeout(8000)
+    body:JSON.stringify({email,token:code,type:'magiclink'}),
+    signal:AbortSignal.timeout(10000),
    });
-   status=result.status;
-  }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
-  if(status>=500||status===429||status===401||status===403||status===404||status===0)
-   return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');
-  // 400/409/422 may indicate an existing account or a policy rejection.
-  // Keep the response generic to avoid account enumeration; do not conceal
-  // provider authorization/configuration errors as successful email dispatch.
-  return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
+   if(!r.ok)return response({code:'INVALID_CODE',message:'Código de 6 cifras incorrecto o caducado. Pide otro al club.'},403);
+   const session=await r.json();
+   if(!session?.access_token||!session?.refresh_token)
+    return failed(503,'VERIFICATION_UNAVAILABLE');
+   // Save the chosen password only after Supabase verified the email OTP.
+   const pw=await fetcher(base+'/user',{
+    method:'PUT',redirect:'manual',
+    headers:{apikey:publishableKey,authorization:'Bearer '+session.access_token,'content-type':'application/json'},
+    body:JSON.stringify({password}),signal:AbortSignal.timeout(10000),
+   });
+   if(!pw.ok)return failed(503,'PASSWORD_SETUP_FAILED');
+   // Link the existing card using the SAME code, inside the database's
+   // atomic, one-time, five-attempt claim RPC.
+   const linked=await fetcher(url+'/rest/v1/rpc/socio_claim_member',{
+    method:'POST',redirect:'manual',
+    headers:{apikey:publishableKey,authorization:'Bearer '+session.access_token,'content-type':'application/json'},
+    body:JSON.stringify({p_code:code}),signal:AbortSignal.timeout(10000),
+   });
+   if(!linked.ok||await linked.json().catch(()=>false)!==true)
+    return response({code:'CLAIM_FAILED',message:'La cuenta se verificó, pero no se pudo vincular el carnet. Solicita un nuevo código al club.'},409);
+   const user=await authUser(session.access_token);
+   if(!(await checked(user,session.access_token)))return failed(403,'SOCIO_UNAUTHORIZED');
+   return response({authenticated:true,activated:true},200,sessionCookies(session));
+  }catch{return failed(503,'REGISTRATION_UNAVAILABLE');}
  };
  const login=async({input})=>{
   const email=normalize(input?.email),password=input?.password;
@@ -91,7 +117,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  const logout=async({request})=>{
   const token=tokenIn(request,ACCESS);
   // Best effort remote revocation, but browser cookies are ALWAYS revoked locally.
-  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(4000)});}catch{}}
+  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(4000)});}catch{}}
   return response({signedOut:true},200,clear());
  };
  const refresh=async({request})=>{
@@ -103,5 +129,5 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,data.access_token)))return response({authenticated:false},401,clear());
   return response({authenticated:true},200,sessionCookies(data));
  };
- return{authenticate,signup,login,logout,refresh};
+ return{authenticate,signup,activate,login,logout,refresh};
 }

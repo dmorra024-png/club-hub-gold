@@ -12,7 +12,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
  async function select(path){
   const response=await fetcher(root+path,{method:'GET',headers:{
    'apikey':publishableKey,'authorization':'Bearer '+accessToken,'accept':'application/json'
-  },redirect:'error',signal:AbortSignal.timeout(8000)});
+  },redirect:'manual',signal:AbortSignal.timeout(8000)});
   if(!response.ok)throw fail('SOCIO_READ_UNAVAILABLE');
   const result=await response.json();
   if(!Array.isArray(result))throw fail('SOCIO_BAD_DATA');
@@ -50,7 +50,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
   },
   async claimAndConsumeLinkChallenge({code,authUserId}={}){
    if(authUserId!==actorId)throw fail('SOCIO_IDENTITY_SCOPE',403);
-   if(typeof code!=='string'||!/^[a-f0-9]{48}$/.test(code))throw fail('SOCIO_LINK_CODE_INVALID',400);
+   if(typeof code!=='string'||!/^\d{6}$/.test(code))throw fail('SOCIO_LINK_CODE_INVALID',400);
    // The RPC alone owns the transaction and performs fresh user, staff,
    // membership and challenge verification in the database. The browser
    // cannot supply clubId/memberId/userId or control a verified link.
@@ -60,7 +60,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
      method:'POST',headers:{
       apikey:publishableKey,authorization:'Bearer '+accessToken,
       accept:'application/json','content-type':'application/json'
-     },body:JSON.stringify({p_code:code}),redirect:'error',signal:AbortSignal.timeout(8000)
+     },body:JSON.stringify({p_code:code}),redirect:'manual',signal:AbortSignal.timeout(8000)
     });
    }catch{throw fail('SOCIO_LINK_PROVIDER_UNAVAILABLE');}
    if(res.status===400||res.status===401||res.status===403||res.status===409)return{ok:false};
@@ -80,7 +80,7 @@ export function createSocioRlsRepository({url,publishableKey,accessToken,actorId
     res=await fetcher(root+'/rpc/socio_link_by_verified_email',{
      method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+accessToken,
       accept:'application/json','content-type':'application/json'},
-     body:'{}',redirect:'error',signal:AbortSignal.timeout(8000)
+     body:'{}',redirect:'manual',signal:AbortSignal.timeout(8000)
     });
    }catch{throw fail('SOCIO_AUTOLINK_UNAVAILABLE');}
    if(!res.ok)throw fail('SOCIO_AUTOLINK_UNAVAILABLE',res.status===401||res.status===403?403:503);

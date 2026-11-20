@@ -2,7 +2,7 @@
 // No demo accounts, fabricated balances or operational QR tokens. No credentials in localStorage.
 const app = document.getElementById('app');
 const state = {page:'login',email:'',clubs:[],selected:null,menu:false,message:'',error:false,
-  pending:false,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
+  pending:false,pendingRegistration:null,me:null,wallet:null,movements:null,member:null,qrUrl:null,qrClub:null,qrRequest:0,installPrompt:null,qrRefresh:null,sessionEpoch:0};
 const endpoint = '/api/socio';
 const themeIds=['navy-gold','graphite-copper','aubergine-amethyst','petrol-titanium','ivory-champagne','ruby-gold','emerald-gold'];
 const themes={
@@ -54,7 +54,7 @@ function brand(){return '<header class="brand"><div class="brand-identity"><img 
 (state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'')+'</header>';}
 function shell(body){
  const activeClub=state.clubs.find(c=>c.id===state.selected);
- const nav=state.me?.authenticated?'<nav class="socio-dock" aria-label="Navegación del socio"><button type="button" data-action="home" '+(!state.selected?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon">▣</span><span>Carnet</span></button><button type="button" data-action="clubs" aria-current="'+(state.page==='clubs')+'"><span class="dock-icon">▦</span><span>Clubes</span></button><button type="button" data-action="movements" '+(!activeClub?.walletEnabled?'disabled':'')+' aria-current="'+(state.page==='movements')+'"><span class="dock-icon">◈</span><span>Monedero</span></button><button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon">♙</span><span>Perfil</span></button></nav>':'';
+ const nav=state.me?.authenticated?'<nav class="socio-dock" aria-label="Navegación del socio"><button type="button" data-action="home" '+(!state.selected?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h10M7 13h5"/></svg></span><span>Carnet</span></button><button type="button" data-action="clubs" aria-current="'+(state.page==='clubs')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M8 7h2M14 7h2M8 11h2M14 11h2M10 21v-6h4v6"/></svg></span><span>Clubes</span></button><button type="button" data-action="movements" '+(!activeClub?.walletEnabled?'disabled':'')+' aria-current="'+(state.page==='movements')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a3 3 0 0 1-3-3"/><path d="M22 12h-6a2 2 0 0 0 0 4h6"/><circle cx="16" cy="14" r=".6" fill="currentColor" stroke="none"/></svg></span><span>Monedero</span></button><button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span>Perfil</span></button></nav>':'';
  app.innerHTML='<main class="shell">'+brand()+(state.message?'<div class="status '+(state.error?'error':'')+'" role="status">'+safe(state.message)+'</div>':'')+body+'<div class="footer">SNOOP SOCIO · Acceso personal y privado</div>'+nav+'</main>';
 }
 function authPage(mode){const reg=mode==='register';shell('<section><div class="kicker">Tu carnet digital</div><h1 class="title">'+(reg?'Crea tu cuenta':'Bienvenido')+'</h1><p class="lede">Una cuenta para todos tus clubes SNOOP. Tus códigos son privados.</p></section>'+
@@ -65,9 +65,12 @@ function authPage(mode){const reg=mode==='register';shell('<section><div class="
 '<div class="divider"></div><button class="btn ghost" style="width:100%" data-action="'+(reg?'login':'register')+'">'+(reg?'Ya tengo cuenta':'Crear una cuenta')+'</button></section>'+
 '<p class="muted align-center">La dirección debe coincidir con la facilitada al club. La vinculación se verificará antes de mostrar cualquier carnet.</p>'+
 '<button class="btn small end" data-action="install">Instalar SNOOP Socio</button>');}
-function verifyPage(){shell('<section><div class="kicker">Comprueba tu correo</div><h1 class="title">Confirma tu dirección</h1><p class="lede">Si el registro es válido, recibirás las instrucciones para confirmar el correo. Después podrás iniciar sesión y vincular tus clubes.</p></section><button class="btn primary" data-action="login">Ir al inicio de sesión</button>');}
-function linkPage(){shell('<section><div class="kicker">Vinculación segura</div><h1 class="title">Vincula tu carnet</h1><p class="lede">Tu cuenta está lista. Pide al club que pulse «Enviar email App Socio» desde tu ficha. Abre el enlace del correo en este teléfono: tu carnet se vinculará automáticamente, sin copiar códigos.</p></section>'+
-'<button class="btn ghost" data-action="reload-clubs">Actualizar mis clubes</button>');}
+function activatePage(){shell('<section><div class="kicker">Activación de carnet</div><h1 class="title">Introduce tus 6 números</h1><p class="lede">El club ya ha enviado el código a tu email. Este mismo código verifica tu dirección y activa tu cuenta: no recibirás un segundo correo.</p></section>'+
+'<section class="panel"><form id="activation-form" class="stack"><label class="field">Código recibido por email<input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" autocomplete="one-time-code" required placeholder="000000"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Activando…':'Activar cuenta y carnet')+'</button></form></section>'+
+'<button class="btn ghost" data-action="register">Volver a crear cuenta</button>');}
+function linkPage(){shell('<section><div class="kicker">Activación de carnet</div><h1 class="title">Introduce tu código</h1><p class="lede">El club ha enviado a tu correo un código de 6 números. Escríbelo aquí una sola vez para vincular tu carnet.</p></section>'+
+'<section class="panel"><form id="claim-form" class="stack"><label class="field">Código de socio<input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" minlength="6" autocomplete="one-time-code" required placeholder="000000"/></label><button class="btn primary" type="submit" '+(state.pending?'disabled':'')+'>'+(state.pending?'Verificando…':'Activar mi carnet')+'</button></form></section>'+
+'<button class="btn ghost" data-action="reload-clubs">Ya he activado mi carnet</button>');}
 function clubsPage(){shell('<section><div class="kicker">Tu cuenta, tus clubes</div><h1 class="title">Mis clubes</h1><p class="lede">Cada club tiene su propio carnet, número de socio y saldo independiente.</p></section>'+
 '<div class="list">'+state.clubs.map(c=>'<button class="club-option '+(c.id===state.selected?'selected':'')+'" data-action="select-club" data-id="'+safe(c.id)+'"><div><strong>'+safe(c.name)+'</strong><span>'+safe(c.status||'')+'</span></div><span>Ver carnet →</span></button>').join('')+'</div>'+
 '<button class="btn ghost" data-action="link">Vincular otro club</button>');}
@@ -75,14 +78,14 @@ function carnetPage(){
  const c=state.clubs.find(c=>c.id===state.selected);
  if(!c){state.page='clubs';return render();}
  const unavailable='No disponible: conecta y verifica el carnet.';
- shell('<section class="socio-welcome"><div class="kicker">MI CLUB</div><h1 class="club-heading">'+safe(c.name)+'</h1><p class="muted">Tu acceso privado SNOOP</p></section>'+
- '<section class="carnet" aria-label="Tarjeta digital del socio"><div class="carnet-topline"><span>SNOOP · SOCIO</span><span class="carnet-active">● Activo</span></div>'+
+ shell('<section class="socio-welcome"><div class="kicker">MI CLUB</div><h1 class="club-heading">'+safe(c.name)+'</h1><p class="muted">Carnet digital de socio</p></section>'+
+ '<section class="carnet" aria-label="Tarjeta digital del socio"><div class="carnet-topline"><span>SNOOP <span class="carnet-divider">/</span> SOCIO</span><span class="carnet-active"><span class="active-dot"></span> Activo</span></div>'+
  '<div class="carnet-member-number">'+(state.member?.memberNumber?'SOCIO Nº '+safe(state.member.memberNumber):'CARNET PENDIENTE')+'</div>'+
  '<div class="qr-frame">'+(state.qrUrl?'<img alt="QR permanente de socio" src="'+state.qrUrl+'"/>':'<div class="qr-empty">'+unavailable+'</div>')+'</div>'+
  '<p class="muted">'+(state.qrUrl?'Muestra este código al personal':'El QR solo aparece con una vinculación válida y conexión activa.')+'</p>'+
- '<button class="btn small ghost" data-action="refresh-qr" '+(state.pending?'disabled':'')+'>Mostrar QR</button></section>'+
+ '</section>'+
  (c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">Saldo monedero</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Ver movimientos</button></section>':'')+
- '<button class="btn ghost end" data-action="clubs">Mis clubes</button>');
+ '');
 }
 function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section><button class="btn ghost" data-action="clubs">Mis clubes</button><button class="btn" data-action="logout">Cerrar sesión</button>');}
 function movementsPage(){
@@ -93,7 +96,7 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 (state.movements===null?'<div class="status">Consultando movimientos…</div>':items?'<div class="list">'+items+'</div>':'<div class="status">No hay movimientos registrados.</div>')+
 '<button class="btn end" data-action="home">Volver al carnet</button>');
 }
-function render(){switch(state.page){case'register':authPage('register');break;case'verify':verifyPage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
+function render(){switch(state.page){case'register':authPage('register');break;case'activate':activatePage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
 async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;const changed=state.selected!==c.id;state.sessionEpoch++;if(changed)stopQr();state.selected=c.id;applySocioTheme(c.themeId);if(changed)state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
 async function refreshCarnet(){
@@ -146,12 +149,7 @@ async function authenticate(){
  try{
   state.me=await api('/me');
   if(!state.me?.authenticated){resetClub();state.me=null;state.clubs=[];state.page='login';render();return;}
-  if(state.me.emailVerified===true){
-   // The database links memberships by auth.uid() and confirmed account email,
-   // enforcing unique member per club and current active status. No code input.
-   try{await api('/memberships/sync',{method:'POST',body:{}});}
-   catch{/* A transient sync failure must not log the member out. */}
-  }
+  // Linking requires the six-digit email code; never auto-link by matching email.
   await refreshClubs();
  }catch(e){
   resetClub();state.me=null;state.clubs=[];state.page='login';
@@ -160,10 +158,49 @@ async function authenticate(){
   render();
  }
 }
-async function submitAuth(form){const values=new FormData(form);const email=String(values.get('email')||'').trim().toLowerCase();const password=String(values.get('password')||'');const reg=state.page==='register';if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);state.email=email;state.pending=true;render();try{const result=await api('/auth/'+(reg?'signup':'login'),{method:'POST',body:{email,password}});state.pending=false;state.message='';if(reg){state.page='verify';render();}else{await authenticate();}}catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}}
-document.addEventListener('submit',e=>{if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}});
+async function submitAuth(form){
+ const values=new FormData(form),email=String(values.get('email')||'').trim().toLowerCase(),password=String(values.get('password')||'');
+ const reg=state.page==='register';
+ if(reg&&password!==values.get('confirm'))return notify('Las contraseñas no coinciden.',true);
+ state.email=email;
+ if(reg){
+  // Only keep password in memory while entering the club's existing email code.
+  // No Supabase signup and no second confirmation email at this stage.
+  state.pendingRegistration={email,password};state.page='activate';state.message='';state.error=false;render();return;
+ }
+ state.pending=true;render();
+ try{await api('/auth/login',{method:'POST',body:{email,password}});state.pending=false;state.message='';await authenticate();}
+ catch(e){state.pending=false;notify(e.message||'Error de acceso.',true);}
+}
+async function submitActivation(form){
+ const pending=state.pendingRegistration;
+ if(!pending){state.page='register';return notify('Introduce tu correo y una contraseña.',true);}
+ const code=String(new FormData(form).get('code')||'').trim();
+ if(!/^[0-9]{6}$/.test(code))return notify('Introduce los 6 números recibidos por email.',true);
+ state.pending=true;render();
+ try{
+  await api('/auth/activate',{method:'POST',body:{email:pending.email,password:pending.password,code}});
+  state.pendingRegistration=null;state.pending=false;state.message='';state.error=false;
+  await authenticate();
+ }catch(e){state.pending=false;state.page='activate';notify(e.message||'No se pudo activar la cuenta.',true);}
+}
+async function submitClaim(form){
+ const code=String(new FormData(form).get('code')||'').trim();
+ if(!/^\d{6}$/.test(code))return notify('Introduce los 6 números del correo.',true);
+ state.pending=true;render();
+ try{
+  await api('/link/claim',{method:'POST',body:{code}});
+  state.pending=false;state.message='Carnet activado correctamente.';state.error=false;
+  await refreshClubs();
+ }catch(e){state.pending=false;state.page='link';notify(e.message||'Código inválido o caducado.',true);}
+}
+document.addEventListener('submit',e=>{
+ if(e.target.id==='auth-form'){e.preventDefault();void submitAuth(e.target);}
+ if(e.target.id==='claim-form'){e.preventDefault();void submitClaim(e.target);}
+ if(e.target.id==='activation-form'){e.preventDefault();void submitActivation(e.target);}
+});
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.page='login';break;case'register':state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.pendingRegistration=null;state.page='login';break;case'register':state.pendingRegistration=null;state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.page==='carnet'&&!state.qrUrl)void refreshCarnet();});
 // The browser reclaims object URLs at document unload; navigation does not revoke a valid permanent card.

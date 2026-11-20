@@ -1,0 +1,42 @@
+name: SNOOP Socio sender configuration audit (read-only)
+on:
+  push:
+    branches:
+      - fix/snoop-socio-six-digit-email-flow-20261119
+    paths:
+      - .github/workflows/socio-sender-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.repository == 'dmorra024-png/club-hub-gold' && github.ref_name == 'fix/snoop-socio-six-digit-email-flow-20261119'
+    runs-on: ubuntu-latest
+    env:
+      CF_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: 0cc8106f8820d22996af3aed9e081e93
+    steps:
+      - name: Check email sender bindings without exposing values
+        run: |
+          node --input-type=module <<'NODE'
+          const token=process.env.CF_TOKEN;
+          if(!token){console.error('CLOUDFLARE_TOKEN_MISSING');process.exit(1)}
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CF_ACCOUNT+'/workers/scripts/snoop-pilot/settings';
+          const res=await fetch(url,{headers:{Authorization:'Bearer '+token},redirect:'error'});
+          const data=await res.json().catch(()=>({}));
+          if(!res.ok||!data.success||!Array.isArray(data.result?.bindings)){
+            console.error('CLOUDFLARE_SETTINGS_UNAVAILABLE',res.status);
+            process.exit(1);
+          }
+          const bindings=new Map(data.result.bindings.map(b=>[b.name,b.type]));
+          const expected={EMAIL_API_KEY:'secret_text',EMAIL_FROM:'plain_text'};
+          let okay=true;
+          for(const [name,type] of Object.entries(expected)){
+            const actual=bindings.get(name)||'MISSING';
+            // Return only types, never values or credentials.
+            console.log(name+': '+actual);
+            if(actual!=='secret_text'&&actual!=='plain_text')okay=false;
+          }
+          if(!okay)process.exit(2);
+          console.log('Sender configuration names detected (delivery not proven)');
+          NODE

@@ -46,6 +46,9 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
   },
   async syncClubs(actor){
    verifiedActor(actor);
+   throw error('EMAIL_AUTO_LINK_DISABLED',409);
+   /* Deprecated: claims require an emailed six-digit code.
+   verifiedActor(actor);
    const verifiedEmail=normalizeVerifiedEmail(actor.email);
    if(!verifiedEmail)throw error('VERIFIED_EMAIL_REQUIRED',400);
    // Atomically look up eligible memberships by confirmed email, check uniqueness and
@@ -57,10 +60,11 @@ export function makeSocioService({repository,signingSecret,now=()=>Date.now()}){
    });
    if(!result||!Number.isSafeInteger(result.linkedCount)||result.linkedCount<0)throw error('SYNC_UNAVAILABLE',503);
    return{synced:true,linkedCount:result.linkedCount};
+   */
   },
   async linkMembership(actor,code){
    verifiedActor(actor);
-   if(typeof code!=='string'||code.length<6||code.length>64||!/^[A-Za-z0-9-]+$/.test(code))throw error('LINK_CODE_INVALID',400);
+   if(typeof code!=='string'||!/^\d{6}$/.test(code))throw error('LINK_CODE_INVALID',400);
    // This repository method must validate staff issuance, expiration, single-use, account identity,
    // and membership activation, then consume + insert a link in ONE DB transaction.
    const result=await repository.claimAndConsumeLinkChallenge({code,authUserId:actor.userId,nowMs:now(),policy:verifyMembershipClaim});
