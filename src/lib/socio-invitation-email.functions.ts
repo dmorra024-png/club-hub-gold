@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
 import { requireOperationalClub } from "@/lib/club-access.server";
-import { EmailAPIError, sendProviderEmail } from "@/lib/email-provider.server";
+import { EmailAPIError, sendProviderEmail, sendMailjetEmail } from "@/lib/email-provider.server";
 
 const SOCIO_APP_URL = "https://snoop-socio-pilot.dmorra024.workers.dev/";
 const input = z.object({ memberId: z.string().uuid() }).strict();
@@ -21,7 +21,10 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const clubId = await requireOperationalClub(context, "manage_members");
     const env = (globalThis as any).__env__ ?? process.env;
-    if (!env.EMAIL_API_KEY || !env.EMAIL_FROM || !env.SUPABASE_SERVICE_ROLE_KEY || !env.SUPABASE_URL)
+    const mailjetSelected = Boolean(env.MAILJET_API_KEY || env.MAILJET_SECRET_KEY || env.MAILJET_FROM);
+    if ((!mailjetSelected && (!env.EMAIL_API_KEY || !env.EMAIL_FROM)) ||
+        (mailjetSelected && (!env.MAILJET_API_KEY || !env.MAILJET_SECRET_KEY || !env.MAILJET_FROM)) ||
+        !env.SUPABASE_SERVICE_ROLE_KEY || !env.SUPABASE_URL)
       throw new Error("Envío automático no configurado. Configura el proveedor de correo.");
     // Scope the recipient by the current authorized club; never accept an
     // address or a club identifier from the browser.
@@ -94,7 +97,9 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
     const text = `Hola ${fullName}. ${clubName} te invita a SNOOP Socio. Abre la aplicación: ${link.href}\nEn la app SNOOP Socio crea tu contraseña e introduce este código único para activar tu cuenta y carnet: ${code}. Válido 10 minutos, una sola vez.\n`;
     try {
       // API acceptance is not proof of inbox delivery. Keep feedback precise.
-      const result = await sendProviderEmail({
+      const result = mailjetSelected ? await sendMailjetEmail({
+        to: recipient, subject, html, text
+      }, {apiKey:env.MAILJET_API_KEY,secretKey:env.MAILJET_SECRET_KEY,from:env.MAILJET_FROM}) : await sendProviderEmail({
         // Resend's unverified onboarding sender is restricted to the account inbox.
         // Pilot-only alias: the same Gmail mailbox receives the code, while the
         // Socio identity remains separate from the management identity.
