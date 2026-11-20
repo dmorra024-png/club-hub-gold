@@ -87,6 +87,10 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
           throw new Error("Resend ha limitado temporalmente los envíos (429). Vuelve a intentarlo más tarde.");
         throw new Error("Resend no aceptó el envío (HTTP " + error.status + ").");
       }
-      throw new Error("No se pudo confirmar el envío con Resend. Comprueba la conexión y la configuración.");
+      if (error instanceof TypeError || (error instanceof Error && error.name === "TimeoutError"))
+        throw new Error("No hay conexión con la API de Resend desde SNOOP. Revisa la conexión del Worker.");
+      if (error instanceof Error && error.message === "Proveedor sin confirmación")
+        throw new Error("Resend respondió sin identificador de mensaje.");
+      throw new Error("Fallo interno al preparar la petición a Resend.");
     }
   });
