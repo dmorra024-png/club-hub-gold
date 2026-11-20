@@ -7,3 +7,5 @@ Preflight: GitHub isolated checks and SQL migration verified, existing secrets r
 Cloudflare deployment must refuse if expected Socio bindings or runtime checks are missing. Email delivery is NOT implied by publishing the member client.
 
 The separate management mail-sending endpoint must be deployed and tested independently before declaring the complete flow operational.
+
+Cloudflare Supabase auth compatibility patch: replace unsupported fetch redirect:error with manual, refusing redirects without exposing Supabase tokens. Validate signup and refresh fail closed with 4xx/5xx.
