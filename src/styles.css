@@ -2141,3 +2141,55 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
     min-width:0;
   }
 }
+
+
+/* Home cash accent: same optical weight as the wallet, not a competing focal point. */
+.premium-shell-home .snoop-approved-cash-bars {
+  width:clamp(43px,11vw,65px);
+  height:clamp(43px,11vw,65px);
+  gap:clamp(3px,.8vw,5px);
+  padding:6px 2px;
+  margin-inline:clamp(1px,1.5vw,8px);
+  justify-content:center;
+  opacity:.88;
+  filter:drop-shadow(0 0 5px color-mix(in srgb,var(--snoop-accent) 30%,transparent));
+}
+.premium-shell-home .snoop-approved-cash-bars i {
+  flex:1 1 0;
+  min-width:0;
+  max-width:8px;
+  border-width:1px;
+  box-shadow:0 0 4px color-mix(in srgb,var(--snoop-accent) 28%,transparent);
+}
+@media(max-width:370px) {
+  .premium-shell-home .snoop-approved-cash{gap:8px;padding-inline:clamp(11px,3vw,18px)}
+  .premium-shell-home .snoop-approved-cash-icon{width:clamp(36px,12vw,51px)}
+  .premium-shell-home .snoop-approved-cash-icon svg{width:100%;height:auto}
+  .premium-shell-home .snoop-approved-cash-bars{width:clamp(36px,11vw,48px);margin-inline:0}
+}
+/* Apply the approved Home's navy inset, metallic edge and controlled cyan glow
+   to existing forms across management pages, keeping their original semantics. */
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  .bg-card\/60, .bg-card\/70, .bg-card\/80
+) {
+  background:linear-gradient(145deg,var(--snoop-elevated),var(--snoop-panel) 60%,var(--snoop-canvas));
+  border-color:var(--snoop-border);
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--snoop-accent) 25%,transparent),
+    0 0 13px color-mix(in srgb,var(--snoop-electric) 12%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  button,select,input,textarea
+) {
+  font-family:var(--font-body);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) select {
+  width:100%;
+  line-height:1.3;
+  padding-inline:12px;
+  text-overflow:ellipsis;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  .grid,.flex
+) {
+  min-width:0;
+}
