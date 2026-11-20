@@ -1,0 +1,20 @@
+name: Verify SNOOP Socio unauthenticated signup availability
+on:
+  push:
+    branches: [fix/snoop-socio-six-digit-email-flow-20261119]
+    paths: [docs/SOCIO_AUTH_LIVE_CHECK.md]
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify live session refresh is 401 (not 503)
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base='https://snoop-socio-pilot.dmorra024.workers.dev';
+          const response=await fetch(base+'/api/socio/auth/refresh',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:'{}',redirect:'manual',signal:AbortSignal.timeout(15000)});
+          const data=await response.json().catch(()=>({}));
+          console.log(JSON.stringify({path:'/api/socio/auth/refresh',status:response.status,code:data.code??'NONE'}));
+          assert.equal(response.status,401,'Unauthenticated refresh must return 401, not 503');
+          NODE
