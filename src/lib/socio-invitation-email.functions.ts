@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireClubMemberAuth } from "@/integrations/supabase/auth-middleware";
 import { requireOperationalClub } from "@/lib/club-access.server";
-import { sendProviderEmail } from "@/lib/email-provider.server";
+import { EmailAPIError, sendProviderEmail } from "@/lib/email-provider.server";
 
 const SOCIO_APP_URL = "https://snoop-socio-pilot.dmorra024.workers.dev/";
 const input = z.object({ memberId: z.string().uuid() }).strict();
@@ -73,8 +73,20 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
       }, { apiKey: env.EMAIL_API_KEY, from: env.EMAIL_FROM, endpoint: "https://api.resend.com/emails" });
       if (!result.message_id) throw new Error("Proveedor sin confirmación");
       return { status: "accepted" as const };
-    } catch {
-      // Provider delivery is not guaranteed by API acceptance.
-      throw new Error("El proveedor no confirmó el envío. Comprueba la configuración de correo.");
+    } catch (error) {
+      // Never expose API keys, recipient addresses, OTPs, or provider response bodies.
+      // Only classify the trusted HTTP status returned by our own email adapter.
+      if (error instanceof EmailAPIError) {
+        if (error.status === 401)
+          throw new Error("Resend rechazó la clave API (401). Comprueba EMAIL_API_KEY.");
+        if (error.status === 403)
+          throw new Error("Resend rechazó el destinatario (403). Con onboarding@resend.dev solo puedes enviar al correo de tu cuenta Resend; para otros socios necesitas un dominio verificado.");
+        if (error.status === 422)
+          throw new Error("Resend rechazó el remitente o el formato del mensaje (422). Revisa EMAIL_FROM.");
+        if (error.status === 429)
+          throw new Error("Resend ha limitado temporalmente los envíos (429). Vuelve a intentarlo más tarde.");
+        throw new Error("Resend no aceptó el envío (HTTP " + error.status + ").");
+      }
+      throw new Error("No se pudo confirmar el envío con Resend. Comprueba la conexión y la configuración.");
     }
   });
