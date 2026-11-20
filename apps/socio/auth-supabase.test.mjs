@@ -22,14 +22,6 @@ const getCookie=(resp,key)=>{
  const h=resp.headers.getSetCookie?.()||[resp.headers.get('set-cookie')||''];
  return h.find(x=>x.startsWith(key+'='))?.split(';')[0]||'';
 };
-test('signup does not return session or enumerate membership',async()=>{
- const {auth,hits}=fixture();
- const r=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
- assert.equal(r.status,200);assert.equal(r.headers.get('set-cookie'),null);
- assert.equal(hits[0].url,supabase+'/auth/v1/signup?redirect_to='+encodeURIComponent(origin+'/'));
- assert.equal(hits[0].opts.headers.apikey,'sb_publishable_test');
- assert.equal(JSON.stringify(await r.json()).includes(uid),false);
-});
 test('login checks verified user and server authorization then sets HttpOnly Secure host-only cookies',async()=>{
  const {auth}=fixture();
  const r=await auth.login({input:{email:'socio@example.com',password:'correctHorse123!'}});
@@ -66,38 +58,46 @@ test('refresh rotates both HttpOnly tokens; logout clears cookies',async()=>{
  assert.equal((await auth.refresh({request:req()})).status,401);
 });
 
-test('signup reports mail-provider outage and refuses to fake a successful invitation',async()=>{
- const auth=createSupabaseSocioAuth({
-  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
-  fetcher:async()=>Response.json({error:'SMTP unavailable'},{status:503}),
-  authorizeSocioUser:async()=>true
- });
- const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
- assert.equal(result.status,503);
- assert.equal(result.headers.get('set-cookie'),null);
-});
-test('existing-email response cannot be used to enumerate member accounts',async()=>{
- const auth=createSupabaseSocioAuth({
-  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
-  fetcher:async()=>Response.json({error:'already registered'},{status:422}),
-  authorizeSocioUser:async()=>true
- });
- const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
- assert.equal(result.status,200);
- const body=await result.json();
- assert.equal(body.accepted,true);
- assert.equal(JSON.stringify(body).includes('already registered'),false);
-});
 
-test('signup never claims verification mail was sent on missing or unauthorized Auth configuration',async()=>{
- for(const status of [401,403,404]){
-  const auth=createSupabaseSocioAuth({
-   url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
-   fetcher:async()=>Response.json({error:'invalid auth configuration'},{status}),
-   authorizeSocioUser:async()=>true
-  });
-  const result=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
-  assert.equal(result.status,503);
-  assert.equal(result.headers.get('set-cookie'),null);
- }
+test('club-OTP signup never sends a separate Supabase signup email',async()=>{
+ const {auth,hits}=fixture();
+ const out=await auth.signup({input:{email:'socio@example.com',password:'correctHorse123!'}});
+ assert.equal(out.status,409);
+ assert.equal(hits.length,0);
+ assert.match((await out.json()).message,/código de 6 cifras/);
+});
+test('one code confirms email, sets password, claims carnet and creates session',async()=>{
+ const hits=[];
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async(url,opts)=>{
+   hits.push({url,opts});
+   if(url.endsWith('/verify'))return Response.json({access_token:'otp-access',refresh_token:'otp-refresh',expires_in:1800});
+   if(url.endsWith('/user')&&opts.method==='PUT')return Response.json({id:uid});
+   if(url.endsWith('/rest/v1/rpc/socio_claim_member'))return Response.json(true);
+   if(url.endsWith('/user'))return Response.json({id:uid,email:'socio@example.com',email_confirmed_at:'2026-11-20T08:00:00Z'});
+   throw Error('unexpected request');
+  },authorizeSocioUser:async userId=>userId===uid
+ });
+ const r=await auth.activate({input:{email:'socio@example.com',password:'correctHorse123!',code:'012345'}});
+ assert.equal(r.status,200);
+ assert.match(r.headers.get('set-cookie'),/HttpOnly/);
+ assert.deepEqual(hits.map(x=>new URL(x.url).pathname),[
+  '/auth/v1/verify','/auth/v1/user','/rest/v1/rpc/socio_claim_member','/auth/v1/user'
+ ]);
+ assert.deepEqual(JSON.parse(hits[0].opts.body),{email:'socio@example.com',token:'012345',type:'magiclink'});
+ assert.deepEqual(JSON.parse(hits[2].opts.body),{p_code:'012345'});
+ assert.equal(hits.some(x=>x.url.includes('/signup')),false);
+});
+test('wrong email OTP cannot create account session or set password',async()=>{
+ const hits=[];
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async(url)=>{hits.push(url);return Response.json({error:'invalid'},{status:403});},
+  authorizeSocioUser:async()=>true
+ });
+ const r=await auth.activate({input:{email:'socio@example.com',password:'correctHorse123!',code:'000001'}});
+ assert.equal(r.status,403);
+ assert.equal(r.headers.get('set-cookie'),null);
+ assert.deepEqual(hits,[supabase+'/auth/v1/verify']);
 });
