@@ -32,7 +32,7 @@ const userVerified=u=>u&&typeof u.id==='string'&&typeof u.email==='string'&&type
  * deny management/super-admin identities, and permit only socio accounts.
  * Do not use Supabase user_metadata for this check.
  */
-export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,registrationUrl,fetcher=fetch,authorizeSocioUser}){
+export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fetcher=fetch,authorizeSocioUser}){
  if(typeof url!=='string'||!/^https:\/\/[^/]+$/.test(url)||typeof publishableKey!=='string'||!publishableKey||typeof authorizeSocioUser!=='function')throw Error('SOCIO_AUTH_NOT_CONFIGURED');
  if(typeof signupRedirectUrl!=='string'||!signupRedirectUrl.startsWith('https://')||new URL(signupRedirectUrl).search||new URL(signupRedirectUrl).hash)throw Error('SOCIO_SIGNUP_REDIRECT_REQUIRED');
  const base=url+'/auth/v1';
@@ -79,32 +79,45 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,re
   // provider authorization/configuration errors as successful email dispatch.
   return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
  };
- // The only signup path used by Socio: the already emailed six-digit code
- // authorizes server-side account creation and confirmation in a separate
- // Supabase Edge Function. No second confirmation email is sent.
+ // The club sends ONE Supabase Auth OTP via Resend before account setup.
+ // Supabase validates email possession with the same six digits that link the
+ // membership in the club. No second confirmation email or admin key here.
  const activate=async({input})=>{
   const email=normalize(input?.email),password=input?.password,code=input?.code;
-  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254||
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||
    typeof password!=='string'||password.length<10||password.length>128||
    typeof code!=='string'||!/^[0-9]{6}$/.test(code))
    return failed(400,'INVALID_INPUT');
-  if(typeof registrationUrl!=='string'||!registrationUrl.startsWith(url+'/functions/v1/'))
-   return failed(503,'REGISTRATION_UNAVAILABLE');
   try{
-   const result=await fetcher(registrationUrl,{
+   const r=await fetcher(base+'/verify',{
     method:'POST',redirect:'manual',
-    headers:{'content-type':'application/json','accept':'application/json'},
-    body:JSON.stringify({email,password,code}),signal:AbortSignal.timeout(20000)
+    headers:{apikey:publishableKey,'content-type':'application/json'},
+    body:JSON.stringify({email,token:code,type:'magiclink'}),
+    signal:AbortSignal.timeout(10000),
    });
-   if(result.status!==201){
-    const status=[400,403,409].includes(result.status)?result.status:503;
-    return response({code:'REGISTRATION_FAILED',message: status===403?
-      'Código de 6 cifras incorrecto, caducado o ya utilizado. Pide otro al club.':
-      status===409?'Este correo no se puede registrar de nuevo. Si ya tienes cuenta, inicia sesión.':
-      'No se pudo completar el registro. Comprueba el código.'},status);
-   }
-   // This account is already confirmed via the emailed club code.
-   return login({input:{email,password}});
+   if(!r.ok)return response({code:'INVALID_CODE',message:'Código de 6 cifras incorrecto o caducado. Pide otro al club.'},403);
+   const session=await r.json();
+   if(!session?.access_token||!session?.refresh_token)
+    return failed(503,'VERIFICATION_UNAVAILABLE');
+   // Save the chosen password only after Supabase verified the email OTP.
+   const pw=await fetcher(base+'/user',{
+    method:'PUT',redirect:'manual',
+    headers:{apikey:publishableKey,authorization:'Bearer '+session.access_token,'content-type':'application/json'},
+    body:JSON.stringify({password}),signal:AbortSignal.timeout(10000),
+   });
+   if(!pw.ok)return failed(503,'PASSWORD_SETUP_FAILED');
+   // Link the existing card using the SAME code, inside the database's
+   // atomic, one-time, five-attempt claim RPC.
+   const linked=await fetcher(url+'/rest/v1/rpc/socio_claim_member',{
+    method:'POST',redirect:'manual',
+    headers:{apikey:publishableKey,authorization:'Bearer '+session.access_token,'content-type':'application/json'},
+    body:JSON.stringify({p_code:code}),signal:AbortSignal.timeout(10000),
+   });
+   if(!linked.ok||await linked.json().catch(()=>false)!==true)
+    return response({code:'CLAIM_FAILED',message:'La cuenta se verificó, pero no se pudo vincular el carnet. Solicita un nuevo código al club.'},409);
+   const user=await authUser(session.access_token);
+   if(!(await checked(user,session.access_token)))return failed(403,'SOCIO_UNAUTHORIZED');
+   return response({authenticated:true,activated:true},200,sessionCookies(session));
   }catch{return failed(503,'REGISTRATION_UNAVAILABLE');}
  };
  const login=async({input})=>{
