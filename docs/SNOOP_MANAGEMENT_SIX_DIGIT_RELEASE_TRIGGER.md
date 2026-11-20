@@ -15,3 +15,5 @@ Cloudflare runtime fix: redirect:error causes TypeError before fetch reaches Res
 Single-code update: management uses auth.admin.generateLink(type magiclink) to issue one 6-digit Auth OTP without a Supabase confirmation email; the same OTP is stored in the club's existing one-use claim table and sent through Resend. Client registration uses this code to confirm email, set password and activate card.
 
 Gmail plus-address pilot: member card uses `medusaventi+socio@gmail.com`, administrator keeps `medusaventi@gmail.com`. One exact sandbox delivery override to the authorized mailbox; OTP is bound to the Socio alias. Corrected /\d{6}/ validation to check actual six digits. No new Auth account or password pre-created.
+
+Safe live diagnosis: Supabase /admin/generate_link returned HTTP 200; normalize OTP numeric/string, report only length/status without disclosing OTP or tokens. This replaces generic error; do not alter staff identity or submit new code automatically.
