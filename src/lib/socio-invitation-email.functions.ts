@@ -54,9 +54,19 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
     const { data: token, error: tokenError } = await admin.auth.admin.generateLink({
       type: "magiclink", email: recipient, options: { redirectTo: SOCIO_APP_URL },
     });
-    const code = token?.properties?.email_otp;
-    if (tokenError || typeof code !== "string" || !/^\d{6}$/.test(code))
-      throw new Error("No se pudo generar el código único de socio. Comprueba la configuración de autenticación.");
+    // Supabase's Auth API may return a numeric or a string OTP. Keep the
+    // actual value secret; only publish safe status/length diagnostics.
+    if (tokenError) {
+      const reason = String(tokenError.code ?? "auth_error").replace(/[^a-z_0-9-]/gi, "").slice(0, 40);
+      const status = Number.isInteger(tokenError.status) ? tokenError.status : 0;
+      throw new Error("Supabase rechazó la generación (" + status + ", " + reason + ").");
+    }
+    const rawCode = token?.properties?.email_otp;
+    const code = rawCode === undefined || rawCode === null ? "" : String(rawCode).trim();
+    if (!/^\d{6}$/.test(code))
+      throw new Error("Supabase generó un OTP de longitud " + code.length +
+        " en lugar de 6 cifras. Revisa la longitud OTP en Supabase Auth.");
+
     // An existing management account cannot be enrolled as a Socio identity.
     if (!token?.user?.id) throw new Error("No se pudo verificar la cuenta invitada.");
     const { data: staff, error: staffError } = await admin.from("user_roles")
