@@ -20,7 +20,7 @@ assert.match(approvedCss,/approved-member-card/);
 assert.match(approvedCss,/card-gold-stripe/);
 assert.match(approvedCss,/approved-dock/);
 assert.match(css,/--gold:#e5bc78/);
-assert.match(code,/snoop-wordmark\.svg/);
+assert.match(approvedCss,/snoop-wordmark\.svg/);
 assert.match(sw,/snoop-wordmark\.svg/);
 assert.match(sw,/approved-ui\.css/);
 for(const critical of ['Mis clubes','Registrarme','Iniciar sesión','Saldo disponible','Introduce tu código'])assert.ok(code.includes(critical),`Missing UI: ${critical}`);
