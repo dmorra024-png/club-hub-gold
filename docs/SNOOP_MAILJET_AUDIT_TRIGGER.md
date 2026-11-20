@@ -1,0 +1,1 @@
+Read-only audit of Mailjet bindings on management Worker and code typecheck. No changes to sender configuration, users, mail messages or production releases.
