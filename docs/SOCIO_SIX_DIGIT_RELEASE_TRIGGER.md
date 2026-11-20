@@ -9,3 +9,5 @@ Cloudflare deployment must refuse if expected Socio bindings or runtime checks a
 The separate management mail-sending endpoint must be deployed and tested independently before declaring the complete flow operational.
 
 Cloudflare Supabase auth compatibility patch: replace unsupported fetch redirect:error with manual, refusing redirects without exposing Supabase tokens. Validate signup and refresh fail closed with 4xx/5xx.
+
+Single-code pilot release: Auth /verify magiclink OTP, update password, consume same OTP in club claim. No second Supabase signup email. Regression tests and bundling verified on isolated CI. Existing QR and secrets preserved.
