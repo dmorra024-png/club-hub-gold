@@ -2306,10 +2306,10 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
   line-height:1.3;
   letter-spacing:.01em;
 }
-.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type :is(.text-\\[10px\\],.tracking-\\[0\\.25em\\],.tracking-\\[0\\.3em\\]) {
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type :is(.text-\[10px\],.tracking-\[0\.25em\],.tracking-\[0\.3em\]) {
   letter-spacing:.07em;
 }
-.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .text-\\[10px\\] {
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .text-\[10px\] {
   font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
   font-size:clamp(11px,2.8vw,13px);
   font-weight:600;
@@ -2325,6 +2325,6 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 .premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type :is(button,select) {
   letter-spacing:.025em;
 }
-.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .tracking-\\[0\\.2em\\] {
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .tracking-\[0\.2em\] {
   letter-spacing:.06em;
 }
