@@ -9,16 +9,24 @@ for(const p of ['main.js','sw.js']){
   const result=spawnSync(process.execPath,['--check',resolve(root,p)],{encoding:'utf8'});
   assert.equal(result.status,0,`${p}: ${result.stderr}`);
 }
-const html=load('index.html'), css=load('styles.css'), code=load('main.js'),sw=load('sw.js');
+const html=load('index.html'), css=load('styles.css'), approvedCss=load('approved-ui.css'), code=load('main.js'),sw=load('sw.js');
 const manifest=JSON.parse(load('manifest.webmanifest'));
 assert.equal(manifest.display,'standalone');
 assert.equal(manifest.name,'SNOOP Socio');
 assert.match(html,/name="viewport"/);
 assert.match(html,/manifest\.webmanifest/);
+assert.match(html,/approved-ui\.css/);
+assert.match(approvedCss,/approved-member-card/);
+assert.match(approvedCss,/card-gold-stripe/);
+assert.match(approvedCss,/approved-dock/);
+assert.match(approvedCss,/aspect-ratio:1\.53 \/ 1/);
+assert.match(code,/El monedero no está activado para este club\./);
+assert.match(code,/const activity='<section class="approved-activities"/);
 assert.match(css,/--gold:#e5bc78/);
-assert.match(code,/snoop-wordmark\.svg/);
+assert.match(approvedCss,/snoop-wordmark\.svg/);
 assert.match(sw,/snoop-wordmark\.svg/);
-for(const critical of ['Mis clubes','Registrarme','Iniciar sesión','Saldo monedero','Introduce tu código'])assert.ok(code.includes(critical),`Missing UI: ${critical}`);
+assert.match(sw,/approved-ui\.css/);
+for(const critical of ['Mis clubes','Registrarme','Iniciar sesión','Saldo disponible','Introduce tu código'])assert.ok(code.includes(critical),`Missing UI: ${critical}`);
 assert.match(code,/credentials:'include'/);
 assert.match(code,/cache:'no-store'/);
 assert.match(code,/URL\.revokeObjectURL/);

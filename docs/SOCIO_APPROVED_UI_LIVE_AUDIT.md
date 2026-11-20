@@ -1,0 +1,1 @@
+Read-only verification of live Socio pilot asset versions after guarded deployment. No login or real data.

@@ -1,0 +1,24 @@
+name: SNOOP Socio approved UI live audit
+on:
+  push:
+    branches: [restore/snoop-socio-approved-ui-20261120]
+    paths: [docs/SOCIO_APPROVED_UI_LIVE_AUDIT.md]
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Read public URLs only; no Auth credentials, no mutations
+        run: |
+          set -euo pipefail
+          root=https://snoop-socio-pilot.dmorra024.workers.dev
+          for entry in '/|approved-ui.css' '/approved-ui.css|approved-member-card' '/main.js|approved-dock' '/sw.js|snoop-socio-approved-ui'; do
+            path="${entry%%|*}"
+            needle="${entry#*|}"
+            code="$(curl -sSL --max-time 25 -o /tmp/ui-body -w '%{http_code}' "$root$path" || true)"
+            size="$(wc -c </tmp/ui-body 2>/dev/null || echo 0)"
+            if grep -Fq "$needle" /tmp/ui-body 2>/dev/null; then match=yes; else match=no; fi
+            echo "path=$path status=$code bytes=$size expected_marker=$match"
+          done
+          code="$(curl -sS --max-time 25 -o /tmp/anon -w '%{http_code}' "$root/api/socio/me" || true)"
+          echo "path=/api/socio/me anonymous_status=$code"

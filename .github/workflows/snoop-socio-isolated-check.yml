@@ -57,7 +57,7 @@ jobs:
       - name: Package downloadable client preview with instructions
         run: |
           mkdir -p .sandbox/snoop-socio-download
-          cp apps/socio/dist/index.html apps/socio/dist/styles.css apps/socio/dist/main.js apps/socio/dist/manifest.webmanifest apps/socio/dist/sw.js apps/socio/dist/icon.svg .sandbox/snoop-socio-download/
+          cp apps/socio/dist/index.html apps/socio/dist/styles.css apps/socio/dist/approved-ui.css apps/socio/dist/main.js apps/socio/dist/manifest.webmanifest apps/socio/dist/sw.js apps/socio/dist/icon.svg .sandbox/snoop-socio-download/
           cat > .sandbox/snoop-socio-download/LEGGIMI.txt <<'INFO'
           SNOOP SOCIO — PWA CLIENT (ANTEPRIMA TECNICA)
           Questo pacchetto contiene solo l'interfaccia client originale SNOOP Socio.
