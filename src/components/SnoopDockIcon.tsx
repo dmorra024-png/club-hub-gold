@@ -31,17 +31,20 @@ export function SnoopDockIcon({kind}:{kind:SnoopDockIconKind}){
       <path d="M17 21 32 9l15 12" stroke="#fff8d6" strokeWidth="1.1" opacity=".65"/>
     </>}
     {kind==="qr" && <>
-      {/* Classic QR finder pattern, optically aligned with the other dock icons.
-          It is an icon only: real scanning is handled by the unchanged route. */}
-      <g stroke={`url(#${metal})`} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="square">
-        <path d="M6 24V7h18M40 7h17v17M6 40v17h18" />
-        <path d="M11 11h12v12H11zM41 11h12v12H41zM11 41h12v12H11z" />
+      {/* Minimal scan-frame icon: generous white space, three clean QR markers. */}
+      <g stroke={`url(#${metal})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 7H12a5 5 0 0 0-5 5v9M43 7h9a5 5 0 0 1 5 5v9M7 43v9a5 5 0 0 0 5 5h9M57 43v9a5 5 0 0 1-5 5h-9" strokeWidth="3.4"/>
+        <rect x="17" y="17" width="13" height="13" rx="1.5" strokeWidth="2.8"/>
+        <rect x="34" y="17" width="13" height="13" rx="1.5" strokeWidth="2.8"/>
+        <rect x="17" y="34" width="13" height="13" rx="1.5" strokeWidth="2.8"/>
       </g>
       <g fill={`url(#${metal})`}>
-        <rect x="15" y="15" width="5" height="5" rx=".5"/>
-        <rect x="45" y="15" width="5" height="5" rx=".5"/>
-        <rect x="15" y="45" width="5" height="5" rx=".5"/>
-        <path d="M31 11h5v6h-5zM30 22h6v6h-6zM30 33h6v6h-6zM40 30h6v6h-6zM51 30h6v6h-6zM41 40h6v6h-6zM52 41h5v5h-5zM30 45h6v6h-6zM40 51h6v6h-6zM52 52h6v6h-6z"/>
+        <rect x="21" y="21" width="5" height="5" rx=".8"/>
+        <rect x="38" y="21" width="5" height="5" rx=".8"/>
+        <rect x="21" y="38" width="5" height="5" rx=".8"/>
+        <rect x="35" y="35" width="5" height="5" rx=".6"/>
+        <rect x="43" y="35" width="5" height="5" rx=".6"/>
+        <rect x="35" y="43" width="5" height="5" rx=".6"/>
       </g>
     </>}
     {kind==="profile" && <>
