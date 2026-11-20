@@ -1,0 +1,1 @@
+Release only member-detail responsive styling changes from commit e84a45e, preserving all business logic, QR, emails, database, authentication, worker bindings and other pages. CI must verify and abort on any unsafe differences.
