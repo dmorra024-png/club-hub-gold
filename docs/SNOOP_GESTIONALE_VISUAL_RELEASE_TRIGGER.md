@@ -1,0 +1,1 @@
+Visual-only SNOOP management release: centered SNOOP header, no JARVIS outer label, professional QR icon, balanced cash chart, shared home dimensions/styles for forms and cards across management. No changes to business logic, database, email, permissions or SNOOP Socio. Scope-limited and guarded by isolated tests and dry-run. 
