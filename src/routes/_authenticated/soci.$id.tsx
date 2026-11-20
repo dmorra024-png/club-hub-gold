@@ -268,7 +268,7 @@ function SocioDetail() {
             </div>
 
             {editing ? (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="mt-6 grid min-w-0 grid-cols-2 gap-3 [&>*]:min-w-0">
                 <EditField
                   label="Nombre"
                   value={form.first_name ?? ""}
@@ -300,7 +300,7 @@ function SocioDetail() {
                   value={form.phone ?? ""}
                   onChange={(v) => setForm({ ...form, phone: v })}
                 />
-                <div className="md:col-span-2">
+                <div className="col-span-2 min-w-0">
                   <EditField
                     label="Email"
                     type="email"
@@ -308,7 +308,7 @@ function SocioDetail() {
                     onChange={(v) => setForm({ ...form, email: v })}
                   />
                 </div>
-                <div className="md:col-span-2 flex justify-end gap-2 mt-1">
+                <div className="col-span-2 flex flex-wrap justify-end gap-2 mt-1">
                   <button
                     onClick={() => setEditing(false)}
                     className="px-3 py-2 text-xs uppercase tracking-widest border border-border rounded-lg text-muted-foreground hover:text-foreground"
@@ -325,7 +325,7 @@ function SocioDetail() {
                 </div>
               </div>
             ) : (
-              <div className="grid min-w-0 grid-cols-1 min-[390px]:grid-cols-2 md:grid-cols-3 gap-4 mt-6 text-sm">
+              <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-5 mt-6 text-sm [&>*]:min-w-0">
                 <Stat label="F. nacimiento" value={member.birth_date} />
                 <Stat label="Ciudad" value={member.city ?? "—"} />
                 <Stat label="Teléfono" value={member.phone ?? "—"} />
@@ -344,7 +344,7 @@ function SocioDetail() {
           <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6">
             <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-3">DNI</div>
             {dniUrl ? (
-              <img src={dniUrl} alt="DNI" className="block w-full max-w-full max-h-[260px] h-auto object-contain object-left rounded-lg border border-border bg-black/20" />
+              <div className="flex w-full max-w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-black/20"><img src={dniUrl} alt="DNI" className="block w-full max-w-full max-h-[320px] h-auto object-contain object-center" /></div>
             ) : (
               <div className="text-muted-foreground text-sm">Sin foto</div>
             )}
@@ -368,7 +368,7 @@ function SocioDetail() {
                   <img
                     src={sigUrl}
                     alt="Firma"
-                    className="block w-full max-w-[320px] max-h-[160px] h-auto object-contain bg-black rounded-lg border border-border"
+                    className="block w-full max-w-full aspect-[1.85/1] object-contain object-center bg-black rounded-lg border border-border"
                   />
                 )}
               </>
@@ -461,7 +461,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim">{label}</div>
-      <div className="mt-1 text-foreground break-words">{value}</div>
+      <div className="mt-1 text-foreground break-all sm:break-words">{value}</div>
     </div>
   );
 }
