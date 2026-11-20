@@ -63,7 +63,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    code:'USE_CLUB_CODE',
    message:'Solicita el código de 6 cifras al club y utilízalo para activar tu cuenta.'
  },409);
- // The club sends ONE Supabase Auth OTP via Resend before account setup.
+ // The club sends ONE Supabase Auth OTP via its verified email provider before account setup.
  // Supabase validates email possession with the same six digits that link the
  // membership in the club. No second confirmation email or admin key here.
  const activate=async({input})=>{
@@ -73,13 +73,24 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
    typeof code!=='string'||!/^[0-9]{6}$/.test(code))
    return failed(400,'INVALID_INPUT');
   try{
-   const r=await fetcher(base+'/verify',{
+   // Admin generateLink({type:'magiclink'}) creates a *confirmation_token*
+   // for a never-confirmed email, but a magiclink OTP for existing users.
+   // GoTrue /verify must use type='signup' for the former. Try the established
+   // magiclink flow first, then signup ONLY for a rejected OTP type. This
+   // preserves already-confirmed Socio identities and does not send an email.
+   const verify=type=>fetcher(base+'/verify',{
     method:'POST',redirect:'manual',
     headers:{apikey:publishableKey,'content-type':'application/json'},
-    body:JSON.stringify({email,token:code,type:'magiclink'}),
+    body:JSON.stringify({email,token:code,type}),
     signal:AbortSignal.timeout(10000),
    });
-   if(!r.ok)return response({code:'INVALID_CODE',message:'Código de 6 cifras incorrecto o caducado. Pide otro al club.'},403);
+   let r=await verify('magiclink');
+   if(!r.ok && (r.status===400 || r.status===403)) r=await verify('signup');
+   if(!r.ok){
+    if(r.status===400 || r.status===403)
+     return response({code:'INVALID_CODE',message:'Código de 6 cifras incorrecto o caducado. Pide otro al club.'},403);
+    return failed(503,'VERIFICATION_UNAVAILABLE');
+   }
    const session=await r.json();
    if(!session?.access_token||!session?.refresh_token)
     return failed(503,'VERIFICATION_UNAVAILABLE');
