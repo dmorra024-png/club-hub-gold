@@ -1,0 +1,75 @@
+
+/* Approved SNOOP Socio reference: 01_ORIGINALE_Socio_BluOro.png.
+ * Presentation layer only; QR, Auth, member card and tenant scoping unchanged.
+ * Club theme tokens remain authoritative for accents and surfaces. */
+:root{--snoop-nav-height:79px}
+html,body{background:var(--navy)!important}
+body{background:radial-gradient(ellipse at 50% -10%,var(--navy2),transparent 60%),var(--navy)!important}
+.approved-shell{width:min(520px,100%);gap:16px!important;padding:calc(env(safe-area-inset-top,0px) + 18px) 20px calc(116px + env(safe-area-inset-bottom,0px))!important;min-height:100dvh}
+.approved-brand{height:77px;min-height:77px!important;display:grid!important;grid-template-columns:46px minmax(0,1fr) 46px!important;align-items:center!important;gap:6px!important;margin-bottom:1px}
+.brand-center{display:flex;align-items:center;flex-direction:column;justify-content:center;min-width:0}
+.approved-wordmark{display:block;width:177px;max-width:100%;height:35px;background:linear-gradient(180deg,#fff0c6 0%,var(--gold) 42%,#a17732 83%,#f0d7a2 100%);-webkit-mask:url('./snoop-wordmark.svg') center / contain no-repeat;mask:url('./snoop-wordmark.svg') center / contain no-repeat}
+.brand-center .subbrand{display:block!important;margin:3px 0 0!important;color:var(--white)!important;font-size:10px!important;letter-spacing:.47em!important;opacity:.77}
+.brand-spacer{width:41px;height:41px}
+.approved-brand .menu-trigger,.approved-brand .header-profile{width:40px!important;height:40px!important;display:flex;align-items:center;justify-content:center;border:0!important;background:transparent!important;color:var(--white)!important;padding:7px!important;border-radius:12px!important}
+.approved-brand .header-profile{border:1px solid var(--border)!important;color:var(--gold)!important;border-radius:50%!important}
+.approved-brand svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.approved-brand .menu{top:48px}
+.approved-welcome{margin:0 1px 6px!important;padding:0!important}
+.approved-welcome h1{font:650 clamp(21px,5.4vw,27px)/1.25 system-ui,sans-serif;letter-spacing:-.03em;color:var(--white);margin:0 0 4px}
+.approved-welcome p{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;line-height:1.4;margin:0}
+.approved-welcome p svg{width:16px;height:16px;color:var(--gold);flex:0 0 auto}
+.approved-member-card{position:relative;isolation:isolate;overflow:hidden;width:100%;aspect-ratio:1.91 / 1;min-height:186px;max-height:253px;display:grid;grid-template-columns:minmax(0,1fr) 38%;align-items:center;border:1.5px solid var(--gold);border-radius:22px;background:
+ radial-gradient(ellipse at 30% -20%,color-mix(in srgb,var(--gold) 15%,transparent),transparent 57%),
+ repeating-linear-gradient(153deg,transparent 0,transparent 8px,#ffffff04 9px,transparent 10px),
+ linear-gradient(135deg,var(--panel),var(--navy2) 80%);box-shadow:0 0 0 1px #fff2 inset,0 11px 26px #0007!important;padding:15px 17px 17px 20px;margin:0}
+.approved-member-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 13px color-mix(in srgb,var(--gold) 24%,transparent);z-index:6}
+.card-gold-stripe{position:absolute;pointer-events:none;top:-30%;bottom:-30%;left:53%;width:13px;transform:rotate(24deg);background:linear-gradient(90deg,#5d3b16,var(--gold) 25%,#fff2ba 46%,#af7b33 83%,#422a13);box-shadow:0 0 8px color-mix(in srgb,var(--gold) 50%,transparent);z-index:1}
+.card-info{position:relative;z-index:2;min-width:0;align-self:stretch;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:2px 2px 1px 0;text-align:left}
+.card-snoop{font-family:"Snoop Display",system-ui,sans-serif;font-size:clamp(22px,6.9vw,35px);line-height:1;color:var(--gold);letter-spacing:.055em;text-shadow:0 1px 0 #fff5,0 3px 8px #0009}
+.card-label{font:500 9px/1.4 system-ui,sans-serif;letter-spacing:.22em;color:var(--white);white-space:nowrap;margin-top:-1px;opacity:.85}
+.card-number-label,.card-status-label{color:var(--muted);font-size:clamp(9px,2.6vw,12px);line-height:1.1}
+.card-number{font:700 clamp(23px,7.5vw,33px)/1.05 system-ui,sans-serif;color:var(--white);letter-spacing:.035em}
+.card-rule{height:1px;background:var(--gold);width:65%;opacity:.9}
+.card-status{display:flex;align-items:center;gap:7px;font-size:clamp(10px,3vw,13px);color:var(--white);white-space:nowrap}
+.card-green-dot{width:10px;height:10px;background:#32cd69;border-radius:50%;box-shadow:0 0 7px #32cd6948}
+.card-qr{position:relative;z-index:3;display:flex;align-items:center;justify-content:center;aspect-ratio:1;width:100%;background:#fff;border-radius:10px;padding:7px;margin:0 0 0 auto;overflow:hidden;color:#526078;font-size:11px;text-align:center}
+.card-qr img{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;display:block}
+.approved-wallet{width:100%;min-height:69px;display:flex;align-items:center;gap:11px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(110deg,var(--panel),var(--navy2));color:var(--white);padding:11px 13px;text-align:left;box-shadow:0 7px 17px #0003}
+.wallet-glyph{width:35px;height:35px;display:flex;align-items:center;justify-content:center;color:var(--gold);flex:0 0 auto}
+.wallet-glyph svg{width:29px;height:29px;stroke-width:1.8}
+.wallet-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.wallet-copy strong{font-size:15px;font-weight:620}
+.wallet-copy small{color:var(--muted);font-size:11px}
+.approved-wallet .wallet-amount{margin-left:auto;font-family:"Snoop Display",system-ui,sans-serif;font-size:clamp(16px,4.8vw,23px)!important;white-space:nowrap;color:var(--gold)}
+.wallet-chevron{color:var(--white);display:flex;width:15px}
+.wallet-chevron svg{width:17px}
+.approved-activities{margin-top:3px}
+.activity-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 10px}
+.activity-heading h2{display:flex;align-items:center;gap:7px;font:650 17px/1.3 system-ui,sans-serif;color:var(--white);margin:0;letter-spacing:-.01em}
+.activity-heading h2 svg{width:20px;color:var(--gold)}
+.activity-heading button{display:flex;align-items:center;gap:4px;background:transparent;border:0;color:var(--gold);font:600 12px system-ui,sans-serif;white-space:nowrap}
+.activity-heading button svg{width:14px}
+.activity-box{border:1px solid var(--border);border-radius:17px;overflow:hidden;background:linear-gradient(135deg,var(--panel),var(--navy2))}
+.activity-row{min-height:62px;padding:9px 12px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--border)}
+.activity-row:last-child{border-bottom:0}
+.activity-mark{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--navy2);color:var(--gold);flex:0 0 auto}
+.activity-mark svg{width:18px}
+.activity-copy{min-width:0;display:flex;flex-direction:column;gap:4px;flex:1}
+.activity-copy strong{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.activity-copy span{font-size:10px;color:var(--muted)}
+.activity-value{font-size:12px;white-space:nowrap;font-weight:650;color:var(--white)}
+.activity-value.positive{color:#4bd279}
+.activity-empty{color:var(--muted);font-size:12px;padding:16px}
+.wallet-detail{border:1px solid var(--border);border-radius:20px;background:var(--panel);padding:26px;text-align:center;display:flex;flex-direction:column;gap:20px}
+.wallet-detail strong{font-size:31px;color:var(--gold)}
+.approved-shell .footer{font-size:9px;opacity:.68;padding-top:5px}
+.socio-dock.approved-dock{height:calc(76px + env(safe-area-inset-bottom,0px))!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:0!important;align-items:center!important;padding:9px max(9px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom,0px))!important;border:1px solid var(--border)!important;border-bottom:0!important;border-radius:28px 28px 0 0;background:linear-gradient(180deg,var(--panel),var(--navy))!important;box-shadow:0 -7px 30px #0007!important;overflow:visible!important}
+.approved-dock button{min-height:54px!important;font-size:10px!important;font-weight:500!important;color:var(--muted)!important;gap:3px!important}
+.approved-dock button[aria-current=true]{color:var(--gold)!important}
+.approved-dock button .dock-icon{height:24px!important;width:24px!important}
+.approved-dock button .dock-icon svg{width:24px;height:24px;stroke-width:1.8}
+.approved-dock .dock-qr{align-self:start;width:64px!important;height:64px!important;min-height:64px!important;max-width:100%;margin:-30px auto 0!important;border:2px solid var(--gold)!important;border-radius:50%!important;background:linear-gradient(140deg,var(--panel),var(--navy))!important;box-shadow:0 0 0 4px var(--navy),0 4px 18px #0008!important;color:var(--gold)!important}
+.approved-dock .dock-qr .dock-icon,.approved-dock .dock-qr .dock-icon svg{width:32px!important;height:32px!important}
+@media(max-width:370px){.approved-shell{padding-inline:13px!important}.approved-member-card{padding:12px 13px 13px 15px;min-height:170px}.card-label{font-size:8px}.approved-dock .dock-qr{width:57px!important;height:57px!important;min-height:57px!important}.approved-dock button{font-size:9px!important}}
+@media(min-width:641px){.approved-shell{padding-inline:25px!important}.socio-dock.approved-dock{width:min(520px,100%)!important}}
