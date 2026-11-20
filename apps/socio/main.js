@@ -123,9 +123,9 @@ function carnetPage(){
  const wallet=c.walletEnabled?'<button type="button" data-action="wallet" class="approved-wallet">'+
  '<span class="wallet-glyph">'+uiIcon('wallet')+'</span><span class="wallet-copy"><strong>Monedero</strong><small>Saldo disponible</small></span>'+
  '<strong class="wallet-amount">'+money(state.wallet?.balanceCents)+'</strong><span class="wallet-chevron">'+uiIcon('arrow')+'</span></button>':'';
- const activity=c.walletEnabled?'<section class="approved-activities"><div class="activity-heading"><h2>'+uiIcon('history')+' Últimas actividades</h2>'+
- '<button type="button" data-action="movements">Ver todo '+uiIcon('arrow')+'</button></div>'+
- '<div class="activity-box">'+activityList(3)+'</div></section>':'';
+ const activity='<section class="approved-activities"><div class="activity-heading"><h2>Últimas actividades</h2>'+
+ (c.walletEnabled?'<button type="button" data-action="movements">Ver todo '+uiIcon('arrow')+'</button>':'')+'</div>'+
+ '<div class="activity-box">'+(c.walletEnabled?activityList(3):'<div class="activity-empty">El monedero no está activado para este club.</div>')+'</div></section>';
  shell('<section class="approved-welcome"><h1>Bienvenido</h1><p>'+uiIcon('location')+' '+safe(c.name)+'</p></section>'+card+wallet+activity);
 }
 function walletPage(){
