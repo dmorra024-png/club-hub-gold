@@ -55,7 +55,7 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
       type: "magiclink", email: recipient, options: { redirectTo: SOCIO_APP_URL },
     });
     const code = token?.properties?.email_otp;
-    if (tokenError || typeof code !== "string" || !/^\\d{6}$/.test(code))
+    if (tokenError || typeof code !== "string" || !/^\d{6}$/.test(code))
       throw new Error("No se pudo generar el código único de socio. Comprueba la configuración de autenticación.");
     // An existing management account cannot be enrolled as a Socio identity.
     if (!token?.user?.id) throw new Error("No se pudo verificar la cuenta invitada.");
@@ -85,7 +85,12 @@ export const sendSocioInvitationEmail = createServerFn({ method: "POST" })
     try {
       // API acceptance is not proof of inbox delivery. Keep feedback precise.
       const result = await sendProviderEmail({
-        to: recipient,
+        // Resend's unverified onboarding sender is restricted to the account inbox.
+        // Pilot-only alias: the same Gmail mailbox receives the code, while the
+        // Socio identity remains separate from the management identity.
+        to: recipient === "medusaventi+socio@gmail.com" &&
+            String(env.EMAIL_FROM).includes("onboarding@resend.dev")
+          ? "medusaventi@gmail.com" : recipient,
         from: env.EMAIL_FROM,
         subject,
         html,
