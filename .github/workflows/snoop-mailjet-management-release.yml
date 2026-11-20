@@ -33,7 +33,7 @@ jobs:
       - name: Guard all other source and all Socio code against changes
         run: |
           set -euo pipefail
-          BASE="$(git rev-parse origin/fix/snoop-socio-six-digit-email-flow-20261119)"
+          BASE="$(git rev-parse origin/restore/snoop-socio-approved-ui-20261120)"
           changed="$(git diff --name-only "$BASE" HEAD -- src | grep -v -E '^src/lib/(email-provider.server|socio-invitation-email.functions).ts
         run: |
           set -euo pipefail
