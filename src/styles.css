@@ -2286,3 +2286,45 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
   bottom:17px;
   opacity:.65;
 }
+
+
+/* SNOOP member detail: mirror approved Home typography, without modifying behavior. */
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type {
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+  font-size:clamp(13px,3.6vw,15px);
+  line-height:1.45;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type h1,
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .font-display,
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type button,
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type select {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type h1 {
+  font-size:clamp(21px,5.7vw,28px);
+  font-weight:600;
+  line-height:1.3;
+  letter-spacing:.01em;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type :is(.text-\\[10px\\],.tracking-\\[0\\.25em\\],.tracking-\\[0\\.3em\\]) {
+  letter-spacing:.07em;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .text-\\[10px\\] {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+  font-size:clamp(11px,2.8vw,13px);
+  font-weight:600;
+  line-height:1.3;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .text-sm {
+  font-size:clamp(13px,3.4vw,15px);
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type :is(button,select,input) {
+  font-size:clamp(13px,3.5vw,15px);
+  line-height:1.35;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type :is(button,select) {
+  letter-spacing:.025em;
+}
+.premium-shell.snoop-unified-shell .premium-main.snoop-member-home-type .tracking-\\[0\\.2em\\] {
+  letter-spacing:.06em;
+}
