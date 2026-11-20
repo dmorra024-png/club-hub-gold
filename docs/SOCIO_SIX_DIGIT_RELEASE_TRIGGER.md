@@ -11,3 +11,5 @@ The separate management mail-sending endpoint must be deployed and tested indepe
 Cloudflare Supabase auth compatibility patch: replace unsupported fetch redirect:error with manual, refusing redirects without exposing Supabase tokens. Validate signup and refresh fail closed with 4xx/5xx.
 
 Single-code pilot release: Auth /verify magiclink OTP, update password, consume same OTP in club claim. No second Supabase signup email. Regression tests and bundling verified on isolated CI. Existing QR and secrets preserved.
+
+Clear old service-worker shell cache v2 so the app no longer shows the obsolete separate email-confirmation page.
