@@ -9,7 +9,8 @@ import {fileURLToPath} from 'node:url';
 const root=dirname(fileURLToPath(import.meta.url));
 const out=resolve(process.argv[2]||join(root,'../../.sandbox/snoop-socio-download/SNOOP-Socio-Demo.html'));
 const read=name=>readFile(join(root,name),'utf8');
-const [css,adapter,main]=await Promise.all(['styles.css','offline-demo-adapter.js','main.js'].map(read));
+const [baseCss,approvedCss,wordmark,adapter,main]=await Promise.all(['styles.css','approved-ui.css','snoop-wordmark.svg','offline-demo-adapter.js','main.js'].map(read));
+const css=baseCss+'\n'+approvedCss.replaceAll("url('./snoop-wordmark.svg')","url('data:image/svg+xml;base64,'+Buffer.from(wordmark).toString('base64')+')");
 const escapeScript=s=>s.replace(/<\/script/gi,'<\\/script');
 const source=main
   .replaceAll('sessionStorage','globalThis.__snoopDemoStorage')
