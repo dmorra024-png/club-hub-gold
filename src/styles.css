@@ -1927,7 +1927,7 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
   justify-self:start;visibility:visible;pointer-events:auto;
 }
 .premium-shell.snoop-unified-shell .premium-header-brand{
-  grid-column:2;position:absolute;left:50%;top:50%;
+  grid-column:auto;grid-row:auto;position:absolute;left:50%;top:50%;
   transform:translate(-50%,-50%);
   width:min(51vw,296px);
   max-width:none;display:block;
@@ -2192,4 +2192,30 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
   .grid,.flex
 ) {
   min-width:0;
+}
+
+/* Fix: absolute brand must be positioned against the FULL topbar,
+   not the central CSS grid cell (which offset the wordmark to the right). */
+@media(max-width:1023px){
+  .premium-shell.snoop-unified-shell .premium-topbar{
+    position:absolute;
+    grid-template-columns:44px minmax(0,1fr) 84px;
+  }
+  .premium-shell.snoop-unified-shell .premium-topbar > .premium-header-brand {
+    grid-column:auto!important;
+    grid-row:auto!important;
+    position:absolute;
+    inset:auto!important;
+    left:50%!important;
+    top:50%!important;
+    transform:translate(-50%,-50%)!important;
+    width:clamp(132px,42vw,210px)!important;
+    max-width:calc(100% - 162px)!important;
+    z-index:1;
+  }
+  .premium-shell.snoop-unified-shell .premium-topbar > .premium-header-button:first-child,
+  .premium-shell.snoop-unified-shell .snoop-approved-header-actions{
+    position:relative;
+    z-index:2;
+  }
 }
