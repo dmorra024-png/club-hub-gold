@@ -57,28 +57,12 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
   if(!(await checked(user,accessToken)))return null;
   return{userId:user.id,email:user.email,emailVerified:true,accountType:'socio',accessToken};
  };
- const signup=async({input})=>{
-  const email=normalize(input?.email),password=input?.password;
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||typeof password!=='string'||password.length<10||password.length>128)return failed(400,'INVALID_CREDENTIALS');
-  // Avoid account existence or membership enumeration; no access cookies are issued.
-  // Fail visibly on provider outages instead of pretending a verification email was dispatched.
-  let status=0;
-  try{
-   const result=await fetcher(base+'/signup?redirect_to='+encodeURIComponent(signupRedirectUrl),{
-    method:'POST',
-    headers:{apikey:publishableKey,'content-type':'application/json'},
-    body:JSON.stringify({email,password}),
-    redirect:'manual',signal:AbortSignal.timeout(8000)
-   });
-   status=result.status;
-  }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
-  if(status>=500||status===429||status===401||status===403||status===404||status===0)
-   return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');
-  // 400/409/422 may indicate an existing account or a policy rejection.
-  // Keep the response generic to avoid account enumeration; do not conceal
-  // provider authorization/configuration errors as successful email dispatch.
-  return response({accepted:true,message:'Si la solicitud es válida, recibirás instrucciones para verificar tu correo.'});
- };
+ // Deprecated password signup would send a second Supabase confirmation email.
+ // Reject it: only the club-issued magiclink email OTP enables Socio setup.
+ const signup=async()=>response({
+   code:'USE_CLUB_CODE',
+   message:'Solicita el código de 6 cifras al club y utilízalo para activar tu cuenta.'
+ },409);
  // The club sends ONE Supabase Auth OTP via Resend before account setup.
  // Supabase validates email possession with the same six digits that link the
  // membership in the club. No second confirmation email or admin key here.
