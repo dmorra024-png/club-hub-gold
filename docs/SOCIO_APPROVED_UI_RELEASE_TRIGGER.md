@@ -16,3 +16,5 @@ Test evidence:
 Deployment workflow verifies backend files are byte-identical to the pre-restore live baseline and keeps existing Cloudflare secrets.
 
 2026-11-20 format-only correction: member card 1.53:1, permanent card QR unchanged, last activities panel visible when wallet disabled, menu anchored inside screen on both mobile browser engines. Isolated suite run #44708009097: four jobs successful.
+
+Rollback of first-invite UI change: restore exact previously approved SNOOP Socio layout, without extra activation button. No other code changes.
