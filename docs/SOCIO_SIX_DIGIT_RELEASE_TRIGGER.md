@@ -15,3 +15,5 @@ Single-code pilot release: Auth /verify magiclink OTP, update password, consume 
 Clear old service-worker shell cache v2 so the app no longer shows the obsolete separate email-confirmation page.
 
 Fix activation form rejecting all six-digit codes: JS regex contained a literal escaped backslash; now explicitly checks ^[0-9]{6}$, with regression test.
+
+Fix post-activation member page: Supabase RLS read adapter used Cloudflare-unsupported redirect:error, yielding 503 after verified signup. Replace with redirect:manual; no changes to credentials, accounts or cards.
