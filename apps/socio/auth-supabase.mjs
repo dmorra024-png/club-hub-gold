@@ -39,8 +39,9 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  async function call(path,{method='GET',body,accessToken}={}){
   const res=await fetcher(base+path,{method,headers:{
    apikey:publishableKey,'content-type':'application/json',...(accessToken?{authorization:'Bearer '+accessToken}:{})
-  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'error',signal:AbortSignal.timeout(8000)});
-  if(!res.ok)return null;
+  },...(body?{body:JSON.stringify(body)}:{}) ,redirect:'manual',signal:AbortSignal.timeout(8000)});
+  // Never follow an upstream redirect: the Supabase bearer token must remain scoped.
+  if(!res.ok || (res.status>=300&&res.status<400))return null;
   return res.json().catch(()=>null);
  }
  const authUser=async token=>token?call('/user',{accessToken:token}):null;
@@ -67,7 +68,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
     method:'POST',
     headers:{apikey:publishableKey,'content-type':'application/json'},
     body:JSON.stringify({email,password}),
-    redirect:'error',signal:AbortSignal.timeout(8000)
+    redirect:'manual',signal:AbortSignal.timeout(8000)
    });
    status=result.status;
   }catch{return failed(503,'SIGNUP_PROVIDER_UNAVAILABLE');}
@@ -91,7 +92,7 @@ export function createSupabaseSocioAuth({url,publishableKey,signupRedirectUrl,fe
  const logout=async({request})=>{
   const token=tokenIn(request,ACCESS);
   // Best effort remote revocation, but browser cookies are ALWAYS revoked locally.
-  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(4000)});}catch{}}
+  if(token){try{await fetcher(base+'/logout',{method:'POST',headers:{apikey:publishableKey,authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(4000)});}catch{}}
   return response({signedOut:true},200,clear());
  };
  const refresh=async({request})=>{
