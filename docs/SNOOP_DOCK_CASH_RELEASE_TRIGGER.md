@@ -1,0 +1,1 @@
+Gestional visual-only pilot: lower SNOOP assistant medallion and balance borders; replace cash signal-like bars with analytics trend icon. No business logic, QR scanning, Socio app, database, emails, user roles or settings modified. Run existing scoped tests, typecheck and management Worker dry-run before deploy.
