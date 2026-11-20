@@ -2043,3 +2043,101 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 @media(prefers-reduced-motion:reduce){
   .premium-shell.snoop-unified-shell .premium-bottom-nav>*{transition:none!important}
 }
+
+
+/* 2026-11-20 • Gestional visual parity with the approved Home.
+   All selectors stay in management shell. No changes to SNOOP Socio. */
+@media (max-width:1023px) {
+  .premium-shell.snoop-unified-shell .premium-topbar {
+    display:grid;
+    grid-template-columns:minmax(46px,1fr) minmax(0,1.5fr) minmax(46px,1fr);
+    width:100%;
+    left:0;
+    right:0;
+    margin:0;
+    padding-inline:clamp(9px,2.5vw,20px);
+  }
+  .premium-shell.snoop-unified-shell .premium-header-brand {
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    width:clamp(124px,43vw,226px);
+    max-width:calc(100vw - 146px);
+    justify-self:center;
+    margin:0;
+  }
+  .premium-shell.snoop-unified-shell .snoop-approved-header-actions {
+    grid-column:3;
+    justify-self:end;
+    gap:0;
+  }
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice {
+  justify-content:center;
+  align-items:center;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice>.snoop-approved-assistant-mark {
+  transform:translateY(0);
+  margin:0 auto;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-dock-voice .snoop-jarvis-microbrand {
+  display:block;
+}
+.premium-shell.snoop-unified-shell .premium-bottom-nav>.premium-qr .snoop-dock-icon {
+  width:clamp(32px,9vw,40px)!important;
+  height:clamp(32px,9vw,40px)!important;
+  flex-basis:auto;
+}
+/* Non-home routes share the Home's depth, edge lighting and geometric typography. */
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) {
+  background:transparent;
+  font-family:var(--font-body);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  .rounded-xl,.rounded-2xl,.rounded-3xl,[class*="bg-card"]
+) {
+  border-color:var(--snoop-border);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  select,textarea
+) {
+  box-sizing:border-box;
+  max-width:100%;
+  min-width:0;
+  min-height:44px;
+  font-size:16px;
+  border-radius:12px;
+  border-color:var(--snoop-border);
+  background-color:var(--snoop-elevated);
+  color:var(--snoop-foreground);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  input,select,textarea
+):focus-visible {
+  outline:2px solid var(--snoop-accent);
+  outline-offset:1px;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  button:not(.premium-header-button),[role="button"]
+) {
+  max-width:100%;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  h1,h2,h3
+) {
+  font-family:"Snoop Cash","Space Grotesk",system-ui,sans-serif;
+  overflow-wrap:break-word;
+}
+@media(max-width:480px){
+  .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) {
+    padding-inline:clamp(12px,4vw,20px);
+  }
+  .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+    .rounded-xl,.rounded-2xl,.rounded-3xl
+  ) {
+    max-width:100%;
+    min-width:0;
+  }
+}
