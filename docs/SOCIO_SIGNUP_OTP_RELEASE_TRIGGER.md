@@ -1,0 +1,1 @@
+Pilot release: backend-only correction for first email signup OTP. Supabase confirms new user's 6-digit confirmation token with signup verification; preserves magiclink verification for existing members. No change to approved visual layout, QR, accounts, email sender, admin worker or DB. Gate: isolated tests + dry-run + preserved Cloudflare bindings.

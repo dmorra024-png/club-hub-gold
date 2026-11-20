@@ -99,5 +99,46 @@ test('wrong email OTP cannot create account session or set password',async()=>{
  const r=await auth.activate({input:{email:'socio@example.com',password:'correctHorse123!',code:'000001'}});
  assert.equal(r.status,403);
  assert.equal(r.headers.get('set-cookie'),null);
- assert.deepEqual(hits,[supabase+'/auth/v1/verify']);
+ assert.deepEqual(hits,[supabase+'/auth/v1/verify',supabase+'/auth/v1/verify']);
+});
+
+test('new member with confirmation_token verifies signup OTP after magiclink is rejected',async()=>{
+ const hits=[];
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async(url,opts)=>{
+   hits.push({url,opts});
+   if(url.endsWith('/verify')){
+    const body=JSON.parse(opts.body);
+    if(body.type==='magiclink')return Response.json({error:'invalid OTP type'},{status:403});
+    assert.deepEqual(body,{email:'socio@example.com',token:'012345',type:'signup'});
+    return Response.json({access_token:'otp-access',refresh_token:'otp-refresh',expires_in:1800});
+   }
+   if(url.endsWith('/user')&&opts.method==='PUT')return Response.json({id:uid});
+   if(url.endsWith('/rest/v1/rpc/socio_claim_member'))return Response.json(true);
+   if(url.endsWith('/user'))return Response.json({id:uid,email:'socio@example.com',email_confirmed_at:'2026-11-20T11:00:00Z'});
+   throw Error('unexpected request');
+  },authorizeSocioUser:async id=>id===uid
+ });
+ const result=await auth.activate({input:{email:'socio@example.com',password:'correctHorse123!',code:'012345'}});
+ assert.equal(result.status,200);
+ assert.deepEqual(hits.map(x=>new URL(x.url).pathname),[
+ '/auth/v1/verify','/auth/v1/verify','/auth/v1/user','/rest/v1/rpc/socio_claim_member','/auth/v1/user'
+ ]);
+ assert.deepEqual(hits.filter(x=>x.url.endsWith('/verify')).map(x=>JSON.parse(x.opts.body).type),['magiclink','signup']);
+ assert.equal(hits.filter(x=>x.url.includes('/rpc/socio_claim_member')).length,1);
+ assert.equal(hits.some(x=>x.url.includes('/signup')),false);
+ assert.match(result.headers.get('set-cookie'),/HttpOnly/);
+});
+test('rate-limited or server-broken OTP endpoint does not trigger signup fallback',async()=>{
+ const calls=[];
+ const auth=createSupabaseSocioAuth({
+  url:supabase,publishableKey:'sb_publishable_test',signupRedirectUrl:origin+'/',
+  fetcher:async(url,opts)=>{calls.push(url);return Response.json({error:'rate limited'},{status:429});},
+  authorizeSocioUser:async()=>true
+ });
+ const result=await auth.activate({input:{email:'socio@example.com',password:'correctHorse123!',code:'012345'}});
+ assert.equal(result.status,503);
+ assert.deepEqual(calls,[supabase+'/auth/v1/verify']);
+ assert.equal(result.headers.get('set-cookie'),null);
 });
