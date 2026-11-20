@@ -44,3 +44,5 @@ test('SQL proposal has single-use, expiry, verified-email and per-challenge gues
   assert.ok(sql.toLowerCase().includes(fragment.toLowerCase()),'Missing SQL guard: '+fragment);
  }
 });
+
+test('Socio Auth never uses unsupported Worker redirect error policy',()=>{ const src=read('apps/socio/auth-supabase.mjs'); assert.doesNotMatch(src,/redirect:\s*['\"]error['\"]/); assert.match(src,/redirect:\s*['\"]manual['\"]/); });
