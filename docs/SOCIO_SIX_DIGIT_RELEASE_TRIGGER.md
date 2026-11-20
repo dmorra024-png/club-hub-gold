@@ -13,3 +13,5 @@ Cloudflare Supabase auth compatibility patch: replace unsupported fetch redirect
 Single-code pilot release: Auth /verify magiclink OTP, update password, consume same OTP in club claim. No second Supabase signup email. Regression tests and bundling verified on isolated CI. Existing QR and secrets preserved.
 
 Clear old service-worker shell cache v2 so the app no longer shows the obsolete separate email-confirmation page.
+
+Fix activation form rejecting all six-digit codes: JS regex contained a literal escaped backslash; now explicitly checks ^[0-9]{6}$, with regression test.
