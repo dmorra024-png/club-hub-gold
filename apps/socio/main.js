@@ -49,13 +49,39 @@ async function api(path,{method='GET',body}={}){
 }
 function stopQr(){state.qrRequest++;if(state.qrRefresh){clearInterval(state.qrRefresh);state.qrRefresh=null;}if(state.qrUrl){URL.revokeObjectURL(state.qrUrl);state.qrUrl=null;}state.qrClub=null;}
 function resetClub(){applySocioTheme('navy-gold');state.sessionEpoch++;stopQr();state.selected=null;state.member=null;state.wallet=null;state.movements=null;state.menu=false;}
-function brand(){return '<header class="brand"><div class="brand-identity"><img class="brand-wordmark" src="./snoop-wordmark.svg" alt="SNOOP" width="172" height="24"/><div class="subbrand">SOCIO · CARNET DIGITAL</div></div>'+
-(state.me?'<div class="relative"><button class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">⋮</button>'+
-(state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'')+'</header>';}
+
+const uiIcon=(name)=>{
+ const paths={
+  menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+  person:'<circle cx="12" cy="8" r="3.5"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+  wallet:'<path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a3 3 0 0 1-3-3"/><path d="M22 12h-6a2 2 0 0 0 0 4h6"/>',
+  history:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  qr:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM20 14v4h-3m3 3h-6m-2-9v4"/>',
+  location:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/>',
+  arrow:'<path d="m9 5 7 7-7 7"/>'
+ };
+ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||'')+'</svg>';
+};
+function brand(){
+ const menu=state.me?'<div class="relative"><button type="button" class="menu-trigger" data-action="toggle-menu" aria-label="Menú" aria-expanded="'+state.menu+'">'+uiIcon('menu')+'</button>'+
+ (state.menu?'<nav class="menu" aria-label="Menú de socio"><button class="menu-item" data-action="clubs">Mis clubes</button><button class="menu-item" data-action="profile">Mi perfil</button><button class="menu-item" data-action="logout">Cerrar sesión</button></nav>':'')+'</div>':'<span class="brand-spacer"></span>';
+ return '<header class="brand approved-brand">'+menu+
+ '<div class="brand-center"><span class="approved-wordmark" role="img" aria-label="SNOOP"></span><span class="subbrand">S O C I O</span></div>'+
+ (state.me?'<button class="header-profile" type="button" data-action="profile" aria-label="Mi perfil">'+uiIcon('person')+'</button>':'<span class="brand-spacer"></span>')+'</header>';
+}
 function shell(body){
  const activeClub=state.clubs.find(c=>c.id===state.selected);
- const nav=state.me?.authenticated?'<nav class="socio-dock" aria-label="Navegación del socio"><button type="button" data-action="home" '+(!state.selected?'disabled':'')+' aria-current="'+(state.page==='carnet')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h10M7 13h5"/></svg></span><span>Carnet</span></button><button type="button" data-action="clubs" aria-current="'+(state.page==='clubs')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M8 7h2M14 7h2M8 11h2M14 11h2M10 21v-6h4v6"/></svg></span><span>Clubes</span></button><button type="button" data-action="movements" '+(!activeClub?.walletEnabled?'disabled':'')+' aria-current="'+(state.page==='movements')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a3 3 0 0 1-3-3"/><path d="M22 12h-6a2 2 0 0 0 0 4h6"/><circle cx="16" cy="14" r=".6" fill="currentColor" stroke="none"/></svg></span><span>Monedero</span></button><button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span>Perfil</span></button></nav>':'';
- app.innerHTML='<main class="shell">'+brand()+(state.message?'<div class="status '+(state.error?'error':'')+'" role="status">'+safe(state.message)+'</div>':'')+body+'<div class="footer">SNOOP SOCIO · Acceso personal y privado</div>'+nav+'</main>';
+ const enabled=activeClub?.walletEnabled===true;
+ const nav=state.me?.authenticated?'<nav class="socio-dock approved-dock" aria-label="Navegación del socio">'+
+ '<button type="button" data-action="home" aria-current="'+(state.page==='carnet')+'" '+(!state.selected?'disabled':'')+'><span class="dock-icon">'+uiIcon('home')+'</span><span>Inicio</span></button>'+
+ '<button type="button" data-action="wallet" aria-current="'+(state.page==='wallet')+'" '+(!enabled?'disabled':'')+'><span class="dock-icon">'+uiIcon('wallet')+'</span><span>Monedero</span></button>'+
+ '<button class="dock-qr" type="button" data-action="qr" aria-label="Mostrar QR de socio" '+(!state.selected?'disabled':'')+'><span class="dock-icon">'+uiIcon('qr')+'</span></button>'+
+ '<button type="button" data-action="movements" aria-current="'+(state.page==='movements')+'" '+(!enabled?'disabled':'')+'><span class="dock-icon">'+uiIcon('history')+'</span><span>Historial</span></button>'+
+ '<button type="button" data-action="profile" aria-current="'+(state.page==='profile')+'"><span class="dock-icon">'+uiIcon('person')+'</span><span>Perfil</span></button></nav>':'';
+ app.innerHTML='<main class="shell approved-shell">'+brand()+
+ (state.message?'<div class="status '+(state.error?'error':'')+'" role="status">'+safe(state.message)+'</div>':'')+
+ body+'<div class="footer">SNOOP SOCIO · Acceso personal y privado</div>'+nav+'</main>';
 }
 function authPage(mode){const reg=mode==='register';shell('<section><div class="kicker">Tu carnet digital</div><h1 class="title">'+(reg?'Crea tu cuenta':'Bienvenido')+'</h1><p class="lede">Una cuenta para todos tus clubes SNOOP. Tus códigos son privados.</p></section>'+
 '<section class="panel"><form id="auth-form" class="stack"><label class="field">Correo electrónico<input name="email" type="email" autocomplete="email" required maxlength="254" value="'+safe(state.email)+'"/></label>'+
@@ -74,18 +100,40 @@ function linkPage(){shell('<section><div class="kicker">Activación de carnet</d
 function clubsPage(){shell('<section><div class="kicker">Tu cuenta, tus clubes</div><h1 class="title">Mis clubes</h1><p class="lede">Cada club tiene su propio carnet, número de socio y saldo independiente.</p></section>'+
 '<div class="list">'+state.clubs.map(c=>'<button class="club-option '+(c.id===state.selected?'selected':'')+'" data-action="select-club" data-id="'+safe(c.id)+'"><div><strong>'+safe(c.name)+'</strong><span>'+safe(c.status||'')+'</span></div><span>Ver carnet →</span></button>').join('')+'</div>'+
 '<button class="btn ghost" data-action="link">Vincular otro club</button>');}
+
+const money=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible';
+function activityList(limit){
+ const rows=Array.isArray(state.movements)?state.movements.slice(0,limit):[];
+ if(state.movements===null)return '<div class="activity-empty">Cargando actividades…</div>';
+ if(!rows.length)return '<div class="activity-empty">No hay actividades registradas.</div>';
+ return rows.map(r=>'<div class="activity-row"><div class="activity-mark">'+uiIcon('history')+'</div>'+
+ '<div class="activity-copy"><strong>'+safe(r.label||'Movimiento')+'</strong><span>'+safe(r.createdAt||'')+'</span></div>'+
+ '<strong class="activity-value '+(r.deltaCents>=0?'positive':'')+'">'+(r.deltaCents>0?'+ ':'')+safe(money(r.deltaCents))+'</strong></div>').join('');
+}
 function carnetPage(){
  const c=state.clubs.find(c=>c.id===state.selected);
  if(!c){state.page='clubs';return render();}
- const unavailable='No disponible: conecta y verifica el carnet.';
- shell('<section class="socio-welcome"><div class="kicker">MI CLUB</div><h1 class="club-heading">'+safe(c.name)+'</h1><p class="muted">Carnet digital de socio</p></section>'+
- '<section class="carnet" aria-label="Tarjeta digital del socio"><div class="carnet-topline"><span>SNOOP <span class="carnet-divider">/</span> SOCIO</span><span class="carnet-active"><span class="active-dot"></span> Activo</span></div>'+
- '<div class="carnet-member-number">'+(state.member?.memberNumber?'SOCIO Nº '+safe(state.member.memberNumber):'CARNET PENDIENTE')+'</div>'+
- '<div class="qr-frame">'+(state.qrUrl?'<img alt="QR permanente de socio" src="'+state.qrUrl+'"/>':'<div class="qr-empty">'+unavailable+'</div>')+'</div>'+
- '<p class="muted">'+(state.qrUrl?'Muestra este código al personal':'El QR solo aparece con una vinculación válida y conexión activa.')+'</p>'+
- '</section>'+
- (c.walletEnabled?'<section class="wallet"><div><div class="wallet-title">Saldo monedero</div><div class="wallet-amount">'+(state.wallet&&Number.isSafeInteger(state.wallet.balanceCents)?(state.wallet.balanceCents/100).toLocaleString('es-ES',{style:'currency',currency:'EUR'}):'No disponible')+'</div></div><button class="btn small ghost" data-action="movements">Ver movimientos</button></section>':'')+
- '');
+ const num=state.member?.memberNumber;
+ const card='<section class="approved-member-card" id="approved-card" aria-label="Tarjeta digital de socio">'+
+ '<div class="card-gold-stripe" aria-hidden="true"></div>'+
+ '<div class="card-info"><div class="card-snoop">SNOOP</div><div class="card-label">TARJETA DE SOCIO</div>'+
+ '<div class="card-number-label">Nº de socio</div><div class="card-number">'+(num?safe(num):'—')+'</div>'+
+ '<div class="card-rule"></div><div class="card-status-label">Estado</div><div class="card-status"><span class="card-green-dot"></span>Socio activo</div></div>'+
+ '<div class="card-qr">'+(state.qrUrl?'<img alt="QR permanente de socio" src="'+state.qrUrl+'"/>':'<span>Preparando carnet…</span>')+'</div></section>';
+ const wallet=c.walletEnabled?'<button type="button" data-action="wallet" class="approved-wallet">'+
+ '<span class="wallet-glyph">'+uiIcon('wallet')+'</span><span class="wallet-copy"><strong>Monedero</strong><small>Saldo disponible</small></span>'+
+ '<strong class="wallet-amount">'+money(state.wallet?.balanceCents)+'</strong><span class="wallet-chevron">'+uiIcon('arrow')+'</span></button>':'';
+ const activity=c.walletEnabled?'<section class="approved-activities"><div class="activity-heading"><h2>'+uiIcon('history')+' Últimas actividades</h2>'+
+ '<button type="button" data-action="movements">Ver todo '+uiIcon('arrow')+'</button></div>'+
+ '<div class="activity-box">'+activityList(3)+'</div></section>':'';
+ shell('<section class="approved-welcome"><h1>Bienvenido</h1><p>'+uiIcon('location')+' '+safe(c.name)+'</p></section>'+card+wallet+activity);
+}
+function walletPage(){
+ const c=state.clubs.find(c=>c.id===state.selected);
+ if(!c?.walletEnabled){state.page='carnet';return render();}
+ shell('<section class="approved-welcome"><h1>Monedero</h1><p>'+safe(c.name)+'</p></section>'+
+ '<section class="wallet-detail"><div>Saldo disponible</div><strong>'+money(state.wallet?.balanceCents)+'</strong>'+
+ '<button class="btn ghost" data-action="movements">Ver movimientos</button></section>');
 }
 function profilePage(){shell('<section><div class="kicker">Mi perfil</div><h1 class="title">Mi cuenta</h1><p class="lede">Correo verificado: '+safe(state.me?.email||'')+'</p></section><button class="btn ghost" data-action="clubs">Mis clubes</button><button class="btn" data-action="logout">Cerrar sesión</button>');}
 function movementsPage(){
@@ -96,9 +144,9 @@ shell('<section><div class="kicker">Monedero</div><h1 class="title">Movimientos<
 (state.movements===null?'<div class="status">Consultando movimientos…</div>':items?'<div class="list">'+items+'</div>':'<div class="status">No hay movimientos registrados.</div>')+
 '<button class="btn end" data-action="home">Volver al carnet</button>');
 }
-function render(){switch(state.page){case'register':authPage('register');break;case'activate':activatePage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
+function render(){switch(state.page){case'register':authPage('register');break;case'activate':activatePage();break;case'link':linkPage();break;case'clubs':clubsPage();break;case'carnet':carnetPage();break;case'wallet':walletPage();break;case'profile':profilePage();break;case'movements':movementsPage();break;default:authPage('login')}}
 async function refreshClubs(){const data=await api('/clubs');state.clubs=Array.isArray(data?.clubs)?data.clubs.filter(c=>typeof c.id==='string'&&typeof c.name==='string'):[];const remembered=sessionStorage.getItem('snoop-socio-last-club');const next=state.clubs.find(c=>c.id===state.selected)||state.clubs.find(c=>c.id===remembered)||state.clubs[0];if(next){await selectClub(next.id);}else{resetClub();state.page='link';render();}}
-async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;const changed=state.selected!==c.id;state.sessionEpoch++;if(changed)stopQr();state.selected=c.id;applySocioTheme(c.themeId);if(changed)state.member=null;state.wallet=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet()]);}
+async function selectClub(id){const c=state.clubs.find(c=>c.id===id);if(!c)return;const changed=state.selected!==c.id;state.sessionEpoch++;if(changed)stopQr();state.selected=c.id;applySocioTheme(c.themeId);if(changed)state.member=null;state.wallet=null;if(changed)state.movements=null;state.page='carnet';state.menu=false;sessionStorage.setItem('snoop-socio-last-club',id);render();await Promise.all([refreshCarnet(),refreshWallet(),...(c.walletEnabled?[refreshRecentActivity()]:[])]);}
 async function refreshCarnet(){
  const id=state.selected;
  if(!id||document.hidden||state.page!=='carnet')return;
@@ -135,6 +183,22 @@ async function refreshWallet(){
   const wallet=await api('/clubs/'+enc(id)+'/wallet');
   if(current()){state.wallet=wallet;render();}
  }catch{if(current()){state.wallet=null;render();}}
+}
+
+async function refreshRecentActivity(){
+ const id=state.selected,epoch=state.sessionEpoch;
+ const c=state.clubs.find(c=>c.id===id);
+ if(!id||!c?.walletEnabled)return;
+ try{
+  const result=await api('/clubs/'+enc(id)+'/wallet/movements');
+  if(state.selected!==id||state.sessionEpoch!==epoch||!state.me?.authenticated)return;
+  state.movements=Array.isArray(result?.items)?result.items.filter(r=>
+   Number.isSafeInteger(r.deltaCents)&&Number.isSafeInteger(r.balanceCents)&&
+   typeof r.createdAt==='string').slice(0,100):[];
+  if(state.page==='carnet'||state.page==='wallet')render();
+ }catch{
+  if(state.selected===id&&state.sessionEpoch===epoch){state.movements=[];if(state.page==='carnet'||state.page==='wallet')render();}
+ }
 }
 async function refreshMovements(){
  const id=state.selected,epoch=state.sessionEpoch;if(!id)return;
@@ -200,7 +264,7 @@ document.addEventListener('submit',e=>{
  if(e.target.id==='activation-form'){e.preventDefault();void submitActivation(e.target);}
 });
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;state.message='';state.menu=false;
-switch(a){case'login':state.pendingRegistration=null;state.page='login';break;case'register':state.pendingRegistration=null;state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
+switch(a){case'login':state.pendingRegistration=null;state.page='login';break;case'register':state.pendingRegistration=null;state.page='register';break;case'toggle-menu':state.menu=!document.querySelector('.menu');break;case'clubs':state.page='clubs';break;case'profile':state.page='profile';break;case'link':state.page='link';break;case'home':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'qr':state.page='carnet';if(!state.qrUrl||!state.member)void refreshCarnet();break;case'wallet':if(state.clubs.find(c=>c.id===state.selected)?.walletEnabled){state.page='wallet';if(!state.wallet)void refreshWallet();}break;case'movements':state.page='movements';state.movements=null;void refreshMovements();break;case'select-club':void selectClub(el.dataset.id);break;case'refresh-qr':void refreshCarnet();break;case'reload-clubs':void refreshClubs().catch(err=>notify(err.message,true));break;case'logout':try{await api('/auth/logout',{method:'POST',body:{}});resetClub();state.me=null;state.clubs=[];state.email='';state.page='login';sessionStorage.removeItem('snoop-socio-last-club');}catch(e){state.message='No se pudo cerrar sesión. Comprueba la conexión e inténtalo de nuevo.';state.error=true;}break;case'install':if(state.installPrompt){state.installPrompt.prompt();}else{state.message='Android: menú del navegador → Instalar. iPhone: Safari → Compartir → Añadir a pantalla de inicio.';}break;}render();});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.installPrompt=e;});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.page==='carnet'&&!state.qrUrl)void refreshCarnet();});
 // The browser reclaims object URLs at document unload; navigation does not revoke a valid permanent card.
