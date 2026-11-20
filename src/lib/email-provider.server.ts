@@ -110,7 +110,9 @@ export async function sendProviderEmail(
   if (!payload.idempotency_key) throw new Error("Email idempotency key required");
   const response = await fetch(endpoint, {
     method: "POST",
-    redirect: "error",
+    // Cloudflare Workers rejects redirect:"error" with TypeError before any network I/O.
+    // manual ensures redirect responses never forward credentials to another origin.
+    redirect: "manual",
     signal: AbortSignal.timeout(30_000),
     headers: {
       Authorization: `Bearer ${options.apiKey}`,
@@ -126,7 +128,8 @@ export async function sendProviderEmail(
       ...(payload.attachments ? { attachments: payload.attachments } : {}),
     }),
   });
-  if (!response.ok) {
+  // Treat all redirects as failures and do not follow Location with the bearer key.
+  if (!response.ok || (response.status >= 300 && response.status < 400)) {
     const retry = Number(response.headers.get("retry-after"));
     throw new EmailAPIError(
       response.status,
