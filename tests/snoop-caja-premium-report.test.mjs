@@ -8,7 +8,7 @@ const sessions = readFileSync("src/lib/cash-sessions.ts", "utf8");
 const server = readFileSync("src/lib/cash-sessions.server.ts", "utf8");
 
 test("premium report displays real shift operators, dates and lifecycle", () => {
-  for (const marker of ["name(s.user_id)", "name(s.closed_by)", "hour(s.opened_at)", "hour(s.closed_at)", "Activa", "Cerrada", "sessionRevenue(s, data.movements)", "reconcileCash(s, data.movements)"]) {
+  for (const marker of ["name(s.user_id)", "name(s.closed_by ?? s.user_id)", "hour(s.opened_at)", "hour(s.closed_at)", "Activa", "Cerrada", "sessionRevenue(s, data.movements)", "reconcileCash(s, data.movements)"]) {
     assert.ok(caja.includes(marker), marker);
   }
   assert.ok(styles.includes(".snoop-caja-overview"));
