@@ -1,0 +1,53 @@
+name: SNOOP Caja premium — release receipt
+on:
+  push:
+    branches: [release/snoop-caja-premium-validated-20261121]
+    paths: [docs/SNOOP_CAJA_PREMIUM_PROBE_TRIGGER.md]
+permissions:
+  contents: read
+  actions: read
+  statuses: write
+jobs:
+  receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - name: Check exact release run and publish an auditable status only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RELEASE_SHA: 9bf13978f029c5cf3e931fc0c2cf532453c55306
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const repo=process.env.GITHUB_REPOSITORY;
+          const branch='release/snoop-caja-premium-validated-20261121';
+          const headers={
+            authorization:'Bearer '+process.env.GH_TOKEN,
+            accept:'application/vnd.github+json',
+            'X-GitHub-Api-Version':'2022-11-28'
+          };
+          let run;
+          for(let i=0;i<36;i++){
+            const response=await fetch('https://api.github.com/repos/'+repo+'/actions/runs?branch='+encodeURIComponent(branch)+'&event=push&per_page=50',{headers,signal:AbortSignal.timeout(20000)});
+            assert.equal(response.status,200,'Cannot list release workflow runs');
+            const j=await response.json();
+            run=(j.workflow_runs||[]).find(r=>r.name==='SNOOP Caja premium — guarded pilot release'&&r.head_sha===process.env.EXPECTED_RELEASE_SHA);
+            if(run?.status==='completed')break;
+            if(i!==35)await new Promise(ok=>setTimeout(ok,10000));
+          }
+          assert.ok(run?.status==='completed','Exact pilot release did not complete in validation window');
+          const success=run.conclusion==='success';
+          const post=await fetch('https://api.github.com/repos/'+repo+'/statuses/'+process.env.GITHUB_SHA,{
+            method:'POST',headers:{...headers,'content-type':'application/json'},
+            body:JSON.stringify({
+              state:success?'success':'failure',
+              context:'snoop-caja-premium-release',
+              description:success?'Verified guarded pilot deploy completed':'Guarded pilot deploy did not complete successfully',
+              target_url:run.html_url
+            }),
+            signal:AbortSignal.timeout(20000)
+          });
+          assert.equal(post.status,201,'Could not record exact release status');
+          console.log(JSON.stringify({result:run.conclusion,release_sha:run.head_sha,release_run:run.id}));
+          assert.ok(success,'Pilot release failed; status recorded');
+          NODE
