@@ -283,7 +283,7 @@ function Caja() {
                           </div>
                           <div className="snoop-caja-shift-times">
                             <div><span>Apertura</span><strong>{hour(s.opened_at)}</strong><small>{new Date(s.opened_at).toLocaleDateString("es-ES", {timeZone:"Europe/Madrid"})}</small></div>
-                            <div><span>Cierre</span><strong>{s.closed_at ? hour(s.closed_at) : "—"}</strong><small>{s.closed_at ? `Por ${name(s.closed_by)}` : "Caja en curso"}</small></div>
+                            <div><span>Cierre</span><strong>{s.closed_at ? hour(s.closed_at) : "—"}</strong><small>{s.closed_at ? `Por ${name(s.closed_by ?? s.user_id)}` : "Caja en curso"}</small></div>
                           </div>
                           <div className="snoop-caja-shift-revenue"><span>Ingresos registrados</span><strong>{money(sessionRevenue(s, data.movements))}</strong></div>
                           <div className="snoop-caja-shift-detail"><span>Fondo inicial</span><strong>{money(s.opening_cash_cents)}</strong></div>
