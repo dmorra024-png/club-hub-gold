@@ -152,7 +152,7 @@ function Caja() {
                     <div className="snoop-caja-session-top"><span><UserRound size={17}/> {name(user?.id)}</span><span className={`snoop-caja-status ${session ? "is-open" : "is-closed"}`}>{session ? "Activa" : "Sin caja abierta"}</span></div>
                     {session ? (
                       <>
-                        <div className="snoop-caja-session-time"><Clock3 size={17}/> Apertura: {time(session.opened_at)}</div>
+                        <div className="snoop-caja-session-time"><Clock3 size={17}/> Caja abierta · {time(session.opened_at)}</div>
                         <p>Fondo inicial: {money(session.opening_cash_cents)}</p>
                         <p>
                           Ingresos registrados:{" "}
@@ -283,14 +283,14 @@ function Caja() {
                           </div>
                           <div className="snoop-caja-shift-times">
                             <div><span>Apertura</span><strong>{hour(s.opened_at)}</strong><small>{new Date(s.opened_at).toLocaleDateString("es-ES", {timeZone:"Europe/Madrid"})}</small></div>
-                            <div><span>Cierre</span><strong>{s.closed_at ? hour(s.closed_at) : "—"}</strong><small>{s.closed_at ? `Por ${name(s.closed_by ?? s.user_id)}` : "Caja en curso"}</small></div>
+                            <div><span>Cierre</span><strong>{s.closed_at ? hour(s.closed_at) : "—"}</strong><small>{s.closed_at ? `Cerrada por: ${name(s.closed_by ?? s.user_id)}` : "Caja en curso"}</small></div>
                           </div>
                           <div className="snoop-caja-shift-revenue"><span>Ingresos registrados</span><strong>{money(sessionRevenue(s, data.movements))}</strong></div>
                           <div className="snoop-caja-shift-detail"><span>Fondo inicial</span><strong>{money(s.opening_cash_cents)}</strong></div>
                           {s.closing_cash_cents !== null && <div className="snoop-caja-shift-detail"><span>Efectivo contado al cierre</span><strong>{money(s.closing_cash_cents)}</strong></div>}
                           <div className="snoop-caja-shift-detail"><span>Efectivo esperado</span><strong>{balance.expected === null ? "No determinable" : money(balance.expected)}</strong></div>
-                          {balance.expected === null && <p className="snoop-caja-shift-note">Revisar pagos sin método identificado o anulaciones sin efectivo verificado.</p>}
-                          {balance.difference !== null && <div className="snoop-caja-shift-detail"><span>Diferencia al cierre</span><strong>{money(balance.difference)}</strong></div>}
+                          {balance.expected === null && <p className="snoop-caja-shift-note">No determinable: hay pagos sin método identificado o anulaciones sin efectivo verificado.</p>}
+                          {balance.difference !== null && <div className="snoop-caja-shift-detail"><span>Diferencia:</span><strong>{money(balance.difference)}</strong></div>}
                           {s.notes && <p className="snoop-caja-shift-note">Notas: {s.notes}</p>}
                           <details className="snoop-caja-shift-movements">
                             <summary>Ver movimientos de la sesión</summary>
