@@ -1,0 +1,1 @@
+SNOOP Caja premium approved for guarded pilot release after successful CI run 44887935159 on exact source commit 33204005a162b4be7ddb21235a155daf86055c1c. No changes to application logic, payment providers, wallet, QR, authentication, migrations, RLS or existing secrets. Deploy only snoop-pilot after all preflight checks and retain bindings.
