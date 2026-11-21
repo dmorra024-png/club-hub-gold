@@ -210,7 +210,17 @@ for (const [label, engine, device] of [
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
-    await page.getByLabel("Dinero inicial (€)").fill("100");
+    const initialMoney = page.getByLabel("Dinero inicial (€)");
+    try {
+      await initialMoney.waitFor({ timeout: 12000 });
+    } catch (e) {
+      const main = await page.locator("main").innerText().catch(() => "(no main)");
+      console.error("SYNTHETIC_CASH_BROWSER_DIAGNOSTIC", JSON.stringify({
+        url: page.url(), main: main.slice(0, 1800), pageErrors: errors,
+      }));
+      throw e;
+    }
+    await initialMoney.fill("100");
     await page.getByRole("button", { name: "Abrir caja", exact: true }).click();
     await page.getByLabel("Dinero contado (€)").waitFor();
     assert.equal(opened, 1);
