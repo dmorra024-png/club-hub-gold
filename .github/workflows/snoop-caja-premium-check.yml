@@ -1,5 +1,7 @@
 name: SNOOP Caja premium — isolated regression checks
 on:
+  pull_request:
+    branches: [fix/snoop-member-home-fonts-20261120]
   push:
     branches: [feature/snoop-caja-premium-report-20261121]
     paths:
