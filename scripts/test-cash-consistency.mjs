@@ -208,7 +208,7 @@ for (const [device, engine, profile, standalone] of [
       await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
       await home().filter({ hasText: "No disponible" }).waitFor();
       assert.doesNotMatch(await home().innerText(), /0,00/);
-      await page.getByRole("button", { name: "Reintentar caja", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Reintentar", exact: true }).waitFor();
       fault = null;
       records.membership_receipts.push({
         id: "new-fee",
@@ -223,7 +223,7 @@ for (const [device, engine, profile, standalone] of [
       // Playwright finishes its click. Require the refreshed amount in either
       // case; only an action timeout after proven recovery is acceptable.
       const retryOutcome = page
-        .getByRole("button", { name: "Reintentar caja", exact: true })
+        .getByRole("button", { name: "Reintentar", exact: true })
         .click({ timeout: 3000 })
         .then(
           () => null,
