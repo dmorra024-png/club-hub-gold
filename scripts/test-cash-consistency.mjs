@@ -248,7 +248,8 @@ for (const [device, engine, profile, standalone] of [
       await page.getByRole("button", { name: "Reintentar", exact: true }).click();
       await money(page.getByLabel("Total del día", { exact: true }), admin ? 7300 : 3500);
       await page.getByRole("tab", { name: "Mi caja", exact: true }).click();
-      await page.getByText(/^Caja abierta · /).waitFor();
+      await page.getByText("Activa", { exact: true }).waitFor();
+      await page.getByLabel("Dinero contado (€)").waitFor();
       // Clock crosses Madrid midnight while the same open session remains active.
       now = Date.parse("2026-11-10T23:10:00Z");
       await page.evaluate((now) => {
