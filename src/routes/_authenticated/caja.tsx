@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Clock3, Wallet, ArrowUpRight, ReceiptText, CalendarDays, UserRound, CircleCheck, AlertTriangle, Banknote } from "lucide-react";
+import { Clock3, Wallet, ReceiptText, CalendarDays, UserRound, AlertTriangle } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/caja")({ component: Caja });
 const money = (c: number) =>
   (c / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
