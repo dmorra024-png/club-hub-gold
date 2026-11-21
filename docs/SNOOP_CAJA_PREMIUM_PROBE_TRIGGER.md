@@ -1,0 +1,1 @@
+Observe GitHub Actions result of guarded release commit 9bf13978f029c5cf3e931fc0c2cf532453c55306. Report release outcome as a native commit status. Never deploy or alter service, app, credentials, database or worker bindings.
