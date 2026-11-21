@@ -9,6 +9,7 @@ import { madridToday } from "../src/lib/member-administration.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3143";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
+  process.env.TEST_SUPABASE_URL || process.env.VITE_SUPABASE_URL ||
   (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
@@ -191,7 +192,7 @@ for (const [device, engine, profile, standalone] of [
         await locator.filter({ hasText: new RegExp(`^\\s*${escaped}\\s*€\\s*$`) }).waitFor();
         assert.equal((await locator.innerText()).replace(/\s/g, ""), `${amount}€`);
       };
-      const home = () => page.locator(".premium-cash-amount");
+      const home = () => page.locator(".snoop-approved-cash-info strong");
       await page.goto(base + "/", { waitUntil: "networkidle" });
       await money(home(), admin ? 7200 : 3400);
       assert.equal(
@@ -207,7 +208,7 @@ for (const [device, engine, profile, standalone] of [
       await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
       await home().filter({ hasText: "No disponible" }).waitFor();
       assert.doesNotMatch(await home().innerText(), /0,00/);
-      await page.getByRole("button", { name: "Reintentar caja", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Reintentar", exact: true }).waitFor();
       fault = null;
       records.membership_receipts.push({
         id: "new-fee",
@@ -222,7 +223,7 @@ for (const [device, engine, profile, standalone] of [
       // Playwright finishes its click. Require the refreshed amount in either
       // case; only an action timeout after proven recovery is acceptable.
       const retryOutcome = page
-        .getByRole("button", { name: "Reintentar caja", exact: true })
+        .getByRole("button", { name: "Reintentar", exact: true })
         .click({ timeout: 3000 })
         .then(
           () => null,
@@ -247,7 +248,8 @@ for (const [device, engine, profile, standalone] of [
       await page.getByRole("button", { name: "Reintentar", exact: true }).click();
       await money(page.getByLabel("Total del día", { exact: true }), admin ? 7300 : 3500);
       await page.getByRole("tab", { name: "Mi caja", exact: true }).click();
-      await page.getByText(/^Caja abierta · /).waitFor();
+      await page.getByText("Activa", { exact: true }).waitFor();
+      await page.getByLabel("Dinero contado (€)").waitFor();
       // Clock crosses Madrid midnight while the same open session remains active.
       now = Date.parse("2026-11-10T23:10:00Z");
       await page.evaluate((now) => {
