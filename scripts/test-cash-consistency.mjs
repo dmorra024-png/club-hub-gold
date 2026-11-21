@@ -192,7 +192,7 @@ for (const [device, engine, profile, standalone] of [
         await locator.filter({ hasText: new RegExp(`^\\s*${escaped}\\s*€\\s*$`) }).waitFor();
         assert.equal((await locator.innerText()).replace(/\s/g, ""), `${amount}€`);
       };
-      const home = () => page.locator(".premium-cash-amount");
+      const home = () => page.locator(".snoop-approved-cash-info strong");
       await page.goto(base + "/", { waitUntil: "networkidle" });
       await money(home(), admin ? 7200 : 3400);
       assert.equal(
