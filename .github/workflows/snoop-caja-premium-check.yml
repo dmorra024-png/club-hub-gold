@@ -61,5 +61,43 @@ jobs:
           bun run build:worker
           bun run worker:dry-run
           bun run test:security:bundle
+      - name: Install isolated test browsers
+        run: npx playwright-core install --with-deps chromium webkit
+      - name: Compile local Node server for browser tests
+        run: bun run build
+      - name: Browser regression for Caja (synthetic-only Android and iPhone)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NITRO_PORT=3001 npm start > "$RUNNER_TEMP/caja-test-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..40}; do
+            if curl -fsS http://127.0.0.1:3001/auth >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            cat "$RUNNER_TEMP/caja-test-server.log"
+            exit 1
+          fi
+          TEST_BASE_URL=http://127.0.0.1:3001 bun run test:cash:browser
+          TEST_BASE_URL=http://127.0.0.1:3001 bun run test:cash:consistency
+      - name: Upload synthetic Caja browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-caja-premium-synthetic
+          path: |
+            docs/screenshots/caja-simple-*.png
+            docs/screenshots/caja-reconciliation-*.png
+            docs/screenshots/cash-consistency-*.png
+            docs/CAJA_BROWSER_RESULTS.json
+            docs/CASH_CONSISTENCY_RESULTS.json
+          if-no-files-found: ignore
+          retention-days: 5
       - name: Confirm exact targeted branch remains unpublished
         run: echo "VALIDATED_ONLY_NO_DEPLOY"
