@@ -290,7 +290,7 @@ function Caja() {
                           {s.closing_cash_cents !== null && <div className="snoop-caja-shift-detail"><span>Efectivo contado al cierre</span><strong>{money(s.closing_cash_cents)}</strong></div>}
                           <div className="snoop-caja-shift-detail"><span>Efectivo esperado</span><strong>{balance.expected === null ? "No determinable" : money(balance.expected)}</strong></div>
                           {balance.expected === null && <p className="snoop-caja-shift-note">No determinable: hay pagos sin método identificado o anulaciones sin efectivo verificado.</p>}
-                          {balance.difference !== null && <div className="snoop-caja-shift-detail"><span>Diferencia:</span><strong>{money(balance.difference)}</strong></div>}
+                          {balance.difference !== null && <div className="snoop-caja-shift-detail"><span>Diferencia: </span><strong>{money(balance.difference)}</strong></div>}
                           {s.notes && <p className="snoop-caja-shift-note">Notas: {s.notes}</p>}
                           <details className="snoop-caja-shift-movements">
                             <summary>Ver movimientos de la sesión</summary>
