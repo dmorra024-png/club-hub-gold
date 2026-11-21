@@ -245,7 +245,7 @@ for (const [label, engine, device] of [
     assert.match(text, /Cerrada por: Ana Sintética/);
     assert.match(text, /Bruno Sintético/);
     assert.match(text, /Sin sesión/);
-    assert.match(text, /Ingresos: 9,00/);
+    assert.match(text, /Ingresos registrados\s+9,00/);
     assert.match(text, /No determinable: hay pagos sin método identificado/);
     const detail = page
       .locator('section[aria-label="Sesiones de caja"]')
