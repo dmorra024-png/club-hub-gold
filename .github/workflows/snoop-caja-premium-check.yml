@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 45
     env:
       CI: "true"
+      SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
       VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       APP_URL: https://snoop-pilot.dmorra024.workers.dev
