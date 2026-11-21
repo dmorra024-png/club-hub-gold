@@ -9,6 +9,7 @@ import { madridToday } from "../src/lib/member-administration.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3143";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
+  process.env.TEST_SUPABASE_URL || process.env.VITE_SUPABASE_URL ||
   (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
