@@ -90,7 +90,27 @@ function PedidoPage() {
   } | null>(null);
   const [catalogRetry, setCatalogRetry] = useState(0);
   const catalog = catalogState?.scope === catalogScope ? catalogState : null;
-  const products: Product[] = !accessError && catalogAllowed ? (catalog?.data?.products ?? []) : [];
+  const [dispenserStock,setDispenserStock] = useState<Record<string,number>>({});
+  const [dispenserReady,setDispenserReady] = useState(false);
+  const [dispenserError,setDispenserError] = useState(false);
+  // Do not use the global product total for checkout: only dispensary stock is sellable.
+  useEffect(()=>{
+    if(!access.clubId||!catalog?.data||!catalogAllowed)return;
+    let active=true;
+    setDispenserReady(false);setDispenserError(false);
+    void (async()=>{
+      const {data,error}=await (supabase as any).from("snoop_stock_locations")
+        .select("product_id,quantity").eq("club_id",access.clubId).eq("location","dispensario").limit(1000);
+      if(!active)return;
+      if(error){setDispenserStock({});setDispenserError(true);}
+      else setDispenserStock(Object.fromEntries((data??[]).map((x:any)=>[x.product_id,Number(x.quantity)])));
+      setDispenserReady(true);
+    })();
+    return ()=>{active=false;};
+  },[access.clubId,catalog?.data,catalogAllowed]);
+  const products: Product[] = !accessError && catalogAllowed ? (catalog?.data?.products ?? []).map(p=>({
+    ...p,stock:dispenserReady && !dispenserError ? (dispenserStock[p.id]??0) : 0
+  })) : [];
   const [cart, setCart] = useState<Cart[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -772,6 +792,10 @@ function PedidoPage() {
                   Reintentar catálogo
                 </button>
               </div>
+            ) : !dispenserReady ? (
+              <p role="status" className="text-sm text-muted-foreground">Cargando stock disponible en dispensario…</p>
+            ) : dispenserError ? (
+              <p role="alert" className="text-sm text-destructive">No se pudo verificar el stock del dispensario. Recarga antes de registrar pedidos.</p>
             ) : products.length === 0 ? (
               <p role="status" className="text-sm text-muted-foreground">
                 {catalog.data!.hiddenRowCount > 0
@@ -811,7 +835,7 @@ function PedidoPage() {
                               <div className="min-w-0">
                                 <div className="text-sm text-foreground truncate">{p.name}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                                  {p.sell_price_eur.toFixed(2)} {walletMode?"créditos":"€"}/{p.unit_type} · stock {p.stock}
+                                  {p.sell_price_eur.toFixed(2)} {walletMode?"créditos":"€"}/{p.unit_type} · dispensario {p.stock}
                                 </div>
                               </div>
                             </div>
