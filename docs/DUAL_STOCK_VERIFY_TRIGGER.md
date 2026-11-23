@@ -5,3 +5,5 @@ Fix declaration order and rerun.
 Accessibility regression: native radio selection for initial placement and clickable Almacén / Dispensario inventory filters.
 
 Fix inventory number labels: select product first, display its g/u in Almacén, Dispensario, Total, never sum unlike units.
+
+Product-row stock UX: warehouse shown directly below dispensary stock, transfers under edit pencil; removed top-level location dashboard; decimal input validation repaired.
