@@ -2411,3 +2411,14 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 .snoop-informes-premium .snoop-informes-chart-card .recharts-text {fill:var(--snoop-foreground)}
 .snoop-informes-premium .snoop-informes-chart-card .recharts-legend-item-text {color:var(--snoop-foreground)!important}
 @media(max-width:360px){.snoop-informes-premium .snoop-informes-quick-grid{gap:7px}.snoop-informes-premium .snoop-informes-quick-grid>div{padding:9px}}
+
+
+/* Informes / categorías: keep slices and values readable on narrow screens. */
+.snoop-informes-premium .snoop-informes-category-chart {width:100%;min-width:0;max-width:100%;overflow:hidden}
+.snoop-informes-premium .snoop-informes-category-legend {display:grid;gap:8px;margin-top:4px;min-width:0}
+.snoop-informes-premium .snoop-informes-category-item {display:grid;grid-template-columns:12px minmax(0,1fr) auto auto;gap:9px;align-items:center;min-width:0;padding:10px 9px;border:1px solid color-mix(in srgb,var(--snoop-border) 45%,transparent);border-radius:11px;background:color-mix(in srgb,var(--snoop-panel) 84%,transparent)}
+.snoop-informes-premium .snoop-informes-category-dot {display:block;width:10px;height:10px;border-radius:50%;box-shadow:0 0 5px color-mix(in srgb,var(--snoop-electric) 25%,transparent)}
+.snoop-informes-premium .snoop-informes-category-name {min-width:0;overflow-wrap:anywhere;font-size:13px;color:var(--snoop-foreground)}
+.snoop-informes-premium .snoop-informes-category-item strong {font-family:"Snoop Cash",var(--font-display),sans-serif;font-size:13px;white-space:nowrap;color:var(--snoop-accent);font-variant-numeric:tabular-nums}
+.snoop-informes-premium .snoop-informes-category-percent {min-width:45px;text-align:right;font-size:11px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+@media(max-width:360px){.snoop-informes-premium .snoop-informes-category-item{grid-template-columns:10px minmax(0,1fr) auto;gap:6px}.snoop-informes-premium .snoop-informes-category-percent{grid-column:2/-1;text-align:right}}
