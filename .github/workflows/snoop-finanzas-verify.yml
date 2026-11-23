@@ -25,8 +25,8 @@ jobs:
       - name: Typecheck, architecture and build verification
         run: |
           set -euo pipefail
+          bun run build:worker
           bun run typecheck
           bun run test:security:architecture
-          bun run build:worker
           bun run worker:dry-run
           bun run test:security:bundle
