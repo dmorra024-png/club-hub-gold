@@ -311,7 +311,7 @@ function Caja() {
                             className="snoop-caja-movement-row text-sm"
                           >
                             <p>
-                              {m.source === "order" ? (m.payment_method === "wallet" ? "Pedido · Monedero" : "Pedido") : m.source === "topup" ? "Recarga Monedero · efectivo" : "Cuota asociativa"} ·{" "}
+                              {m.source === "order" ? (m.payment_method === "wallet" ? "Pedido · Monedero" : "Pedido") : m.source === "topup" ? `Recarga Monedero · ${paymentMethodLabel(m.payment_method)}` : "Cuota asociativa"} ·{" "}
                               {money(m.cents)}
                             </p>
                             <p>

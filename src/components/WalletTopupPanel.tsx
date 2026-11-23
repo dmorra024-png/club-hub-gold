@@ -5,6 +5,7 @@ import {parseCashCents} from "@/lib/member-administration";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {toast} from "sonner";
+import {RECORDS_CHANGED} from "./FinancialRecordDialog";
 
 type Status={enabled:boolean;clubEnabled:boolean;balanceCents:number|null;cashSessionId:string|null};
 const money=(c:number)=>(c/100).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
@@ -58,6 +59,7 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
    operation.current=null;
    setAmount("");setConfirmed(false);
    setStatus({...status!,balanceCents:result.balanceCents});
+   window.dispatchEvent(new Event(RECORDS_CHANGED));
    toast.success("Recarga registrada · créditos añadidos al Monedero.");
   }catch{
    setProblem("No se pudo confirmar la recarga. Comprueba el historial antes de reintentar; no se ha generado otra operación.");

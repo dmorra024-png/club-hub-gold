@@ -9,6 +9,7 @@ import { UserRound, Wallet, Package, Boxes, ChevronRight } from "lucide-react";
 import { SnoopGoldIcon } from "@/components/SnoopGoldIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getRecentWalletTopups } from "@/lib/cash-sessions.functions";
 import {
   activityRows,
   activitySources,
@@ -57,7 +58,8 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
     async function load() {
       const version = ++request;
       const responses = await Promise.allSettled(
-        sources.map(async (table) => {
+        [
+          ...sources.map(async (table) => {
           const [select, order] = fields[table];
           let query = (supabase.from as any)(table)
             .select(select)
@@ -69,7 +71,11 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
           const { data, error } = await query;
           if (error) throw error;
           return activityRows(table, data || [], access.permissions.includes("use_cash"));
-        }),
+          }),
+          ...(can("use_cash") ? [
+            getRecentWalletTopups({data:{limit:100}}).then(data=>activityRows("wallet_topups",data,true))
+          ] : [])
+        ],
       );
       if (cancelled || version !== request) return;
       const failed = responses.some((r) => r.status === "rejected");
@@ -138,8 +144,13 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
                   {item.status === "cancelled" && <FinancialRecordStatus status={item.status} />}
                 </span>
                 <span className="premium-activity-right">
-                  {!expanded && item.kind === "cash" && item.detail.startsWith("Importe: ") && (
-                    <strong className="premium-activity-amount">{item.detail.slice("Importe: ".length)}</strong>
+                  {!expanded && item.kind === "cash" &&
+                    (item.amountCents !== undefined || item.detail.startsWith("Importe: ")) && (
+                    <strong className="premium-activity-amount">
+                      {item.amountCents !== undefined
+                        ? new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(item.amountCents/100)
+                        : item.detail.slice("Importe: ".length)}
+                    </strong>
                   )}
                   <time
                     dateTime={item.at}

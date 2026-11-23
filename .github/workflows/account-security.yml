@@ -339,3 +339,41 @@ jobs:
           bun run build:worker
           bun run worker:dry-run
           bun run test:security:bundle
+
+
+  wallet-home-cash-activities:
+    if: github.event_name == 'pull_request' && github.head_ref == 'fix/snoop-wallet-cash-home-topup-activities-20261123'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
+      VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false, fetch-depth: 0}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: "1.3.12"}
+      - run: bun install --frozen-lockfile
+      - name: Check only receipt and activity display changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$(git rev-parse origin/release/snoop-wallet-order-rejection-20261123)"
+          changed="$(git diff --name-only "$BASE" HEAD -- src apps/socio)"
+          expected="$(printf '%s\n' 'src/components/ClubActivities.tsx' 'src/components/WalletTopupPanel.tsx' 'src/lib/cash-sessions.functions.ts' 'src/lib/club-activity.ts' 'src/routes/_authenticated/caja.tsx' 'src/routes/_authenticated/index.tsx')"
+          test "$changed" = "$expected" || { echo "Unexpected application files: $changed"; exit 1; }
+          git diff --exit-code "$BASE" HEAD -- src/lib/wallet-management.functions.ts src/lib/cash-wallet-evidence.server.ts src/lib/cash-sessions.ts
+          node --test tests/snoop-wallet-cash-home-activities.test.mjs tests/snoop-wallet-credit-only-topup-methods.test.mjs tests/simple-cash.test.mjs
+          bun run test:annulment:concurrency
+      - name: Compile and validate without deploying
+        run: |
+          set -euo pipefail
+          bun run typecheck
+          bun run build:worker
+          bun run worker:dry-run
+          bun run test:security:bundle

@@ -10,6 +10,7 @@ export type ClubActivity = {
   orderId?: string;
   createdBy?: string;
   status?: string;
+  amountCents?: number;
 };
 export function activitySources(access: AccountAccess) {
   if (access.status !== "active" || !access.clubId || access.role === "super_admin") return [];
@@ -59,6 +60,18 @@ export function activityRows(
           detail: `Variación: ${Number(r.delta) > 0 ? "+" : ""}${Number(r.delta).toLocaleString("es-ES")}`,
           href: "/productos",
         };
+      if(table==="wallet_topups"){
+        const method=r.payment_method==="cash"?"Efectivo"
+          :r.payment_method==="card"?"Tarjeta / POS"
+          :r.payment_method==="transfer"?"Transferencia":"Método no identificado";
+        const cents=Number(r.amount_cents);
+        return {
+          ...base,kind:"cash" as const,title:"Recarga Monedero",
+          detail:`${method} · ${typeof r.actor_name==="string"?r.actor_name:"Colaborador"}`,
+          amountCents:Number.isSafeInteger(cents)&&cents>0?cents:undefined,
+          href:canCash?"/caja":"/ajustes/informes"
+        };
+      }
       const cents = table === "orders" ? r.total_cents : r.amount_cents;
       return {
         ...base,
