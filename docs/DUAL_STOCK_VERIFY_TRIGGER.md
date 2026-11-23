@@ -19,3 +19,5 @@ Inventory UX simplification: remove separate Rentabilidad por producto report; e
 Valuation correction: sale-price stock value is the principal headline; configured buy price is hypothetical reference cost, never money paid, net or realized profit. No product prices or stock changed.
 
 Final UI layout: principal figure at top is value of active stocked merchandise at sale price; historical day movement report and notional cost/margin remain secondary.
+
+Correction: cancelled sale stock movements net to zero; replace + and - gross quantities with one net inventory value change, explicitly not Caja revenue.
