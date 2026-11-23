@@ -32,10 +32,11 @@ export const Route = createFileRoute("/_authenticated/ajustes/informes")({
   component: InformesPage,
 });
 
-const NEON = "#39FF14";
-const NEON_DIM = "#1f6a13";
-const RED = "#ef4444";
-const PIE_COLORS = ["#39FF14", "#22d3ee", "#a855f7", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899"];
+// All chart accents inherit the club's live theme; never pin a fixed palette.
+const NEON = "var(--snoop-accent)";
+const NEON_DIM = "var(--snoop-border)";
+const RED = "var(--destructive)";
+const PIE_COLORS = ["var(--snoop-accent)", "var(--snoop-electric)", "var(--snoop-border)", "var(--snoop-foreground)"];
 
 type Range = "7d" | "30d" | "90d" | "365d";
 const RANGES: { id: Range; label: string; days: number }[] = [
@@ -61,6 +62,7 @@ function InformesPage() {
   const [checkIns, setCheckIns] = useState<any[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [completedOrderCount, setCompletedOrderCount] = useState(0);
 
   useEffect(() => {
     const clubId = access.clubId;
@@ -114,6 +116,7 @@ function InformesPage() {
         (orders.data ?? []).filter((o: any) => o.status === "completed").map((o: any) => o.id),
       );
       setItems((oi.data ?? []).filter((i: any) => completedIds.has(i.order_id)));
+      setCompletedOrderCount(completedIds.size);
       setMovs(sm.data ?? []);
       setProducts(pr.data ?? []);
       setCats(ct.data ?? []);
@@ -170,6 +173,35 @@ function InformesPage() {
       .reduce((s, m) => s + Math.abs(Number(m.delta)), 0);
     return { revenue, soldQty, added, removed };
   }, [items, movs]);
+
+  // Read-only insights from data already loaded for this club and period.
+  const usefulStats = useMemo(() => {
+    const ticket = completedOrderCount > 0 ? stats.revenue / completedOrderCount : 0;
+    const daysWithActivity = new Map<string, { cents: number; orders: Set<string> }>();
+    const hours = Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, "0")}:00`, pedidos: 0, ingresos: 0 }));
+    const byOrderHour = new Map<string, { hour: number; cents: number }>();
+    for (const item of items) {
+      const cents = Number(item.line_total_cents || 0);
+      const date = new Date(item.created_at);
+      if (!Number.isFinite(date.getTime())) continue;
+      const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+      const bucket = daysWithActivity.get(dayKey) ?? { cents: 0, orders: new Set<string>() };
+      bucket.cents += cents;
+      if (item.order_id) bucket.orders.add(item.order_id);
+      daysWithActivity.set(dayKey, bucket);
+      const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", hour: "2-digit", hourCycle: "h23" }).format(date));
+      if (hour >= 0 && hour < 24) {
+        hours[hour].ingresos += cents / 100;
+        const key = String(item.order_id ?? item.id);
+        const record = byOrderHour.get(key);
+        byOrderHour.set(key, { hour, cents: (record?.cents ?? 0) + cents });
+      }
+    }
+    for (const o of byOrderHour.values()) hours[o.hour].pedidos++;
+    const bestHour = hours.reduce<(typeof hours)[number] | null>((a, b) => !a || b.pedidos > a.pedidos ? b : a, null);
+    const bestDay = [...daysWithActivity.entries()].sort((a, b) => b[1].cents - a[1].cents)[0];
+    return { ticket, bestHour: bestHour?.pedidos ? bestHour : null, bestDay, hours };
+  }, [items, stats.revenue, completedOrderCount]);
 
   // Top vendidos
   const topSold = useMemo(() => {
@@ -341,7 +373,7 @@ function InformesPage() {
     );
 
   return (
-    <SnoopLayout title="Informes" subtitle="Estadísticas de stock y ventas">
+    <SnoopLayout title="Informes" subtitle="Estadísticas de stock y ventas" contentClassName="snoop-informes-premium">
       {/* Range selector */}
       <div className="flex flex-wrap gap-2 mb-6">
         {RANGES.map((r) => (
@@ -363,6 +395,31 @@ function InformesPage() {
         <div className="text-muted-foreground">Calculando…</div>
       ) : (
         <div className="space-y-6">
+          <section className="snoop-informes-insights" aria-label="Indicadores útiles">
+            <div className="snoop-informes-section-heading"><span>ANÁLISIS DEL PERIODO</span><h2>Lo importante, de un vistazo</h2></div>
+            <div className="snoop-informes-quick-grid">
+              <div><span>Pedidos completados</span><strong>{completedOrderCount}</strong><small>En el periodo seleccionado</small></div>
+              <div><span>Media por pedido</span><strong>{usefulStats.ticket.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong><small>Ingresos de artículos / pedidos</small></div>
+              <div><span>Hora con más pedidos</span><strong>{usefulStats.bestHour?.label ?? "—"}</strong><small>{usefulStats.bestHour ? `${usefulStats.bestHour.pedidos} pedidos` : "Sin actividad registrada"}</small></div>
+              <div><span>Productos con stock bajo</span><strong>{lowStock.length}{lowStock.length === 8 ? "+" : ""}</strong><small>Ver sección Stock bajo</small></div>
+            </div>
+            <div className="snoop-informes-tip" role="status">
+              {completedOrderCount === 0 ? "No hay pedidos completados en este periodo." :
+                usefulStats.bestDay ? `El día con mayores ingresos registrados fue el ${usefulStats.bestDay[0]}, con ${(usefulStats.bestDay[1].cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}.` :
+                "Consulta los movimientos del periodo para encontrar oportunidades."}
+            </div>
+          </section>
+          <ChartCard title="Actividad por hora · pedidos">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={usefulStats.hours} margin={{ left: -18, right: 4 }}>
+                <CartesianGrid vertical={false} stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                <XAxis dataKey="label" tick={{ fill: "var(--snoop-foreground)", fontSize: 10 }} interval={3} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "var(--snoop-foreground)", fontSize: 10 }} allowDecimals={false} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)", borderRadius: 12, color: "var(--snoop-foreground)" }} />
+                <Bar dataKey="pedidos" name="Pedidos" fill={NEON} radius={[5, 5, 0, 0]} maxBarSize={16} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi icon={Euro} label="Ingresos" value={`€${stats.revenue.toFixed(2)}`} tint="neon" />
@@ -415,13 +472,13 @@ function InformesPage() {
             <ChartCard title="Entradas y salidas por día">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={accessStats.daily}>
-                  <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                  <XAxis dataKey="day" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#0a0a0a", border: "1px solid #39FF14" }} />
+                  <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                  <XAxis dataKey="day" stroke="var(--snoop-foreground)" fontSize={10} />
+                  <YAxis stroke="var(--snoop-foreground)" fontSize={10} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }} />
                   <Legend />
-                  <Bar dataKey="entradas" fill={NEON} name="Entradas" />
-                  <Bar dataKey="salidas" fill={RED} name="Salidas" />
+                  <Bar dataKey="entradas" fill={NEON} name="Entradas" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="salidas" fill={RED} name="Salidas" radius={[5, 5, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -431,15 +488,15 @@ function InformesPage() {
           <ChartCard title="Ingresos por día">
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={daily}>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                <XAxis dataKey="day" stroke="#888" fontSize={11} />
-                <YAxis stroke="#888" fontSize={11} />
+                <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                <XAxis dataKey="day" stroke="var(--snoop-foreground)" fontSize={11} />
+                <YAxis stroke="var(--snoop-foreground)" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                  contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
                   labelStyle={{ color: NEON }}
                   formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
                 />
-                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={3} dot={false} activeDot={{ r: 5, stroke: "var(--snoop-electric)", strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -451,11 +508,11 @@ function InformesPage() {
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={topSold} layout="vertical" margin={{ left: 16 }}>
-                  <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                  <XAxis type="number" stroke="#888" fontSize={11} />
-                  <YAxis type="category" dataKey="name" stroke="#888" fontSize={11} width={110} />
+                  <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                  <XAxis type="number" stroke="var(--snoop-foreground)" fontSize={11} />
+                  <YAxis type="category" dataKey="name" stroke="var(--snoop-foreground)" fontSize={11} width={110} />
                   <Tooltip
-                    contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                    contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
                     formatter={(v: any, n: string) =>
                       n === "revenue"
                         ? [`€${Number(v).toFixed(2)}`, "Ingresos"]
@@ -472,13 +529,13 @@ function InformesPage() {
           <ChartCard title="Movimientos de stock por día">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={dailyMovs}>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                <XAxis dataKey="day" stroke="#888" fontSize={11} />
-                <YAxis stroke="#888" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }} />
+                <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                <XAxis dataKey="day" stroke="var(--snoop-foreground)" fontSize={11} />
+                <YAxis stroke="var(--snoop-foreground)" fontSize={11} />
+                <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="entradas" fill={NEON} name="Entradas" />
-                <Bar dataKey="salidas" fill={RED} name="Salidas" />
+                <Bar dataKey="entradas" fill={NEON} name="Entradas" radius={[5, 5, 0, 0]} />
+                <Bar dataKey="salidas" fill={RED} name="Salidas" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -581,7 +638,7 @@ function InformesPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                    contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
                     formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
                   />
                 </PieChart>
@@ -632,7 +689,7 @@ function Kpi({
 }) {
   const color = tint === "neon" ? "text-neon" : "text-destructive";
   return (
-    <div className="bg-card/60 border border-neon/20 rounded-2xl p-4">
+    <div className="snoop-informes-kpi bg-card/60 border border-neon/20 rounded-2xl p-4">
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
         <Icon className={`w-4 h-4 ${color}`} />
         {label}
@@ -644,7 +701,7 @@ function Kpi({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-5">
+    <div className="snoop-informes-chart-card bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-5">
       <div className="font-display text-sm text-neon tracking-wide uppercase mb-3">{title}</div>
       {children}
     </div>
