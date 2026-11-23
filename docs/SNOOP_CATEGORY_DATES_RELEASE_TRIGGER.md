@@ -1,0 +1,1 @@
+Approved pilot release: verified Informes daily/custom Desde-Hasta filters and mobile-readable category chart. Source commit 7698981dca0880d4e623b0ed0ab0a4f29f1f7ddd. Preserve Caja, POS, Monedero, backend, database, QR and existing Cloudflare secret bindings.
