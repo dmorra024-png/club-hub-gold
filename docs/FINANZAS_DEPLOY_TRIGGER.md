@@ -1,0 +1,1 @@
+Owner-authorized SNOOP Finanzas pilot release. Source branch feature/snoop-expenses-suppliers-20261123, migration snoop_finanzas_v1_pilot applied and RLS verified. Deploy only existing snoop-pilot Worker; preserve secret bindings; no REAL, Socio, Jarvis or legacy cash/stock mutations. Finance v1 has independent expense and purchase records only.
