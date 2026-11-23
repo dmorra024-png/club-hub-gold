@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, RefreshCw, Warehouse, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { CalendarDays, RefreshCw, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { madridToday } from "@/lib/member-administration";
 
@@ -73,17 +73,10 @@ export function InventoryCostReport({clubId}:{clubId:string}){
     <p className="text-xs text-muted-foreground">Valor de venta al inicio del día · 00:00</p>
     <p className="mt-1 font-display text-3xl text-foreground" data-testid="inventory-opening-eur">{eur(Number(report.opening_sale_eur))}</p>
    </div>
-   <div className="grid grid-cols-2 gap-3">
-    <div className="rounded-xl border border-border/70 bg-input/20 p-3">
-     <ArrowDownToLine size={18} className="text-neon"/>
-     <p className="mt-1 text-xs text-muted-foreground">Entradas del día · precio de venta</p>
-     <p className="font-display text-lg">+{eur(Number(report.incoming_sale_eur))}</p>
-    </div>
-    <div className="rounded-xl border border-border/70 bg-input/20 p-3">
-     <ArrowUpFromLine size={18} className="text-neon"/>
-     <p className="mt-1 text-xs text-muted-foreground">Salidas del día · precio de venta</p>
-     <p className="font-display text-lg">−{eur(Number(report.outgoing_sale_eur))}</p>
-    </div>
+   <div className="rounded-xl border border-neon/25 bg-input/20 p-4 space-y-1">
+    <p className="text-xs text-muted-foreground">Variación neta del valor del stock {day===madridToday()?"hoy":"en la fecha elegida"}</p>
+    <p className="font-display text-xl text-foreground" data-testid="inventory-net-change">{report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_sale_eur)-Number(report.opening_sale_eur))}</p>
+    <p className="text-xs text-muted-foreground">Valor final menos valor inicial. Los pedidos anulados y sus devoluciones se compensan; no son ingresos de Caja.</p>
    </div>
    <div className="rounded-xl border border-neon/40 bg-neon/5 p-4 space-y-3">
     <p className="flex items-center gap-2 text-xs text-muted-foreground"><Warehouse size={16}/> Costo y margen estimado del inventario</p>
