@@ -56,8 +56,11 @@ begin
     count(*) filter(where opening_qty<0 or closing_qty<0) as invalid_quantities,
     count(*) filter(where unpriced_sale) as missing_sale_price,
     coalesce(sum(greatest(opening_qty,0)*greatest(unit_cost,0)),0) as opening_value,
+    coalesce(sum(greatest(opening_qty,0)*greatest(unit_sale_price,0)),0) as opening_sale_value,
     coalesce(sum(incoming_qty*greatest(unit_cost,0)),0) as incoming_value,
+    coalesce(sum(incoming_qty*greatest(unit_sale_price,0)),0) as incoming_sale_value,
     coalesce(sum(outgoing_qty*greatest(unit_cost,0)),0) as outgoing_value,
+    coalesce(sum(outgoing_qty*greatest(unit_sale_price,0)),0) as outgoing_sale_value,
     coalesce(sum(greatest(closing_qty,0)*greatest(unit_cost,0)),0) as closing_value,
     coalesce(sum(greatest(closing_qty,0)*greatest(unit_sale_price,0)),0) as closing_sale_value,
     coalesce(sum(greatest(closing_qty,0)*(greatest(unit_sale_price,0)-greatest(unit_cost,0))),0) as closing_expected_profit
@@ -69,8 +72,11 @@ begin
   'end_at',v_end,
   'cost_basis','current_purchase_price',
   'opening_eur',round(t.opening_value,2),
+  'opening_sale_eur',round(t.opening_sale_value,2),
   'incoming_eur',round(t.incoming_value,2),
+  'incoming_sale_eur',round(t.incoming_sale_value,2),
   'outgoing_eur',round(t.outgoing_value,2),
+  'outgoing_sale_eur',round(t.outgoing_sale_value,2),
   'closing_eur',round(t.closing_value,2),
   'closing_sale_eur',round(t.closing_sale_value,2),
   'closing_expected_profit_eur',round(t.closing_expected_profit,2),
@@ -86,7 +92,7 @@ begin
     'expected_profit_eur',round(greatest(l.closing_qty,0)*(greatest(l.unit_sale_price,0)-greatest(l.unit_cost,0)),2),
     'unpriced',l.unpriced,'unpriced_sale',l.unpriced_sale
    ) order by l.name),'[]'::jsonb)
-   from lines l where l.opening_qty<>0 or l.incoming_qty<>0 or l.outgoing_qty<>0 or l.closing_qty<>0)
+   from lines l where l.closing_qty>0)
  ) into v_result from totals t;
  return v_result;
 end
