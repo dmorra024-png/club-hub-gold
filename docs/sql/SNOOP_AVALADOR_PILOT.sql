@@ -3,7 +3,9 @@
 BEGIN;
 ALTER TABLE public.members
  ADD COLUMN IF NOT EXISTS avalador_first_name text,
- ADD COLUMN IF NOT EXISTS avalador_last_name text;
+ ADD COLUMN IF NOT EXISTS avalador_last_name text,
+ ADD COLUMN IF NOT EXISTS avalador_member_number text,
+ ADD COLUMN IF NOT EXISTS avalador_member_id uuid REFERENCES public.members(id) ON DELETE SET NULL;
 ALTER TABLE public.members
  DROP CONSTRAINT IF EXISTS members_avalador_pair_check;
 ALTER TABLE public.members
@@ -17,7 +19,7 @@ CREATE OR REPLACE FUNCTION public.snoop_register_member_with_avalador(
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $avalador$
 DECLARE
  c uuid; result_id uuid; must_avalador boolean;
- v_avalador_first text; v_avalador_last text;
+ v_avalador_first text; v_avalador_last text; v_avalador_number text; v_avalador_id uuid;
 BEGIN
  c:=public.current_club_id();
  IF auth.uid() IS NULL OR c IS NULL OR NOT public.can_operate_club(c,'manage_members'::public.app_permission)
@@ -30,10 +32,22 @@ BEGIN
  must_avalador:=coalesce(must_avalador,false);
  v_avalador_first:=nullif(btrim(coalesce(p_member->>'avalador_first_name','')),'');
  v_avalador_last:=nullif(btrim(coalesce(p_member->>'avalador_last_name','')),'');
- IF ((v_avalador_first IS NULL) <> (v_avalador_last IS NULL)) OR
-  (must_avalador AND (v_avalador_first IS NULL OR v_avalador_last IS NULL)) OR
-  length(coalesce(v_avalador_first,''))>100 OR length(coalesce(v_avalador_last,''))>100
- THEN RAISE EXCEPTION 'Indica nombre y apellidos del socio avalador' USING errcode='22023'; END IF;
+ v_avalador_number:=nullif(btrim(coalesce(p_member->>'avalador_member_number','')),'');
+ IF length(coalesce(v_avalador_first,''))>100 OR length(coalesce(v_avalador_last,''))>100
+    OR length(coalesce(v_avalador_number,''))>60
+    OR ((v_avalador_first IS NULL) <> (v_avalador_last IS NULL))
+    OR (v_avalador_number IS NOT NULL AND v_avalador_first IS NOT NULL)
+ THEN RAISE EXCEPTION 'Indica nombre y apellidos O número de socio avalador' USING errcode='22023'; END IF;
+ IF v_avalador_number IS NOT NULL THEN
+   SELECT m.id,m.first_name,m.last_name INTO v_avalador_id,v_avalador_first,v_avalador_last
+   FROM public.members m
+   WHERE m.club_id=c AND m.member_number=v_avalador_number
+   FOR SHARE;
+   IF NOT FOUND THEN RAISE EXCEPTION 'No existe un socio avalador con ese número en este club' USING errcode='22023'; END IF;
+ END IF;
+ IF must_avalador AND (v_avalador_first IS NULL OR v_avalador_last IS NULL) THEN
+   RAISE EXCEPTION 'Introduce nombre y apellidos o número del socio avalador' USING errcode='22023';
+ END IF;
  IF p_plan_id IS NOT NULL THEN
   IF p_confirmed_cents IS NULL THEN RAISE EXCEPTION 'Confirma la cuota del socio' USING errcode='22023'; END IF;
   result_id:=public.confirm_membership_with_receipt(p_confirmed_cents,NULL,p_member,p_method,p_plan_id,false,p_request);
@@ -41,17 +55,17 @@ BEGIN
   result_id:=public.save_membership_with_receipt(p_member,NULL,p_method,p_request,false,NULL);
  END IF;
  UPDATE public.members
- SET avalador_first_name=v_avalador_first,avalador_last_name=v_avalador_last
+ SET avalador_first_name=v_avalador_first,avalador_last_name=v_avalador_last,
+     avalador_member_number=v_avalador_number,avalador_member_id=v_avalador_id
  WHERE club_id=c AND id=result_id
-  AND avalador_first_name IS NOT DISTINCT FROM v_avalador_first
-  AND avalador_last_name IS NOT DISTINCT FROM v_avalador_last;
- IF NOT FOUND THEN
-  -- On first insertion previous fields are NULL; set them after verifying operation fingerprint.
-  UPDATE public.members SET avalador_first_name=v_avalador_first, avalador_last_name=v_avalador_last
-  WHERE club_id=c AND id=result_id
-    AND avalador_first_name IS NULL AND avalador_last_name IS NULL;
-  IF NOT FOUND THEN RAISE EXCEPTION 'La inscripción ya tiene otro avalador' USING errcode='23505'; END IF;
- END IF;
+   AND (
+     (avalador_first_name IS NULL AND avalador_last_name IS NULL AND avalador_member_number IS NULL)
+     OR (avalador_first_name IS NOT DISTINCT FROM v_avalador_first
+      AND avalador_last_name IS NOT DISTINCT FROM v_avalador_last
+      AND avalador_member_number IS NOT DISTINCT FROM v_avalador_number
+      AND avalador_member_id IS NOT DISTINCT FROM v_avalador_id)
+   );
+ IF NOT FOUND THEN RAISE EXCEPTION 'La inscripción ya tiene otro avalador' USING errcode='23505'; END IF;
  RETURN result_id;
 END $avalador$;
 REVOKE ALL ON FUNCTION public.snoop_register_member_with_avalador(jsonb,uuid,text,uuid,integer) FROM public,anon,authenticated;
