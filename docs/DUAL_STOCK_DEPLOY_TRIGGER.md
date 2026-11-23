@@ -21,3 +21,5 @@ Net stock movement summary: canceled stock movement pairs (Gelatto and Orange Ju
 Pilot member endorsement release: optional/mandatory avalador name and surname per club in Ajustes Socios, saved atomically and displayed on member detail. SQL and CI verified, no changes to SNOOP Socio or JARVIS.
 
 Avalador v2 pilot: register by first/last name OR verified existing member number, server scoped to same club, linked member stored. CI success, SQL smoke test rolled back.
+
+Avalador v3 release: named member lookup requires exact existing club membership selection, visibly confirmed by member number; arbitrary name payloads rejected by DB. Verified SQL smoke test and CI checks.
