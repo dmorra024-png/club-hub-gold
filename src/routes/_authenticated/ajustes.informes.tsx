@@ -61,12 +61,13 @@ function InformesPage() {
   const [draftFrom, setDraftFrom] = useState(() => madridToday());
   const [draftTo, setDraftTo] = useState(() => madridToday());
   const [appliedCustom, setAppliedCustom] = useState(() => ({ from: madridToday(), to: madridToday() }));
-  const customValid = /^\d{4}-\d{2}-\d{2}$/.test(draftFrom) && /^\d{4}-\d{2}-\d{2}$/.test(draftTo) && draftFrom <= draftTo && draftTo <= madridToday();
+  const customValid = /^\d{4}-\d{2}-\d{2}$/.test(draftFrom) && /^\d{4}-\d{2}-\d{2}$/.test(draftTo) && draftFrom <= draftTo && draftTo <= madridToday() && (Date.parse(draftTo) - Date.parse(draftFrom)) / 86400000 <= 730;
+  const madridDay = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
   const period = useMemo(() => {
     const to = range === "custom" ? appliedCustom.to : madridToday();
     const from = range === "custom" ? appliedCustom.from : addCalendarDays(to, 1 - RANGES.find((r) => r.id === range)!.days);
     const days: string[] = [];
-    for (let date = from; date <= to && days.length <= 366; date = addCalendarDays(date, 1)) days.push(date);
+    for (let date = from; date <= to && days.length <= 731; date = addCalendarDays(date, 1)) days.push(date);
     return { days, from, to, start: clubDayRange(from).start, end: clubDayRange(to).end };
   }, [range, appliedCustom]);
   const [items, setItems] = useState<any[]>([]);
@@ -164,7 +165,7 @@ function InformesPage() {
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
     for (const key of period.days) buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
     for (const c of checkIns) {
-      const key = String(c.created_at).slice(0, 10);
+      const key = madridDay(String(c.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       if (c.direction === "in") b.entradas++;
@@ -230,7 +231,7 @@ function InformesPage() {
     const buckets = new Map<string, { day: string; revenue: number; qty: number }>();
     for (const key of period.days) buckets.set(key, { day: key.slice(5), revenue: 0, qty: 0 });
     for (const it of items) {
-      const key = String(it.created_at).slice(0, 10);
+      const key = madridDay(String(it.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       b.revenue += Number(it.line_total_cents || 0) / 100;
@@ -244,7 +245,7 @@ function InformesPage() {
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
     for (const key of period.days) buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
     for (const m of movs) {
-      const key = String(m.created_at).slice(0, 10);
+      const key = madridDay(String(m.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       const d = Number(m.delta);
@@ -394,7 +395,7 @@ function InformesPage() {
         <div className="snoop-informes-custom-range" aria-label="Personalizar búsqueda por fechas">
           <label>Desde<input type="date" value={draftFrom} max={madridToday()} onChange={(e) => setDraftFrom(e.target.value)} /></label>
           <label>Hasta<input type="date" value={draftTo} max={madridToday()} onChange={(e) => setDraftTo(e.target.value)} /></label>
-          {!customValid && <p role="alert">Selecciona fechas válidas: Desde debe ser anterior o igual a Hasta, sin fechas futuras.</p>}
+          {!customValid && <p role="alert">Selecciona fechas válidas: Desde debe ser anterior o igual a Hasta, sin fechas futuras (máximo 731 días).</p>}
           <button type="button" disabled={!customValid} onClick={() => { setAppliedCustom({ from: draftFrom, to: draftTo }); setRange("custom"); setCustomOpen(false); }}>Aplicar fechas</button>
         </div>
       )}
