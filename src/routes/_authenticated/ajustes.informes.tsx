@@ -621,28 +621,52 @@ function InformesPage() {
             )}
           </ChartCard>
 
-          {/* Ingresos por categoría */}
+          {/* Ingresos por categoría: mobile-safe donut + full accessible legend. */}
           {byCategory.length > 0 && (
             <ChartCard title="Ingresos por categoría">
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={byCategory}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={90}
-                    label={(e: any) => `${e.name}: €${Number(e.value).toFixed(0)}`}
-                  >
-                    {byCategory.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
-                    formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="snoop-informes-category-chart">
+                <ResponsiveContainer width="100%" height={218}>
+                  <PieChart>
+                    <Pie
+                      data={byCategory}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={86}
+                      paddingAngle={byCategory.length > 1 ? 2 : 0}
+                      labelLine={false}
+                      label={false}
+                      stroke="var(--snoop-panel)"
+                      strokeWidth={2}
+                    >
+                      {byCategory.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: "var(--snoop-panel)", color: "var(--snoop-foreground)", border: "1px solid var(--snoop-border)", borderRadius: 12 }}
+                      formatter={(v: any) => [Number(v).toLocaleString("es-ES", { style: "currency", currency: "EUR" }), "Ingresos"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="snoop-informes-category-legend" aria-label="Desglose de ingresos por categoría">
+                  {byCategory
+                    .slice()
+                    .sort((a, b) => b.value - a.value)
+                    .map(({ name, value }) => {
+                      const index = byCategory.findIndex((c) => c.name === name);
+                      const total = byCategory.reduce((sum, c) => sum + c.value, 0);
+                      return (
+                        <div className="snoop-informes-category-item" key={name}>
+                          <span className="snoop-informes-category-dot" style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} aria-hidden="true" />
+                          <span className="snoop-informes-category-name">{name}</span>
+                          <strong>{value.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                          <span className="snoop-informes-category-percent">{total > 0 ? (value / total * 100).toLocaleString("es-ES", { maximumFractionDigits: 1 }) : "0"} %</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             </ChartCard>
           )}
 
