@@ -11,7 +11,7 @@ test("member detail offers staff wallet topups regardless of absent frontend fla
  assert.ok(panel.includes("status?.clubEnabled"));
 });
 test("existing security and topup flow unchanged",()=>{
- for(const item of ['can("use_cash")','can("manage_members")','walletTopup({data:{memberId','cashSessionId:status!.cashSessionId!','operationId:operation.current!','amountCents:cents,confirmed:true','Confirmar recarga','Confirmo haber recibido este efectivo'])assert.ok(panel.includes(item),item);
+ for(const item of ['can("use_cash")','can("manage_members")','walletTopup({data:{memberId','cashSessionId:status!.cashSessionId!','operationId:operation.current!','amountCents:cents,paymentMethod:receiptMethod,confirmed:true','Confirmar recarga','Confirmo que ya recibí'])assert.ok(panel.includes(item),item);
  assert.ok(server.includes('SNOOP_WALLET_OPERATIONS_ENABLED'));
  assert.ok(server.includes('requireClubCashAuth'));
  assert.ok(server.includes('requireOperationalClub(context,"manage_members")'));

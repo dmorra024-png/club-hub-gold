@@ -43,7 +43,7 @@ export function cashMovements(orders: any[], fees: any[], sessions: CashSession[
       by: t.actorId,
       cents: t.amountCents,
       session_id: t.cashSessionId,
-      payment_method: "cash",
+      payment_method: t.paymentMethod ?? "cash",
     })),
     ...uniqueLedgerRows(fees).map((r: any) => {
       const at = cashInstant(r.recorded_at);

@@ -8,11 +8,14 @@ import {toast} from "sonner";
 
 type Status={enabled:boolean;clubEnabled:boolean;balanceCents:number|null;cashSessionId:string|null};
 const money=(c:number)=>(c/100).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
+const credits=(c:number)=>`${(c/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} créditos`;
+type ReceiptMethod="cash"|"card"|"transfer";
 /** Staff wallet panel. Nothing is shown when a club has not explicitly enabled Monedero. */
 export function WalletTopupPanel({memberId}:{memberId:string}){
  const {user,access,can,accessError}=useAuth();
  const [status,setStatus]=useState<Status|null>(null);
  const [amount,setAmount]=useState("");
+ const [receiptMethod,setReceiptMethod]=useState<ReceiptMethod>("cash");
  const [confirmed,setConfirmed]=useState(false);
  const [busy,setBusy]=useState(false);
  const [problem,setProblem]=useState("");
@@ -24,7 +27,7 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
   // Do not silently hide the panel when a build-time flag is absent.
   if(accessError||!can("use_cash")||!can("manage_members"))return;
   let active=true;
-  setStatus(null);setProblem("");setConfirmed(false);setAmount("");
+  setStatus(null);setProblem("");setConfirmed(false);setAmount("");setReceiptMethod("cash");
   // Never guess enabled state when server cannot verify it.
   walletMemberStatus({data:{memberId}})
    .then(result=>{if(active)setStatus(result);})
@@ -51,31 +54,43 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
   try{
    const result=await walletTopup({data:{memberId,
     cashSessionId:status!.cashSessionId!,operationId:operation.current!,
-    amountCents:cents,confirmed:true}});
+    amountCents:cents,paymentMethod:receiptMethod,confirmed:true}});
    operation.current=null;
    setAmount("");setConfirmed(false);
    setStatus({...status!,balanceCents:result.balanceCents});
-   toast.success("Recarga registrada en caja y monedero.");
+   toast.success("Recarga registrada · créditos añadidos al Monedero.");
   }catch{
    setProblem("No se pudo confirmar la recarga. Comprueba el historial antes de reintentar; no se ha generado otra operación.");
   }finally{inFlight.current=false;setBusy(false);}
  }
  return <section className="rounded-2xl border border-border bg-card/60 p-4 space-y-3" aria-label="Monedero del socio">
   <h2 className="font-display text-lg">Monedero</h2>
-  <p>Saldo disponible: <strong>{money(status.balanceCents??0)}</strong></p>
+  <p>Saldo disponible: <strong>{credits(status.balanceCents??0)}</strong></p>
+  <p className="text-xs text-muted-foreground">Equivalencia de recarga: 1 € recibido = 1 crédito. Los pedidos se descuentan exclusivamente en créditos.</p>
   {!status.cashSessionId?
    <p role="status">Abre tu caja antes de registrar una recarga.</p>:
    <>
-    <label className="block text-sm">Recarga en efectivo (€)
+    <label className="block text-sm">Importe recibido para recarga (€)
      <Input inputMode="decimal" value={amount} disabled={busy}
       onChange={e=>{setAmount(e.target.value);setConfirmed(false);operation.current=null;}}
       placeholder="0,00"/>
     </label>
+    <fieldset className="space-y-2">
+     <legend className="text-sm font-semibold">Método de cobro de la recarga</legend>
+     <div className="flex flex-wrap gap-3">
+      {(["cash","card","transfer"] as const).map(method=><label className="flex gap-2 items-center text-sm" key={method}>
+        <input type="radio" name="wallet-topup-method" value={method} checked={receiptMethod===method}
+          disabled={busy} onChange={()=>{setReceiptMethod(method);setConfirmed(false);operation.current=null;}}/>
+        {method==="cash"?"Efectivo":method==="card"?"Tarjeta / POS":"Transferencia"}
+      </label>)}
+     </div>
+    </fieldset>
+    <p className="text-sm">Créditos a añadir: <strong>{cents!==null&&cents>0?credits(cents):"—"}</strong></p>
     <label className="flex items-start gap-2 text-sm">
      <input type="checkbox" checked={confirmed} disabled={busy}
       onChange={e=>setConfirmed(e.target.checked)}/>
-     Confirmo haber recibido este efectivo en mi caja y autorizo la recarga
-     de {cents!==null&&cents>0?money(cents):"—"}.
+     Confirmo que ya recibí {cents!==null&&cents>0?money(cents):"el importe"} por {receiptMethod==="cash"?"efectivo":receiptMethod==="card"?"tarjeta / POS":"transferencia"}
+     y autorizo la recarga de créditos. Esta acción no cobra automáticamente al cliente.
     </label>
     <Button disabled={busy||!confirmed||cents===null||cents<=0||cents>10000000}
      onClick={()=>void topup()}>Confirmar recarga</Button>
