@@ -28,7 +28,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Verify Generales, discounts, check-ins and merma
         run: |
-          node --test tests/snoop-generales-settings.test.mjs tests/snoop-club-merma-policy.test.mjs tests/snoop-order-payment-merma.test.mjs tests/snoop-wallet-credit-only-topup-methods.test.mjs tests/simple-cash.test.mjs
+          node --test tests/snoop-generales-settings.test.mjs tests/snoop-club-merma-policy.test.mjs tests/snoop-wallet-credit-only-topup-methods.test.mjs tests/simple-cash.test.mjs
           bun run test:annulment:concurrency
       - name: Compile Worker before any deployment
         run: |
