@@ -80,6 +80,7 @@ export const getRecentWalletTopups=createServerFn({method:"POST"})
   }
   return rows.map(t=>({
    id:t.id,created_at:t.at,amount_cents:t.amountCents,
-   payment_method:t.paymentMethod,actor_name:names.get(t.actorId)??"Colaborador"
+   payment_method:t.paymentMethod,actor_name:names.get(t.actorId)??"Colaborador",
+   kind:t.kind,voided:t.voided,member_id:t.memberId,actor_id:t.actorId
   }));
  });
