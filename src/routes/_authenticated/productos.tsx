@@ -668,6 +668,26 @@ function Stock({
     })();
     return ()=>{active=false};
   },[clubId,locationRefresh,prods.map(p=>p.id+":"+p.stock).join("|")]);
+  // Purchase-cost valuation: each product is priced in EUR per g or EUR per unit.
+  // No mixing quantities across units. Value in EUR may aggregate different products.
+  const valuation = useMemo(()=>{
+    let total=0, warehouse=0, dispensary=0, missing=0, mismatches=0;
+    for(const p of prods){
+      const qty=Number(p.stock), price=Number(p.buy_price);
+      if(!Number.isFinite(qty)||!Number.isFinite(price)||qty<0||price<0){mismatches++;continue;}
+      if(qty>0&&price===0){missing++;continue;}
+      total+=qty*price;
+      if(locationRows){
+        const loc=locationRows[p.id]??{almacen:0,dispensario:0};
+        if(!Number.isFinite(loc.almacen)||!Number.isFinite(loc.dispensario)
+          ||Math.abs(loc.almacen+loc.dispensario-qty)>0.0001){mismatches++;continue;}
+        warehouse+=loc.almacen*price;
+        dispensary+=loc.dispensario*price;
+      }
+    }
+    return {total,warehouse,dispensary,missing,mismatches};
+  },[prods,locationRows]);
+  const euros=(value:number)=>new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(value);
   const [manualProductId, setManualProductId] = useState("");
   const [manualQuantity, setManualQuantity] = useState("");
   const [manualReason, setManualReason] = useState("");
@@ -1038,6 +1058,31 @@ function Stock({
         </button>
       </div>
 
+      <section aria-label="Valor del inventario" className="rounded-2xl border border-neon/40 bg-card/65 p-4 space-y-3">
+        <div>
+          <p className="text-xs font-display uppercase tracking-wide text-neon">Valor de mercancía al coste</p>
+          <p className="mt-1 font-display text-2xl text-foreground" data-inventory-valuation="total">{euros(valuation.total)}</p>
+          <p className="text-xs text-muted-foreground">Todos los productos · cantidad disponible × precio de compra por g/u</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border/70 bg-input/30 p-3">
+            <p className="text-xs text-muted-foreground">Almacén</p>
+            <p className="mt-1 font-display text-lg">{locationRows&&!valuation.mismatches?euros(valuation.warehouse):"—"}</p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-input/30 p-3">
+            <p className="text-xs text-muted-foreground">Stock dispensario</p>
+            <p className="mt-1 font-display text-lg">{locationRows&&!valuation.mismatches?euros(valuation.dispensary):"—"}</p>
+          </div>
+        </div>
+        {valuation.missing>0&&<p role="status" className="text-xs text-amber-600">
+          {valuation.missing} producto(s) con stock tienen precio de compra 0: falta completar el coste. El valor mostrado es parcial.
+        </p>}
+        {valuation.mismatches>0&&<p role="alert" className="text-xs text-destructive">
+          Algunas cantidades o costes necesitan revisión. El desglose por ubicación está oculto hasta corregirlos.
+        </p>}
+        {!locationRows&&<p className="text-xs text-muted-foreground">Cargando la valoración por ubicación…</p>}
+        <p className="text-[11px] text-muted-foreground">Valor indicativo usando el precio de compra actual, no ventas, beneficios ni valoración contable por lotes.</p>
+      </section>
       {/* Search bar (works on all categories) */}
       <div className="flex items-center gap-2 bg-input/40 border border-border rounded-lg px-3 py-2 focus-within:border-neon">
         <Search className="w-4 h-4 text-muted-foreground" />
@@ -1408,6 +1453,7 @@ function ProductRow({ p, cat, onChange, location, onTransfer }: {
               <p><span className="text-muted-foreground">Stock: </span><b className="text-foreground">{counter===undefined?"—":formatQty(counter)} {unit}</b></p>
               <p><span className="text-muted-foreground">Almacén: </span><b className="text-neon">{warehouse===undefined?"—":formatQty(warehouse)} {unit}</b></p>
               <p className="text-[11px] text-muted-foreground">Compra: €{Number(p.buy_price).toFixed(2)} · Venta: €{Number(p.sell_price).toFixed(2)}</p>
+              <p className="text-[11px] text-neon">Valor a coste: {Number(p.buy_price)>0?new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(Number(p.stock)*Number(p.buy_price)):"Sin precio de compra"}</p>
             </div>
             {p.image_attribution && (
               <a
