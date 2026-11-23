@@ -10,7 +10,7 @@ const reader=file("src/routes/_authenticated/control-acceso.tsx");
 const sql=file("docs/sql/SNOOP_CLUB_MERMA_POLICY_REVIEW.sql");
 test("Generales groups three existing/new admin settings and remains one section",()=>{
  assert.ok(menu.includes('to:"/ajustes/generales"'));
- for(const label of ["Control de acceso","Merma","Descuentos"]){
+ for(const label of ["Control de acceso","merma","descuentos"]){
   assert.ok(menu.includes(label),label);
  }
  for(const panel of ["<ClubAccessControlPanel/>","<ClubMermaSettingsPanel/>","<MemberDiscounts/>"])
