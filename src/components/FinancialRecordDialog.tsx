@@ -95,10 +95,8 @@ export function FinancialRecordDialog({
   }, [scope, allowed, retry]);
   useEffect(()=>{
     if(!allowed)return;
-    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
-      setWalletPayment(false);setWalletStatusError(false);setWalletUncertain(false);
-      return;
-    }
+    // Classify the actual original payment on the authorized server.
+    // Build-time flags must never turn a wallet order into a cash cancellation.
     let active=true;
     setWalletPayment(null);setWalletStatusError(false);setWalletUncertain(false);
     walletOrderPaymentState({data:{orderId}})
