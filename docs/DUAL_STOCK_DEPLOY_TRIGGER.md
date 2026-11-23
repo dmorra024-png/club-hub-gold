@@ -19,3 +19,5 @@ Primary Informes KPI is active products' current stock valued at their configure
 Net stock movement summary: canceled stock movement pairs (Gelatto and Orange Juice) yield 0 EUR day variation, no misleading gross +/-23.50 boxes. Build and security tests passed.
 
 Pilot member endorsement release: optional/mandatory avalador name and surname per club in Ajustes Socios, saved atomically and displayed on member detail. SQL and CI verified, no changes to SNOOP Socio or JARVIS.
+
+Avalador v2 pilot: register by first/last name OR verified existing member number, server scoped to same club, linked member stored. CI success, SQL smoke test rolled back.
