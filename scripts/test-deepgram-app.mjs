@@ -71,7 +71,9 @@ const browserResults = [];
 for (const [label, engine, device] of [
   ["samsung", chromium, devices["Galaxy S9+"]],
   ["iphone-webkit", webkit, devices["iPhone 13"]],
-]) {
+  ["desktop-chromium", chromium, {viewport:{width:1440,height:1000}}],
+  ["tablet-webkit", webkit, devices["iPad Pro 11"]],
+].filter(([label]) => !process.argv.includes("--desktop") || label === "desktop-chromium")) {
   const browser = await engine.launch({
     headless: true,
     ...(engine === chromium
@@ -356,7 +358,15 @@ for (const [label, engine, device] of [
         throw e;
       });
     // One normal dock click, also valid if the asynchronous provider check is still pending.
-    await page.getByRole("button", { name: "SNOOP", exact: true }).click();
+    const voiceEntry = page.getByRole("button", { name: "SNOOP", exact: true });
+    assert.equal(await voiceEntry.count(), 1, "One voice entry per viewport");
+    if (label === "desktop-chromium") {
+      await voiceEntry.waitFor();
+      const box = await voiceEntry.boundingBox();
+      assert(box && box.x >= 0 && box.x + box.width <= 248, "Desktop voice control stays in the existing rail, outside forms");
+    }
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "No horizontal overflow");
+    await voiceEntry.click();
     const panel = page.getByRole("dialog", { name: "SNOOP JARVIS 3" });
     await panel.waitFor();
     await panel.getByRole("checkbox").check();
@@ -845,7 +855,7 @@ for (const [label, engine, device] of [
     await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
     await page.getByLabel("Sesión de voz", { exact: true }).waitFor({ state: "hidden" });
     await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
-    await page.getByRole("link", { name: "Ajustes", exact: true }).first().click();
+    await page.getByRole("dialog", { name: "Menú principal", exact:true }).getByRole("link", { name: "Ajustes", exact: true }).click();
     await page.getByRole("heading", { name: "Ajustes", exact: true }).waitFor();
     await page.getByRole("link", { name: "Mi perfil", exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: /Colaboradores/ }).count(), 0);

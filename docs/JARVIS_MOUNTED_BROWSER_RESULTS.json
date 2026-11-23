@@ -1,0 +1,38 @@
+[
+  {
+    "browser": "samsung",
+    "syntheticAuth": true,
+    "syntheticAudio": true,
+    "syntheticProvider": true,
+    "automaticWrites": 0,
+    "walletDraft": true,
+    "result": "PASS"
+  },
+  {
+    "browser": "iphone-webkit",
+    "syntheticAuth": true,
+    "syntheticAudio": true,
+    "syntheticProvider": true,
+    "automaticWrites": 0,
+    "walletDraft": true,
+    "result": "PASS"
+  },
+  {
+    "browser": "desktop-chromium",
+    "syntheticAuth": true,
+    "syntheticAudio": true,
+    "syntheticProvider": true,
+    "automaticWrites": 0,
+    "walletDraft": true,
+    "result": "PASS"
+  },
+  {
+    "browser": "tablet-webkit",
+    "syntheticAuth": true,
+    "syntheticAudio": true,
+    "syntheticProvider": true,
+    "automaticWrites": 0,
+    "walletDraft": true,
+    "result": "PASS"
+  }
+]

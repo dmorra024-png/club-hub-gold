@@ -2892,3 +2892,30 @@ body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) :is(h1,
 :is(.snoop-platform-visual,.snoop-club-status-visual) :is(button,a):focus-visible {
   outline:2px solid var(--snoop-accent);outline-offset:3px;
 }
+
+/* JARVIS uses the same accessible control on desktop; the mobile dock remains
+   unchanged. Keep it inside the existing rail, outside all forms/content. */
+@media (min-width:1024px) {
+  .premium-shell.snoop-unified-shell .premium-bottom-nav:not([hidden]) {
+    display:grid!important;
+    grid-template-columns:1fr;
+    position:fixed;
+    left:24px!important;
+    right:auto!important;
+    bottom:20px!important;
+    width:200px!important;
+    max-width:200px;
+    min-height:62px;
+    padding:4px!important;
+    transform:none!important;
+    border-radius:16px;
+  }
+  .premium-shell.snoop-unified-shell .premium-bottom-nav > :not(.premium-dock-voice) {
+    display:none!important;
+  }
+  .premium-shell.snoop-unified-shell .premium-bottom-nav > .premium-dock-voice {
+    width:100%;
+    min-height:54px;
+  }
+  .premium-shell.snoop-unified-shell .snoop-rail-footer { visibility:hidden; }
+}

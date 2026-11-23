@@ -238,8 +238,8 @@ for (const [label, engine, device] of engines) {
       3,
     );
     assert.match(
-      await page.getByRole("region", { name: "Bienvenida al club" }).innerText(),
-      /Club Sintetico Realista/,
+      await page.locator(".snoop-approved-welcome h1").innerText(),
+      /Club Sintetico Realista/i,
     );
     assert.doesNotMatch(await summary.innerText(), /\d+ socios|\d+ productos/i);
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
@@ -249,7 +249,7 @@ for (const [label, engine, device] of engines) {
     queries.length = 0;
     await page.goto(base + "/", { waitUntil: "networkidle" });
     await page.getByRole("navigation", { name: "Navegación principal" }).waitFor();
-    assert.equal(await page.locator(".premium-cash-amount").count(), 0);
+    assert.equal(await page.locator(".snoop-approved-cash-info strong").innerText(), "Acceso restringido");
     assert.equal(queries.length, 0);
     await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
     const menu = page.getByRole("dialog", { name: "Menú principal" });

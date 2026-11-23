@@ -73,3 +73,28 @@ verifies the actual created member URL, exact invitation server function and one
 retains double-click/amount/renewal/signature/error checks and mocks email acceptance
 only. It does not claim delivery. Registration and renewal regression now pass in
 Chromium and WebKit; no Socio application code is changed.
+
+## Desktop access and current-release browser contracts
+
+The released desktop CSS hid the entire dock, including the only SNOOP entry.
+The same desktop mounted regression fails waiting for that visible button before the
+CSS correction. Desktop now places the same single control in the existing rail;
+mobile layout is unchanged, hidden keyboard state is retained, and no second microphone
+or business action is introduced. Desktop/tablet scenarios are added to the mounted test.
+
+Browser contracts also follow the current published management UI: the current Home
+welcome and amount selectors, decorative (not fabricated data) trend, actual cash-report
+server function, and privacy-preserving email invitation. Original financial, role,
+club isolation, password, keyboard, signature, idempotence and no-write assertions stay.
+The financial browser fixture now explicitly answers the exact verified wallet-payment
+state function; it no longer incorrectly returns a history object to that function.
+Its missing-migration scenario waits for the two actual activities before counting
+buttons, and still proves that confirmation is unavailable and zero writes occur.
+
+Final local mounted flow passes in Samsung Chromium, iPhone WebKit, desktop Chromium
+and tablet WebKit. It verifies exactly one visible entry; desktop bounds place it wholly
+inside the existing 248px rail. The same socket survives navigation; provider failure,
+collaborator fallback and zero automatic writes are checked. Synthetic provenance and
+per-engine outcomes are in JARVIS_MOUNTED_BROWSER_RESULTS.json. Real browser DSP results
+are in JARVIS_PCM_BROWSER_RESULTS.json. These are not live Deepgram or physical-device
+certifications, and do not establish complete voice write parity.

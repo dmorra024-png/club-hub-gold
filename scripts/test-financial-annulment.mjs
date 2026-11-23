@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3095";
 assert.ok(["127.0.0.1", "localhost"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL || (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
 );
+const walletStateIds = new Set();
+for (const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("wallet-management.functions-")))
+ for (const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']walletOrderPaymentState["']/g)) walletStateIds.add(match[1]);
+assert.equal(walletStateIds.size,1,"Expected exact compiled wallet payment verification");
+const walletStateId=[...walletStateIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
   mid = "20000000-0000-4000-8000-000000000001",
@@ -43,7 +48,7 @@ for (const [label, engine, device] of [
           executablePath: existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined,
           args: ["--no-sandbox"],
         }
-      : {}),
+      : { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }),
   });
   try {
     for (const mode of ["admin", "staff", "restricted", "foreign", "missing-migration"]) {
@@ -95,6 +100,11 @@ for (const [label, engine, device] of [
           if (u.origin !== new URL(base).origin) return route.abort();
           if (!u.pathname.includes("_serverFn")) return route.continue();
           const d = req.method() === "POST" ? fromJSON(JSON.parse(req.postData())).data : null;
+          if (u.pathname.includes(walletStateId)) {
+            assert.deepEqual(Object.keys(d),["orderId"]);
+            assert([oid,second].includes(d.orderId));
+            return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{wallet:false},context:{}})});
+          }
           let result = { available: false, documents: false };
           if (d?.confirmed) {
             assert.ok(["admin", "staff"].includes(mode));
@@ -436,10 +446,12 @@ for (const [label, engine, device] of [
         assert.equal(writes, 1);
         assert.equal(refundWrites, 1);
       } else {
+        if(mode === "missing-migration") await page.waitForFunction(() => document.querySelectorAll(".premium-activity").length === 2);
         assert.equal(
           await page.getByRole("button", { name: "Anular operación", exact: true }).count(),
           mode === "missing-migration" ? 2 : 0,
         );
+        if (mode === "missing-migration") assert.equal(await page.getByRole("button", { name:"Ver detalle", exact:true }).count(),2,"Both original records remain available for inspection; confirmation remains blocked in the detail");
         if (["staff", "missing-migration"].includes(mode)) {
           await page.getByRole("button", { name: "Ver detalle", exact: true }).first().click();
           const dialog = page.getByRole("dialog");

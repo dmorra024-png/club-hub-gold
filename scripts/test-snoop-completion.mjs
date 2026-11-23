@@ -485,8 +485,8 @@ for (const [label, engine, device, options] of engines) {
     );
     // Network-idle alone may resolve before React mounts its independent activity effect.
     // Finish the authenticated home and close that document before changing identity fixtures.
-    await page.getByRole("heading", { name: "Synthetic Club", exact: true }).waitFor();
-    await page.locator(".premium-cash-amount").getByText(/10,00/).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Synthetic Club", exact: true }).waitFor();
+    await page.locator(".snoop-approved-cash-info strong").getByText(/10,00/).waitFor();
     await page.locator(".premium-activity").first().waitFor();
     await page.waitForLoadState("networkidle");
     await page.close();
@@ -504,7 +504,7 @@ for (const [label, engine, device, options] of engines) {
     });
     await page.waitForURL(base + "/");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("heading", { name: "Synthetic Club", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Synthetic Club", exact: true }).waitFor();
     await page
       .getByText("Aún no hay actividades disponibles para tu acceso.", { exact: true })
       .waitFor();
@@ -528,7 +528,7 @@ for (const [label, engine, device, options] of engines) {
       });
     await page.waitForURL(base + "/");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("heading", { name: "Synthetic Club", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Synthetic Club", exact: true }).waitFor();
     await page
       .getByText("Aún no hay actividades disponibles para tu acceso.", { exact: true })
       .waitFor();

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3001";
@@ -9,6 +9,14 @@ const api = new URL(
     (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)?.[1],
   base,
 );
+const reportIds = new Set(), topupIds = new Set();
+for (const file of (await readdir(".output/server/_ssr")).filter(f => f.startsWith("cash-sessions.functions-"))) {
+ const code = await readFile(".output/server/_ssr/"+file,"utf8");
+ for (const match of code.matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["'](getCashReport|getRecentWalletTopups)["']/g))
+  (match[2]==="getCashReport"?reportIds:topupIds).add(match[1]);
+}
+assert.equal(reportIds.size,1); assert.equal(topupIds.size,1);
+const reportId=[...reportIds][0],topupId=[...topupIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -97,7 +105,7 @@ for (const [label, engine, device] of runs) {
             "--use-fake-device-for-media-stream",
           ],
         }
-      : {}),
+      : { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }),
   });
   let role = "admin",
     clubName = "Club Principal",
@@ -132,6 +140,17 @@ for (const [label, engine, device] of runs) {
         (!api.pathname.replace(/\/$/, "") ||
           url.pathname.startsWith(api.pathname.replace(/\/$/, "") + "/"));
       if (url.origin !== new URL(base).origin && !isApi) return route.abort();
+      if (url.pathname.includes(reportId)) {
+        assert(permissions.includes("use_cash"), "Cash-only server report must not be requested without permission");
+        assert.equal(request.method(),"POST");
+        const {cashMovements}=await import("../src/lib/cash-sessions.ts");
+        const {clubDayRange}=await import("../src/lib/cash-summary.ts");
+        const range=clubDayRange("2026-11-07");
+        const own=(rows,key)=>empty?[]:rows.filter(row=>row.club_id===activeClub&&(role==="admin"||row[key]===uid));
+        privateRequests.push("orders","membership_receipts");
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{day:"2026-11-07",...range,movements:cashMovements(own(tables.orders,"created_by"),own(tables.membership_receipts,"recorded_by"),[]),sessions:[]},context:{}})});
+      }
+      if (url.pathname.includes(topupId)) return route.fulfill({contentType:"application/json",body:JSON.stringify({result:[],context:{}})});
       if (url.pathname.includes("_serverFn"))
         return route.fulfill({
           contentType: "application/json",
@@ -216,18 +235,18 @@ for (const [label, engine, device] of runs) {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(base + "/", { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: "Club Principal", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Club Principal", exact: true }).waitFor();
     await page
-      .locator(".premium-cash-amount")
+      .locator(".snoop-approved-cash-info strong")
       .getByText(/170,00/)
       .waitFor();
     await page.getByText("Nuevo socio registrado", { exact: true }).waitFor();
-    await page
-      .getByRole("img", { name: "Evolución real de las cuotas asociativas de hoy", exact: true })
-      .waitFor();
+    assert.equal(await page.getByRole("img", { name: "Evolución real de las cuotas asociativas de hoy", exact: true }).count(),0,
+      "The approved decorative trend must not be presented as an invented data graph");
+    await page.locator(".snoop-approved-cash-trend[aria-hidden='true'] svg").waitFor();
     assert.equal(await page.locator(".premium-activity").count(), 3);
     assert.equal(await page.getByRole("img", { name: "SNOOP", exact: true }).count(), 1);
-    assert.equal(await page.locator(".premium-waves").count(), 2);
+    assert.equal(await page.locator(".snoop-approved-shortcuts > a").count(), 4);
     const nav = page.getByRole("navigation", { name: "Navegación principal" });
     assert.equal(await nav.locator(":scope > *").count(), 4);
     assert.equal(await nav.getByRole("link", { name: "Home", exact: true }).count(), 1);
@@ -249,16 +268,13 @@ for (const [label, engine, device] of runs) {
     const geometry = await page.evaluate(() =>
       Object.fromEntries(
         [
-          ".snoop-lettering",
-          ".snoop-brand-orbit",
-          ".premium-eyebrow",
-          ".premium-club-name",
-          ".premium-waves",
-          ".premium-cash",
-          ".premium-cash-amount",
+          ".premium-topbar .snoop-lettering",
+          ".snoop-approved-welcome",
+          ".snoop-approved-cash",
+          ".snoop-approved-cash-info strong",
+          ".snoop-approved-shortcuts",
           ".premium-section-heading",
           ".premium-activity",
-          ".premium-footer-waves",
           ".premium-bottom-nav",
           ".premium-qr",
         ].map((selector) => {
@@ -281,7 +297,7 @@ for (const [label, engine, device] of runs) {
     await page.getByRole("heading", { name: "Historial", exact: true }).waitFor();
     await page.waitForFunction(() => document.querySelectorAll(".premium-activity").length === 7);
     await nav.getByRole("link", { name: "Home", exact: true }).click();
-    await page.getByRole("heading", { name: "Club Principal", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Club Principal", exact: true }).waitFor();
     // QR destination/dispensing is outside this administrative visual verification.
     await nav.getByRole("link", { name: "Perfil", exact: true }).click();
     await page.getByRole("heading", { name: "Mi perfil", exact: true }).waitFor();
@@ -327,7 +343,7 @@ for (const [label, engine, device] of runs) {
     assert.ok(
       await page.getByRole("button", { name: "Lector QR no autorizado", exact: true }).isDisabled(),
     );
-    assert.equal(await page.locator(".premium-cash-amount").count(), 0);
+    assert.equal(await page.locator(".snoop-approved-cash-info strong").innerText(), "Acceso restringido");
     assert.equal(await page.locator(".premium-membership-chart").count(), 0);
     assert.ok(
       privateRequests.every((name) => ["products", "stock_movements"].includes(name)),
@@ -338,7 +354,7 @@ for (const [label, engine, device] of runs) {
     privateRequests = [];
     await page.goto(base + "/", { waitUntil: "networkidle" });
     await page
-      .locator(".premium-cash-amount")
+      .locator(".snoop-approved-cash-info strong")
       .getByText(/170,00/)
       .waitFor();
     assert.ok(
@@ -357,7 +373,7 @@ for (const [label, engine, device] of runs) {
     );
     // The empty activity list may finish before the independent cash effect.
     // Finish and close this document before changing the server fixture's club.
-    await page.locator(".premium-cash-amount").getByText(/0,00/).waitFor();
+    await page.locator(".snoop-approved-cash-info strong").getByText(/0,00/).waitFor();
     await page.waitForLoadState("networkidle");
     await page.close();
     empty = false;
@@ -367,9 +383,9 @@ for (const [label, engine, device] of runs) {
     page.setDefaultTimeout(20000);
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(base + "/", { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: clubName, exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, " + clubName, exact: true }).waitFor();
     assert.equal(
-      await page.getByRole("heading", { name: "Club Principal", exact: true }).count(),
+      await page.getByRole("heading", { name: "Bienvenido, Club Principal", exact: true }).count(),
       0,
     );
     // Complete the previous club's independent cash/activity effects before
@@ -377,7 +393,7 @@ for (const [label, engine, device] of runs) {
     await page
       .getByText("Aún no hay actividades disponibles para tu acceso.", { exact: true })
       .waitFor();
-    await page.locator(".premium-cash-amount").getByText(/0,00/).waitFor();
+    await page.locator(".snoop-approved-cash-info strong").getByText(/0,00/).waitFor();
     await page.waitForLoadState("networkidle");
     // Stop the old account document before changing the server-side fixture.
     // Its visibility/access refresh may otherwise redirect the new navigation.

@@ -1,0 +1,238 @@
+[
+  {
+    "browser": "android-chromium",
+    "engineAudioRendered": true,
+    "physicalSpeaker": false,
+    "liveDeepgram": false,
+    "results": [
+      {
+        "kind": "fragmented",
+        "sampleRate": 48000,
+        "rms": 0.08831519057631289,
+        "crossings": 110,
+        "blocked": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 0,
+          "bufferedSamples": 0,
+          "scheduledNodes": 3,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "final": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 6000,
+          "bufferedSamples": 0,
+          "scheduledNodes": 0,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "notices": [
+          "playing",
+          "playing",
+          "playing",
+          "idle"
+        ]
+      },
+      {
+        "kind": "interrupted",
+        "sampleRate": 48000,
+        "rms": 0.08837008810891851,
+        "crossings": 55,
+        "blocked": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 0,
+          "bufferedSamples": 0,
+          "scheduledNodes": 3,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "final": {
+          "receivedBytes": 24000,
+          "decodedSamples": 12000,
+          "nonzeroSamples": 11970,
+          "scheduledSamples": 12000,
+          "completedSamples": 6000,
+          "bufferedSamples": 0,
+          "scheduledNodes": 0,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "notices": [
+          "playing",
+          "playing",
+          "playing",
+          "playing",
+          "idle"
+        ]
+      },
+      {
+        "kind": "blocked",
+        "sampleRate": 48000,
+        "rms": 0.08831519057631289,
+        "crossings": 110,
+        "blocked": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 0,
+          "completedSamples": 0,
+          "bufferedSamples": 6000,
+          "scheduledNodes": 0,
+          "contextState": "interrupted",
+          "suppressed": false,
+          "lastError": null
+        },
+        "final": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 6000,
+          "bufferedSamples": 0,
+          "scheduledNodes": 0,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "notices": [
+          "blocked",
+          "blocked",
+          "blocked",
+          "playing",
+          "idle"
+        ]
+      }
+    ]
+  },
+  {
+    "browser": "iphone-webkit",
+    "engineAudioRendered": true,
+    "physicalSpeaker": false,
+    "liveDeepgram": false,
+    "results": [
+      {
+        "kind": "fragmented",
+        "sampleRate": 48000,
+        "rms": 0.08831519057631289,
+        "crossings": 110,
+        "blocked": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 0,
+          "bufferedSamples": 0,
+          "scheduledNodes": 3,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "final": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 6000,
+          "bufferedSamples": 0,
+          "scheduledNodes": 0,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "notices": [
+          "playing",
+          "playing",
+          "playing",
+          "idle"
+        ]
+      },
+      {
+        "kind": "interrupted",
+        "sampleRate": 48000,
+        "rms": 0.08837008810891851,
+        "crossings": 55,
+        "blocked": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 0,
+          "bufferedSamples": 0,
+          "scheduledNodes": 3,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "final": {
+          "receivedBytes": 24000,
+          "decodedSamples": 12000,
+          "nonzeroSamples": 11970,
+          "scheduledSamples": 12000,
+          "completedSamples": 6000,
+          "bufferedSamples": 0,
+          "scheduledNodes": 0,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "notices": [
+          "playing",
+          "playing",
+          "playing",
+          "playing",
+          "idle"
+        ]
+      },
+      {
+        "kind": "blocked",
+        "sampleRate": 48000,
+        "rms": 0.08831519057631289,
+        "crossings": 110,
+        "blocked": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 0,
+          "completedSamples": 0,
+          "bufferedSamples": 6000,
+          "scheduledNodes": 0,
+          "contextState": "interrupted",
+          "suppressed": false,
+          "lastError": null
+        },
+        "final": {
+          "receivedBytes": 12000,
+          "decodedSamples": 6000,
+          "nonzeroSamples": 5980,
+          "scheduledSamples": 6000,
+          "completedSamples": 6000,
+          "bufferedSamples": 0,
+          "scheduledNodes": 0,
+          "contextState": "running",
+          "suppressed": false,
+          "lastError": null
+        },
+        "notices": [
+          "blocked",
+          "blocked",
+          "blocked",
+          "playing",
+          "idle"
+        ]
+      }
+    ]
+  }
+]
