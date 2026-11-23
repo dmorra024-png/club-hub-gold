@@ -2853,3 +2853,42 @@ body.snoop-management-ui .snoop-premium-drawer {
 body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) :is(h1,h2,h3) {
   font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
 }
+
+/* Super Admin and suspended-club access are authenticated management routes,
+   but intentionally use their own shells. Give both the same palette and
+   illuminated SNOOP material, without changing their privileged actions. */
+:is(.snoop-platform-visual,.snoop-club-status-visual) {
+  --snoop-ui-surface:
+    radial-gradient(ellipse at 45% 0%,color-mix(in srgb,var(--snoop-accent-light) 18%,transparent),transparent 76%),
+    linear-gradient(145deg,var(--snoop-panel),var(--snoop-elevated));
+  background:
+    radial-gradient(ellipse 75% 32% at 48% 0%,color-mix(in srgb,var(--snoop-accent-light) 14%,transparent),transparent 80%),
+    var(--snoop-canvas);
+  color:var(--snoop-foreground);
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(h1,h2,h3,h4,.font-display) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+  letter-spacing:.015em;
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(article,section,div):where(
+  .bg-card,[class~="bg-card/60"],[class~="bg-card/70"],
+  [class~="bg-card/80"]
+) {
+  background:var(--snoop-ui-surface);
+  border-color:color-mix(in srgb,var(--snoop-accent) 70%,var(--snoop-border));
+  border-radius:clamp(18px,4vw,24px);
+  box-shadow:inset 0 1px color-mix(in srgb,var(--snoop-accent-light) 62%,transparent),
+    0 5px 20px color-mix(in srgb,var(--snoop-accent) 18%,transparent);
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(input,textarea,select) {
+  font-size:16px;
+  min-width:0;max-width:100%;
+  border-color:var(--snoop-border);
+  background:var(--snoop-elevated);
+  color:var(--snoop-foreground);
+  border-radius:12px;
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(button,a):focus-visible {
+  outline:2px solid var(--snoop-accent);outline-offset:3px;
+}
