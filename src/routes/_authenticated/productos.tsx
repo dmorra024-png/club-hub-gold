@@ -1713,10 +1713,36 @@ function NuevoProducto({
 
       <div className="rounded-2xl border border-neon/25 bg-card/50 p-4 space-y-3">
         <p className="text-sm font-display text-neon">¿Dónde quieres guardar el stock inicial?</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" aria-pressed={initialLocation==="almacen"} onClick={()=>setInitialLocation("almacen")} className={`rounded-xl border p-3 text-left transition ${initialLocation==="almacen"?"border-neon bg-neon/10":"border-border/70 hover:border-neon/50"}`}><Warehouse size={22} className="text-neon mb-2"/><b className="text-sm">Almacén</b><p className="text-[11px] text-muted-foreground mt-1">Reserva segura para reponer</p></button>
-          <button type="button" aria-pressed={initialLocation==="dispensario"} onClick={()=>setInitialLocation("dispensario")} className={`rounded-xl border p-3 text-left transition ${initialLocation==="dispensario"?"border-neon bg-neon/10":"border-border/70 hover:border-neon/50"}`}><Store size={22} className="text-neon mb-2"/><b className="text-sm">Dispensario</b><p className="text-[11px] text-muted-foreground mt-1">Disponible para dispensar</p></button>
-        </div>
+        <fieldset className="space-y-2">
+          <legend className="sr-only">Destino del stock inicial</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              {value:"almacen",label:"Almacén",detail:"Reserva del club",Icon:Warehouse},
+              {value:"dispensario",label:"Dispensario",detail:"Disponible al banco",Icon:Store},
+            ] as const).map(({value,label,detail,Icon})=>(
+              <label
+                key={value}
+                className={`relative flex min-h-[112px] cursor-pointer select-none flex-col justify-center gap-1 rounded-2xl border-2 p-3 transition-colors touch-manipulation ${initialLocation===value?"border-neon bg-neon/15 shadow-[0_0_16px_var(--snoop-surface-glow)]":"border-border bg-input/30"}`}
+              >
+                <input
+                  type="radio"
+                  name="product-initial-location"
+                  value={value}
+                  checked={initialLocation===value}
+                  onChange={()=>setInitialLocation(value)}
+                  className="absolute right-3 top-3 h-5 w-5 accent-[var(--snoop-accent)]"
+                  aria-label={label}
+                />
+                <Icon size={22} className="mb-1 text-neon" aria-hidden="true"/>
+                <span className="font-display text-sm">{label}</span>
+                <span className="text-xs text-muted-foreground">{detail}</span>
+              </label>
+            ))}
+          </div>
+          <p role="status" data-stock-destination={initialLocation} className="text-sm font-semibold text-neon">
+            Destino seleccionado: {initialLocation==="almacen"?"Almacén":"Dispensario"}
+          </p>
+        </fieldset>
         <p className="text-xs text-muted-foreground">Puedes mover cantidades entre ambos más tarde, sin cambiar el total.</p>
       </div>
       <div className="grid grid-cols-3 gap-3">
