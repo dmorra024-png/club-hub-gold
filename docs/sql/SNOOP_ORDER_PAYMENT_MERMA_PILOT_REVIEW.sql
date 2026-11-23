@@ -33,7 +33,7 @@ BEGIN
   UPDATE public.orders
     SET payment_method=_payment_method
     WHERE id=created AND created_by=auth.uid()
-      AND member_id=_member_id AND club_id=public.current_club_id();
+      AND member_id=_member_id AND club_id=(SELECT m.club_id FROM public.members m WHERE m.id=_member_id);
   IF NOT FOUND THEN
     RAISE EXCEPTION 'No se pudo confirmar el método de pago del pedido' USING ERRCODE='42501';
   END IF;
