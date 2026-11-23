@@ -1,9 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
-import { BadgeEuro, Users, ShieldCheck, Cable, BarChart3, UserRound } from "lucide-react";
+import { SlidersHorizontal, ShieldCheck, BarChart3, UserRound } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { ClubWalletSettingsPanel } from "@/components/ClubWalletSettingsPanel";
-import { ClubThemeSettingsPanel } from "@/components/ClubThemeSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/ajustes/")({
   component: AjustesIndex,
@@ -32,16 +30,12 @@ function AjustesIndex() {
     <SnoopLayout title="Ajustes" subtitle={isAdmin ? "Configuración del club" : "Opciones de tu cuenta y permisos"}>
       <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
         {isAdmin && <>
-          <Tile to="/ajustes/cuotas" icon={BadgeEuro} title="Cuotas" text="Modalidades de inscripción, duración y precio." />
-          <ClubWalletSettingsPanel />
-          <Tile to="/ajustes/socios" icon={Users} title="Socios" text="Descuentos y campos de inscripción de los socios." />
+          <Tile to="/ajustes/personalizaciones" icon={SlidersHorizontal} title="Personalizaciones club" text="Cuotas, Monedero, Socios, Dispositivos y Tema visual." />
           <Tile to="/ajustes/colaboradores" icon={ShieldCheck} title="Colaboradores" text="Crea cuentas con permisos específicos para tu equipo." />
-          <Tile to="/ajustes/dispositivos" icon={Cable} title="Dispositivos" text="Conecta báscula, lector QR y tableta de firma." />
         </>}
         {can("view_reports") && <Tile to="/ajustes/informes" icon={BarChart3} title="Informes" text="Informes y estadísticas autorizados para tu rol." />}
         <Tile to="/perfil" icon={UserRound} title="Mi perfil" text="Datos de acceso y cambio de contraseña." />
       </div>
-      <ClubThemeSettingsPanel />
     </SnoopLayout>
   );
 }
