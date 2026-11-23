@@ -109,7 +109,9 @@ export const walletOrderPaymentState=createServerFn({method:"POST"})
  .inputValidator((input:unknown)=>z.object({orderId:uuid}).strict().parse(input))
  .handler(async ({context,data})=>{
   setResponseHeader("Cache-Control","private, no-store");
-  if(!available())return {wallet:false};
+  // A wallet settlement is historical financial evidence. Never
+  // classify it as cash just because a deployment flag is missing or
+  // because wallet topups are disabled. The RLS-scoped RPC decides.
   await requireOperationalClub(context,"manage_members");
   const {data:result,error}=await (context.supabase as any).rpc(
    "socio_wallet_order_payment_state",{p_order_id:data.orderId});
@@ -123,7 +125,9 @@ export const walletCancel=createServerFn({method:"POST"})
   operationId:uuid,confirmed:z.literal(true)
  }).strict().parse(input))
  .handler(async ({context,data})=>{
-  if(!available())fail();
+  // Previously settled wallet orders must remain cancellable with the
+  // atomic credit refund even if wallet operations are later disabled.
+  // The RPC verifies authorization, settlement and refund audit.
   await checkMember(context,data.memberId);
   const {data:result,error}=await (context.supabase as any).rpc("socio_cancel_wallet_order",{
    p_member_id:data.memberId,p_order_id:data.orderId,p_reason:data.reason,
