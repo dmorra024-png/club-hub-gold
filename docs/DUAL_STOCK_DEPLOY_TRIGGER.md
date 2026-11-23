@@ -17,3 +17,5 @@ Informes simplified v5: remove product-profitability panel; on existing inventor
 Primary Informes KPI is active products' current stock valued at their configured sale price. Reference purchase cost and gross margin secondary. Verified build/security.
 
 Net stock movement summary: canceled stock movement pairs (Gelatto and Orange Juice) yield 0 EUR day variation, no misleading gross +/-23.50 boxes. Build and security tests passed.
+
+Pilot member endorsement release: optional/mandatory avalador name and surname per club in Ajustes Socios, saved atomically and displayed on member detail. SQL and CI verified, no changes to SNOOP Socio or JARVIS.
