@@ -72,11 +72,10 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
           if (error) throw error;
           return activityRows(table, data || [], access.permissions.includes("use_cash"));
           }),
-          ...(can("use_cash") ? [async () => {
-            const data=await getRecentWalletTopups({data:{limit:100}});
-            return activityRows("wallet_topups",data,true);
-          }] : [])
-        ].map(load => load()),
+          ...(can("use_cash") ? [
+            getRecentWalletTopups({data:{limit:100}}).then(data=>activityRows("wallet_topups",data,true))
+          ] : [])
+        ],
       );
       if (cancelled || version !== request) return;
       const failed = responses.some((r) => r.status === "rejected");
