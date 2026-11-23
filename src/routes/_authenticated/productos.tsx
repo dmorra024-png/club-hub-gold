@@ -1187,7 +1187,7 @@ function ProductRow({ p, cat, onChange, location, onTransfer }: {
   const formatQty=(n:number)=>new Intl.NumberFormat("es-ES",{maximumFractionDigits:3}).format(n);
   async function transferStock(){
     if(!locationValid||!location||transferPending)return;
-    if(!/^\\d{1,7}([.,]\\d{1,3})?$/.test(transferAmount.trim()))return toast.error("Cantidad no válida");
+    if(!/^\d{1,7}([.,]\d{1,3})?$/.test(transferAmount.trim()))return toast.error("Cantidad no válida");
     const amount=Number(transferAmount.replace(",","."));
     if(amount<=0||amount>1000000||(cat.unit_type!=="gr"&&!Number.isInteger(amount)))return toast.error("Cantidad no válida");
     if(amount>location[transferFrom])return toast.error("Cantidad insuficiente en origen");
