@@ -75,19 +75,27 @@ drop policy if exists snoop_purchase_admin_insert on public.snoop_purchases;
 create policy snoop_purchase_admin_insert on public.snoop_purchases for insert to authenticated with check (
  club_id=(select public.current_club_id()) and created_by=(select auth.uid()) and (select public.is_current_user_club_admin(club_id))
 );
--- Records are immutable. A single audited cancellation operation, never DELETE.
+-- Only explicitly authorised, audited annulment may change an expense; never delete rows.
 create or replace function public.snoop_cancel_expense(p_id uuid,p_reason text)
-returns uuid language plpgsql security invoker set search_path='' as $$
-declare result uuid;
+returns uuid language plpgsql security definer set search_path='' as $
+declare v_club uuid; v_record public.snoop_expenses;
 begin
- if auth.uid() is null or btrim(coalesce(p_reason,''))='' or length(p_reason)>500
- then raise exception 'Motivo requerido' using errcode='22023'; end if;
- if not public.is_current_user_club_admin(public.current_club_id())
+ v_club:=public.current_club_id();
+ if auth.uid() is null or v_club is null or not public.is_current_user_club_admin(v_club)
  then raise exception 'Forbidden' using errcode='42501'; end if;
- -- Invoker table UPDATE permission is granted only to this function? Invoker requires UPDATE;
- -- use dedicated definer with exact scope instead below.
- raise exception 'Cancellation requires audited backend release' using errcode='0A000';
-end $$;
+ if length(btrim(coalesce(p_reason,'')))<5 or length(p_reason)>500
+ then raise exception 'Motivo de 5 a 500 caracteres requerido' using errcode='22023'; end if;
+ select * into v_record from public.snoop_expenses where club_id=v_club and id=p_id for update;
+ if not found then raise exception 'Registro no disponible' using errcode='42501'; end if;
+ if v_record.cancelled_at is not null then
+  if v_record.cancelled_by=auth.uid() and v_record.cancel_reason=btrim(p_reason) then return p_id; end if;
+  raise exception 'Registro anulado previamente' using errcode='22023';
+ end if;
+ update public.snoop_expenses set cancelled_at=now(),cancelled_by=auth.uid(),cancel_reason=btrim(p_reason)
+ where id=p_id and club_id=v_club;
+ return p_id;
+end $;
 revoke all on function public.snoop_cancel_expense(uuid,text) from public,anon,authenticated;
+grant execute on function public.snoop_cancel_expense(uuid,text) to authenticated;
 notify pgrst,'reload schema';
 commit;
