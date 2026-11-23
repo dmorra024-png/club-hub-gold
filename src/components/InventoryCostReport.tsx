@@ -10,6 +10,7 @@ type CostLine = {
 type Report = {
  day:string;start_at:string;end_at:string;cost_basis:string;
  opening_eur:number;incoming_eur:number;outgoing_eur:number;closing_eur:number;
+ opening_sale_eur:number;incoming_sale_eur:number;outgoing_sale_eur:number;
  closing_sale_eur:number;closing_expected_profit_eur:number;missing_sale_price:number;
  missing_cost:number;invalid_quantities:number;lines:CostLine[];
 };
@@ -46,7 +47,7 @@ export function InventoryCostReport({clubId}:{clubId:string}){
    <div>
     <p className="text-[10px] uppercase tracking-widest text-neon-dim">Informes · Mercancía</p>
     <h2 className="font-display text-xl text-foreground">Valor del inventario</h2>
-    <p className="text-xs text-muted-foreground">Coste de adquisición estimado, no ventas ni beneficio.</p>
+    <p className="text-xs text-muted-foreground">Solo productos con stock: gramos o unidades × precio de venta.</p>
    </div>
    <button type="button" disabled={loading} onClick={()=>setRevision(v=>v+1)}
     className="flex min-h-11 items-center gap-2 rounded-xl border border-neon/30 px-3 text-xs text-foreground disabled:opacity-50">
@@ -64,19 +65,19 @@ export function InventoryCostReport({clubId}:{clubId:string}){
   {error&&<p role="alert" className="rounded-xl border border-destructive/40 p-3 text-xs text-destructive">{error}</p>}
   {!loading&&report&&<>
    <div className="rounded-xl border border-neon/25 bg-input/25 p-4">
-    <p className="text-xs text-muted-foreground">Coste teórico al inicio del día · 00:00 (no gasto pagado)</p>
-    <p className="mt-1 font-display text-3xl text-foreground" data-testid="inventory-opening-eur">{eur(Number(report.opening_eur))}</p>
+    <p className="text-xs text-muted-foreground">Valor de venta al inicio del día · 00:00</p>
+    <p className="mt-1 font-display text-3xl text-foreground" data-testid="inventory-opening-eur">{eur(Number(report.opening_sale_eur))}</p>
    </div>
    <div className="grid grid-cols-2 gap-3">
     <div className="rounded-xl border border-border/70 bg-input/20 p-3">
      <ArrowDownToLine size={18} className="text-neon"/>
-     <p className="mt-1 text-xs text-muted-foreground">Entradas del día · coste teórico</p>
-     <p className="font-display text-lg">+{eur(Number(report.incoming_eur))}</p>
+     <p className="mt-1 text-xs text-muted-foreground">Entradas del día · precio de venta</p>
+     <p className="font-display text-lg">+{eur(Number(report.incoming_sale_eur))}</p>
     </div>
     <div className="rounded-xl border border-border/70 bg-input/20 p-3">
      <ArrowUpFromLine size={18} className="text-neon"/>
-     <p className="mt-1 text-xs text-muted-foreground">Salidas del día · coste teórico</p>
-     <p className="font-display text-lg">−{eur(Number(report.outgoing_eur))}</p>
+     <p className="mt-1 text-xs text-muted-foreground">Salidas del día · precio de venta</p>
+     <p className="font-display text-lg">−{eur(Number(report.outgoing_sale_eur))}</p>
     </div>
    </div>
    <div className="rounded-xl border border-neon/40 bg-neon/5 p-4 space-y-3">
@@ -99,7 +100,7 @@ export function InventoryCostReport({clubId}:{clubId:string}){
     <b>Importante:</b> se usan los precios de compra y venta <b>configurados actualmente</b>. No se conocen aquí facturas pagadas ni los precios históricos por lote. El coste no equivale a dinero gastado.
    </p>
    <details className="rounded-xl border border-neon/20 p-3" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}>
-    <summary className="cursor-pointer text-sm font-semibold">Ver desglose por producto ({report.lines.length})</summary>
+    <summary className="cursor-pointer text-sm font-semibold">Ver productos con stock ({report.lines.length})</summary>
     <div className="mt-3 space-y-2">
      {report.lines.map(l=><div key={l.id} className="border-t border-border/40 pt-2 text-xs">
       <p className="font-semibold">{l.name}{l.unpriced?" · Sin precio de compra":""}</p>
