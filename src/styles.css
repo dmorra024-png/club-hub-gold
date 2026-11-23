@@ -2434,3 +2434,187 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 .snoop-informes-premium .snoop-informes-custom-range [role="alert"]{grid-column:1/-1;font-size:12px;color:var(--destructive)}
 .snoop-informes-premium .snoop-informes-selected-period{margin:-8px 0 18px;color:var(--snoop-accent);font-size:13px;overflow-wrap:anywhere}
 @media(max-width:350px){.snoop-informes-premium .snoop-informes-custom-range{grid-template-columns:1fr}}
+
+
+/* SNOOP 2026 — Home visual language across every Gestionale page.
+   Presentation only. Uses each club's existing curated theme tokens;
+   does not affect the separate SNOOP Socio client, values or interactions. */
+.premium-shell.snoop-unified-shell {
+  --snoop-surface-glow:color-mix(in srgb,var(--snoop-accent) 25%,transparent);
+  --snoop-edge-glow:color-mix(in srgb,var(--snoop-accent) 48%,transparent);
+  --snoop-spotlight:color-mix(in srgb,var(--snoop-accent-light) 19%,transparent);
+  background:
+    radial-gradient(ellipse 62% 30% at 47% 2%,var(--snoop-spotlight),transparent 82%),
+    radial-gradient(ellipse 85% 44% at 85% 56%,color-mix(in srgb,var(--snoop-electric) 9%,transparent),transparent 76%),
+    var(--snoop-canvas);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) {
+  color:var(--snoop-foreground);
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+}
+.premium-shell.snoop-unified-shell .premium-page-heading {
+  position:relative;
+  padding:6px 0 clamp(19px,4.5vw,27px);
+  margin-bottom:clamp(19px,5vw,30px);
+  border-bottom:1px solid color-mix(in srgb,var(--snoop-border) 70%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-page-heading::after {
+  content:"";position:absolute;bottom:-1px;left:0;width:min(220px,44%);height:2px;
+  background:linear-gradient(90deg,var(--snoop-accent),color-mix(in srgb,var(--snoop-accent-light) 80%,transparent),transparent);
+  box-shadow:0 0 12px 2px var(--snoop-surface-glow);
+  pointer-events:none;
+}
+.premium-shell.snoop-unified-shell .premium-page-heading h1 {
+  font-family:"Snoop Cash",var(--font-display),"Space Grotesk",sans-serif;
+  font-weight:700;line-height:1.16;letter-spacing:.014em;
+  font-size:clamp(22px,5.2vw,34px);
+  text-wrap:balance;
+  text-shadow:0 1px 0 color-mix(in srgb,var(--snoop-accent) 16%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-page-heading p {
+  margin-top:10px;
+  font-size:clamp(13px,3.3vw,16px);
+  line-height:1.55;
+  color:var(--snoop-muted);
+  max-width:62ch;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(h2,h3,.font-display) {
+  font-family:"Snoop Cash",var(--font-display),"Space Grotesk",system-ui,sans-serif;
+  letter-spacing:.012em;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.bg-card\\/60,.bg-card\\/70,.bg-card\\/80) {
+  background:
+    radial-gradient(ellipse at 48% -8%,color-mix(in srgb,var(--snoop-accent-light) 12%,transparent),transparent 74%),
+    linear-gradient(148deg,var(--snoop-panel),color-mix(in srgb,var(--snoop-elevated) 37%,var(--snoop-panel)) 55%,var(--snoop-panel));
+  border-color:color-mix(in srgb,var(--snoop-accent) 54%,var(--snoop-border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb,var(--snoop-accent-light) 58%,transparent),
+    0 4px 18px color-mix(in srgb,var(--snoop-accent) 14%,transparent),
+    0 0 12px var(--snoop-surface-glow);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.bg-card\\/60,.bg-card\\/70,.bg-card\\/80):where(.rounded-2xl,.rounded-3xl) {
+  border-radius:clamp(18px,4vw,24px);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(button,.bg-gradient-neon) {
+  transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+button:not([role="switch"]):not(:disabled):active {
+  transform:translateY(1px);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.bg-gradient-neon,.glow-neon,.glow-neon-soft) {
+  box-shadow:0 3px 14px var(--snoop-surface-glow),inset 0 1px 0 color-mix(in srgb,var(--snoop-accent-light) 35%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(button,a)[class*="rounded"]:focus-visible {
+  outline:2px solid var(--snoop-accent);
+  outline-offset:3px;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(input:not([type=checkbox]):not([type=radio]),textarea,select) {
+  background:color-mix(in srgb,var(--snoop-elevated) 76%,var(--snoop-panel));
+  border-color:color-mix(in srgb,var(--snoop-accent) 30%,var(--snoop-border));
+  color:var(--snoop-foreground);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(input,textarea,select):disabled {
+  opacity:.63;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.text-neon,.border-neon) {
+  --tw-text-opacity:1;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.bg-card\\/60,.bg-card\\/70,.bg-card\\/80) :is(svg.lucide,.text-neon) {
+  filter:drop-shadow(0 0 5px color-mix(in srgb,var(--snoop-accent) 31%,transparent));
+}
+/* Five customization entries reproduce Home's glowing rectangular tiles.
+   Content keeps natural height: mobile typography remains readable. */
+.premium-shell.snoop-unified-shell .premium-main.snoop-club-customize .premium-page-heading h1 {
+  text-transform:uppercase;
+  letter-spacing:.007em;
+}
+.snoop-club-customize-list {gap:clamp(12px,3vw,20px)}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-card {
+  position:relative;isolation:isolate;
+  min-height:clamp(100px,23vw,130px);
+  padding:clamp(16px,3.7vw,23px);
+  gap:clamp(13px,3.5vw,22px);
+  overflow:hidden;
+  border:1.5px solid color-mix(in srgb,var(--snoop-accent) 80%,var(--snoop-border));
+  border-radius:clamp(20px,5vw,27px);
+  background:
+    radial-gradient(ellipse at 38% -9%,color-mix(in srgb,var(--snoop-accent-light) 22%,transparent),transparent 80%),
+    linear-gradient(143deg,var(--snoop-panel),color-mix(in srgb,var(--snoop-elevated) 30%,var(--snoop-panel)) 60%,var(--snoop-panel));
+  box-shadow:
+    inset 0 1.5px 0 color-mix(in srgb,var(--snoop-accent-light) 78%,transparent),
+    0 0 0 1px color-mix(in srgb,var(--snoop-accent) 18%,transparent),
+    0 5px 22px color-mix(in srgb,var(--snoop-accent) 19%,transparent),
+    0 0 17px color-mix(in srgb,var(--snoop-electric) 17%,transparent);
+  text-decoration:none;
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-card::before {
+  content:"";position:absolute;top:0;left:12%;right:8%;height:2px;
+  background:linear-gradient(90deg,transparent,var(--snoop-accent-light) 26%,var(--snoop-accent) 57%,transparent);
+  box-shadow:0 0 10px 3px var(--snoop-edge-glow);
+  opacity:.8;pointer-events:none;
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-icon {
+  width:clamp(52px,13vw,69px);height:clamp(52px,13vw,69px);
+  flex:0 0 auto;
+  border-radius:clamp(14px,3.5vw,19px);
+  border:1px solid color-mix(in srgb,var(--snoop-accent) 43%,var(--snoop-border));
+  color:var(--snoop-accent);
+  background:
+    radial-gradient(ellipse at 50% 10%,color-mix(in srgb,var(--snoop-accent-light) 29%,transparent),transparent 80%),
+    var(--snoop-panel);
+  box-shadow:0 3px 12px var(--snoop-surface-glow),inset 0 1px color-mix(in srgb,var(--snoop-accent-light) 70%,transparent);
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-icon svg {
+  width:clamp(27px,7vw,35px);height:clamp(27px,7vw,35px);
+  stroke:var(--snoop-accent);
+  stroke-width:1.8;
+  filter:drop-shadow(0 0 5px var(--snoop-edge-glow));
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-icon::after {
+  content:"";position:absolute;left:calc(clamp(52px,13vw,69px) + clamp(28px,7vw,45px));width:1px;height:60px;
+  max-height:60%;
+  background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--snoop-accent) 62%,transparent),transparent);
+  pointer-events:none;
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-title {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+  font-size:clamp(16px,4vw,22px);
+  font-weight:750;line-height:1.2;
+  letter-spacing:.015em;text-transform:uppercase;
+  color:var(--snoop-foreground);
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-desc {
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+  font-size:clamp(12px,3vw,15px);line-height:1.5;
+  color:var(--snoop-muted);
+}
+.premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-chevron {
+  color:var(--snoop-accent);width:22px;height:22px;flex:0 0 22px;
+  filter:drop-shadow(0 0 4px var(--snoop-surface-glow));
+}
+@media(hover:hover){
+ .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-card:hover {
+  transform:translateY(-2px);
+  box-shadow:0 8px 25px var(--snoop-surface-glow),0 0 18px var(--snoop-edge-glow),inset 0 1px color-mix(in srgb,var(--snoop-accent-light) 83%,transparent);
+ }
+}
+@media(max-width:385px){
+ .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-card{gap:11px;padding:13px}
+ .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-title{font-size:15px}
+ .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-desc{font-size:12px}
+ .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-icon::after{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+ .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-card {transition:none!important}
+}
