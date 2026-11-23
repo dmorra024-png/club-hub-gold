@@ -68,6 +68,7 @@ export async function checkOrderKeyboard(page, catalog, label) {
     );
     await viewport(844);
     await input.blur();
+    await nav.waitFor({state:"visible"});
     assert.equal(await nav.isVisible(), true);
   }
   const input = inputs.first();
@@ -99,10 +100,11 @@ export async function checkOrderKeyboard(page, catalog, label) {
     window.dispatchEvent(new Event("orientationchange"));
   });
   await page.waitForTimeout(360);
+  await nav.waitFor({state:"visible",timeout:2000}).catch(()=>{});
   assert.equal(
     await nav.isVisible(),
     true,
-    "old portrait height must not mark a closed landscape keyboard as open",
+    "old portrait height must not mark a closed landscape keyboard as open: " + JSON.stringify(await page.evaluate(() => ({width:innerWidth,height:innerHeight,visible:visualViewport.height,visibleWidth:visualViewport.width,orientation:screen.orientation.type,keyboard:document.body.dataset.snoopKeyboard,scrollWidth:document.documentElement.scrollWidth}))),
   );
   await viewport(180);
   await visible(input, 180);
@@ -145,6 +147,7 @@ export async function checkOrderKeyboard(page, catalog, label) {
   );
   await input.blur();
   await viewport(844);
+  await nav.waitFor({state:"visible"});
   assert.equal(await nav.isVisible(), true);
 }
 export function installOrderViewport() {

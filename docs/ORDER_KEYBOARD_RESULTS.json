@@ -1,0 +1,28 @@
+{
+  "outcomes": [
+    {
+      "device": "samsung",
+      "result": "PASS",
+      "physical": false,
+      "keyboard": "synthetic VisualViewport; not physical iOS keyboard",
+      "standalone": false,
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-webkit",
+      "result": "PASS",
+      "physical": false,
+      "keyboard": "synthetic VisualViewport; not physical iOS keyboard",
+      "standalone": false,
+      "databaseWrites": 0
+    },
+    {
+      "device": "iphone-pwa-webkit",
+      "result": "PASS",
+      "physical": false,
+      "keyboard": "synthetic VisualViewport; not physical iOS keyboard",
+      "standalone": true,
+      "databaseWrites": 0
+    }
+  ]
+}

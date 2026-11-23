@@ -106,3 +106,15 @@ functions, returns an explicit disabled-club state, and denies wallet-payment re
 without cash permission. The original lazy-history assertion remains zero before
 opening history. All six admin/staff/no-finance Chromium/WebKit scenarios pass.
 No application history loading or wallet authorization logic was changed.
+
+Current catalog/keyboard and cash consistency regressions also pass locally. The
+catalog fixture explicitly permits only the exact read-only wallet-member status
+function with the expected member ID; its generic availability guard still rejects
+other nonempty requests. Cash retries are scoped separately to Home and report,
+so the activity retry is never mistaken for the cash retry. Keyboard-close checks
+wait for the actual asynchronous React visibility update after blur; the landscape
+assertion remains enforced with geometry-only failure diagnostics. No keyboard hook,
+order calculation, cash formula or production permission was changed for these tests.
+Samsung, iPhone WebKit and simulated standalone PWA keep the same DOM fields/cards and
+values across keyboard/rotation/resume. Six admin/staff Android/iOS/PWA cash cases retain
+correct totals, error-not-zero behavior and the overnight session boundary.
