@@ -64,30 +64,29 @@ export function InventoryCostReport({clubId}:{clubId:string}){
   {error&&<p role="alert" className="rounded-xl border border-destructive/40 p-3 text-xs text-destructive">{error}</p>}
   {!loading&&report&&<>
    <div className="rounded-xl border border-neon/25 bg-input/25 p-4">
-    <p className="text-xs text-muted-foreground">Valor al inicio del día · 00:00</p>
+    <p className="text-xs text-muted-foreground">Coste teórico al inicio del día · 00:00 (no gasto pagado)</p>
     <p className="mt-1 font-display text-3xl text-foreground" data-testid="inventory-opening-eur">{eur(Number(report.opening_eur))}</p>
    </div>
    <div className="grid grid-cols-2 gap-3">
     <div className="rounded-xl border border-border/70 bg-input/20 p-3">
      <ArrowDownToLine size={18} className="text-neon"/>
-     <p className="mt-1 text-xs text-muted-foreground">Entradas del día</p>
+     <p className="mt-1 text-xs text-muted-foreground">Entradas del día · coste teórico</p>
      <p className="font-display text-lg">+{eur(Number(report.incoming_eur))}</p>
     </div>
     <div className="rounded-xl border border-border/70 bg-input/20 p-3">
      <ArrowUpFromLine size={18} className="text-neon"/>
-     <p className="mt-1 text-xs text-muted-foreground">Salidas del día</p>
+     <p className="mt-1 text-xs text-muted-foreground">Salidas del día · coste teórico</p>
      <p className="font-display text-lg">−{eur(Number(report.outgoing_eur))}</p>
     </div>
    </div>
-   <div className="rounded-xl border border-neon/40 bg-neon/5 p-4">
-    <p className="flex items-center gap-2 text-xs text-muted-foreground"><Warehouse size={16}/> Valor {day===madridToday()?"actual":"al final del día"}</p>
-    <p className="mt-1 font-display text-3xl text-neon" data-testid="inventory-closing-eur">{eur(Number(report.closing_eur))}</p>
-    <p className="mt-1 text-xs text-muted-foreground">Valor al precio de compra. Los traspasos internos no cambian el total.</p>
-    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-neon/20 pt-3">
-     <div><p className="text-xs text-muted-foreground">Coste de productos</p><p className="font-display text-xl text-foreground" data-testid="inventory-product-cost">{eur(Number(report.closing_eur))}</p></div>
-     <div><p className="text-xs text-muted-foreground">Ganancia neta estimada del producto</p><p className="font-display text-xl text-neon" data-testid="inventory-expected-profit">{report.missing_cost||report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_expected_profit_eur))}</p></div>
+   <div className="rounded-xl border border-neon/40 bg-neon/5 p-4 space-y-3">
+    <p className="flex items-center gap-2 text-xs text-muted-foreground"><Warehouse size={16}/> Valor de venta de la mercancía {day===madridToday()?"actual":"al finalizar el día"}</p>
+    <p className="font-display text-3xl text-neon" data-testid="inventory-sale-value">{report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_sale_eur))}</p>
+    <div className="grid grid-cols-2 gap-3 border-t border-neon/20 pt-3">
+     <div><p className="text-xs text-muted-foreground">Coste teórico (P. compra configurado)</p><p className="font-display text-xl text-foreground" data-testid="inventory-product-cost">{report.missing_cost||report.invalid_quantities?"—":eur(Number(report.closing_eur))}</p></div>
+     <div><p className="text-xs text-muted-foreground">Margen teórico previsto</p><p className="font-display text-xl text-neon" data-testid="inventory-expected-profit">{report.missing_cost||report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_expected_profit_eur))}</p></div>
     </div>
-    <p className="mt-2 text-xs text-muted-foreground">Ganancia estimada = valor previsto de dispensación ({eur(Number(report.closing_sale_eur))}) − coste de productos. No descuenta alquiler, personal ni otros gastos del club.</p>
+    <p className="text-xs text-muted-foreground">Valor de venta = cantidad restante × P. venta. El coste teórico se calcula con P. compra; <b>no es dinero realmente pagado</b> sin facturas o registros de compras. El margen tampoco es beneficio neto ni dinero cobrado.</p>
    </div>
    {report.missing_sale_price>0&&<p role="alert" className="rounded-xl border border-amber-500/35 p-3 text-xs">Falta el precio de dispensación en {report.missing_sale_price} productos: la ganancia estimada no está disponible.</p>}
    {report.missing_cost>0&&<p role="alert" className="rounded-xl border border-amber-500/35 p-3 text-xs">
@@ -97,7 +96,7 @@ export function InventoryCostReport({clubId}:{clubId:string}){
     Hay {report.invalid_quantities} productos con cantidades históricas inconsistentes. Revisa el historial de stock antes de usar esta valoración.
    </p>}
    <p className="text-xs text-muted-foreground">
-    <b>Importante:</b> este informe reconstruye cantidades a partir de los movimientos guardados, pero utiliza el precio de compra <b>actual</b> de cada producto. Si el coste cambió, no representa el precio histórico de cada lote.
+    <b>Importante:</b> se usan los precios de compra y venta <b>configurados actualmente</b>. No se conocen aquí facturas pagadas ni los precios históricos por lote. El coste no equivale a dinero gastado.
    </p>
    <details className="rounded-xl border border-neon/20 p-3" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}>
     <summary className="cursor-pointer text-sm font-semibold">Ver desglose por producto ({report.lines.length})</summary>
@@ -106,7 +105,7 @@ export function InventoryCostReport({clubId}:{clubId:string}){
       <p className="font-semibold">{l.name}{l.unpriced?" · Sin precio de compra":""}</p>
       <p className="text-muted-foreground">Inicio {l.opening_qty} · +{l.incoming_qty} · −{l.outgoing_qty} · Final {l.closing_qty}</p>
       <p className="text-muted-foreground">Precio de compra: {l.cost!=null?eur(Number(l.cost)):"—"} / unidad · Precio de dispensación: {l.sale_price!=null?eur(Number(l.sale_price)):"—"} / unidad</p>
-      <p className="text-muted-foreground">Coste de productos: {eur(Number(l.product_cost_eur))} · Ganancia estimada: {l.unpriced||l.unpriced_sale?"—":eur(Number(l.expected_profit_eur))}</p>
+      <p className="text-muted-foreground">Valor venta: {l.unpriced_sale?"—":eur(Number(l.expected_sale_eur))} · Coste teórico: {l.unpriced?"—":eur(Number(l.product_cost_eur))} · Margen previsto: {l.unpriced||l.unpriced_sale?"—":eur(Number(l.expected_profit_eur))}</p>
      </div>)}
     </div>
    </details>
