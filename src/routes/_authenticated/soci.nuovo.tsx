@@ -95,7 +95,9 @@ function NewSocio() {
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
-    birth_date: "",
+    avalador_first_name: "",
+    avalador_last_name: "",
+    birth_date: ""
     address: "",
     city: "",
     postal_code: "",
@@ -423,6 +425,8 @@ function NewSocio() {
     if (!form.first_name.trim() || !form.last_name.trim())
       return failRegistration("Falta nombre y apellido");
     const req = (k: keyof FieldConfigMap) => fieldCfg[k].visible && fieldCfg[k].required;
+    if ((req("avalador") || form.avalador_first_name.trim() || form.avalador_last_name.trim()) && (!form.avalador_first_name.trim() || !form.avalador_last_name.trim()))
+      return failRegistration("Indica el nombre y los apellidos del socio avalador.");
     const vis = (k: keyof FieldConfigMap) => fieldCfg[k].visible;
     if (req("birth_date")) {
       if (!form.birth_date) return failRegistration("Falta la fecha de nacimiento");
@@ -475,18 +479,19 @@ function NewSocio() {
       const expires = selectedPlan ? addCalendarDays(joined, selectedPlan.duration_days) : joined;
 
       const { data: savedId, error } = await (supabase as any).rpc(
-        form.plan_id ? "confirm_membership_with_receipt" : "save_membership_with_receipt",
+        "snoop_register_member_with_avalador",
         {
-          ...(form.plan_id ? { p_confirmed_cents: due, p_expected: null } : {}),
+          p_confirmed_cents: form.plan_id ? due : null,
           p_plan_id: form.plan_id || null,
           p_method: paymentMethod,
           p_request: memberId,
-          p_renew: false,
           p_member: {
             club_id: clubId,
             id: memberId,
             first_name: form.first_name.trim(),
             last_name: form.last_name.trim(),
+            avalador_first_name: fieldCfg.avalador.visible ? form.avalador_first_name.trim() : "",
+            avalador_last_name: fieldCfg.avalador.visible ? form.avalador_last_name.trim() : "",
             birth_date: form.birth_date || "1900-01-01",
             address: form.address.trim() || null,
             city: form.city.trim(),
@@ -724,6 +729,16 @@ function NewSocio() {
               />
             )}
           </div>
+          {fieldCfg.avalador.visible && (
+            <div className="mt-5 rounded-2xl border border-neon/25 bg-input/25 p-4 space-y-3">
+              <h4 className="font-display text-sm text-neon">Socio avalador{fieldCfg.avalador.required ? " *" : " (opcional)"}</h4>
+              <p className="text-xs text-muted-foreground">Nombre y apellidos del socio que avala la inscripción.</p>
+              <div className="grid md:grid-cols-2 gap-3">
+                <Inp label={"Nombre avalador" + (fieldCfg.avalador.required ? " *" : "")} value={form.avalador_first_name} onChange={(v) => set("avalador_first_name", v)} />
+                <Inp label={"Apellidos avalador" + (fieldCfg.avalador.required ? " *" : "")} value={form.avalador_last_name} onChange={(v) => set("avalador_last_name", v)} />
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Plan */}
