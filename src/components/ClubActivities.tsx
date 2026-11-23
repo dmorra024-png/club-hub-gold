@@ -10,6 +10,7 @@ import { SnoopGoldIcon } from "@/components/SnoopGoldIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { getRecentWalletTopups } from "@/lib/cash-sessions.functions";
+import {WalletTopupVoidDialog} from "./WalletTopupVoidDialog";
 import {
   activityRows,
   activitySources,
@@ -36,9 +37,10 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
     ":",
   );
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [selectedTopup,setSelectedTopup]=useState<{id:string;amountCents:number}|null>(null);
   const canAudit = can("manage_members") && (can("use_cash") || can("view_reports"));
   useEffect(() => {
-    setSelectedOrder(null);
+    setSelectedOrder(null);setSelectedTopup(null);
   }, [scope]);
   useEffect(() => {
     const refresh = () => setTick((n) => n + 1);
@@ -160,6 +162,16 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
                   </time>
                 </span>
               </Link>
+              {expanded && canAudit && item.topupId && item.voidable &&
+                (access.role==="admin" || item.actorId===user?.id) &&
+                can("use_cash") && item.amountCents!==undefined && (
+                  <div className="flex justify-end px-3 pb-3">
+                    <button type="button" className="text-red-400 py-2 text-sm"
+                     onClick={()=>setSelectedTopup({id:item.topupId!,amountCents:item.amountCents!})}>
+                     Anular recarga
+                    </button>
+                  </div>
+              )}
               {expanded && canAudit && item.orderId && (
                 <div className="flex justify-end gap-4 px-3 pb-3 text-sm">
                   <button
@@ -193,6 +205,10 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
         <p className="premium-empty">
           Últimas 100 actividades. Consulta el historial completo en cada sección.
         </p>
+      )}
+      {selectedTopup && canAudit && (
+        <WalletTopupVoidDialog key={selectedTopup.id} topupId={selectedTopup.id}
+         amountCents={selectedTopup.amountCents} onClose={()=>setSelectedTopup(null)}/>
       )}
       {selectedOrder && canAudit && (
         <FinancialRecordDialog

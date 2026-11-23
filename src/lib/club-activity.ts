@@ -11,6 +11,10 @@ export type ClubActivity = {
   createdBy?: string;
   status?: string;
   amountCents?: number;
+  topupId?: string;
+  voidable?: boolean;
+  actorId?: string;
+  voided?: boolean;
 };
 export function activitySources(access: AccountAccess) {
   if (access.status !== "active" || !access.clubId || access.role === "super_admin") return [];
@@ -66,9 +70,14 @@ export function activityRows(
           :r.payment_method==="transfer"?"Transferencia":"Método no identificado";
         const cents=Number(r.amount_cents);
         return {
-          ...base,kind:"cash" as const,title:"Recarga Monedero",
-          detail:`${method} · ${typeof r.actor_name==="string"?r.actor_name:"Colaborador"}`,
-          amountCents:Number.isSafeInteger(cents)&&cents>0?cents:undefined,
+          ...base,kind:"cash" as const,
+          title:r.kind==="topup_reversal"?"Anulación de recarga":"Recarga Monedero",
+          detail:`${method} · ${typeof r.actor_name==="string"?r.actor_name:"Colaborador"}${r.voided?" · Anulada":""}`,
+          amountCents:Number.isSafeInteger(cents)&&cents!==0?cents:undefined,
+          topupId:r.kind==="topup"&&typeof r.id==="string"?r.id:undefined,
+          voided:r.voided===true,
+          voidable:r.kind==="topup"&&r.voided!==true,
+          actorId:typeof r.actor_id==="string"?r.actor_id:undefined,
           href:canCash?"/caja":"/ajustes/informes"
         };
       }

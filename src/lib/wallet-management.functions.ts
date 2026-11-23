@@ -134,3 +134,45 @@ export const walletCancel=createServerFn({method:"POST"})
      !Number.isSafeInteger(result.balanceCents)||result.balanceCents<0)fail();
   return result as {status:"applied";orderId:string;balanceCents:number;refundCents:number};
  });
+
+/** Audited topup cancellation: caller must certify refund already completed.
+ * Cash/POS/transfer refund is recorded but never initiated by SNOOP.
+ * Database atomically removes unused credits and posts the negative receipt.
+ */
+export const walletVoidTopup=createServerFn({method:"POST"})
+ .middleware([requireClubCashAuth])
+ .inputValidator((input:unknown)=>z.object({
+   topupId:uuid,operationId:uuid,
+   reason:z.string().trim().min(5).max(2000),
+   refundMethod:z.enum(["cash","card","transfer"]),confirmed:z.literal(true)
+ }).strict().parse(input))
+ .handler(async ({context,data})=>{
+  if(!available())fail();
+  await requireOperationalClub(context,"manage_members");
+  const {data:cashSessionId,error:cashError}=await (context.supabase as any).rpc("current_open_cash_session");
+  if(cashError||!uuid.safeParse(cashSessionId).success)
+   return {status:"rejected" as const,reason:"Abre tu propia caja antes de registrar la devolución."};
+  const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_void_topup",{
+   p_topup_id:data.topupId,p_cash_session_id:cashSessionId,
+   p_operation_id:data.operationId,p_reason:data.reason,
+   p_refund_method:data.refundMethod,p_refund_confirmed:true
+  });
+  if(error){
+   const code=String(error.code??""),message=String(error.message??"");
+   if(/^(22|23|42|P0001)/.test(code)&&/^WALLET_/.test(message)){
+    const reason=message.includes("CREDITS_ALREADY_USED")
+       ?"No se puede anular: los créditos de esta recarga ya se han gastado. Requiere conciliación administrativa."
+       :message.includes("ALREADY_VOIDED")
+       ?"La recarga ya estaba anulada."
+       :message.includes("REFUND_CASH_NOT_OPEN")
+       ?"Abre tu caja antes de registrar la devolución."
+       :"No se pudo anular la recarga. Revisa permisos, saldo e historial.";
+    return {status:"rejected" as const,reason};
+   }
+   fail();
+  }
+  if(!result||!["applied","duplicate"].includes(result.status)||
+   result.topupId!==data.topupId||result.operationId!==data.operationId||
+   !Number.isSafeInteger(result.balanceCents)||result.balanceCents<0)fail();
+  return result as {status:"applied"|"duplicate";topupId:string;operationId:string;balanceCents:number;refundCents:number};
+ });
