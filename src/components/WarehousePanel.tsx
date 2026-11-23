@@ -40,7 +40,7 @@ export function WarehousePanel({products,onChange}:{products:Product[];onChange:
  async function send(){
    if(!item||busy)return;
    const clean=quantity.trim().replace(",",".");
-   if(!/^\d{1,7}(\.\d{1,2})?$/.test(clean))return toast.error("Cantidad no válida (máximo 3 decimales)");
+   if(!/^\d{1,7}(\.\d{1,3})?$/.test(clean))return toast.error("Cantidad no válida (máximo 3 decimales)");
    const value=Number(clean);
    if(value<=0||value>source)return toast.error("Stock insuficiente en origen");
    if(!window.confirm("¿Trasladar "+fmt(value)+" de "+from+" a "+to+"?"))return;
