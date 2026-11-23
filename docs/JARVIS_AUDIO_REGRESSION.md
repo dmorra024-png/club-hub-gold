@@ -62,3 +62,14 @@ After current-release reconciliation, 491 unit/integration tests and TypeScript 
 PostgreSQL 17 concurrency checks pass with isolated synthetic records: seven competing
 annulment requests produce one reversal, and seven refund requests produce one refund.
 These tests do not execute physical payment or change production inventory.
+
+## Current manual-registration regression
+
+The current release intentionally navigates successful registration to the created
+member card and uses the authenticated App Socio email invitation instead of the
+retired staff-visible QR export. The old browser script expected the list and QR export.
+Its failure was reproduced without changing the registration engine. The revised test
+verifies the actual created member URL, exact invitation server function and one request,
+retains double-click/amount/renewal/signature/error checks and mocks email acceptance
+only. It does not claim delivery. Registration and renewal regression now pass in
+Chromium and WebKit; no Socio application code is changed.
