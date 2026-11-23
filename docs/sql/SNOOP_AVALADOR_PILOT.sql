@@ -33,11 +33,12 @@ BEGIN
  v_avalador_first:=nullif(btrim(coalesce(p_member->>'avalador_first_name','')),'');
  v_avalador_last:=nullif(btrim(coalesce(p_member->>'avalador_last_name','')),'');
  v_avalador_number:=nullif(btrim(coalesce(p_member->>'avalador_member_number','')),'');
- IF length(coalesce(v_avalador_first,''))>100 OR length(coalesce(v_avalador_last,''))>100
-    OR length(coalesce(v_avalador_number,''))>60
-    OR ((v_avalador_first IS NULL) <> (v_avalador_last IS NULL))
-    OR (v_avalador_number IS NOT NULL AND v_avalador_first IS NOT NULL)
- THEN RAISE EXCEPTION 'Indica nombre y apellidos O número de socio avalador' USING errcode='22023'; END IF;
+ -- All new endorsers must be an existing member of the same club.
+ -- Never accept arbitrary names from any client, even if club setting is optional.
+ IF v_avalador_first IS NOT NULL OR v_avalador_last IS NOT NULL
+ THEN RAISE EXCEPTION 'Selecciona y confirma un socio avalador existente' USING errcode='22023'; END IF;
+ IF length(coalesce(v_avalador_number,''))>60
+ THEN RAISE EXCEPTION 'Número de socio avalador no válido' USING errcode='22023'; END IF;
  IF v_avalador_number IS NOT NULL THEN
    SELECT m.id,m.first_name,m.last_name INTO v_avalador_id,v_avalador_first,v_avalador_last
    FROM public.members m
