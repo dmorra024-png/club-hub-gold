@@ -2919,3 +2919,9 @@ body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) :is(h1,
   }
   .premium-shell.snoop-unified-shell .snoop-rail-footer { visibility:hidden; }
 }
+
+/* The unified internal-page padding must not override keyboard scroll room.
+   Keep the approved layout unchanged whenever the keyboard is closed. */
+body[data-snoop-keyboard="true"] .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) {
+  padding-bottom:calc(24px + var(--snoop-keyboard-inset,0px));
+}

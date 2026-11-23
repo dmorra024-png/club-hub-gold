@@ -118,3 +118,19 @@ order calculation, cash formula or production permission was changed for these t
 Samsung, iPhone WebKit and simulated standalone PWA keep the same DOM fields/cards and
 values across keyboard/rotation/resume. Six admin/staff Android/iOS/PWA cash cases retain
 correct totals, error-not-zero behavior and the overnight session boundary.
+
+## Demonstrated current-release keyboard regression
+
+The full critical browser flow exposed a real CSS precedence defect, not an accounting
+or parser failure. Unified non-home page styling overrode keyboard scroll padding.
+The new regression on the pre-fix build reports `padding:122,inset:500`; the profile
+password field remained below the simulated 300px visible viewport. A narrowly scoped
+keyboard-only CSS override restores `24px + keyboard inset`, leaving closed-keyboard
+premium layout and all form/business functions unchanged. The exact regression now
+passes for member/profile/cash/product/collaborator fields on Samsung Chromium and
+actual WebKit engine with simulated keyboard geometry. No physical keyboard claim.
+
+The critical email UI test now targets the current authenticated invitation, not the
+removed QR delivery widget: five explicit simulated requests verify that only accepted
+is acknowledged and no response is presented as proof of delivery. Existing queue and
+provider delivery-state unit tests remain. Both complete critical browser flows pass.
