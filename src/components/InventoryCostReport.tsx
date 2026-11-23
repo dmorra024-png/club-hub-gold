@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, RefreshCw, Warehouse, ArrowDownToLine, ArrowUpFromLine, Package } from "lucide-react";
+import { CalendarDays, RefreshCw, Warehouse, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { madridToday } from "@/lib/member-administration";
 
@@ -40,7 +40,6 @@ export function InventoryCostReport({clubId}:{clubId:string}){
   document.addEventListener("visibilitychange",onVisible);
   return ()=>{clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);};
  },[day]);
- const ok=report&&report.missing_cost===0&&report.invalid_quantities===0;
  return <section className="rounded-2xl border border-neon/35 bg-card/60 p-4 sm:p-5 space-y-4" aria-label="Valor del inventario">
   <div className="flex flex-wrap items-start justify-between gap-3">
    <div>
