@@ -1,0 +1,1 @@
+SNOOP Pilot wallet staff topup panel visibility fix only. Exact tested source bbe424bd44c799589a904e9fd0219a64f5859f4e; scoped CI job wallet-panel-visibility success on run 45136398377. No mutation to wallet settings, balance, SQL, refund, orders, cash, payment, tenant roles or bindings. Server flags and permissions remain authoritative.
