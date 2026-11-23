@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeftRight, Warehouse, Store, PackageCheck, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -29,17 +29,17 @@ export function WarehouseManager({
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
   const [selected,setSelected]=useState("");
-  const [view,setView]=useState<"all"|"almacen"|"dispensario">("all");
+  const [focusId,setFocusId]=useState("");
   const [direction,setDirection]=useState<"almacen"|"dispensario">("almacen");
   const [quantity,setQuantity]=useState("");
   const [confirm,setConfirm]=useState(false);
   const [request,setRequest]=useState<string|null>(null);
   const current=products.find(p=>p.id===selected);
+  const focusProduct=products.find(p=>p.id===focusId)??products[0];
   const read=(p:Product|undefined,location:string)=>p?Number(balances.find(b=>b.product_id===p.id&&b.location===location)?.quantity??0):0;
   const reserve=current?read(current,"almacen"):0;
   const dispensary=current?read(current,"dispensario"):0;
-  const sum=useMemo(()=>products.reduce((n,p)=>n+Number(p.stock),0),[products]);
-  const reserveSum=useMemo(()=>balances.filter(x=>x.location==="almacen").reduce((n,x)=>n+Number(x.quantity),0),[balances]);
+
   const load=async()=>{
     setLoading(true);setError("");
     const [b,t]=await Promise.all([
@@ -55,7 +55,7 @@ export function WarehouseManager({
   };
   useEffect(()=>{void load();},[clubId,products.map(p=>p.id+":"+p.stock).join("|")]);
   const start=(p:Product,from:"almacen"|"dispensario")=>{
-    setSelected(p.id);setDirection(from);setQuantity("");setConfirm(false);setRequest(null);setError("");
+    setFocusId(p.id);setSelected(p.id);setDirection(from);setQuantity("");setConfirm(false);setRequest(null);setError("");
   };
   const save=async()=>{
     if(!current||busy)return;
@@ -84,36 +84,45 @@ export function WarehouseManager({
       </div>
       <button type="button" className="rounded-xl border border-neon/30 px-3 py-2 text-xs" onClick={()=>void load()}>Actualizar</button>
     </div>
-    <div className="grid grid-cols-3 gap-2">
-      {([
-        {key:"all",label:"Total",Icon:PackageCheck,quantity:sum},
-        {key:"almacen",label:"Almacén",Icon:Warehouse,quantity:reserveSum},
-        {key:"dispensario",label:"Dispensario",Icon:Store,quantity:balances.filter(x=>x.location==="dispensario").reduce((n,x)=>n+Number(x.quantity),0)},
-      ] as const).map(({key,label,Icon,quantity})=>
-        <button type="button" key={key}
-          onClick={()=>setView(key)}
-          aria-pressed={view===key}
-          aria-label={`Ver stock: ${label}`}
-          className={`${card} min-w-0 cursor-pointer text-left touch-manipulation transition-colors ${view===key?"border-neon bg-neon/15 ring-1 ring-neon":"hover:border-neon/60"}`}>
-          <Icon size={18} className="text-neon" aria-hidden="true"/>
-          <span className="mt-1 block text-[11px] text-muted-foreground">{label}</span>
-          <span className="block font-display text-lg">{loading?"…":fmt(quantity)}</span>
-        </button>
-      )}
+    <div className="space-y-2">
+      <label htmlFor="warehouse-product-selection" className="block text-sm font-semibold text-foreground">
+        1. Selecciona un producto
+      </label>
+      <select id="warehouse-product-selection" className={field} value={focusProduct?.id??""}
+        onChange={e=>{setFocusId(e.target.value);setSelected("");setConfirm(false);setQuantity("");setRequest(null);}}>
+        {products.length===0&&<option value="">No hay productos</option>}
+        {products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
     </div>
-    <p role="status" className="text-xs text-neon">Vista seleccionada: {view==="all"?"Stock total":view==="almacen"?"Almacén":"Dispensario"}</p>
     {error&&<p role="alert" className="rounded-xl border border-destructive/50 bg-card/60 p-3 text-xs text-destructive">{error}</p>}
-    {!loading&&!error&&<div className="space-y-2">
-      {products.filter(p=>view==="all"||read(p,view)>0).map(p=>{
-        const a=read(p,"almacen"),d=read(p,"dispensario");
-        const valid=Math.abs(a+d-Number(p.stock))<0.0001;
-        return <div key={p.id} className="rounded-xl border border-neon/20 bg-card/50 p-3">
-          <div className="flex justify-between gap-2"><b className="truncate text-sm">{p.name}</b><span className="shrink-0 text-xs text-muted-foreground">Total {fmt(Number(p.stock))} {unitForProduct(p)==="gr"?"g":"u"}</span></div>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-input/30 p-2"><span className="text-muted-foreground">Almacén</span><p className="mt-1 font-display text-base">{fmt(a)}</p></div><div className="rounded-lg bg-input/30 p-2"><span className="text-muted-foreground">Dispensario</span><p className="mt-1 font-display text-base">{fmt(d)}</p></div></div>
-          {!valid&&<p role="alert" className="mt-2 text-xs text-destructive">Diferencia de inventario: traspasos bloqueados hasta verificar.</p>}
-          <button type="button" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-neon/50 px-3 py-2 text-xs text-neon disabled:opacity-40" disabled={!valid} onClick={()=>start(p,a>0?"almacen":"dispensario")}><ArrowLeftRight size={14}/> Traspasar</button>
-        </div>;
-      })}
+    {focusProduct&&!error&&<div className="space-y-3" aria-live="polite">
+      <p className="text-xs text-muted-foreground">
+        Cantidades de <b className="text-foreground">{focusProduct.name}</b> · {unitForProduct(focusProduct)==="gr"?"gramos (g)":"unidades (u)"}
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {([
+          {label:"Almacén",value:read(focusProduct,"almacen"),Icon:Warehouse,detail:"Reserva"},
+          {label:"Dispensario",value:read(focusProduct,"dispensario"),Icon:Store,detail:"Para dispensar"},
+          {label:"Total",value:Number(focusProduct.stock),Icon:PackageCheck,detail:"Suma de ambos"},
+        ] as const).map(({label,value,Icon,detail})=>
+          <div key={label} className={`${card} min-w-0 px-2 py-3 sm:px-4`}>
+            <Icon size={19} className="mb-2 text-neon" aria-hidden="true"/>
+            <p className="text-xs font-semibold text-foreground">{label}</p>
+            <p className="mt-1 break-words font-display text-lg sm:text-xl">{loading?"…":fmt(value)} <span className="text-xs">{unitForProduct(focusProduct)==="gr"?"g":"u"}</span></p>
+            <p className="mt-1 text-[10px] text-muted-foreground">{detail}</p>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        El total es Almacén + Dispensario. Un traspaso mueve la cantidad de un lugar a otro sin cambiar el total.
+      </p>
+      {!loading&&Math.abs(read(focusProduct,"almacen")+read(focusProduct,"dispensario")-Number(focusProduct.stock))>=0.0001&&
+        <p role="alert" className="text-xs text-destructive">Las cantidades no coinciden. Bloqueado hasta revisar el inventario.</p>}
+      <button type="button" className="flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-neon/60 bg-neon/10 px-4 py-3 text-sm font-display text-neon disabled:opacity-40"
+        disabled={loading||Math.abs(read(focusProduct,"almacen")+read(focusProduct,"dispensario")-Number(focusProduct.stock))>=0.0001}
+        onClick={()=>start(focusProduct,read(focusProduct,"almacen")>0?"almacen":"dispensario")}>
+        <ArrowLeftRight size={18}/> 2. Traspasar entre Almacén y Dispensario
+      </button>
     </div>}
     {current&&<div role="dialog" aria-modal="false" aria-label="Traspasar inventario" className="rounded-2xl border-2 border-neon/55 bg-card/90 p-4 space-y-3">
       <h4 className="font-display text-base text-neon">Traspasar · {current.name}</h4>
