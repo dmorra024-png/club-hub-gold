@@ -240,7 +240,7 @@ function Caja() {
                         <div><span>Contado en cierres</span><strong>{money(daily!.countedCents)}</strong></div>
                         <div><span>Ingresos fuera de sesión</span><strong>{money(daily!.outsideSessionCents)}</strong></div>
                         {daily!.walletPaidCents > 0 && <div><span>Pedidos pagados con Monedero (separados)</span><strong>{money(daily!.walletPaidCents)}</strong></div>}
-                        {daily!.topupCents > 0 && <div><span>Recargas Monedero en efectivo</span><strong>{money(daily!.topupCents)}</strong></div>}
+                        {daily!.topupCents > 0 && <div><span>Recargas Monedero (todos los métodos)</span><strong>{money(daily!.topupCents)}</strong></div>}
                         {(data.refunds ?? []).some((r: any) => r.method === "cash" && inCashDay(r, data.start, data.end)) && (
                           <div><span>Reembolsos en efectivo (salidas)</span><strong>{money((data.refunds ?? []).filter((r: any) => r.method === "cash" && inCashDay(r, data.start, data.end)).reduce((n: number, r: any) => n + r.cents, 0))}</strong></div>
                         )}
