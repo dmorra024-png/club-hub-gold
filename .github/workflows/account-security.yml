@@ -443,10 +443,10 @@ jobs:
           expected="$(printf '%s\n' 'src/routes/_authenticated/ajustes.index.tsx' 'src/routes/_authenticated/ajustes.monedero.tsx' 'src/routes/_authenticated/ajustes.personalizaciones.tsx' 'src/routes/_authenticated/ajustes.tema-visual.tsx')"
           test "$actual" = "$expected" || { echo "Unexpected application files: $actual"; exit 1; }
           node --test tests/snoop-club-personalizations-navigation.test.mjs
-      - name: Validate typecheck and Worker build
+      - name: Generate routes, compile and validate Worker
         run: |
           set -euo pipefail
-          bun run typecheck
           bun run build:worker
+          bun run typecheck
           bun run worker:dry-run
           bun run test:security:bundle
