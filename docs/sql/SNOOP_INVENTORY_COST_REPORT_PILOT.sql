@@ -48,8 +48,10 @@ begin
     abs(p.stock-coalesce(m.after_start,0))>0 or
     coalesce(m.incoming,0)>0 or coalesce(m.outgoing,0)>0
    ) as unpriced_sale
-  from public.products p left join movements m on m.product_id=p.id
-  where p.club_id=v_club
+  from public.products p
+  left join public.product_categories cat on cat.id=p.category_id and cat.club_id=p.club_id
+  left join movements m on m.product_id=p.id
+  where p.club_id=v_club and p.active is true and coalesce(cat.archived,false)=false
  ),
  totals as (
   select count(*) filter(where unpriced) as missing_cost,
