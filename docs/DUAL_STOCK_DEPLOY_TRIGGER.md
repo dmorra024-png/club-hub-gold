@@ -13,3 +13,5 @@ Informes pilot: dated opening-of-day inventory at current purchase prices; inbou
 Product economics pilot: selectable as-of date, per-product dated stock recharge entries, recorded completed-order revenue, remaining value, expected gross margin, aggregated club totals. CI green and secured read RPC installed.
 
 Informes simplified v5: remove product-profitability panel; on existing inventory valuation show purchase cost of remaining goods and net-of-product-cost projected gain, per-item breakdown, explicit overhead exclusion. RPC smoke tested and isolated CI green.
+
+Primary Informes KPI is active products' current stock valued at their configured sale price. Reference purchase cost and gross margin secondary. Verified build/security.
