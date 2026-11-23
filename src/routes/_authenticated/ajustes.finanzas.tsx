@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_authenticated/ajustes/finanzas")({
 });
 
 type Supplier = { id:string; name:string; contact:string; notes:string };
-type Expense = { id:string; category:string; description:string; amount_cents:number; payment_method:string; occurred_on:string; created_at:string; supplier_id:string|null };
+type Expense = { id:string; category:string; description:string; amount_cents:number; payment_method:string; occurred_on:string; created_at:string; supplier_id:string|null; cancelled_at:string|null; cancel_reason:string|null };
 type Purchase = { id:string; supplier_id:string; reference:string; description:string; amount_cents:number; status:string; created_at:string };
 type Tab = "gastos"|"proveedores"|"compras"|"contabilidad";
 const categories=[["alquiler","Alquiler"],["suministros","Suministros"],["personal","Personal"],["mantenimiento","Mantenimiento"],["compras","Compras"],["otros","Otros"]] as const;
@@ -55,7 +55,7 @@ function Finanzas(){
   try {
    const [s,e,p]=await Promise.all([
     db.from("snoop_suppliers").select("id,name,contact,notes").eq("club_id",access.clubId).order("name").limit(500),
-    db.from("snoop_expenses").select("id,category,description,amount_cents,payment_method,occurred_on,created_at,supplier_id").eq("club_id",access.clubId).order("created_at",{ascending:false}).limit(500),
+    db.from("snoop_expenses").select("id,category,description,amount_cents,payment_method,occurred_on,created_at,supplier_id,cancelled_at,cancel_reason").eq("club_id",access.clubId).order("created_at",{ascending:false}).limit(500),
     db.from("snoop_purchases").select("id,supplier_id,reference,description,amount_cents,status,created_at").eq("club_id",access.clubId).order("created_at",{ascending:false}).limit(500),
    ]);
    const fail=s.error||e.error||p.error;
@@ -72,9 +72,9 @@ function Finanzas(){
   catch(e){setError(e instanceof Error?e.message:"No se pudo guardar");}
   finally{setBusy(false);}
  }
- const committed=useMemo(()=>expenses.filter(e=>e.payment_method!=="pendiente"),[expenses]);
+ const committed=useMemo(()=>expenses.filter(e=>!e.cancelled_at&&e.payment_method!=="pendiente"),[expenses]);
  const totalPaid=committed.reduce((n,e)=>n+e.amount_cents,0);
- const totalDue=expenses.filter(e=>e.payment_method==="pendiente").reduce((n,e)=>n+e.amount_cents,0);
+ const totalDue=expenses.filter(e=>!e.cancelled_at&&e.payment_method==="pendiente").reduce((n,e)=>n+e.amount_cents,0);
  const purchased=purchases.reduce((n,p)=>n+p.amount_cents,0);
  const name=(id:string|null)=>suppliers.find(s=>s.id===id)?.name??"—";
  if(loading||!isAdmin)return <SnoopLayout title="Finanzas"><p className="text-muted-foreground">Verificando permisos…</p></SnoopLayout>;
@@ -124,7 +124,7 @@ function Finanzas(){
     </form>
     <h2 className="font-display text-lg">Historial de gastos</h2>
     {loadingRows?<p>Cargando…</p>:expenses.length===0?<p className="text-muted-foreground">Sin gastos registrados.</p>:expenses.map(e=><div key={e.id} className="flex items-center justify-between gap-2 rounded-xl border border-neon/20 bg-card/40 p-3">
-     <div><b>{e.description}</b><p className="text-xs text-muted-foreground">{e.category} · {name(e.supplier_id)} · {e.occurred_on} · {e.payment_method}</p></div><b className="whitespace-nowrap">{euros(e.amount_cents)}</b>
+     <div><b>{e.description}</b><p className="text-xs text-muted-foreground">{e.category} · {name(e.supplier_id)} · {e.occurred_on} · {e.payment_method}{e.cancelled_at?" · ANULADO":""}</p>{!e.cancelled_at&&<button type="button" disabled={busy} className="mt-1 text-xs underline text-muted-foreground" onClick={()=>{const reason=window.prompt("Motivo de anulación (5-500 caracteres)");if(!reason||reason.trim().length<5||reason.length>500)return; if(!window.confirm("¿Anular este gasto? Se conservará el historial."))return;void submit(async()=>{const {error}=await db.rpc("snoop_cancel_expense",{p_id:e.id,p_reason:reason.trim()});if(error)throw Error("No se pudo anular el gasto");});}}>Anular con motivo</button>}</div><b className="whitespace-nowrap">{euros(e.amount_cents)}</b>
     </div>)}
    </section>}
    {tab==="compras"&&<section className="space-y-4">
