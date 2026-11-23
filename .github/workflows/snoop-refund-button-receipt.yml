@@ -1,0 +1,48 @@
+name: SNOOP refund button — release receipt
+on:
+  push:
+    branches: [release/snoop-refund-button-feedback-20261123]
+    paths: [docs/SNOOP_REFUND_BUTTON_PROBE_TRIGGER.md]
+permissions:
+  contents: read
+  actions: read
+  statuses: write
+jobs:
+  receipt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - name: Verify guarded deploy run for exact release SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RELEASE_SHA: 3b2f2b020feb266a99f1e73fde10cc2827e60722
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const repo=process.env.GITHUB_REPOSITORY;
+          const branch='release/snoop-refund-button-feedback-20261123';
+          const headers={
+            authorization:'Bearer '+process.env.GH_TOKEN,
+            accept:'application/vnd.github+json',
+            'X-GitHub-Api-Version':'2022-11-28'
+          };
+          let run;
+          for(let i=0;i<36;i++){
+            const response=await fetch('https://api.github.com/repos/'+repo+'/actions/runs?branch='+encodeURIComponent(branch)+'&event=push&per_page=50',{headers,signal:AbortSignal.timeout(20000)});
+            assert.equal(response.status,200);
+            const j=await response.json();
+            run=(j.workflow_runs||[]).find(r=>r.name==='SNOOP refund button — guarded pilot release'&&r.head_sha===process.env.EXPECTED_RELEASE_SHA);
+            if(run?.status==='completed')break;
+            if(i!==35)await new Promise(ok=>setTimeout(ok,10000));
+          }
+          assert.ok(run?.status==='completed','Exact release not completed');
+          const success=run.conclusion==='success';
+          const post=await fetch('https://api.github.com/repos/'+repo+'/statuses/'+process.env.GITHUB_SHA,{
+            method:'POST',headers:{...headers,'content-type':'application/json'},
+            body:JSON.stringify({state:success?'success':'failure',context:'snoop-refund-button-pilot',description:success?'Verified guarded Informes pilot deploy':'Guarded Informes pilot did not deploy',target_url:run.html_url}),
+            signal:AbortSignal.timeout(20000)
+          });
+          assert.equal(post.status,201);
+          console.log(JSON.stringify({outcome:run.conclusion,run_id:run.id}));
+          assert.ok(success,'Pilot release failed');
+          NODE
