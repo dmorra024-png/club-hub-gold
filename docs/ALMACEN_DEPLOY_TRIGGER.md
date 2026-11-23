@@ -1,0 +1,1 @@
+SNOOP warehouse + dispensary guarded pilot deployment. SQL migrations verified; 19 products zero stock differences at 0.001 precision. Isolated build success. No edits to JARVIS, SNOOP Socio, financial history, or existing stock totals. Stock transfer idempotence tested in rolled-back transaction.
