@@ -1,4 +1,5 @@
 import { readCashLedger } from "@/lib/cash-ledger";
+import { getCashReport } from "@/lib/cash-sessions.functions";
 import { cashMovements, cashDaySummary } from "@/lib/cash-sessions";
 import { useCashRefresh } from "@/hooks/useCashRefresh";
 import { clubDayRange } from "@/lib/cash-summary";
@@ -47,17 +48,28 @@ function Home() {
     async function loadCash() {
       const version = ++request;
       try {
-        const { start, end } = clubDayRange();
-        const { orders, fees } = await readCashLedger(
-          supabase,
-          { clubId: access.clubId!, userId: user!.id, admin: isAdmin },
-          start,
-          end,
-        );
-        const summary = cashDaySummary(cashMovements(orders, fees, []), [], start, end);
+        // Use the same authorized accounting ledger as Caja: wallet topups are
+        // income, wallet credit spends are NOT new cash receipts.
+        let totalCents:number;
+        if(can("use_cash")){
+          const report=await getCashReport({data:{day:null}});
+          if(!report||!Array.isArray(report.movements)||!Array.isArray(report.sessions))
+            throw Error("Informe de caja no válido");
+          totalCents=cashDaySummary(report.movements,report.sessions,report.start,report.end).totalCents;
+        }else{
+          // Preserve the previous view_reports-only route where the cash-only
+          // server permission is not available.
+          const {start,end}=clubDayRange();
+          const {orders,fees}=await readCashLedger(
+            supabase,
+            {clubId:access.clubId!,userId:user!.id,admin:isAdmin},
+            start,end,
+          );
+          totalCents=cashDaySummary(cashMovements(orders,fees,[]),[],start,end).totalCents;
+        }
         if (canceled || version !== request) return;
         setCashError(false);
-        setCashCents(summary.totalCents);
+        setCashCents(totalCents);
       } catch {
         if (!canceled && version === request) {
           setCashError(true);
