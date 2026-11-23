@@ -35,6 +35,7 @@ begin
  lines as (
   select p.id,p.name,p.stock::numeric as current_qty,
    p.buy_price::numeric as unit_cost,
+   p.sell_price::numeric as unit_sale_price,
    (p.stock-coalesce(m.after_start,0))::numeric as opening_qty,
    coalesce(m.incoming,0)::numeric as incoming_qty,
    coalesce(m.outgoing,0)::numeric as outgoing_qty,
@@ -42,17 +43,24 @@ begin
    (p.buy_price is null or p.buy_price<=0) and (
     abs(p.stock-coalesce(m.after_start,0))>0 or
     coalesce(m.incoming,0)>0 or coalesce(m.outgoing,0)>0
-   ) as unpriced
+   ) as unpriced,
+   (p.sell_price is null or p.sell_price<=0) and (
+    abs(p.stock-coalesce(m.after_start,0))>0 or
+    coalesce(m.incoming,0)>0 or coalesce(m.outgoing,0)>0
+   ) as unpriced_sale
   from public.products p left join movements m on m.product_id=p.id
   where p.club_id=v_club
  ),
  totals as (
   select count(*) filter(where unpriced) as missing_cost,
     count(*) filter(where opening_qty<0 or closing_qty<0) as invalid_quantities,
+    count(*) filter(where unpriced_sale) as missing_sale_price,
     coalesce(sum(greatest(opening_qty,0)*greatest(unit_cost,0)),0) as opening_value,
     coalesce(sum(incoming_qty*greatest(unit_cost,0)),0) as incoming_value,
     coalesce(sum(outgoing_qty*greatest(unit_cost,0)),0) as outgoing_value,
-    coalesce(sum(greatest(closing_qty,0)*greatest(unit_cost,0)),0) as closing_value
+    coalesce(sum(greatest(closing_qty,0)*greatest(unit_cost,0)),0) as closing_value,
+    coalesce(sum(greatest(closing_qty,0)*greatest(unit_sale_price,0)),0) as closing_sale_value,
+    coalesce(sum(greatest(closing_qty,0)*(greatest(unit_sale_price,0)-greatest(unit_cost,0))),0) as closing_expected_profit
    from lines
  )
  select jsonb_build_object(
@@ -64,11 +72,19 @@ begin
   'incoming_eur',round(t.incoming_value,2),
   'outgoing_eur',round(t.outgoing_value,2),
   'closing_eur',round(t.closing_value,2),
+  'closing_sale_eur',round(t.closing_sale_value,2),
+  'closing_expected_profit_eur',round(t.closing_expected_profit,2),
+  'missing_sale_price',t.missing_sale_price,
   'missing_cost',t.missing_cost,
   'invalid_quantities',t.invalid_quantities,
   'lines',(select coalesce(jsonb_agg(jsonb_build_object(
     'id',l.id,'name',l.name,'opening_qty',l.opening_qty,'incoming_qty',l.incoming_qty,
-    'outgoing_qty',l.outgoing_qty,'closing_qty',l.closing_qty,'cost',l.unit_cost,'unpriced',l.unpriced
+    'outgoing_qty',l.outgoing_qty,'closing_qty',l.closing_qty,
+    'cost',l.unit_cost,'sale_price',l.unit_sale_price,
+    'product_cost_eur',round(greatest(l.closing_qty,0)*greatest(l.unit_cost,0),2),
+    'expected_sale_eur',round(greatest(l.closing_qty,0)*greatest(l.unit_sale_price,0),2),
+    'expected_profit_eur',round(greatest(l.closing_qty,0)*(greatest(l.unit_sale_price,0)-greatest(l.unit_cost,0)),2),
+    'unpriced',l.unpriced,'unpriced_sale',l.unpriced_sale
    ) order by l.name),'[]'::jsonb)
    from lines l where l.opening_qty<>0 or l.incoming_qty<>0 or l.outgoing_qty<>0 or l.closing_qty<>0)
  ) into v_result from totals t;
