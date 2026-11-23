@@ -34,7 +34,7 @@ jobs:
           git diff --exit-code "$BASE" HEAD -- src/routes/_authenticated/caja.tsx src/lib apps/socio
       - run: bun install --frozen-lockfile
       - name: Check responsive category chart and unchanged payment reports
-        run: node --test tests/snoop-informes-category-chart.test.mjs tests/snoop-informes-themed-insights.test.mjs tests/simple-cash.test.mjs
+        run: node --test tests/snoop-informes-custom-range.test.mjs tests/snoop-informes-category-chart.test.mjs tests/snoop-informes-themed-insights.test.mjs tests/simple-cash.test.mjs
       - run: bun run typecheck
       - run: |
           set -euo pipefail
