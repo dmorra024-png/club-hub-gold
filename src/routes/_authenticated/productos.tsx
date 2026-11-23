@@ -1498,6 +1498,47 @@ function ProductRow({ p, cat, onChange, location, onTransfer }: {
           onChange={(v) => setForm({ ...form, sell_price: v })}
         />
       </div>
+      <div className="rounded-xl border border-neon/30 bg-card/50 p-3 space-y-3">
+        <h4 className="text-sm font-display text-neon">Mover entre Almacén y Stock</h4>
+        <p className="text-xs text-muted-foreground">
+          Almacén: {warehouse===undefined?"—":formatQty(warehouse)} {unit} · Stock: {counter===undefined?"—":formatQty(counter)} {unit}
+        </p>
+        {!locationValid&&<p role="alert" className="text-xs text-destructive">
+          Inventario no disponible o cantidades incoherentes. No es posible transferir.
+        </p>}
+        <div className="grid grid-cols-2 gap-2">
+          <label className={"cursor-pointer rounded-xl border p-3 text-xs "+(transferFrom==="almacen"?"border-neon bg-neon/10":"border-border")}>
+            <input type="radio" name={"direction-"+p.id} checked={transferFrom==="almacen"}
+              onChange={()=>{setTransferFrom("almacen");setTransferConfirm(false);setTransferRequest(null);}}
+              className="mr-2 accent-[var(--snoop-accent)]"/>
+            Almacén → Stock
+          </label>
+          <label className={"cursor-pointer rounded-xl border p-3 text-xs "+(transferFrom==="dispensario"?"border-neon bg-neon/10":"border-border")}>
+            <input type="radio" name={"direction-"+p.id} checked={transferFrom==="dispensario"}
+              onChange={()=>{setTransferFrom("dispensario");setTransferConfirm(false);setTransferRequest(null);}}
+              className="mr-2 accent-[var(--snoop-accent)]"/>
+            Stock → Almacén
+          </label>
+        </div>
+        <label className="block text-xs text-muted-foreground">
+          Cantidad a mover ({unit})
+          <input type="text" inputMode="decimal" autoComplete="off" placeholder={"Ej. 20 "+unit}
+            aria-label={"Cantidad a mover de "+p.name}
+            disabled={!locationValid||transferPending}
+            value={transferAmount}
+            onChange={e=>{setTransferAmount(e.target.value);setTransferConfirm(false);setTransferRequest(null);}}
+            className="mt-1 w-full rounded-xl border border-border bg-input px-3 py-3 text-foreground"/>
+        </label>
+        {transferConfirm&&<p role="status" className="text-xs text-neon">
+          Confirmar traspaso de {transferAmount} {unit}: {transferFrom==="almacen"?"Almacén → Stock":"Stock → Almacén"}.
+          El total del club no cambia.
+        </p>}
+        <button type="button" disabled={!locationValid||transferPending||!transferAmount.trim()}
+          onClick={()=>void transferStock()}
+          className="w-full rounded-xl border border-neon/60 bg-neon/10 px-4 py-3 text-sm font-semibold text-neon disabled:opacity-40">
+          {transferPending?"Guardando…":transferConfirm?"Confirmar traspaso":"Traspasar"}
+        </button>
+      </div>
       <label className="block text-xs">
         Descripción manual
         <textarea
