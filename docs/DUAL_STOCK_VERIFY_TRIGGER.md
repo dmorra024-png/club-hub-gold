@@ -27,3 +27,5 @@ Member endorsement: new socio form asks avalador first/last names; per-club requ
 Avalador form comma corrected after first build syntax check; rerun full validation.
 
 Avalador v2: choose full name OR existing member number. Search only club members, show matched name; server resolves and persists linked member identity. SQL transaction smoke test rolled back.
+
+Avalador v3: named endorsers must be found among existing same-club members and explicitly selected/confirmed; rejected name-only payloads at server boundary; isolated transaction checks both rejection and linked-member accept.
