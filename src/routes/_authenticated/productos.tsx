@@ -23,6 +23,8 @@ import {
   Loader2,
   Sparkles,
   ImageIcon,
+  Warehouse,
+  Store,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { parseProductCommand } from "@/lib/products-voice.functions";
@@ -30,6 +32,7 @@ import { getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
 import { readCatalogImage } from "@/lib/catalog-image";
 import type { CatalogImage } from "@/lib/catalog-enrichment.server";
 import { enrichProduct } from "@/lib/products-enrich.functions";
+import { WarehouseManager } from "@/components/WarehouseManager";
 
 export const Route = createFileRoute("/_authenticated/productos")({
   component: ProductosPage,
@@ -555,6 +558,7 @@ function ProductosPage() {
       ) : tab === "stock" ? (
         <Stock
           cats={cats.filter((c) => !c.archived)}
+          clubId={access.clubId!}
           prods={prods.filter(
             (p) => p.active !== false && !cats.find((c) => c.id === p.category_id)?.archived,
           )}
@@ -619,6 +623,7 @@ function ProductosPage() {
 
 function Stock({
   cats,
+  clubId,
   prods,
   onChange,
   search,
@@ -627,6 +632,7 @@ function Stock({
   clearStockCommand,
 }: {
   cats: Category[];
+  clubId: string;
   prods: Product[];
   onChange: () => void;
   search: string;
@@ -933,6 +939,8 @@ function Stock({
           </div>
         </div>
       )}
+
+      <WarehouseManager products={prods} clubId={clubId} unitForProduct={(p) => cats.find(c => c.id===p.category_id)?.unit_type??"unit"} onChange={onChange} />
 
       {/* Stock corrections are adjustments, never deletions of audit history. */}
       <div className="rounded-xl border border-neon/30 bg-card/60 p-4 space-y-3">
@@ -1555,6 +1563,9 @@ function NuevoProducto({
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
   const [stock, setStock] = useState(0);
+  const [initialLocation, setInitialLocation] = useState<"almacen"|"dispensario">("dispensario");
+  const creationRequest = useRef<string | null>(null);
+  useEffect(() => {creationRequest.current=null;},[categoryId,name,stock,buy,sell,strain,initialLocation]);
   const [buy, setBuy] = useState(0);
   const [sell, setSell] = useState(0);
   const [strain, setStrain] = useState<Strain | "">("");
@@ -1632,8 +1643,11 @@ function NuevoProducto({
       return toast.error("No tienes un club asignado");
     }
     const productName = name.trim();
-    const { error } = await (supabase as any).rpc("save_administrative_product", {
-      p_id: null,
+    const requestId=creationRequest.current??crypto.randomUUID();
+    creationRequest.current=requestId;
+    const { error } = await (supabase as any).rpc("snoop_create_product_located", {
+      p_destination: initialLocation,
+      p_request_id: requestId,
       p_values: {
         category_id: categoryId,
         name: productName,
@@ -1647,9 +1661,11 @@ function NuevoProducto({
       setSaving(false);
       return toast.error(error.message);
     }
-    toast.success("Producto creado. Puedes solicitar una propuesta de IA desde la ficha.");
+    creationRequest.current=null;
+    toast.success(initialLocation==="almacen"?"Producto guardado en Almacén":"Producto disponible en Dispensario");
     setName("");
     setStock(0);
+    setInitialLocation("dispensario");
     setBuy(0);
     setSell(0);
     setStrain("");
@@ -1695,9 +1711,17 @@ function NuevoProducto({
         </div>
       </Field>
 
+      <div className="rounded-2xl border border-neon/25 bg-card/50 p-4 space-y-3">
+        <p className="text-sm font-display text-neon">¿Dónde quieres guardar el stock inicial?</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" aria-pressed={initialLocation==="almacen"} onClick={()=>setInitialLocation("almacen")} className={`rounded-xl border p-3 text-left transition ${initialLocation==="almacen"?"border-neon bg-neon/10":"border-border/70 hover:border-neon/50"}`}><Warehouse size={22} className="text-neon mb-2"/><b className="text-sm">Almacén</b><p className="text-[11px] text-muted-foreground mt-1">Reserva segura para reponer</p></button>
+          <button type="button" aria-pressed={initialLocation==="dispensario"} onClick={()=>setInitialLocation("dispensario")} className={`rounded-xl border p-3 text-left transition ${initialLocation==="dispensario"?"border-neon bg-neon/10":"border-border/70 hover:border-neon/50"}`}><Store size={22} className="text-neon mb-2"/><b className="text-sm">Dispensario</b><p className="text-[11px] text-muted-foreground mt-1">Disponible para dispensar</p></button>
+        </div>
+        <p className="text-xs text-muted-foreground">Puedes mover cantidades entre ambos más tarde, sin cambiar el total.</p>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <MoneyField
-          label={`Stock${cat ? ` (${cat.unit_type})` : ""}`}
+          label={`Cantidad inicial${cat ? ` (${cat.unit_type})` : ""}`}
           value={stock}
           onChange={setStock}
         />
