@@ -817,7 +817,7 @@ function NewSocio() {
               {avaladorResolved&&<p role="status" className="rounded-xl border border-neon/35 bg-neon/10 p-3 text-sm">
                 Socio avalador confirmado: <b>{avaladorResolved.first_name} {avaladorResolved.last_name}</b> · Nº {avaladorResolved.member_number}
               </p>}
-              {avaladorLookupError&&<p role="alert" className="text-xs text-destructive">{avaladorLookupError}</p>
+              {avaladorLookupError&&<p role="alert" className="text-xs text-destructive">{avaladorLookupError}</p>}
             </div>
           )}
         </section>
