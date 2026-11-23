@@ -5,11 +5,12 @@ import { madridToday } from "@/lib/member-administration";
 
 type CostLine = {
  id:string;name:string;opening_qty:number;incoming_qty:number;outgoing_qty:number;
- closing_qty:number;cost:number|null;unpriced:boolean;
+ closing_qty:number;cost:number|null;sale_price:number|null;product_cost_eur:number;expected_sale_eur:number;expected_profit_eur:number;unpriced:boolean;unpriced_sale:boolean;
 };
 type Report = {
  day:string;start_at:string;end_at:string;cost_basis:string;
  opening_eur:number;incoming_eur:number;outgoing_eur:number;closing_eur:number;
+ closing_sale_eur:number;closing_expected_profit_eur:number;missing_sale_price:number;
  missing_cost:number;invalid_quantities:number;lines:CostLine[];
 };
 const eur=(n:number)=>new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(n);
@@ -81,8 +82,14 @@ export function InventoryCostReport({clubId}:{clubId:string}){
    <div className="rounded-xl border border-neon/40 bg-neon/5 p-4">
     <p className="flex items-center gap-2 text-xs text-muted-foreground"><Warehouse size={16}/> Valor {day===madridToday()?"actual":"al final del día"}</p>
     <p className="mt-1 font-display text-3xl text-neon" data-testid="inventory-closing-eur">{eur(Number(report.closing_eur))}</p>
-    <p className="mt-1 text-xs text-muted-foreground">Inicio + entradas − salidas. Los traspasos entre Almacén y Dispensario no cambian este total.</p>
+    <p className="mt-1 text-xs text-muted-foreground">Valor al precio de compra. Los traspasos internos no cambian el total.</p>
+    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-neon/20 pt-3">
+     <div><p className="text-xs text-muted-foreground">Coste de productos</p><p className="font-display text-xl text-foreground" data-testid="inventory-product-cost">{eur(Number(report.closing_eur))}</p></div>
+     <div><p className="text-xs text-muted-foreground">Ganancia neta estimada del producto</p><p className="font-display text-xl text-neon" data-testid="inventory-expected-profit">{report.missing_cost||report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_expected_profit_eur))}</p></div>
+    </div>
+    <p className="mt-2 text-xs text-muted-foreground">Ganancia estimada = valor previsto de dispensación ({eur(Number(report.closing_sale_eur))}) − coste de productos. No descuenta alquiler, personal ni otros gastos del club.</p>
    </div>
+   {report.missing_sale_price>0&&<p role="alert" className="rounded-xl border border-amber-500/35 p-3 text-xs">Falta el precio de dispensación en {report.missing_sale_price} productos: la ganancia estimada no está disponible.</p>}
    {report.missing_cost>0&&<p role="alert" className="rounded-xl border border-amber-500/35 p-3 text-xs">
     Faltan precios de compra en {report.missing_cost} productos con movimientos o existencias. Los importes son parciales y podrían ser inferiores al valor real.
    </p>}
@@ -98,7 +105,8 @@ export function InventoryCostReport({clubId}:{clubId:string}){
      {report.lines.map(l=><div key={l.id} className="border-t border-border/40 pt-2 text-xs">
       <p className="font-semibold">{l.name}{l.unpriced?" · Sin precio de compra":""}</p>
       <p className="text-muted-foreground">Inicio {l.opening_qty} · +{l.incoming_qty} · −{l.outgoing_qty} · Final {l.closing_qty}</p>
-      <p className="text-muted-foreground">Precio de compra actual: {l.cost!=null?eur(Number(l.cost)):"—"} / unidad de categoría</p>
+      <p className="text-muted-foreground">Precio de compra: {l.cost!=null?eur(Number(l.cost)):"—"} / unidad · Precio de dispensación: {l.sale_price!=null?eur(Number(l.sale_price)):"—"} / unidad</p>
+      <p className="text-muted-foreground">Coste de productos: {eur(Number(l.product_cost_eur))} · Ganancia estimada: {l.unpriced||l.unpriced_sale?"—":eur(Number(l.expected_profit_eur))}</p>
      </div>)}
     </div>
    </details>
