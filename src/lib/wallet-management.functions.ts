@@ -142,15 +142,18 @@ export const walletCancel=createServerFn({method:"POST"})
 export const walletVoidTopup=createServerFn({method:"POST"})
  .middleware([requireClubCashAuth])
  .inputValidator((input:unknown)=>z.object({
-   topupId:uuid,cashSessionId:uuid,operationId:uuid,
+   topupId:uuid,operationId:uuid,
    reason:z.string().trim().min(5).max(2000),
    refundMethod:z.enum(["cash","card","transfer"]),confirmed:z.literal(true)
  }).strict().parse(input))
  .handler(async ({context,data})=>{
   if(!available())fail();
   await requireOperationalClub(context,"manage_members");
+  const {data:cashSessionId,error:cashError}=await (context.supabase as any).rpc("current_open_cash_session");
+  if(cashError||!uuid.safeParse(cashSessionId).success)
+   return {status:"rejected" as const,reason:"Abre tu propia caja antes de registrar la devolución."};
   const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_void_topup",{
-   p_topup_id:data.topupId,p_cash_session_id:data.cashSessionId,
+   p_topup_id:data.topupId,p_cash_session_id:cashSessionId,
    p_operation_id:data.operationId,p_reason:data.reason,
    p_refund_method:data.refundMethod,p_refund_confirmed:true
   });
