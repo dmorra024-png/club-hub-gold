@@ -1,3 +1,4 @@
+import { type ServerAudioHealthValue } from "./voice/audio-health.ts";
 import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
 import {
   voiceCashToday,
@@ -166,6 +167,16 @@ export async function deepgramAppSocket(
     audioRefill = Date.now();
   let providerReady = false,
     lastAudioAt = Date.now();
+  const audioHealth: ServerAudioHealthValue = {
+    type: "AppAudioHealth",
+    inputFrames: 0,
+    inputBytes: 0,
+    forwardedInputBytes: 0,
+    outputFrames: 0,
+    outputBytes: 0,
+    providerUserMessages: 0,
+    providerAssistantMessages: 0,
+  };
   let upstream: WebSocket | undefined,
     ended = false,
     handshakeStarted = false;
@@ -306,6 +317,10 @@ export async function deepgramAppSocket(
             lastInteraction = Date.now();
             try {
               server.send(event.data);
+              if (event.data instanceof ArrayBuffer) {
+                audioHealth.outputFrames++;
+                audioHealth.outputBytes += event.data.byteLength;
+              }
             } catch {}
             return;
           }
@@ -549,6 +564,8 @@ export async function deepgramAppSocket(
               send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length });
             } else if (m.type === "ConversationText" && ["user", "assistant"].includes(m.role)) {
               lastInteraction = Date.now();
+              if (m.role === "user") audioHealth.providerUserMessages++;
+              else audioHealth.providerAssistantMessages++;
               if (m.role === "user") {
                 if (!newTurn) {
                   turn++;
@@ -602,6 +619,7 @@ export async function deepgramAppSocket(
               return close("MONTH_ROLLOVER");
             }
             if (!usage?.valid()) return close("VOICE_LEASE_EXPIRED");
+            if (providerReady) send({ ...audioHealth });
             if (Date.parse(usage.leaseUntil) - Date.now() < 8000)
               send({ type: "AppUsage", usage: await usage.extend() });
             if (!speech && Date.now() - lastInteraction > 45000) {
@@ -694,7 +712,10 @@ export async function deepgramAppSocket(
       if (audioCredits < 0) return close("AUDIO_RATE_LIMIT");
       if (upstream.readyState !== 1) return close("PROVIDER_CLOSED");
       lastAudioAt = Date.now();
+      audioHealth.inputFrames++;
+      audioHealth.inputBytes += e.data.byteLength;
       upstream.send(e.data);
+      audioHealth.forwardedInputBytes += e.data.byteLength;
     } catch (error) {
       close(
         error instanceof Error && SAFE_FAILURES.has(error.message)

@@ -1,3 +1,8 @@
+import {
+  CaptureHealth,
+  ServerAudioHealth,
+  type ServerAudioHealthValue,
+} from "@/lib/voice/audio-health";
 import { PcmPlayback } from "@/lib/voice/pcm-playback";
 import { VoiceTransport } from "@/lib/voice/transport";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,6 +30,9 @@ type AudioState = {
   sink: GainNode;
   speaker: PcmPlayback;
   ready: boolean;
+  captureHealth: CaptureHealth;
+  serverHealth: ServerAudioHealthValue | null;
+  healthTimer?: ReturnType<typeof setInterval>;
 };
 
 export function DeepgramPilotVoice({
@@ -51,9 +59,12 @@ export function DeepgramPilotVoice({
   } | null>(null);
   const catalog = useServerFn(deepgramPilotCatalog);
   const audio = useRef<AudioState | null>(null);
+  const activatingContext = useRef<AudioContext | null>(null);
   const generation = useRef(0);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const expandedRef = useRef(false);
+  expandedRef.current = expanded;
   const [running, setRunning] = useState(false);
   const [audioSuspended, setAudioSuspended] = useState(false);
   const [audioDiagnostic, setAudioDiagnostic] = useState<
@@ -61,6 +72,8 @@ export function DeepgramPilotVoice({
         microphoneLive: boolean;
         providerReady: boolean;
         connection: ReturnType<VoiceTransport["diagnostics"]>;
+        input: ReturnType<CaptureHealth["snapshot"]>;
+        server: ServerAudioHealthValue | null;
       })
     | null
   >(null);
@@ -93,9 +106,15 @@ export function DeepgramPilotVoice({
       setProposal(null);
       setCitations(null);
       const state = audio.current;
+      const pending = activatingContext.current;
+      activatingContext.current = null;
+      if (pending && pending !== state?.ctx) void pending.close().catch(() => {});
       audio.current = null;
       if (state) {
         resumeRef.current = preserveContext ? state.transport.checkpoint : undefined;
+        clearInterval(state.healthTimer);
+        state.node.port.onmessage = null;
+        state.node.onprocessorerror = null;
         state.transport.stop();
         state.speaker.dispose();
         try {
@@ -108,7 +127,7 @@ export function DeepgramPilotVoice({
           state.sink.disconnect();
         } catch {}
         state.stream.getTracks().forEach((track) => track.stop());
-        void state.ctx.close();
+        void state.ctx.close().catch(() => {});
       }
       setStatus(reason);
       setRunning(false);
@@ -157,7 +176,15 @@ export function DeepgramPilotVoice({
     try {
       // Audio activation stays in the click event for mobile Safari.
       ctx = new AudioContext({ sampleRate: 48000 });
-      await ctx.resume();
+      activatingContext.current = ctx;
+      // Both activation requests belong to this gesture. Waiting for resume can
+      // deadlock Safari before the microphone permission that unlocks its audio session.
+      void ctx.resume().catch(() => {
+        if (generation.current === current) {
+          setAudioSuspended(true);
+          setStatus("Audio bloccato dal dispositivo. Tocca Riattiva audio.");
+        }
+      });
       ctx.onstatechange = () => {
         if (audio.current?.ctx !== ctx) return;
         const paused = ctx?.state === "suspended" || (ctx?.state as string) === "interrupted";
@@ -166,12 +193,17 @@ export function DeepgramPilotVoice({
         if (paused) setStatus("Audio sospeso dal dispositivo. Tocca Riattiva audio.");
       };
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
         video: false,
       });
       if (generation.current !== current) {
         stream.getTracks().forEach((track) => track.stop());
-        void ctx.close();
+        void ctx.close().catch(() => {});
         return;
       }
       setStatus("Verificando sessione SNOOP…");
@@ -179,14 +211,14 @@ export function DeepgramPilotVoice({
       const names = await catalog({ data: { consent: true } });
       if (generation.current !== current) {
         stream.getTracks().forEach((t) => t.stop());
-        void ctx.close();
+        void ctx.close().catch(() => {});
         return;
       }
       setVerifiedCount(names.categories.length);
       const { data: auth } = await supabase.auth.getSession();
       if (generation.current !== current) {
         stream.getTracks().forEach((t) => t.stop());
-        void ctx.close();
+        void ctx.close().catch(() => {});
         return;
       }
       if (!auth.session?.access_token) throw Error("Sessione scaduta");
@@ -202,7 +234,7 @@ export function DeepgramPilotVoice({
       }
       if (generation.current !== current) {
         stream.getTracks().forEach((track) => track.stop());
-        void ctx.close();
+        void ctx.close().catch(() => {});
         return;
       }
       const source = ctx.createMediaStreamSource(stream);
@@ -244,8 +276,11 @@ export function DeepgramPilotVoice({
             );
         }),
         ready: false,
+        captureHealth: new CaptureHealth(),
+        serverHealth: null,
       };
       audio.current = state;
+      if (activatingContext.current === ctx) activatingContext.current = null;
       state.speaker.contextChanged();
       stream.getTracks().forEach((track) =>
         track.addEventListener("ended", () => {
@@ -260,6 +295,7 @@ export function DeepgramPilotVoice({
         stream.getAudioTracks()[0]?.getSettings?.().echoCancellation === true;
       node.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
         if (generation.current !== current || audio.current !== state) return;
+        if (!state.captureHealth.record(event.data)) return;
         // Native acoustic echo cancellation permits provider-side spoken interruption.
         // On devices that do not confirm AEC support, retain the safe manual fallback.
         if (!supportsEchoCancellation && state.ctx.currentTime < state.speaker.playUntil + 0.12)
@@ -270,7 +306,10 @@ export function DeepgramPilotVoice({
       const receive = async (message: any) => {
         if (generation.current !== current) return;
         try {
-          if (message.type === "AppUsage") {
+          if (message.type === "AppAudioHealth") {
+            const parsed = ServerAudioHealth.safeParse(message);
+            if (parsed.success) state.serverHealth = parsed.data;
+          } else if (message.type === "AppUsage") {
             const u = message.usage;
             if (Number.isFinite(u?.remainingSeconds) && u.remainingSeconds >= 0)
               setUsage({
@@ -389,6 +428,15 @@ export function DeepgramPilotVoice({
                       : "Bozza compilata. Conferma con il pulsante del modulo: niente salvato.",
               );
             } catch (error) {
+              const reason = error instanceof Error ? error.message : "";
+              const reference =
+                reason === "SNOOP_MEMBERSHIP_FEE_NOT_FOUND"
+                  ? "REFERENCE_NOT_FOUND"
+                  : reason === "SNOOP_MEMBERSHIP_FEE_AMBIGUOUS"
+                    ? "AMBIGUOUS_REFERENCE"
+                    : reason === "SNOOP_MEMBER_FIELD_DISABLED"
+                      ? "FIELD_DISABLED"
+                      : "FORM_UNAVAILABLE";
               if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
@@ -396,12 +444,19 @@ export function DeepgramPilotVoice({
                   status: "rejected",
                   applied: [],
                   skipped: [],
-                  code: "FORM_UNAVAILABLE",
+                  code: reference,
                 });
               setStatus(
-                error instanceof Error && error.message === "SNOOP_FORM_UNAVAILABLE_MEMBER_CARD"
-                  ? "Apri la scheda del socio prima di modificarla. Nessun dato salvato."
-                  : "Impossibile preparare il modulo. Nessun dato salvato.",
+                reference === "REFERENCE_NOT_FOUND"
+                  ? "Quota non trovata nel club. Indica il nome di una quota esistente. Nessun campo modificato."
+                  : reference === "AMBIGUOUS_REFERENCE"
+                    ? "Più quote hanno questo nome. Seleziona quella corretta nel modulo. Nessun campo modificato."
+                    : reference === "FIELD_DISABLED"
+                      ? "Il club ha disabilitato uno dei campi richiesti. Nessun campo modificato."
+                      : error instanceof Error &&
+                          error.message === "SNOOP_FORM_UNAVAILABLE_MEMBER_CARD"
+                        ? "Apri la scheda del socio prima di modificarla. Nessun dato salvato."
+                        : "Impossibile preparare il modulo. Nessun dato salvato.",
               );
             } finally {
               applying.current = false;
@@ -483,11 +538,45 @@ export function DeepgramPilotVoice({
         fatal: (code) => stop("SNOOP: " + code),
       });
       state.transport = transport;
+      let previousFault: string | null = null;
+      const diagnostic = () => ({
+        ...state.speaker.snapshot(),
+        microphoneLive: state.stream.getAudioTracks().some((t) => t.readyState === "live"),
+        providerReady: state.ready,
+        input: state.captureHealth.snapshot(),
+        server: state.serverHealth,
+        connection: state.transport.diagnostics(),
+      });
+      state.node.onprocessorerror = () => state.captureHealth.processorFailed();
+      state.healthTimer = setInterval(() => {
+        if (audio.current !== state || document.hidden) return;
+        const fault = state.captureHealth.fault(
+          state.ctx.state === "running",
+          state.stream.getAudioTracks().some((t) => t.muted),
+        );
+        if (fault && fault !== previousFault) {
+          setStatus(
+            {
+              AUDIO_CONTEXT_BLOCKED: "Audio bloccato dal dispositivo. Tocca Riattiva audio.",
+              AUDIO_PROCESSOR_ERROR: "Acquisizione audio interrotta: il processore non risponde.",
+              MICROPHONE_MUTED: "Il sistema ha silenziato il microfono. Controlla il dispositivo.",
+              CAPTURE_NO_FRAMES: "Microfono aperto ma senza campioni audio. Riavvia il microfono.",
+            }[fault],
+          );
+        } else if (!fault && previousFault)
+          setStatus(
+            state.speaker.snapshot().scheduledNodes ? "SNOOP sta parlando" : "SNOOP ti ascolta",
+          );
+        previousFault = fault;
+        if (accessRef.current.role === "admin" && expandedRef.current)
+          setAudioDiagnostic(diagnostic());
+      }, 1000);
       await transport.start();
     } catch (error) {
       if (!audio.current) {
+        if (activatingContext.current === ctx) activatingContext.current = null;
         stream?.getTracks().forEach((track) => track.stop());
-        void ctx?.close();
+        void ctx?.close().catch(() => {});
         transport?.stop();
       }
       if (generation.current === current)
@@ -652,6 +741,8 @@ export function DeepgramPilotVoice({
                         .some((track) => track.readyState === "live"),
                       providerReady: state.ready,
                       connection: state.transport.diagnostics(),
+                      input: state.captureHealth.snapshot(),
+                      server: state.serverHealth,
                     }
                   : null,
               );

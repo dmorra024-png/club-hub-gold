@@ -1,0 +1,38 @@
+[
+  {
+    "engine": "chromium",
+    "syntheticMediaStream": true,
+    "physicalMicrophone": false,
+    "liveDeepgram": false,
+    "sampleRate": 48000,
+    "frames": 33,
+    "bytes": 135168,
+    "nonzero": 66502,
+    "energy": 2080.4357285164297,
+    "samples": 67584,
+    "crossings": 611,
+    "processorErrors": 0,
+    "state": "running",
+    "rms": 0.17545074056724824,
+    "crossingHz": 433.9488636363636,
+    "hz": 440
+  },
+  {
+    "engine": "webkit",
+    "syntheticMediaStream": true,
+    "physicalMicrophone": false,
+    "liveDeepgram": false,
+    "sampleRate": 48000,
+    "frames": 32,
+    "bytes": 131072,
+    "nonzero": 65042,
+    "energy": 2031.4203076520935,
+    "samples": 65536,
+    "crossings": 613,
+    "processorErrors": 0,
+    "state": "running",
+    "rms": 0.17605968866194824,
+    "crossingHz": 448.974609375,
+    "hz": 440
+  }
+]

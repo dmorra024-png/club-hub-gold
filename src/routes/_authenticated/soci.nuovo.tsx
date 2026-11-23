@@ -1,3 +1,4 @@
+import { memberCreationKeys, memberCreationPatch } from "@/lib/voice/member-creation-fields";
 import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import {
   memberConversation,
@@ -111,6 +112,7 @@ function NewSocio() {
   // Voice
   const [lastHeard, setLastHeard] = useState(""),
     [voiceSummary, setVoiceSummary] = useState("");
+  const fieldConfigReady = useRef(false);
   const voiceMounted = useRef(true),
     plansReady = useRef(false);
   const formRef = useRef(form);
@@ -243,11 +245,13 @@ function NewSocio() {
       const { getCurrentClubId } = await import("@/lib/club");
       const clubId = await getCurrentClubId();
       if (!clubId) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("club_member_field_config")
         .select("field_key, visible, required")
         .eq("club_id", clubId);
+      if (!voiceMounted.current) return;
       setFieldCfg(mergeFieldConfig((data as any) ?? []));
+      fieldConfigReady.current = !error;
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
@@ -530,22 +534,16 @@ function NewSocio() {
   }
 
   useVoiceToolPort("member.form", {
-    snapshot: () =>
-      Object.fromEntries(
-        ["first_name", "last_name", "birth_date", "city", "phone", "email"].map((k) => [
-          k,
-          (form as any)[k],
-        ]),
-      ),
-    patch: (patch) =>
-      setForm((previous) => ({
-        ...previous,
-        ...Object.fromEntries(
-          Object.entries(patch).filter(([k]) =>
-            ["first_name", "last_name", "birth_date", "city", "phone", "email"].includes(k),
-          ),
-        ),
-      })),
+    ready: () => plansReady.current && fieldConfigReady.current,
+    snapshot: () => Object.fromEntries(memberCreationKeys.map(key => [key,
+      key === "plan_name" ? plansRef.current.find(plan => plan.id === formRef.current.plan_id)?.name ?? "" : formRef.current[key],
+    ])),
+    patch: (patch) => {
+      // Validate and resolve the whole patch before changing any field.
+      const visible = memberCreationKeys.filter(key => key === "first_name" || key === "last_name" || fieldCfg[key === "plan_name" ? "plan" : key].visible);
+      const values = memberCreationPatch(patch, plansRef.current, visible);
+      setForm(previous => ({...previous, ...values}));
+    },
   });
   return (
     <SnoopLayout title="Nuevo socio" subtitle="Dicta los datos o rellénalos a mano">

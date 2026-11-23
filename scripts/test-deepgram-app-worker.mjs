@@ -81,7 +81,7 @@ if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.st
    if([3,4].includes(new Uint8Array(e.data)[0])){const period=new Uint8Array(e.data)[0]===3;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'read-'+count,name:period?'snoop_cash_period':'snoop_genetics_information',client_side:true,arguments:JSON.stringify(period?{from:'2026-10-24',to:'2026-10-25'}:{name:'Amnesia Haze'})}]}));return;}
    if(new Uint8Array(e.data)[0]===2){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-'+count,name:'snoop_catalog_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Flores Especial'})}]}));return;}
    if(new Uint8Array(e.data)[0]===1){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cash-'+count,name:'snoop_cash_day',client_side:true,arguments:JSON.stringify({day:'2026-10-25'})}]}));return;}
-   p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:'Synthetic administrative draft'}));${noThinking ? '' : "p[1].send(JSON.stringify({type:'AgentThinking'}));"}p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null})}]}));
+   p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:'Synthetic administrative draft'}));${noThinking ? "" : "p[1].send(JSON.stringify({type:'AgentThinking'}));"}p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null})}]}));
   }});return new Response(null,{status:101,webSocket:p[0]});
  }
  forbiddenCalls++;return new Response('unexpected network request',{status:403});
@@ -227,8 +227,8 @@ try {
   assert(concurrent.events.some((e) => e.code === "SESSION_LIMIT"));
   concurrent.ws.close();
   assert.equal((await stats()).providerCalls, 1);
-  for (let turn = 0; turn < (conversationTurns - 1); turn++) {
-    await new Promise((r) => setTimeout(r, (closeRetryOnly || noThinking) ? 20 : 14000));
+  for (let turn = 0; turn < conversationTurns - 1; turn++) {
+    await new Promise((r) => setTimeout(r, closeRetryOnly || noThinking ? 20 : 14000));
     assert(
       !s.events.some((e) => e.type === "AppClosed"),
       "continuous conversation must survive beyond 90 seconds",
@@ -279,10 +279,37 @@ try {
   const botanicalAudio = new Uint8Array(4800);
   botanicalAudio[0] = 4;
   s.ws.send(botanicalAudio.buffer);
-  await until(() => s.events.filter((e) => e.type === "Audio").length >= (conversationTurns + 4));
+  await until(() => s.events.filter((e) => e.type === "Audio").length >= conversationTurns + 4);
   assert(
     (await stats()).tools > beforeBotanical,
     "provider must receive the actual sourced botanical result",
+  );
+  await until(
+    () =>
+      s.events.some((e) => e.type === "AppAudioHealth" && e.inputBytes > 0 && e.outputBytes > 0),
+    5000,
+  );
+  const health = s.events.find(
+    (e) => e.type === "AppAudioHealth" && e.inputBytes > 0 && e.outputBytes > 0,
+  );
+  assert.equal(
+    health.inputBytes,
+    health.forwardedInputBytes,
+    "Authenticated input reached the provider socket",
+  );
+  assert.equal(health.inputBytes % 4800, 0);
+  assert.deepEqual(
+    Object.keys(health).sort(),
+    [
+      "type",
+      "inputFrames",
+      "inputBytes",
+      "forwardedInputBytes",
+      "outputFrames",
+      "outputBytes",
+      "providerUserMessages",
+      "providerAssistantMessages",
+    ].sort(),
   );
   s.ws.send("STOP");
   await until(() => s.events.some((e) => e.code === "STOPPED"));
@@ -303,7 +330,11 @@ try {
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
   console.log(
     (compiled ? "PASS compiled application Worker: " : "PASS isolated Workerd gateway: ") +
-      (noThinking ? " twenty consecutive turns without optional AgentThinking" : closeRetryOnly ? " two synthetic turns" : " eight turns beyond 90s") +
+      (noThinking
+        ? " twenty consecutive turns without optional AgentThinking"
+        : closeRetryOnly
+          ? " two synthetic turns"
+          : " eight turns beyond 90s") +
       ", explicit day/period cash reads and sourced botanical information, on-demand catalog lookup beyond initial snapshot, authenticated audio, one active session, failed close retried once with frozen duration, no business writes or secret exposure (provider simulated)",
   );
 } finally {

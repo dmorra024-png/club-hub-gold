@@ -3,6 +3,13 @@ import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
+const pendingResume = process.argv.includes("--pending-resume");
+const startupOnly = process.argv.includes("--startup-only");
+const nativeAudio = process.argv.includes("--native-audio");
+assert(
+  !nativeAudio || (startupOnly && !pendingResume),
+  "Native audio uses the isolated startup scenario",
+);
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3074";
 assert(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
@@ -33,7 +40,10 @@ const statusId = await serverFunctionId("deepgramPilotStatus", "deepgram-pilot.f
   historyId = await serverFunctionId("getMemberOrderHistory", "member-order-history.functions-"),
   collaboratorListId = await serverFunctionId("listCollaborators", "platform.functions-"),
   walletStatusId = await serverFunctionId("walletMemberStatus", "wallet-management.functions-");
-const accessSettingsId = await serverFunctionId("getClubAccessControl", "club-access-control.functions-"),
+const accessSettingsId = await serverFunctionId(
+    "getClubAccessControl",
+    "club-access-control.functions-",
+  ),
   mermaSettingsId = await serverFunctionId("getClubMermaSettings", "club-merma.functions-");
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
@@ -71,7 +81,7 @@ const browserResults = [];
 for (const [label, engine, device] of [
   ["samsung", chromium, devices["Galaxy S9+"]],
   ["iphone-webkit", webkit, devices["iPhone 13"]],
-  ["desktop-chromium", chromium, {viewport:{width:1440,height:1000}}],
+  ["desktop-chromium", chromium, { viewport: { width: 1440, height: 1000 } }],
   ["tablet-webkit", webkit, devices["iPad Pro 11"]],
 ].filter(([label]) => !process.argv.includes("--desktop") || label === "desktop-chromium")) {
   const browser = await engine.launch({
@@ -97,12 +107,14 @@ for (const [label, engine, device] of [
       actionReceipts = [],
       stops = 0;
     const unexpected = [];
+    let capturedInputBytes = 0,
+      capturedInputSignal = false;
     let firstReady;
     const readyFirst = new Promise((resolve) => {
       firstReady = resolve;
     });
     await context.addInitScript(
-      ({ auth, key }) => {
+      ({ auth, key, pendingResume, nativeAudio }) => {
         localStorage.setItem(key, JSON.stringify(auth));
         window.__audio = {
           started: 0,
@@ -110,11 +122,80 @@ for (const [label, engine, device] of [
           played: 0,
           interrupted: 0,
           worklet: null,
-          suspendDuringStart: true,
+          suspendDuringStart: !pendingResume,
+          pendingResume,
           nonzero: 0,
         };
+        if (nativeAudio) {
+          const NativeAudioContext = window.AudioContext;
+          window.AudioContext = class extends NativeAudioContext {
+            constructor(options) {
+              super(options);
+              window.__audio.context = this;
+            }
+            createBufferSource() {
+              const source = super.createBufferSource();
+              const connect = source.connect.bind(source),
+                start = source.start.bind(source);
+              source.connect = (target, ...args) => {
+                if (target === this.destination) {
+                  const tap = this.createAnalyser();
+                  tap.fftSize = 256;
+                  connect(tap);
+                  tap.connect(target);
+                  const samples = new Float32Array(tap.fftSize);
+                  const timer = setInterval(() => {
+                    tap.getFloatTimeDomainData(samples);
+                    const rms = Math.sqrt(
+                      samples.reduce((sum, x) => sum + x * x, 0) / samples.length,
+                    );
+                    window.__audio.outputRms = Math.max(window.__audio.outputRms || 0, rms);
+                  }, 5);
+                  source.addEventListener("ended", () => clearInterval(timer), { once: true });
+                  return target;
+                }
+                return connect(target, ...args);
+              };
+              source.start = (...args) => {
+                window.__audio.played++;
+                return start(...args);
+              };
+              return source;
+            }
+          };
+          Object.defineProperty(navigator, "mediaDevices", {
+            configurable: true,
+            value: {
+              async getUserMedia() {
+                window.__audio.started++;
+                const ctx = window.__audio.context,
+                  osc = ctx.createOscillator(),
+                  gain = ctx.createGain(),
+                  media = ctx.createMediaStreamDestination();
+                osc.frequency.value = 440;
+                gain.gain.value = 0.2;
+                osc.connect(gain);
+                gain.connect(media);
+                osc.start();
+                window.__audio.stream = media.stream;
+                const track = media.stream.getAudioTracks()[0],
+                  stop = track.stop.bind(track);
+                track.stop = () => {
+                  window.__audio.stopped++;
+                  osc.stop();
+                  stop();
+                };
+                return media.stream;
+              },
+            },
+          });
+          return; // Keep the browser's actual AudioWorklet and Web Audio implementation.
+        }
         const track = {
+          readyState: "live",
+          muted: false,
           stop() {
+            this.readyState = "ended";
             window.__audio.stopped++;
           },
           addEventListener() {},
@@ -126,7 +207,9 @@ for (const [label, engine, device] of [
           configurable: true,
           value: {
             async getUserMedia() {
+              track.readyState = "live";
               window.__audio.started++;
+              window.__audio.unlockResume?.();
               if (window.__audio.hold)
                 await new Promise((r) => {
                   window.__audio.release = r;
@@ -146,13 +229,17 @@ for (const [label, engine, device] of [
         window.AudioContext = class {
           constructor() {
             window.__audio.context = this;
-            this.state = "running";
+            this.state = pendingResume ? "suspended" : "running";
             this.sampleRate = 48000;
             this.currentTime = 1;
             this.destination = new Node();
             this.audioWorklet = { addModule: async () => {} };
           }
           async resume() {
+            if (window.__audio.pendingResume && window.__audio.started === 0)
+              await new Promise((resolve) => {
+                window.__audio.unlockResume = resolve;
+              });
             this.state = "running";
             this.onstatechange?.();
           }
@@ -185,10 +272,17 @@ for (const [label, engine, device] of [
             super();
             this.port = { onmessage: null };
             window.__audio.worklet = this;
+            this.timer = setInterval(() => {
+              if (window.__audio.context.state === "running")
+                this.port.onmessage?.({ data: new ArrayBuffer(4096) });
+            }, 43);
+          }
+          disconnect() {
+            clearInterval(this.timer);
           }
         };
       },
-      { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token` },
+      { auth, key: `sb-${api.hostname.split(".")[0]}-auth-token`, pendingResume, nativeAudio },
     );
     await context.route("**/*", async (route) => {
       const req = route.request(),
@@ -246,6 +340,29 @@ for (const [label, engine, device] of [
             clubName: "Club sintético",
             permissions: ["manage_members", "manage_products", "use_cash", "view_reports"],
           };
+        if (u.pathname.endsWith("/club_member_field_config")) {
+          assert.equal(u.searchParams.get("club_id"), "eq." + club);
+          data = [
+            { field_key: "address", visible: true, required: false },
+            { field_key: "postal_code", visible: true, required: false },
+          ];
+        }
+        if (u.pathname.endsWith("/membership_plans")) {
+          // Registration adds an explicit club filter. Existing member-card and
+          // fee-settings queries select * under the authenticated RLS session.
+          if (u.searchParams.get("select") === "id,name,duration_days,price_cents")
+            assert.equal(u.searchParams.get("club_id"), "eq." + club);
+          else assert.equal(u.searchParams.get("select"), "*");
+          assert.equal(req.headers().authorization, "Bearer " + auth.access_token);
+          data = [
+            {
+              id: "60000000-0000-4000-8000-000000000001",
+              name: "Semestral sintética",
+              duration_days: 180,
+              price_cents: 3000,
+            },
+          ];
+        }
         if (u.pathname.endsWith("/member_discounts"))
           data = [
             {
@@ -310,8 +427,10 @@ for (const [label, engine, device] of [
         });
       if (u.pathname.includes(historyId))
         return json({ result: { orders: [], ownOnly: false, hasMore: false }, context: {} });
-      if (u.pathname.includes(accessSettingsId)) return json({ result: { enabled: false }, context: {} });
-      if (u.pathname.includes(mermaSettingsId)) return json({ result: { maxMermaPerGram: 0.1 }, context: {} });
+      if (u.pathname.includes(accessSettingsId))
+        return json({ result: { enabled: false }, context: {} });
+      if (u.pathname.includes(mermaSettingsId))
+        return json({ result: { maxMermaPerGram: 0.1 }, context: {} });
       if (u.pathname.includes("_serverFn")) {
         unexpected.push(u.pathname);
         return json({ result: { available: false }, context: {} });
@@ -327,7 +446,16 @@ for (const [label, engine, device] of [
           stops++;
           return;
         }
-        if (typeof message !== "string") return;
+        if (typeof message !== "string") {
+          capturedInputBytes += message.byteLength;
+          const pcm = Buffer.from(message);
+          for (let i = 0; i + 1 < pcm.length; i += 2)
+            if (Math.abs(pcm.readInt16LE(i)) > 16) {
+              capturedInputSignal = true;
+              break;
+            }
+          return;
+        }
         const m = JSON.parse(message);
         if (m.type === "AppActionResult") {
           assert.equal(typeof m.id, "string");
@@ -363,14 +491,22 @@ for (const [label, engine, device] of [
     if (label === "desktop-chromium") {
       await voiceEntry.waitFor();
       const box = await voiceEntry.boundingBox();
-      assert(box && box.x >= 0 && box.x + box.width <= 248, "Desktop voice control stays in the existing rail, outside forms");
+      assert(
+        box && box.x >= 0 && box.x + box.width <= 248,
+        "Desktop voice control stays in the existing rail, outside forms",
+      );
     }
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "No horizontal overflow");
+    assert(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      "No horizontal overflow",
+    );
     await voiceEntry.click();
     const panel = page.getByRole("dialog", { name: "SNOOP JARVIS 3" });
     await panel.waitFor();
     await panel.getByRole("checkbox").check();
     await panel.getByRole("button", { name: "Avvia JARVIS", exact: true }).click();
+    if (pendingResume)
+      await page.waitForFunction(() => window.__audio.started === 1, {}, { timeout: 4000 });
     let readyDeadline;
     try {
       await Promise.race([
@@ -384,6 +520,61 @@ for (const [label, engine, device] of [
       ]);
     } finally {
       clearTimeout(readyDeadline);
+    }
+    if (startupOnly) {
+      assert.equal(await page.evaluate(() => window.__audio.started), 1);
+      for (let n = 0; n < 40 && !capturedInputBytes; n++) await page.waitForTimeout(25);
+      assert(
+        capturedInputBytes > 0,
+        "Microphone PCM must reach the socket before a reply is accepted",
+      );
+      peer.send(JSON.stringify({ type: "AgentStartedSpeaking" }));
+      const tone = Buffer.alloc(24000);
+      for (let i = 0; i < tone.length; i += 2)
+        tone.writeInt16LE(Math.round(8192 * Math.sin((2 * Math.PI * 440 * i) / 2 / 24000)), i);
+      peer.send(tone);
+      await page.waitForFunction(
+        nativeAudio ? () => window.__audio.outputRms > 0.05 : () => window.__audio.nonzero > 0,
+      );
+      await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
+      assert.equal(sockets, 1);
+      assert.equal(writes, 0);
+      if (nativeAudio)
+        await page.waitForFunction(
+          () =>
+            window.__audio.stream.getTracks().every((track) => track.readyState === "ended") &&
+            window.__audio.context.state === "closed",
+        );
+      else assert.equal(await page.evaluate(() => window.__audio.stopped), 1);
+      console.log(
+        "PASS " +
+          label +
+          (nativeAudio
+            ? ": actual capture PCM reaches WebSocket and returned PCM produces a measured output signal (synthetic stream/provider, no physical microphone or speaker)"
+            : ": pending audio activation never blocks microphone consent; output and stop recover (simulated device/provider)"),
+      );
+      if (nativeAudio)
+        assert(
+          capturedInputSignal,
+          "Actual capture PCM must contain the synthetic microphone signal, not just silent buffers",
+        );
+      browserResults.push({
+        browser: label,
+        scenario: nativeAudio ? "native-duplex" : "pending-resume",
+        syntheticAuth: true,
+        syntheticProvider: true,
+        syntheticMediaStream: nativeAudio,
+        physicalMicrophone: false,
+        physicalSpeaker: false,
+        liveDeepgram: false,
+        inputBytes: capturedInputBytes,
+        inputSignal: capturedInputSignal,
+        outputRms: nativeAudio ? await page.evaluate(() => window.__audio.outputRms) : null,
+        automaticWrites: writes,
+        result: "PASS",
+      });
+      await context.close();
+      continue;
     }
     // The context was interrupted during getUserMedia, before audio.current existed.
     // Old code misses that event and never offers recovery despite a ready socket.
@@ -431,16 +622,26 @@ for (const [label, engine, device] of [
     await panel.getByRole("button", { name: "Riattiva audio", exact: true }).click();
     await page.waitForFunction(() => window.__audio.context.state === "running");
     const send = async (p, extra = {}) => {
+      const actionId = "action-" + crypto.randomUUID();
       peer.send(JSON.stringify({ type: "UserStartedSpeaking" }));
       peer.send(JSON.stringify({ type: "AgentThinking" }));
       peer.send(
         JSON.stringify({
           type: "AppProposal",
-          id: "action-" + crypto.randomUUID(),
+          id: actionId,
           result: { ok: true, proposal: p },
           ...extra,
         }),
       );
+      if (p.intent === "stop") return;
+      // The real provider waits for FunctionCallResponse. Do not inject a second
+      // command while the preceding application action is still being acknowledged.
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const result = actionReceipts.find((receipt) => receipt.id === actionId);
+        if (result) return result;
+        await page.waitForTimeout(20);
+      }
+      throw Error("Application did not acknowledge synthetic action " + p.intent);
     };
     await send(
       proposal("member", "member_create", {
@@ -457,12 +658,52 @@ for (const [label, engine, device] of [
       await page.getByLabel("Fecha de nacimiento *", { exact: true }).inputValue(),
       "1995-03-12",
     );
-    await send(proposal("member", "member_create", { member: { email: "synthetic.member@example.test" } }));
+    await send(
+      proposal("member", "member_create", { member: { email: "synthetic.member@example.test" } }),
+    );
     await page.getByLabel("Email", { exact: true }).waitFor();
-    await page.waitForFunction(() => [...document.querySelectorAll("input")].some(i => i.value === "synthetic.member@example.test"));
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some(
+        (i) => i.value === "synthetic.member@example.test",
+      ),
+    );
     await page.getByLabel("Email", { exact: true }).fill("manual@example.test");
     await send(proposal("member", "member_create", { member: { email: "other@example.test" } }));
-    assert.equal(await page.getByLabel("Email", { exact: true }).inputValue(), "manual@example.test");
+    assert.equal(
+      await page.getByLabel("Email", { exact: true }).inputValue(),
+      "manual@example.test",
+    );
+    await send(
+      proposal("member", "member_create", {
+        member: {
+          address: "Calle Sintética 12",
+          postal_code: "07001",
+          plan_name: "Semestral sintética",
+        },
+      }),
+    );
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("input")].some((i) => i.value === "Calle Sintética 12"),
+    );
+    assert.equal(await page.getByLabel("Código postal", { exact: true }).inputValue(), "07001");
+    assert.equal(
+      await page.getByRole("button", { name: /Semestral sintética/ }).getAttribute("aria-pressed"),
+      "true",
+    );
+    const invalidFee = await send(
+      proposal("member", "member_create", {
+        member: { city: "No aplicar", plan_name: "Cuota inexistente" },
+      }),
+    );
+    assert.equal(invalidFee.status, "rejected");
+    assert.equal(invalidFee.code, "REFERENCE_NOT_FOUND");
+    assert.equal(await page.getByLabel("Ciudad *", { exact: true }).inputValue(), "Palma");
+    await page.getByLabel("Dirección", { exact: true }).fill("Dirección manual");
+    await send(proposal("member", "member_create", { member: { address: "Dirección tardía" } }));
+    assert.equal(
+      await page.getByLabel("Dirección", { exact: true }).inputValue(),
+      "Dirección manual",
+    );
     await page.getByLabel("Apellidos *", { exact: true }).fill("Manual");
     await send(
       proposal("member", "member_create", { member: { last_name: "Modelo", city: "Inca" } }),
@@ -478,7 +719,7 @@ for (const [label, engine, device] of [
       animations: "disabled",
     });
 
-    await send(proposal("search", "members", {query:"Marco Rossi"}));
+    await send(proposal("search", "members", { query: "Marco Rossi" }));
     await page.getByRole("heading", { name: "Marco Rossi", exact: true }).waitFor();
     await send(proposal("member_edit", null, { member: { last_name: "Bianchi", city: "Inca" } }));
     await page.waitForFunction(() =>
@@ -855,7 +1096,10 @@ for (const [label, engine, device] of [
     await page.getByRole("button", { name: "Terminar escucha", exact: true }).click();
     await page.getByLabel("Sesión de voz", { exact: true }).waitFor({ state: "hidden" });
     await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
-    await page.getByRole("dialog", { name: "Menú principal", exact:true }).getByRole("link", { name: "Ajustes", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Menú principal", exact: true })
+      .getByRole("link", { name: "Ajustes", exact: true })
+      .click();
     await page.getByRole("heading", { name: "Ajustes", exact: true }).waitFor();
     await page.getByRole("link", { name: "Mi perfil", exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: /Colaboradores/ }).count(), 0);
@@ -883,6 +1127,8 @@ for (const [label, engine, device] of [
 }
 
 await writeFile(
-  ".sandbox/deepgram/administrative-results.json",
+  startupOnly
+    ? `.sandbox/deepgram/${nativeAudio ? "native-duplex" : "pending-resume"}-results.json`
+    : ".sandbox/deepgram/administrative-results.json",
   JSON.stringify(browserResults, null, 2),
 );

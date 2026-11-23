@@ -9,14 +9,14 @@
     {
       "operation": "annul",
       "sessions": 7,
-      "lockWaitersObserved": 5,
+      "lockWaitersObserved": 6,
       "uniqueEntries": 1,
       "status": "PASS"
     },
     {
       "operation": "refund",
       "sessions": 7,
-      "lockWaitersObserved": 1,
+      "lockWaitersObserved": 6,
       "uniqueEntries": 1,
       "status": "PASS"
     }
