@@ -24,3 +24,14 @@ test("custom date selectors respect club-selected colors and retain old visual c
   assert.ok(view.includes('snoop-informes-category-legend'));
   assert.ok(view.includes('snoop-informes-insights'));
 });
+
+test("preset ranges never use negative durations in membership quota calendar functions", () => {
+  assert.ok(!view.includes('addCalendarDays(to, 1 -'));
+  assert.ok(view.includes('Date.parse(`${to}T00:00:00Z`)'));
+  for (const period of [7, 30, 90, 365]) {
+    const to = "2026-11-23";
+    const from = new Date(Date.parse(to + "T00:00:00Z") - (period - 1) * 86400000).toISOString().slice(0, 10);
+    assert.ok(from <= to);
+    assert.equal((Date.parse(to) - Date.parse(from)) / 86400000 + 1, period);
+  }
+});
