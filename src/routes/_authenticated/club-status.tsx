@@ -11,7 +11,7 @@ function ClubStatus() {
         ? "La suscripción del club ha caducado."
         : "La cuenta todavía no tiene un club operativo asignado.";
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-background">
+    <main className="snoop-club-status-visual min-h-screen flex items-center justify-center p-6 bg-background">
       <section className="max-w-md rounded-2xl border border-neon/30 bg-card p-8 text-center">
         <h1 className="font-display text-2xl text-neon">Acceso al club</h1>
         <p role="status" className="my-6">
