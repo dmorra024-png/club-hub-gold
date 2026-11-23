@@ -17,7 +17,7 @@ CREATE OR REPLACE FUNCTION public.snoop_register_member_with_avalador(
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $avalador$
 DECLARE
  c uuid; result_id uuid; must_avalador boolean;
- first_name text; last_name text;
+ v_avalador_first text; v_avalador_last text;
 BEGIN
  c:=public.current_club_id();
  IF auth.uid() IS NULL OR c IS NULL OR NOT public.can_operate_club(c,'manage_members'::public.app_permission)
@@ -28,11 +28,11 @@ BEGIN
  FROM public.club_member_field_config
  WHERE club_id=c AND field_key='avalador' AND visible IS TRUE;
  must_avalador:=coalesce(must_avalador,false);
- first_name:=nullif(btrim(coalesce(p_member->>'avalador_first_name','')),'');
- last_name:=nullif(btrim(coalesce(p_member->>'avalador_last_name','')),'');
- IF ((first_name IS NULL) <> (last_name IS NULL)) OR
-  (must_avalador AND (first_name IS NULL OR last_name IS NULL)) OR
-  length(coalesce(first_name,''))>100 OR length(coalesce(last_name,''))>100
+ v_avalador_first:=nullif(btrim(coalesce(p_member->>'avalador_first_name','')),'');
+ v_avalador_last:=nullif(btrim(coalesce(p_member->>'avalador_last_name','')),'');
+ IF ((v_avalador_first IS NULL) <> (v_avalador_last IS NULL)) OR
+  (must_avalador AND (v_avalador_first IS NULL OR v_avalador_last IS NULL)) OR
+  length(coalesce(v_avalador_first,''))>100 OR length(coalesce(v_avalador_last,''))>100
  THEN RAISE EXCEPTION 'Indica nombre y apellidos del socio avalador' USING errcode='22023'; END IF;
  IF p_plan_id IS NOT NULL THEN
   IF p_confirmed_cents IS NULL THEN RAISE EXCEPTION 'Confirma la cuota del socio' USING errcode='22023'; END IF;
@@ -41,15 +41,15 @@ BEGIN
   result_id:=public.save_membership_with_receipt(p_member,NULL,p_method,p_request,false,NULL);
  END IF;
  UPDATE public.members
- SET avalador_first_name=first_name,avalador_last_name=last_name
+ SET avalador_first_name=v_avalador_first,avalador_last_name=v_avalador_last
  WHERE club_id=c AND id=result_id
-  AND avalador_first_name IS NOT DISTINCT FROM first_name
-  AND avalador_last_name IS NOT DISTINCT FROM last_name;
+  AND avalador_first_name IS NOT DISTINCT FROM v_avalador_first
+  AND avalador_last_name IS NOT DISTINCT FROM v_avalador_last;
  IF NOT FOUND THEN
   -- On first insertion previous fields are NULL; set them after verifying operation fingerprint.
-  UPDATE public.members SET avalador_first_name=first_name, avalador_last_name=last_name
+  UPDATE public.members SET avalador_first_name=v_avalador_first, avalador_last_name=v_avalador_last
   WHERE club_id=c AND id=result_id
-    AND avalador_first_name IS NULL AND avalador_last_name IS NULL;
+    AND avalador_v_avalador_first IS NULL AND avalador_v_avalador_last IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'La inscripción ya tiene otro avalador' USING errcode='23505'; END IF;
  END IF;
  RETURN result_id;
