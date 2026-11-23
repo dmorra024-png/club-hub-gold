@@ -25,3 +25,5 @@ Correction: cancelled sale stock movements net to zero; replace + and - gross qu
 Member endorsement: new socio form asks avalador first/last names; per-club required/optional setting, atomic registration RPC and detail display. SQL transaction smoke test rolled back successfully.
 
 Avalador form comma corrected after first build syntax check; rerun full validation.
+
+Avalador v2: choose full name OR existing member number. Search only club members, show matched name; server resolves and persists linked member identity. SQL transaction smoke test rolled back.
