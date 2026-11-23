@@ -58,6 +58,13 @@ export function SnoopLayout({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const keyboard = useMobileKeyboard();
+  // Portaled dialogs, sheets and dropdowns are rendered outside the shell.
+  // Mark the body only while the Gestionale is mounted, so shared UI components
+  // do not restyle Auth, SNOOP Socio or unrelated administrative surfaces.
+  useEffect(() => {
+    document.body.classList.add("snoop-management-ui");
+    return () => document.body.classList.remove("snoop-management-ui");
+  }, []);
   const trigger = useRef<HTMLButtonElement>(null),
     drawer = useRef<HTMLElement>(null);
   useEffect(() => {
