@@ -13,3 +13,5 @@ Valuation v1: calculate per-item quantity times purchase price, summarize euros 
 Informes day-opening inventory valuation: moving from Stock to Informes, 00:00 Madrid historical inventory quantity, entrances, exits and closing cost from canonical ledger.
 
 New reports: product-level recharge timestamps, cumulative actual recorded completed-order line revenue as of selected day, remaining projected revenue, expected gross margin; whole-club totals. No claims of accounting net profit.
+
+Inventory UX simplification: remove separate Rentabilidad por producto report; embed purchase cost and net-of-product-cost projected profit within existing inventory valuation card, with per-item breakdown. SQL RPC test verified.
