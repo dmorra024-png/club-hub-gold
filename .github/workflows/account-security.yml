@@ -50,6 +50,8 @@ jobs:
         run: |
           sudo --preserve-env=GITHUB_ACTIONS "$(command -v node)" scripts/prepare-ci-ubuntu-mirrors.mjs
           npx playwright-core install --with-deps chromium webkit
+      - name: Real Web Audio PCM rendering (synthetic, Chromium and WebKit)
+        run: node scripts/test-voice-pcm-browser.mjs
       - name: Production PWA and administrative browser tests
         shell: bash
         run: |
@@ -118,6 +120,7 @@ jobs:
           name: snoop-premium-home
           path: |
             .sandbox/deepgram/
+            .sandbox/voice-pcm/
             .sandbox/screenshots/premium/
             .sandbox/PREMIUM_HOME_RESULTS.json
             docs/screenshots/genetics-*.png
@@ -142,3 +145,4 @@ jobs:
             docs/screenshots/caja-simple-*.png
           if-no-files-found: ignore
           retention-days: 7
+          include-hidden-files: true

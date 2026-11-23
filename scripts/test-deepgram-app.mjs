@@ -93,10 +93,22 @@ for (const [label, engine, device] of [
       actionReceipts = [],
       stops = 0;
     const unexpected = [];
+    let firstReady;
+    const readyFirst = new Promise((resolve) => {
+      firstReady = resolve;
+    });
     await context.addInitScript(
       ({ auth, key }) => {
         localStorage.setItem(key, JSON.stringify(auth));
-        window.__audio = { started: 0, stopped: 0, played: 0, interrupted: 0, worklet: null };
+        window.__audio = {
+          started: 0,
+          stopped: 0,
+          played: 0,
+          interrupted: 0,
+          worklet: null,
+          suspendDuringStart: true,
+          nonzero: 0,
+        };
         const track = {
           stop() {
             window.__audio.stopped++;
@@ -115,6 +127,10 @@ for (const [label, engine, device] of [
                 await new Promise((r) => {
                   window.__audio.release = r;
                 });
+              if (window.__audio.suspendDuringStart) {
+                window.__audio.suspendDuringStart = false;
+                window.__audio.context.state = "interrupted";
+              }
               return { getTracks: () => [track], getAudioTracks: () => [track] };
             },
           },
@@ -144,11 +160,14 @@ for (const [label, engine, device] of [
             return Object.assign(new Node(), { gain: { value: 0 } });
           }
           createBuffer(ch, len, rate) {
-            return { duration: len / rate, getChannelData: () => new Float32Array(len) };
+            const samples = new Float32Array(len);
+            return { duration: len / rate, getChannelData: () => samples };
           }
           createBufferSource() {
             return Object.assign(new Node(), {
               start() {
+                if (this.buffer?.getChannelData(0).some((value) => value !== 0))
+                  window.__audio.nonzero++;
                 window.__audio.played++;
               },
               stop() {
@@ -315,6 +334,7 @@ for (const [label, engine, device] of [
         assert.equal(m.consent, true);
         assert.equal(m.synthetic, true);
         ws.send(JSON.stringify({ type: "AppReady" }));
+        firstReady();
       });
     });
     const page = await context.newPage();
@@ -337,9 +357,46 @@ for (const [label, engine, device] of [
     await panel.waitFor();
     await panel.getByRole("checkbox").check();
     await panel.getByRole("button", { name: "Avvia JARVIS", exact: true }).click();
-    await page.waitForFunction(() =>
-      document.body.innerText.includes("interruzione vocale attiva"),
+    let readyDeadline;
+    try {
+      await Promise.race([
+        readyFirst,
+        new Promise((_, reject) => {
+          readyDeadline = setTimeout(
+            () => reject(Error("Synthetic provider did not become ready")),
+            20000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(readyDeadline);
+    }
+    // The context was interrupted during getUserMedia, before audio.current existed.
+    // Old code misses that event and never offers recovery despite a ready socket.
+    await panel.getByRole("button", { name: "Riattiva audio", exact: true }).waitFor();
+    peer.send(JSON.stringify({ type: "AgentStartedSpeaking" }));
+    const audiblePcm = Buffer.alloc(4800);
+    for (let i = 0; i < audiblePcm.length; i += 2) audiblePcm.writeInt16LE(8192, i);
+    peer.send(audiblePcm);
+    await panel.getByRole("button", { name: "Dettagli SNOOP" }).click();
+    await panel.locator("summary").filter({ hasText: "Diagnostica audio privata" }).click();
+    let metadata;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await panel.getByRole("button", { name: "Aggiorna diagnostica audio" }).click();
+      metadata = JSON.parse(await panel.locator("pre").innerText());
+      if (metadata.bufferedSamples === 2400) break;
+      await page.waitForTimeout(25);
+    }
+    assert.equal(metadata.bufferedSamples, 2400);
+    assert.equal(metadata.scheduledSamples, 0);
+    assert.equal(
+      await page.evaluate(() => window.__audio.played),
+      0,
+      "Suspended context must not claim playback",
     );
+    await panel.getByRole("button", { name: "Riattiva audio", exact: true }).click();
+    await page.waitForFunction(() => window.__audio.played > 0 && window.__audio.nonzero > 0);
+    await panel.getByRole("button", { name: "Riduci SNOOP" }).click();
     assert(
       (await panel.boundingBox()).height < 220,
       "active voice must leave the actual form visible",

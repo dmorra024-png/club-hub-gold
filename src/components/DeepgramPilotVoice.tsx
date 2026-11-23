@@ -1,3 +1,4 @@
+import { PcmPlayback } from "@/lib/voice/pcm-playback";
 import { VoiceTransport } from "@/lib/voice/transport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "@tanstack/react-router";
@@ -22,10 +23,8 @@ type AudioState = {
   node: AudioWorkletNode;
   source: MediaStreamAudioSourceNode;
   sink: GainNode;
-  sounds: AudioBufferSourceNode[];
-  playEnd: number;
+  speaker: PcmPlayback;
   ready: boolean;
-  suppressed: boolean;
 };
 
 export function DeepgramPilotVoice({
@@ -57,6 +56,14 @@ export function DeepgramPilotVoice({
   const [expanded, setExpanded] = useState(false);
   const [running, setRunning] = useState(false);
   const [audioSuspended, setAudioSuspended] = useState(false);
+  const [audioDiagnostic, setAudioDiagnostic] = useState<
+    | (ReturnType<PcmPlayback["snapshot"]> & {
+        microphoneLive: boolean;
+        providerReady: boolean;
+        connection: ReturnType<VoiceTransport["diagnostics"]>;
+      })
+    | null
+  >(null);
   const [status, setStatus] = useState("Pronto");
   const [language, setLanguage] = useState<Language>("es");
   const [consent, setConsent] = useState(false);
@@ -68,14 +75,7 @@ export function DeepgramPilotVoice({
   const interrupt = useCallback(() => {
     const state = audio.current;
     if (!state) return;
-    state.suppressed = true;
-    for (const sound of state.sounds) {
-      try {
-        sound.stop();
-      } catch {}
-    }
-    state.sounds = [];
-    state.playEnd = state.ctx.currentTime;
+    state.speaker.interrupt();
     setStatus("Parla ora per interrompere SNOOP");
   }, []);
 
@@ -88,6 +88,7 @@ export function DeepgramPilotVoice({
         resumeRef.current = undefined;
       }
       setExpanded(false);
+      setAudioDiagnostic(null);
       setLines([]);
       setProposal(null);
       setCitations(null);
@@ -96,11 +97,7 @@ export function DeepgramPilotVoice({
       if (state) {
         resumeRef.current = preserveContext ? state.transport.checkpoint : undefined;
         state.transport.stop();
-        for (const sound of state.sounds) {
-          try {
-            sound.stop();
-          } catch {}
-        }
+        state.speaker.dispose();
         try {
           state.node.disconnect();
         } catch {}
@@ -145,25 +142,8 @@ export function DeepgramPilotVoice({
 
   const play = useCallback((data: ArrayBuffer) => {
     const state = audio.current;
-    if (!state || state.suppressed || !data.byteLength) return;
-    const length = Math.floor(data.byteLength / 2);
-    const buffer = state.ctx.createBuffer(1, length, 24000);
-    const pcm = buffer.getChannelData(0),
-      view = new DataView(data);
-    for (let i = 0; i < length; i++) pcm[i] = view.getInt16(i * 2, true) / 32768;
-    const sound = state.ctx.createBufferSource();
-    sound.buffer = buffer;
-    sound.connect(state.ctx.destination);
-    const at = Math.max(state.ctx.currentTime + 0.015, state.playEnd);
-    state.playEnd = at + buffer.duration;
-    state.sounds.push(sound);
-    sound.onended = () => {
-      state.sounds = state.sounds.filter((s) => s !== sound);
-      if (audio.current === state && state.sounds.length === 0 && state.ready)
-        setStatus("SNOOP ti ascolta");
-    };
-    sound.start(at);
-    setStatus("SNOOP sta parlando");
+    if (!state) return;
+    state.speaker.push(data);
   }, []);
 
   const start = async () => {
@@ -182,6 +162,7 @@ export function DeepgramPilotVoice({
         if (audio.current?.ctx !== ctx) return;
         const paused = ctx?.state === "suspended" || (ctx?.state as string) === "interrupted";
         setAudioSuspended(paused);
+        audio.current?.speaker.contextChanged();
         if (paused) setStatus("Audio sospeso dal dispositivo. Tocca Riattiva audio.");
       };
       stream = await navigator.mediaDevices.getUserMedia({
@@ -242,12 +223,30 @@ export function DeepgramPilotVoice({
         node,
         source,
         sink,
-        sounds: [],
-        playEnd: 0,
+        speaker: new PcmPlayback(ctx, (notice) => {
+          if (generation.current !== current) return;
+          if (notice === "blocked") {
+            setAudioSuspended(true);
+            setStatus("Audio sospeso dal dispositivo. Tocca Riattiva audio.");
+          } else if (notice === "playing") {
+            setAudioSuspended(false);
+            setStatus("SNOOP sta parlando");
+          } else if (notice === "idle") setStatus("SNOOP ti ascolta");
+          else
+            setStatus(
+              "Audio non riprodotto: " +
+                {
+                  overflow: "buffer pieno",
+                  invalid: "formato non valido",
+                  empty: "Deepgram non ha inviato audio",
+                  silent: "Deepgram ha inviato audio senza segnale",
+                }[notice],
+            );
+        }),
         ready: false,
-        suppressed: false,
       };
       audio.current = state;
+      state.speaker.contextChanged();
       stream.getTracks().forEach((track) =>
         track.addEventListener("ended", () => {
           if (generation.current === current) stop("Permesso microfono terminato");
@@ -263,7 +262,8 @@ export function DeepgramPilotVoice({
         if (generation.current !== current || audio.current !== state) return;
         // Native acoustic echo cancellation permits provider-side spoken interruption.
         // On devices that do not confirm AEC support, retain the safe manual fallback.
-        if (!supportsEchoCancellation && state.ctx.currentTime < state.playEnd + 0.12) return;
+        if (!supportsEchoCancellation && state.ctx.currentTime < state.speaker.playUntil + 0.12)
+          return;
         state.transport.capture(event.data);
       };
       let actionQueue = Promise.resolve();
@@ -281,7 +281,11 @@ export function DeepgramPilotVoice({
               });
           } else if (message.type === "AppReady") {
             state.ready = true;
-            state.suppressed = false;
+            state.speaker.beginResponse();
+            if (state.ctx.state !== "running") {
+              state.speaker.contextChanged();
+              return;
+            }
             onPhaseChange?.("recording");
             setStatus(
               supportsEchoCancellation
@@ -308,11 +312,16 @@ export function DeepgramPilotVoice({
           } else if (message.type === "AgentStartedSpeaking") {
             // Deepgram can begin the next audio response without an AgentThinking event.
             // A previous interruption must suppress the old response, not all future speech.
-            state.suppressed = false;
-            setStatus("SNOOP sta parlando");
+            state.speaker.beginResponse();
+            if (state.ctx.state !== "running") {
+              setAudioSuspended(true);
+              setStatus("Audio sospeso dal dispositivo. Tocca Riattiva audio.");
+            }
           } else if (message.type === "AgentThinking") {
-            state.suppressed = false;
+            state.speaker.beginResponse();
             setStatus("SNOOP sta elaborando…");
+          } else if (message.type === "AgentAudioDone") {
+            state.speaker.finishResponse();
           } else if (message.type === "AppProposal") {
             const result = message.result as ProposalResult;
             if (!result.ok || !result.proposal) {
@@ -466,7 +475,10 @@ export function DeepgramPilotVoice({
             interrupt();
             setStatus("SNOOP en espera · micrófono local · sin conexión de pago");
           }
-          if (phase === "reconnecting") setStatus("Reconectando SNOOP · conservo la conversación");
+          if (phase === "reconnecting") {
+            state.speaker.interrupt();
+            setStatus("Reconectando SNOOP · conservo la conversación");
+          }
         },
         fatal: (code) => stop("SNOOP: " + code),
       });
@@ -594,13 +606,19 @@ export function DeepgramPilotVoice({
           <button
             type="button"
             onClick={() => {
-              void audio.current?.ctx
+              const state = audio.current;
+              if (!state) return;
+              void state.ctx
                 .resume()
                 .then(() => {
-                  setAudioSuspended(false);
-                  setStatus("SNOOP ti ascolta");
+                  if (audio.current !== state) return;
+                  const paused = state.ctx.state !== "running";
+                  setAudioSuspended(paused);
+                  state.speaker.contextChanged();
+                  if (paused) setStatus("Audio ancora bloccato dal dispositivo.");
+                  else if (!state.speaker.snapshot().scheduledNodes) setStatus("SNOOP ti ascolta");
                 })
-                .catch(() => setStatus("Audio bloccato dal dispositivo. Ferma e riavvia SNOOP."));
+                .catch(() => setStatus("Audio bloccato dal dispositivo. Riprova Riattiva audio."));
             }}
           >
             Riattiva audio
@@ -618,6 +636,37 @@ export function DeepgramPilotVoice({
           Interrompi
         </button>
       </div>
+      {access.role === "admin" && running && !compact && (
+        <details>
+          <summary>Diagnostica audio privata</summary>
+          <button
+            type="button"
+            onClick={() => {
+              const state = audio.current;
+              setAudioDiagnostic(
+                state
+                  ? {
+                      ...state.speaker.snapshot(),
+                      microphoneLive: state.stream
+                        .getAudioTracks()
+                        .some((track) => track.readyState === "live"),
+                      providerReady: state.ready,
+                      connection: state.transport.diagnostics(),
+                    }
+                  : null,
+              );
+            }}
+          >
+            Aggiorna diagnostica audio
+          </button>
+          {audioDiagnostic && (
+            <pre style={{ fontSize: 10, whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(audioDiagnostic, null, 2)}
+            </pre>
+          )}
+          <small>Solo contatori in memoria: nessun audio, testo o identificativo.</small>
+        </details>
+      )}
       {usage && !compact && (
         <p style={{ fontSize: 11 }}>
           Voz disponible: {(usage.remainingSeconds / 60).toFixed(1)} min ·{" "}

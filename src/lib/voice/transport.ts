@@ -47,6 +47,15 @@ export class VoiceTransport {
     this.options = options;
     this.resumeToken = options.resume;
   }
+  diagnostics() {
+    return {
+      connected: this.ready,
+      reconnecting: this.connecting,
+      paused: this.paused,
+      queuedInputBytes: this.queuedBytes,
+      attempts: this.attempts,
+    };
+  }
   get checkpoint() {
     return this.resumeToken;
   }
