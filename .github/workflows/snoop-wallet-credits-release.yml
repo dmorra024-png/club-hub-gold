@@ -42,7 +42,7 @@ jobs:
           git diff --exit-code "$VERIFIED" HEAD -- src apps/socio package.json bun.lock wrangler.json scripts tests
           BASE="$(git rev-parse origin/release/snoop-wallet-panel-visible-20261123)"
           actual="$(git diff --name-only "$BASE" HEAD -- src apps/socio)"
-          expected="$(printf '%s\\n' 'src/components/WalletTopupPanel.tsx' 'src/lib/cash-sessions.ts' 'src/lib/cash-wallet-evidence.server.ts' 'src/lib/wallet-management.functions.ts' 'src/routes/_authenticated/caja.tsx' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
+          expected="$(printf '%s\n' 'src/components/WalletTopupPanel.tsx' 'src/lib/cash-sessions.ts' 'src/lib/cash-wallet-evidence.server.ts' 'src/lib/wallet-management.functions.ts' 'src/routes/_authenticated/caja.tsx' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
           test "$actual" = "$expected" || { echo 'Unexpected application files'; exit 1; }
           node -e 'const c=require("./wrangler.json");if(c.name!=="snoop-pilot"||c.workers_dev!==true||c.ai?.binding!=="SNOOP_AI"||c.assets?.binding!=="ASSETS"||c.vars?.SNOOP_RESOURCE_NAMESPACE!=="snoop-pilot") process.exit(1)'
           echo 'Source gated to payment selection, cash ledger and merma text only.'
