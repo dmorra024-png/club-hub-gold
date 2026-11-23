@@ -1,0 +1,1 @@
+Validate redesigned and palette-aware Informes using existing stock and order data. No deployment, no Caja or payment changes. Scope limited to src/routes/_authenticated/ajustes.informes.tsx and src/styles.css.
