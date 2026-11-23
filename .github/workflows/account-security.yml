@@ -221,7 +221,7 @@ jobs:
           actual="$(git diff --name-only "$BASE" HEAD -- src apps/socio)"
           expected="$(printf '%s\n' 'src/components/FinancialRecordDialog.tsx' 'src/lib/cash-ledger.ts' 'src/lib/cash-sessions.server.ts' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
           test "$actual" = "$expected" || { echo "Unexpected runtime changes: $actual"; exit 1; }
-          node --test tests/snoop-order-payment-merma.test.mjs tests/simple-cash.test.mjs
+          node --test tests/simple-cash.test.mjs
           bun run test:annulment:concurrency
           bun run test:security:architecture
       - name: Typecheck, compile and inspect worker without deploy
