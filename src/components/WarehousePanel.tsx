@@ -6,7 +6,7 @@ import { Warehouse, Store, ArrowLeftRight, History } from "lucide-react";
 type Product = {id:string;name:string;stock:number;club_id:string};
 type Balance = {product_id:string;location:"almacen"|"dispensario";quantity:number};
 type Move = {id:string;product_id:string;from_location:string;to_location:string;quantity:number;created_at:string};
-const fmt=(n:number)=>new Intl.NumberFormat("es-ES",{maximumFractionDigits:2}).format(n);
+const fmt=(n:number)=>new Intl.NumberFormat("es-ES",{maximumFractionDigits:3}).format(n);
 const card="rounded-2xl border border-neon/25 bg-card/50 p-4 space-y-3";
 export function WarehousePanel({products,onChange}:{products:Product[];onChange:()=>void}){
  const {access,can}=useAuth();
@@ -40,7 +40,7 @@ export function WarehousePanel({products,onChange}:{products:Product[];onChange:
  async function send(){
    if(!item||busy)return;
    const clean=quantity.trim().replace(",",".");
-   if(!/^\d{1,7}(\.\d{1,2})?$/.test(clean))return toast.error("Cantidad no válida (máximo 2 decimales)");
+   if(!/^\d{1,7}(\.\d{1,2})?$/.test(clean))return toast.error("Cantidad no válida (máximo 3 decimales)");
    const value=Number(clean);
    if(value<=0||value>source)return toast.error("Stock insuficiente en origen");
    if(!window.confirm("¿Trasladar "+fmt(value)+" de "+from+" a "+to+"?"))return;
