@@ -75,7 +75,7 @@ begin
    'products',(
      select coalesce(jsonb_agg(
        jsonb_build_object(
-         'id',v.id,'name',v.name,'unit',coalesce(v.unit_type,'u'),
+         'id',v.id,'name',v.name,'unit',coalesce(v.unit_type::text,'unit'),
          'buy_price',v.buy_price,'sell_price',v.sell_price,
          'loaded_qty',v.loaded_qty,'recharge_count',v.recharge_count,
          'loaded_cost',round(v.recorded_entry_cost,2),
