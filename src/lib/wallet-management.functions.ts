@@ -46,15 +46,15 @@ export const walletTopup=createServerFn({method:"POST"})
  .middleware([requireClubCashAuth])
  .inputValidator((input:unknown)=>z.object({
   memberId:uuid,cashSessionId:uuid,operationId:uuid,
-  amountCents:cents,confirmed:z.literal(true)
+  amountCents:cents,paymentMethod:z.enum(["cash","card","transfer"]),confirmed:z.literal(true)
  }).strict().parse(input))
  .handler(async ({context,data})=>{
   if(!available())fail();
   await checkMember(context,data.memberId);
-  const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_topup",{
+  const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_topup_with_method",{
    p_club_id:context.clubId,p_member_id:data.memberId,
    p_cash_session_id:data.cashSessionId,p_operation_id:data.operationId,
-   p_amount_cents:data.amountCents
+   p_amount_cents:data.amountCents,p_payment_method:data.paymentMethod
   });
   if(error||!result||!["applied","duplicate"].includes(result.status)||
       result.operationId!==data.operationId||
