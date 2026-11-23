@@ -1,5 +1,6 @@
 import {createFileRoute,Link} from "@tanstack/react-router";
 import {SnoopLayout} from "@/components/SnoopLayout";
+import {ClubMermaSettingsPanel} from "@/components/ClubMermaSettingsPanel";
 import {useAuth} from "@/hooks/useAuth";
 import {BadgeEuro,Wallet,Users,Cable,Palette,ChevronRight} from "lucide-react";
 
@@ -32,5 +33,6 @@ function PersonalizacionesClub(){
     </Link>
    ))}
   </div>
+  <div className="mt-6 max-w-3xl"><ClubMermaSettingsPanel/></div>
  </SnoopLayout>;
 }
