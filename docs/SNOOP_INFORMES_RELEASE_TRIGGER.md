@@ -1,0 +1,1 @@
+Authorized SNOOP Pilot release of Informes charts / statistics with club-selected palette. Exact verified source e0745a64ef006a10ec2edf0974aa6bcdfe5cb4be. Read-only statistics. Keep Caja, POS, Monedero, DB and all existing Worker bindings unchanged.
