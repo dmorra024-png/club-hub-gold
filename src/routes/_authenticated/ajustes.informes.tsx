@@ -65,7 +65,7 @@ function InformesPage() {
   const madridDay = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
   const period = useMemo(() => {
     const to = range === "custom" ? appliedCustom.to : madridToday();
-    const from = range === "custom" ? appliedCustom.from : addCalendarDays(to, 1 - RANGES.find((r) => r.id === range)!.days);
+    const from = range === "custom" ? appliedCustom.from : new Date(Date.parse(`${to}T00:00:00Z`) - (RANGES.find((r) => r.id === range)!.days - 1) * 86400000).toISOString().slice(0, 10);
     const days: string[] = [];
     for (let date = from; date <= to && days.length <= 731; date = addCalendarDays(date, 1)) days.push(date);
     return { days, from, to, start: clubDayRange(from).start, end: clubDayRange(to).end };
