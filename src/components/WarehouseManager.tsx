@@ -29,6 +29,7 @@ export function WarehouseManager({
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
   const [selected,setSelected]=useState("");
+  const [view,setView]=useState<"all"|"almacen"|"dispensario">("all");
   const [direction,setDirection]=useState<"almacen"|"dispensario">("almacen");
   const [quantity,setQuantity]=useState("");
   const [confirm,setConfirm]=useState(false);
@@ -84,13 +85,26 @@ export function WarehouseManager({
       <button type="button" className="rounded-xl border border-neon/30 px-3 py-2 text-xs" onClick={()=>void load()}>Actualizar</button>
     </div>
     <div className="grid grid-cols-3 gap-2">
-      <div className={card}><PackageCheck size={18} className="text-neon"/><p className="mt-1 text-[10px] text-muted-foreground">Total</p><p className="font-display text-lg">{fmt(sum)}</p></div>
-      <div className={card}><Warehouse size={18} className="text-neon"/><p className="mt-1 text-[10px] text-muted-foreground">Almacén</p><p className="font-display text-lg">{loading?"…":fmt(reserveSum)}</p></div>
-      <div className={card}><Store size={18} className="text-neon"/><p className="mt-1 text-[10px] text-muted-foreground">Dispensario</p><p className="font-display text-lg">{loading?"…":fmt(balances.filter(x=>x.location==="dispensario").reduce((n,x)=>n+Number(x.quantity),0))}</p></div>
+      {([
+        {key:"all",label:"Total",Icon:PackageCheck,quantity:sum},
+        {key:"almacen",label:"Almacén",Icon:Warehouse,quantity:reserveSum},
+        {key:"dispensario",label:"Dispensario",Icon:Store,quantity:balances.filter(x=>x.location==="dispensario").reduce((n,x)=>n+Number(x.quantity),0)},
+      ] as const).map(({key,label,Icon,quantity})=>
+        <button type="button" key={key}
+          onClick={()=>setView(key)}
+          aria-pressed={view===key}
+          aria-label={`Ver stock: ${label}`}
+          className={`${card} min-w-0 cursor-pointer text-left touch-manipulation transition-colors ${view===key?"border-neon bg-neon/15 ring-1 ring-neon":"hover:border-neon/60"}`}>
+          <Icon size={18} className="text-neon" aria-hidden="true"/>
+          <span className="mt-1 block text-[11px] text-muted-foreground">{label}</span>
+          <span className="block font-display text-lg">{loading?"…":fmt(quantity)}</span>
+        </button>
+      )}
     </div>
+    <p role="status" className="text-xs text-neon">Vista seleccionada: {view==="all"?"Stock total":view==="almacen"?"Almacén":"Dispensario"}</p>
     {error&&<p role="alert" className="rounded-xl border border-destructive/50 bg-card/60 p-3 text-xs text-destructive">{error}</p>}
     {!loading&&!error&&<div className="space-y-2">
-      {products.map(p=>{
+      {products.filter(p=>view==="all"||read(p,view)>0).map(p=>{
         const a=read(p,"almacen"),d=read(p,"dispensario");
         const valid=Math.abs(a+d-Number(p.stock))<0.0001;
         return <div key={p.id} className="rounded-xl border border-neon/20 bg-card/50 p-3">
