@@ -549,9 +549,9 @@ jobs:
           set -euo pipefail
           BASE="$(git rev-parse origin/release/snoop-all-screens-visual-20261123)"
           actual="$(git diff --name-only "$BASE" HEAD -- src apps/socio)"
-          expected="$(printf '%s\n' 'src/components/ClubMermaSettingsPanel.tsx' 'src/lib/club-merma.functions.ts' 'src/routes/_authenticated/ajustes.personalizaciones.tsx' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
+          expected="$(printf '%s\n' 'src/components/ClubAccessControlPanel.tsx' 'src/components/ClubMermaSettingsPanel.tsx' 'src/components/SnoopLayout.tsx' 'src/lib/club-access-control.functions.ts' 'src/lib/club-merma.functions.ts' 'src/routes/_authenticated/ajustes.generales.tsx' 'src/routes/_authenticated/ajustes.index.tsx' 'src/routes/_authenticated/ajustes.personalizaciones.tsx' 'src/routes/_authenticated/ajustes.socios.tsx' 'src/routes/_authenticated/control-acceso.tsx' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
           test "$actual" = "$expected" || { echo "Unexpected application changes: $actual"; exit 1; }
-          node --test tests/snoop-club-merma-policy.test.mjs tests/snoop-order-payment-merma.test.mjs tests/snoop-wallet-credit-only-topup-methods.test.mjs tests/simple-cash.test.mjs
+          node --test tests/snoop-generales-settings.test.mjs tests/snoop-club-merma-policy.test.mjs tests/snoop-order-payment-merma.test.mjs tests/snoop-wallet-credit-only-topup-methods.test.mjs tests/simple-cash.test.mjs
           bun run test:annulment:concurrency
       - name: Build, typecheck and security
         run: |
