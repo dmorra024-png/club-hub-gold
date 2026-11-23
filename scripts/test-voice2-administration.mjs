@@ -483,7 +483,7 @@ for (const [name, engine, device] of [
     async function start() {
       await page.waitForLoadState("networkidle");
       if (new URL(page.url()).pathname === "/")
-        await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
+        await page.getByRole("heading", { name: "Bienvenido, Club Sintético", exact: true }).waitFor();
       await begin();
       try {
         await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
@@ -1517,7 +1517,7 @@ for (const [name, engine, device] of [
       .getByRole("link", { name: "Home", exact: true })
       .click();
     await page.waitForURL(base + "/");
-    await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Club Sintético", exact: true }).waitFor();
     denied = true;
     await page.reload({ waitUntil: "networkidle" });
     const readBefore = memberReads;

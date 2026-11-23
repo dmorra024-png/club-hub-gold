@@ -151,3 +151,8 @@ the branded container as a text baseline. No application artwork changes accompa
 this test update. The actual 51-turn AI dialogue, conversational member flow, continuous
 session and private diagnostics/preferences tests pass on Chromium and WebKit with
 synthetic audio/provider data. These results are not real-provider accuracy evidence.
+
+The standard legacy voice flow also waits for the current dynamic welcome heading
+(`Bienvenido, <club>`), rather than the retired heading containing only the club name.
+The existing club identity and navigation checks are retained; application text is
+not changed to satisfy the test. The complete standard Samsung flow passes locally.
