@@ -28,7 +28,7 @@ alter table public.snoop_stock_transfers enable row level security;
 revoke all on public.snoop_stock_locations,public.snoop_stock_transfers from public,anon,authenticated;
 grant select on public.snoop_stock_locations,public.snoop_stock_transfers to authenticated;
 create policy snoop_stock_locations_read on public.snoop_stock_locations
- for select to authenticated using (club_id=(select public.current_club_id()) and public.can_manage_snoop_catalog(club_id));
+ for select to authenticated using (club_id=(select public.current_club_id()) and (public.can_manage_snoop_catalog(club_id) or public.can_operate_club(club_id,'use_cash')));
 create policy snoop_stock_transfers_read on public.snoop_stock_transfers
  for select to authenticated using (club_id=(select public.current_club_id()) and public.can_manage_snoop_catalog(club_id));
 -- Preserve every legacy total: location-only split, no rewriting of stock or historical movement records.
