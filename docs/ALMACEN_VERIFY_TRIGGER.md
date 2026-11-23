@@ -1,0 +1,1 @@
+Initial isolated stock warehouse/dispensary build and architecture verification. No database migration or deployment.
