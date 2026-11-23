@@ -32,7 +32,6 @@ import { getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
 import { readCatalogImage } from "@/lib/catalog-image";
 import type { CatalogImage } from "@/lib/catalog-enrichment.server";
 import { enrichProduct } from "@/lib/products-enrich.functions";
-import { WarehouseManager } from "@/components/WarehouseManager";
 
 export const Route = createFileRoute("/_authenticated/productos")({
   component: ProductosPage,
@@ -641,6 +640,34 @@ function Stock({
   clearStockCommand: () => void;
 }) {
   const [filter, setFilter] = useState<string>("all");
+  const [locationRows,setLocationRows] = useState<Record<string,{almacen:number;dispensario:number}> | null>(null);
+  const [locationsError,setLocationsError] = useState("");
+  const [locationRefresh,setLocationRefresh] = useState(0);
+  useEffect(()=>{
+    let active=true;
+    setLocationRows(null);setLocationsError("");
+    void (async()=>{
+      const all: {product_id:string;location:string;quantity:number}[]=[];
+      for(let offset=0;offset<=10000;offset+=1000){
+        const {data,error}=await supabase.from("snoop_stock_locations" as any)
+          .select("product_id,location,quantity").eq("club_id",clubId)
+          .order("product_id").order("location").range(offset,offset+999);
+        if(!active)return;
+        if(error){setLocationsError("No se pudo cargar Almacén. Actualiza.");return;}
+        const page=(data??[]) as unknown as typeof all;
+        all.push(...page);
+        if(page.length<1000)break;
+        if(offset>=10000){setLocationsError("Demasiados productos para cargar el inventario.");return;}
+      }
+      const map:Record<string,{almacen:number;dispensario:number}>={};
+      for(const row of all){
+        if(!map[row.product_id])map[row.product_id]={almacen:0,dispensario:0};
+        if(row.location==="almacen"||row.location==="dispensario")map[row.product_id][row.location]=Number(row.quantity);
+      }
+      if(active)setLocationRows(map);
+    })();
+    return ()=>{active=false};
+  },[clubId,locationRefresh,prods.map(p=>p.id+":"+p.stock).join("|")]);
   const [manualProductId, setManualProductId] = useState("");
   const [manualQuantity, setManualQuantity] = useState("");
   const [manualReason, setManualReason] = useState("");
@@ -940,7 +967,7 @@ function Stock({
         </div>
       )}
 
-      <WarehouseManager products={prods} clubId={clubId} unitForProduct={(p) => cats.find(c => c.id===p.category_id)?.unit_type??"unit"} onChange={onChange} />
+      {locationsError&&<div role="alert" className="rounded-xl border border-destructive/50 p-3 text-xs text-destructive">{locationsError} <button type="button" className="ml-2 underline" onClick={()=>setLocationRefresh(v=>v+1)}>Reintentar</button></div>}
 
       {/* Stock corrections are adjustments, never deletions of audit history. */}
       <div className="rounded-xl border border-neon/30 bg-card/60 p-4 space-y-3">
@@ -1073,7 +1100,10 @@ function Stock({
               ) : (
                 <div className="space-y-2">
                   {list.map((p) => (
-                    <ProductRow key={p.id} p={p} cat={c} onChange={onChange} />
+                    <ProductRow key={p.id} p={p} cat={c} onChange={onChange}
+                      location={locationRows ? (locationRows[p.id]??{almacen:0,dispensario:0}):null}
+                      onTransfer={()=>{setLocationRefresh(v=>v+1);onChange();}}
+                    />
                   ))}
                 </div>
               )}
@@ -1132,7 +1162,11 @@ function StockHistory({ products }: { products: Product[] }) {
   );
 }
 
-function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange: () => void }) {
+function ProductRow({ p, cat, onChange, location, onTransfer }: {
+  p: Product; cat: Category; onChange: () => void;
+  location: {almacen:number;dispensario:number}|null;
+  onTransfer:()=>void;
+}) {
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Product>(p);
   const [enriching, setEnriching] = useState(false);
@@ -1141,6 +1175,36 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
   const [chosenImage, setChosenImage] = useState<CatalogImage | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [transferFrom,setTransferFrom] = useState<"almacen"|"dispensario">("almacen");
+  const [transferAmount,setTransferAmount] = useState("");
+  const [transferPending,setTransferPending] = useState(false);
+  const [transferRequest,setTransferRequest] = useState<string|null>(null);
+  const [transferConfirm,setTransferConfirm] = useState(false);
+  const unit=cat.unit_type==="gr"?"g":"u";
+  const warehouse=location?.almacen;
+  const counter=location?.dispensario;
+  const locationValid=location!==null&&Math.abs(location.almacen+location.dispensario-Number(p.stock))<0.0001;
+  const formatQty=(n:number)=>new Intl.NumberFormat("es-ES",{maximumFractionDigits:3}).format(n);
+  async function transferStock(){
+    if(!locationValid||!location||transferPending)return;
+    if(!/^\\d{1,7}([.,]\\d{1,3})?$/.test(transferAmount.trim()))return toast.error("Cantidad no válida");
+    const amount=Number(transferAmount.replace(",","."));
+    if(amount<=0||amount>1000000||(cat.unit_type!=="gr"&&!Number.isInteger(amount)))return toast.error("Cantidad no válida");
+    if(amount>location[transferFrom])return toast.error("Cantidad insuficiente en origen");
+    if(!transferConfirm){setTransferConfirm(true);return;}
+    const id=transferRequest??crypto.randomUUID();
+    setTransferRequest(id);setTransferPending(true);
+    const {data,error}=await (supabase as any).rpc("snoop_transfer_stock",{
+      p_product_id:p.id,p_quantity:amount,p_from:transferFrom,
+      p_to:transferFrom==="almacen"?"dispensario":"almacen",p_request_id:id
+    });
+    setTransferPending(false);
+    if(error){toast.error("No se pudo confirmar. Reintenta sin duplicar el movimiento.");return;}
+    toast.success(data?.status==="already_applied"?"Traspaso ya registrado":"Stock transferido correctamente");
+    setTransferAmount("");setTransferConfirm(false);setTransferRequest(null);
+    onTransfer();
+  }
+
   const enrich = useServerFn(enrichProduct);
   useEffect(() => setForm(p), [p]);
 
@@ -1340,13 +1404,10 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
                 </span>
               )}
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              Stock:{" "}
-              <span className="text-foreground">
-                {Number(p.stock)} {cat.unit_type === "gr" ? "gr" : "u"}
-              </span>
-              {" · "}Compra: €{Number(p.buy_price).toFixed(2)} · Venta: €
-              {Number(p.sell_price).toFixed(2)}
+            <div className="mt-1 space-y-0.5 text-xs">
+              <p><span className="text-muted-foreground">Stock: </span><b className="text-foreground">{counter===undefined?"—":formatQty(counter)} {unit}</b></p>
+              <p><span className="text-muted-foreground">Almacén: </span><b className="text-neon">{warehouse===undefined?"—":formatQty(warehouse)} {unit}</b></p>
+              <p className="text-[11px] text-muted-foreground">Compra: €{Number(p.buy_price).toFixed(2)} · Venta: €{Number(p.sell_price).toFixed(2)}</p>
             </div>
             {p.image_attribution && (
               <a
@@ -1425,7 +1486,7 @@ function ProductRow({ p, cat, onChange }: { p: Product; cat: Category; onChange:
         onChange={(e) => setForm({ ...form, name: e.target.value })}
       />
       <div className="grid grid-cols-3 gap-2">
-        <p className="text-xs">Stock: {p.stock}. Usa Corregir stock para registrar cambios.</p>
+        <p className="text-xs">Stock: {counter===undefined?"—":formatQty(counter)} {unit}. Almacén: {warehouse===undefined?"—":formatQty(warehouse)} {unit}.</p>
         <MoneyField
           label="Compra €"
           value={form.buy_price}
