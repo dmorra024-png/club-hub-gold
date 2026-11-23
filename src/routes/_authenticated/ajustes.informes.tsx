@@ -3,6 +3,8 @@ import { SnoopLayout } from "@/components/SnoopLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { addCalendarDays, madridToday } from "@/lib/member-administration";
+import { clubDayRange } from "@/lib/cash-summary";
 import {
   ResponsiveContainer,
   BarChart,
@@ -38,8 +40,8 @@ const NEON_DIM = "var(--snoop-border)";
 const RED = "var(--destructive)";
 const PIE_COLORS = ["var(--snoop-accent)", "var(--snoop-electric)", "var(--snoop-border)", "var(--snoop-foreground)"];
 
-type Range = "7d" | "30d" | "90d" | "365d";
-const RANGES: { id: Range; label: string; days: number }[] = [
+type Range = "7d" | "30d" | "90d" | "365d" | "custom";
+const RANGES: { id: Exclude<Range, "custom">; label: string; days: number }[] = [
   { id: "7d", label: "7 días", days: 7 },
   { id: "30d", label: "30 días", days: 30 },
   { id: "90d", label: "90 días", days: 90 },
@@ -55,6 +57,19 @@ function InformesPage() {
   }, [loading, isAdmin, nav]);
 
   const [range, setRange] = useState<Range>("30d");
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(() => madridToday());
+  const [draftTo, setDraftTo] = useState(() => madridToday());
+  const [appliedCustom, setAppliedCustom] = useState(() => ({ from: madridToday(), to: madridToday() }));
+  const customValid = /^\d{4}-\d{2}-\d{2}$/.test(draftFrom) && /^\d{4}-\d{2}-\d{2}$/.test(draftTo) && draftFrom <= draftTo && draftTo <= madridToday() && (Date.parse(draftTo) - Date.parse(draftFrom)) / 86400000 <= 730;
+  const madridDay = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const period = useMemo(() => {
+    const to = range === "custom" ? appliedCustom.to : madridToday();
+    const from = range === "custom" ? appliedCustom.from : addCalendarDays(to, 1 - RANGES.find((r) => r.id === range)!.days);
+    const days: string[] = [];
+    for (let date = from; date <= to && days.length <= 731; date = addCalendarDays(date, 1)) days.push(date);
+    return { days, from, to, start: clubDayRange(from).start, end: clubDayRange(to).end };
+  }, [range, appliedCustom]);
   const [items, setItems] = useState<any[]>([]);
   const [movs, setMovs] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -67,8 +82,8 @@ function InformesPage() {
   useEffect(() => {
     const clubId = access.clubId;
     if (!isAdmin || !clubId) return;
-    const days = RANGES.find((r) => r.id === range)!.days;
-    const since = new Date(Date.now() - days * 86400000).toISOString();
+    const since = period.start;
+    const until = period.end;
     setDataLoading(true);
     setDataError(null);
     let cancelled = false;
@@ -86,22 +101,22 @@ function InformesPage() {
       }
       const [oi, sm, pr, ct, ci, orders] = await Promise.all([
         pages(() =>
-          supabase.from("order_items").select("*").eq("club_id", clubId).gte("created_at", since),
+          supabase.from("order_items").select("*").eq("club_id", clubId).gte("created_at", since).lt("created_at", until),
         ),
-        supabase.from("stock_movements").select("*").gte("created_at", since),
+        supabase.from("stock_movements").select("*").gte("created_at", since).lt("created_at", until),
         supabase.from("products").select("id,name,stock,buy_price,sell_price,category_id"),
         supabase.from("product_categories").select("id,name,unit_type"),
         supabase
           .from("check_ins")
           .select("id,direction,created_at,member_id")
-          .gte("created_at", since),
+          .gte("created_at", since).lt("created_at", until),
         pages(() =>
           supabase
             .from("orders")
             .select("id,status")
             .eq("club_id", clubId)
             .eq("status", "completed")
-            .gte("created_at", since),
+            .gte("created_at", since).lt("created_at", until),
         ),
       ]);
       if (cancelled) return;
@@ -126,13 +141,12 @@ function InformesPage() {
     return () => {
       cancelled = true;
     };
-  }, [range, isAdmin, access.clubId]);
+  }, [period.start, period.end, isAdmin, access.clubId]);
 
   const accessStats = useMemo(() => {
-    const days = RANGES.find((r) => r.id === range)!.days;
-    const startToday = new Date();
-    startToday.setHours(0, 0, 0, 0);
-    const today = checkIns.filter((c) => new Date(c.created_at) >= startToday);
+    const todayStart = clubDayRange(madridToday()).start;
+    const todayEnd = clubDayRange(madridToday()).end;
+    const today = checkIns.filter((c) => c.created_at >= todayStart && c.created_at < todayEnd);
     const inToday = today.filter((c) => c.direction === "in").length;
     const outToday = today.filter((c) => c.direction === "out").length;
     // Currently inside: last direction per member today
@@ -149,20 +163,16 @@ function InformesPage() {
 
     // Daily series
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
-      buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
-    }
+    for (const key of period.days) buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
     for (const c of checkIns) {
-      const key = String(c.created_at).slice(0, 10);
+      const key = madridDay(String(c.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       if (c.direction === "in") b.entradas++;
       else b.salidas++;
     }
     return { inToday, outToday, insideNow, total: checkIns.length, daily: [...buckets.values()] };
-  }, [checkIns, range]);
+  }, [checkIns, period.days]);
 
   const stats = useMemo(() => {
     const revenue = items.reduce((s, i) => s + Number(i.line_total_cents || 0), 0) / 100;
@@ -218,34 +228,24 @@ function InformesPage() {
 
   // Serie diaria de ventas
   const daily = useMemo(() => {
-    const days = RANGES.find((r) => r.id === range)!.days;
     const buckets = new Map<string, { day: string; revenue: number; qty: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
-      buckets.set(key, { day: key.slice(5), revenue: 0, qty: 0 });
-    }
+    for (const key of period.days) buckets.set(key, { day: key.slice(5), revenue: 0, qty: 0 });
     for (const it of items) {
-      const key = String(it.created_at).slice(0, 10);
+      const key = madridDay(String(it.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       b.revenue += Number(it.line_total_cents || 0) / 100;
       b.qty += Number(it.quantity || 0);
     }
     return [...buckets.values()];
-  }, [items, range]);
+  }, [items, period.days]);
 
   // Movimientos por día (entradas / salidas por ventas o retiradas)
   const dailyMovs = useMemo(() => {
-    const days = RANGES.find((r) => r.id === range)!.days;
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
-      buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
-    }
+    for (const key of period.days) buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
     for (const m of movs) {
-      const key = String(m.created_at).slice(0, 10);
+      const key = madridDay(String(m.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       const d = Number(m.delta);
@@ -253,7 +253,7 @@ function InformesPage() {
       else b.salidas += Math.abs(d);
     }
     return [...buckets.values()];
-  }, [movs, range]);
+  }, [movs, period.days]);
 
   // Reparto por categoría (ingresos)
   const byCategory = useMemo(() => {
@@ -379,7 +379,7 @@ function InformesPage() {
         {RANGES.map((r) => (
           <button
             key={r.id}
-            onClick={() => setRange(r.id)}
+            onClick={() => { setRange(r.id); setCustomOpen(false); }}
             className={`px-3 py-1.5 rounded-full text-[11px] uppercase tracking-widest border transition ${
               range === r.id
                 ? "border-neon text-neon bg-neon/10"
@@ -389,7 +389,17 @@ function InformesPage() {
             {r.label}
           </button>
         ))}
+        <button type="button" onClick={() => setCustomOpen((open) => !open)} className={`px-3 py-1.5 rounded-full text-[11px] uppercase tracking-widest border transition ${range === "custom" ? "border-neon text-neon bg-neon/10" : "border-border text-muted-foreground hover:text-neon hover:border-neon/40"}`} aria-expanded={customOpen}>Personalizar búsqueda</button>
       </div>
+      {customOpen && (
+        <div className="snoop-informes-custom-range" aria-label="Personalizar búsqueda por fechas">
+          <label>Desde<input type="date" value={draftFrom} max={madridToday()} onChange={(e) => setDraftFrom(e.target.value)} /></label>
+          <label>Hasta<input type="date" value={draftTo} max={madridToday()} onChange={(e) => setDraftTo(e.target.value)} /></label>
+          {!customValid && <p role="alert">Selecciona fechas válidas: Desde debe ser anterior o igual a Hasta, sin fechas futuras (máximo 731 días).</p>}
+          <button type="button" disabled={!customValid} onClick={() => { setAppliedCustom({ from: draftFrom, to: draftTo }); setRange("custom"); setCustomOpen(false); }}>Aplicar fechas</button>
+        </div>
+      )}
+      {range === "custom" && <p className="snoop-informes-selected-period">Periodo seleccionado: {appliedCustom.from === appliedCustom.to ? appliedCustom.from : `${appliedCustom.from} — ${appliedCustom.to}`}</p>}
 
       {dataLoading ? (
         <div className="text-muted-foreground">Calculando…</div>
@@ -621,28 +631,52 @@ function InformesPage() {
             )}
           </ChartCard>
 
-          {/* Ingresos por categoría */}
+          {/* Ingresos por categoría: mobile-safe donut + full accessible legend. */}
           {byCategory.length > 0 && (
             <ChartCard title="Ingresos por categoría">
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={byCategory}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={90}
-                    label={(e: any) => `${e.name}: €${Number(e.value).toFixed(0)}`}
-                  >
-                    {byCategory.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
-                    formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="snoop-informes-category-chart">
+                <ResponsiveContainer width="100%" height={218}>
+                  <PieChart>
+                    <Pie
+                      data={byCategory}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={86}
+                      paddingAngle={byCategory.length > 1 ? 2 : 0}
+                      labelLine={false}
+                      label={false}
+                      stroke="var(--snoop-panel)"
+                      strokeWidth={2}
+                    >
+                      {byCategory.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: "var(--snoop-panel)", color: "var(--snoop-foreground)", border: "1px solid var(--snoop-border)", borderRadius: 12 }}
+                      formatter={(v: any) => [Number(v).toLocaleString("es-ES", { style: "currency", currency: "EUR" }), "Ingresos"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="snoop-informes-category-legend" aria-label="Desglose de ingresos por categoría">
+                  {byCategory
+                    .slice()
+                    .sort((a, b) => b.value - a.value)
+                    .map(({ name, value }) => {
+                      const index = byCategory.findIndex((c) => c.name === name);
+                      const total = byCategory.reduce((sum, c) => sum + c.value, 0);
+                      return (
+                        <div className="snoop-informes-category-item" key={name}>
+                          <span className="snoop-informes-category-dot" style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} aria-hidden="true" />
+                          <span className="snoop-informes-category-name">{name}</span>
+                          <strong>{value.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                          <span className="snoop-informes-category-percent">{total > 0 ? (value / total * 100).toLocaleString("es-ES", { maximumFractionDigits: 1 }) : "0"} %</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             </ChartCard>
           )}
 
