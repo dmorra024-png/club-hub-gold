@@ -218,7 +218,7 @@ export function FinancialRecordDialog({
         <DialogHeader>
           <DialogTitle>Detalle del registro</DialogTitle>
           <DialogDescription>
-            Historial original y rectificación contable. Al anular, se repone la cantidad vendida en el inventario; la merma no se repone.
+            Historial original y rectificación contable. Al anular, se repone la cantidad total descontada del stock, incluida la merma registrada en el pedido.
           </DialogDescription>
         </DialogHeader>
         {!data && !error && <p role="status">Consultando registro…</p>}
@@ -354,7 +354,7 @@ export function FinancialRecordDialog({
             {order.canCancel && can("use_cash") && !committed && (
               <div className="space-y-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground">
-                  Anular conserva el original, descuenta el importe del resultado contable y repone la cantidad vendida en el inventario (no la merma). No realiza un reembolso automático.
+                  Anular conserva el original, descuenta el importe del resultado contable y repone toda la cantidad descontada del inventario, incluida la merma registrada. No realiza un reembolso automático.
                 </p>
                 <label className="block text-sm">
                   Motivo de anulación

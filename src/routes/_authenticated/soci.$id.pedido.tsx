@@ -96,7 +96,7 @@ function PedidoPage() {
   const [walletState, setWalletState] = useState<{enabled:boolean;clubEnabled:boolean;balanceCents:number|null}|null>(null);
   const [walletStatusError, setWalletStatusError] = useState(false);
   const [walletConfirmed, setWalletConfirmed] = useState(false);
-  const [paymentChoice, setPaymentChoice] = useState<"cash"|"wallet">("cash");
+  const [paymentChoice, setPaymentChoice] = useState<""|"cash"|"card"|"transfer"|"wallet">("");
   const [walletUncertain, setWalletUncertain] = useState(false);
   const walletOperation = useRef<string|null>(null);
   const [recording, setRecording] = useState(false);
@@ -518,6 +518,7 @@ function PedidoPage() {
     // permission failure in wallet status MUST NOT block a cash order.
     // Wallet requests still fail closed and require a verified balance.
     if(walletUncertain) return toast.error("Hay un pago anterior sin confirmar. Consulta el historial antes de otro pedido.");
+    if (!paymentChoice) return toast.error("Selecciona la forma de pago antes de confirmar el pedido.");
     const payingWallet=paymentChoice==="wallet";
     if(payingWallet && (!walletState || walletStatusError || walletUncertain ||
        !walletState.clubEnabled)){
@@ -538,8 +539,8 @@ function PedidoPage() {
         walletOperation.current=null;
         toast.success(`Pedido pagado con monedero · ${formatPrice(result.amountCents)}`);
       } else {
-        const {error}=await (supabase.rpc as any)("create_order_with_items",{
-          _member_id:id,_notes:notes||null,_items:cart
+        const {error}=await (supabase.rpc as any)("create_order_with_items_and_payment",{
+          _member_id:id,_notes:notes||null,_items:cart,_payment_method:paymentChoice
         });
         if(error)throw error;
         toast.success(`Pedido cerrado · ${formatPrice(total)}`);
@@ -915,8 +916,7 @@ function PedidoPage() {
               Monedero temporalmente no disponible. Los pedidos en efectivo siguen funcionando.
             </p>
           )}
-          {walletState?.clubEnabled && (
-            <div className="rounded-xl border border-neon/30 p-3 space-y-3" aria-label="Forma de pago">
+          <div className="rounded-xl border border-neon/30 p-3 space-y-3" aria-label="Forma de pago">
               <strong>Forma de pago</strong>
               <div className="flex flex-wrap gap-4 text-sm">
                 <label className="flex items-center gap-2">
@@ -926,13 +926,26 @@ function PedidoPage() {
                   Efectivo
                 </label>
                 <label className="flex items-center gap-2">
+                  <input type="radio" name="order-payment-method" value="card"
+                    checked={paymentChoice==="card"} disabled={busy||walletUncertain}
+                    onChange={()=>{setPaymentChoice("card");setWalletConfirmed(false);}}/>
+                  Tarjeta / POS
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="order-payment-method" value="transfer"
+                    checked={paymentChoice==="transfer"} disabled={busy||walletUncertain}
+                    onChange={()=>{setPaymentChoice("transfer");setWalletConfirmed(false);}}/>
+                  Transferencia
+                </label>
+                {walletState?.clubEnabled && <label className="flex items-center gap-2">
                   <input type="radio" name="order-payment-method" value="wallet"
                     checked={paymentChoice==="wallet"} disabled={busy||walletUncertain||!walletState.enabled}
                     onChange={()=>{setPaymentChoice("wallet");setWalletConfirmed(false);}}/>
                   Monedero
-                </label>
+                </label>}
               </div>
-              {paymentChoice==="wallet" && (
+              <p className="text-xs text-muted-foreground">Selecciona el método realmente utilizado. Tarjeta / POS registra la forma de cobro; no realiza un cargo al terminal.</p>
+              {paymentChoice==="wallet" && walletState && (
                 <div className="space-y-2">
                   <p className="text-sm">Saldo verificado: {formatPrice(walletState.balanceCents??0)}</p>
                   {!walletState.enabled && <p role="alert" className="text-red-400 text-sm">
@@ -952,7 +965,6 @@ function PedidoPage() {
                 </div>
               )}
             </div>
-          )}
           {walletUncertain && (
             <p role="alert" className="text-red-400 text-sm">
               Operación pendiente de comprobación. No vuelvas a confirmar: consulta el historial.
@@ -960,7 +972,7 @@ function PedidoPage() {
           )}
           <button
             onClick={confirmar}
-            disabled={!cart.length || busy || walletUncertain || (paymentChoice==="wallet" &&
+            disabled={!cart.length || !paymentChoice || busy || walletUncertain || (paymentChoice==="wallet" &&
               (!walletState || walletStatusError || walletUncertain || !walletState.clubEnabled ||
                !walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
