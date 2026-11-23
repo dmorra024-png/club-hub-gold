@@ -7,8 +7,9 @@ const panel=file("src/components/ClubMermaSettingsPanel.tsx");
 const functions=file("src/lib/club-merma.functions.ts");
 const order=file("src/routes/_authenticated/soci.$id.pedido.tsx");
 const sql=file("docs/sql/SNOOP_CLUB_MERMA_POLICY_REVIEW.sql");
-test("merma field is embedded in Personalizaciones club without new menu tile",()=>{
- assert.ok(menu.includes("<ClubMermaSettingsPanel/>"));
+test("merma field is under Generales in Personalizaciones club",()=>{
+ assert.ok(menu.includes('to:"/ajustes/generales"'));
+ assert.ok(file("src/routes/_authenticated/ajustes.generales.tsx").includes("<ClubMermaSettingsPanel/>"));
  for(const to of ["/ajustes/cuotas","/ajustes/monedero","/ajustes/socios","/ajustes/dispositivos","/ajustes/tema-visual"])assert.ok(menu.includes(to),to);
  assert.ok(!menu.includes('to:"/ajustes/merma"'));
  assert.ok(panel.includes("Merma permitida"));
