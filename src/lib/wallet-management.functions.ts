@@ -75,7 +75,30 @@ export const walletCheckout=createServerFn({method:"POST"})
    p_member_id:data.memberId,p_notes:data.notes,p_items:data.items,
    p_operation_id:data.operationId
   });
-  if(error||!result||result.status!=="applied"||
+  if(error){
+   // A PostgreSQL transaction rejection is definitive: all writes in this
+   // single RPC were rolled back. Network/protocol errors remain uncertain.
+   const dbCode=String(error.code??"");
+   const detail=String(error.message??"");
+   const rejected=/^(22|23|42|P0001)/.test(dbCode) &&
+     (/^WALLET_[A-Z_]+/.test(detail) || /Stock insuficiente|Producto no encontrado|Club operation denied|Club not authorized/.test(detail));
+   if(rejected){
+    const reason=/PRICE_MISMATCH/.test(detail)
+      ? "Precio o cantidad modificados. Actualiza el carrito."
+      : /INSUFFICIENT_BALANCE/.test(detail)
+      ? "Saldo de créditos insuficiente."
+      : /STOCK|PRODUCT_UNAVAILABLE|Producto no encontrado/.test(detail)
+      ? "Producto sin stock suficiente o no disponible."
+      : /MEMBER_INACTIVE/.test(detail)
+      ? "La membresía o tarjeta del socio no está activa."
+      : /FORBIDDEN|Club operation denied|Club not authorized/.test(detail)
+      ? "No tienes permiso para registrar este pedido."
+      : "Pedido rechazado. No se han descontado créditos.";
+    return {status:"rejected" as const,reason};
+   }
+   fail();
+  }
+  if(!result||result.status!=="applied"||
      result.operationId!==data.operationId||
      !Number.isSafeInteger(result.balanceCents)||result.balanceCents<0||
      !uuid.safeParse(result.orderId).success)fail();
