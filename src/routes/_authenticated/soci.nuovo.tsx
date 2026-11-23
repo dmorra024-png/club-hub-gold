@@ -97,7 +97,7 @@ function NewSocio() {
     last_name: "",
     avalador_first_name: "",
     avalador_last_name: "",
-    birth_date: ""
+    birth_date: "",
     address: "",
     city: "",
     postal_code: "",
