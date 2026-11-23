@@ -21,3 +21,5 @@ Valuation correction: sale-price stock value is the principal headline; configur
 Final UI layout: principal figure at top is value of active stocked merchandise at sale price; historical day movement report and notional cost/margin remain secondary.
 
 Correction: cancelled sale stock movements net to zero; replace + and - gross quantities with one net inventory value change, explicitly not Caja revenue.
+
+Member endorsement: new socio form asks avalador first/last names; per-club required/optional setting, atomic registration RPC and detail display. SQL transaction smoke test rolled back successfully.
