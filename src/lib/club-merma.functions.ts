@@ -3,7 +3,7 @@ import {setResponseHeader} from "@tanstack/react-start/server";
 import {z} from "zod";
 import {requireSupabaseClubAuth} from "@/integrations/supabase/auth-middleware";
 
-const valid=z.number().finite().min(0).max(0.5).refine(v=>Number.isInteger(v*1000+1e-9),"Máximo tres decimales");
+const valid=z.number().finite().min(0).max(0.5).refine(v=>Math.abs(v*1000-Math.round(v*1000))<1e-7,"Máximo tres decimales");
 export const getClubMermaSettings=createServerFn({method:"GET"})
  .middleware([requireSupabaseClubAuth])
  .handler(async ({context})=>{
