@@ -41,6 +41,7 @@ type Member = {
   last_name: string;
   avalador_first_name: string | null;
   avalador_last_name: string | null;
+  avalador_member_number: string | null;
   birth_date: string;
   city: string | null;
   phone: string | null;
@@ -392,7 +393,7 @@ function SocioDetail() {
                 <Stat label="Ciudad" value={member.city ?? "—"} />
                 <Stat label="Teléfono" value={member.phone ?? "—"} />
                 <Stat label="Email" value={member.email ?? "—"} />
-                <Stat label="Socio avalador" value={[member.avalador_first_name, member.avalador_last_name].filter(Boolean).join(" ") || "—"} />
+                <Stat label="Socio avalador" value={([member.avalador_first_name, member.avalador_last_name].filter(Boolean).join(" ") || "—") + (member.avalador_member_number ? " · Nº " + member.avalador_member_number : "")} />
                 <Stat label="Alta" value={member.joined_at} />
                 <Stat label="Caducidad" value={member.expires_at} />
                 <Stat
