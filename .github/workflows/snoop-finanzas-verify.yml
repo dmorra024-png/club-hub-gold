@@ -16,6 +16,7 @@ jobs:
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      SNOOP_RESOURCE_NAMESPACE: snoop-pilot
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
