@@ -15,3 +15,5 @@ Product economics pilot: selectable as-of date, per-product dated stock recharge
 Informes simplified v5: remove product-profitability panel; on existing inventory valuation show purchase cost of remaining goods and net-of-product-cost projected gain, per-item breakdown, explicit overhead exclusion. RPC smoke tested and isolated CI green.
 
 Primary Informes KPI is active products' current stock valued at their configured sale price. Reference purchase cost and gross margin secondary. Verified build/security.
+
+Net stock movement summary: canceled stock movement pairs (Gelatto and Orange Juice) yield 0 EUR day variation, no misleading gross +/-23.50 boxes. Build and security tests passed.
