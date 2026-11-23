@@ -11,7 +11,8 @@ export type MemberFieldKey =
   | "phone"
   | "email"
   | "plan"
-  | "signature";
+  | "signature"
+  | "avalador";
 
 export interface MemberFieldDef {
   key: MemberFieldKey;
@@ -32,6 +33,7 @@ export const MEMBER_FIELDS: MemberFieldDef[] = [
   { key: "email",       label: "Email",               defaultVisible: true,  defaultRequired: false, sort: 80 },
   { key: "plan",        label: "Cuota / Plan",        defaultVisible: true,  defaultRequired: true,  sort: 90 },
   { key: "signature",   label: "Firma y contrato",    defaultVisible: true,  defaultRequired: true,  sort: 100 },
+  { key: "avalador",    label: "Socio avalador (nombre y apellidos)", defaultVisible: true, defaultRequired: false, sort: 110 },
 ];
 
 export type FieldConfigMap = Record<MemberFieldKey, { visible: boolean; required: boolean }>;
