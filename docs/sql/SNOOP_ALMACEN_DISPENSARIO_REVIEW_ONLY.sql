@@ -6,7 +6,7 @@ create table public.snoop_stock_locations (
  club_id uuid not null references public.clubs(id) on delete restrict,
  product_id uuid not null references public.products(id) on delete restrict,
  location text not null check(location in ('almacen','dispensario')),
- quantity numeric(14,2) not null default 0 check(quantity>=0),
+ quantity numeric(14,3) not null default 0 check(quantity>=0),
  primary key(club_id,product_id,location)
 );
 create table public.snoop_stock_transfers (
@@ -16,7 +16,7 @@ create table public.snoop_stock_transfers (
  request_id uuid not null,
  from_location text not null check(from_location in ('almacen','dispensario')),
  to_location text not null check(to_location in ('almacen','dispensario')),
- quantity numeric(14,2) not null check(quantity>0),
+ quantity numeric(14,3) not null check(quantity>0),
  created_by uuid not null references auth.users(id),
  created_at timestamptz not null default now(),
  check(from_location<>to_location),
@@ -71,7 +71,7 @@ begin
  if auth.uid() is null or c is null or not public.can_manage_snoop_catalog(c)
  then raise exception 'Transferencia no autorizada' using errcode='42501'; end if;
  if p_request_id is null or p_quantity is null or p_quantity<=0 or p_quantity>1000000
-  or p_quantity<>round(p_quantity,2) or p_from not in ('almacen','dispensario')
+  or p_quantity<>round(p_quantity,3) or p_from not in ('almacen','dispensario')
   or p_to not in ('almacen','dispensario') or p_from=p_to
  then raise exception 'Transferencia no válida' using errcode='22023'; end if;
  select stock into v_total from public.products
