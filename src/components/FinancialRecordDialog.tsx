@@ -156,15 +156,15 @@ export function FinancialRecordDialog({
     }
   }
   async function refund() {
-    if (
-      sending.current ||
-      refundRecorded ||
-      !order?.canRefund || walletPayment!==false ||
-      !refundConfirmed ||
-      !refundMethod ||
-      refundReason.trim().length < 5
-    )
+    if (sending.current || refundRecorded || !order?.canRefund || walletPayment !== false) return;
+    if (!refundConfirmed || !refundMethod) {
+      setError("Selecciona el método real y confirma que el dinero ya se ha devuelto.");
       return;
+    }
+    if (refundReason.trim().length < 5) {
+      setError("Escribe al menos 5 caracteres en el motivo del reembolso.");
+      return;
+    }
     sending.current = true;
     setBusy(true);
     setError("");
@@ -330,13 +330,11 @@ export function FinancialRecordDialog({
                         />
                         Confirmo que el dinero ya se ha devuelto y no está registrado previamente.
                       </label>
+                      {refundReason.trim().length > 0 && refundReason.trim().length < 5 && (
+                        <p className="text-xs text-amber-300" role="status">El motivo necesita al menos 5 caracteres para registrar el reembolso.</p>
+                      )}
                       <Button
-                        disabled={
-                          busy ||
-                          !refundConfirmed ||
-                          !refundMethod ||
-                          refundReason.trim().length < 5
-                        }
+                        disabled={busy || !refundConfirmed || !refundMethod}
                         onClick={refund}
                       >
                         Confirmar registro de reembolso
