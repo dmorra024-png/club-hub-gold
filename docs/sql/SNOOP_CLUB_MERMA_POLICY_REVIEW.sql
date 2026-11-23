@@ -107,5 +107,50 @@ $function$
 ;
 REVOKE ALL ON FUNCTION public.create_order_with_items(uuid,text,jsonb) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.create_order_with_items(uuid,text,jsonb) TO authenticated;
-SELECT 'MERMA_POLICY_SCHEMA_READY' as result;
+
+-- Access-control (entradas/salidas) can be enabled independently per club.
+-- The separate QR for socio dispensing is unaffected.
+ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS access_control_enabled boolean NOT NULL DEFAULT true;
+
+CREATE OR REPLACE FUNCTION public.snoop_get_club_access_control()
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $access$
+DECLARE c uuid:=public.current_club_id(); v boolean;
+BEGIN
+ IF (select auth.uid()) IS NULL OR c IS NULL OR NOT public.can_operate_club(c,NULL)
+ THEN RAISE EXCEPTION 'ACCESS_CONTROL_FORBIDDEN' USING ERRCODE='42501'; END IF;
+ SELECT access_control_enabled INTO v FROM public.clubs WHERE id=c;
+ IF NOT FOUND THEN RAISE EXCEPTION 'ACCESS_CONTROL_CLUB_MISSING' USING ERRCODE='23514'; END IF;
+ RETURN jsonb_build_object('enabled',v);
+END $access$;
+REVOKE ALL ON FUNCTION public.snoop_get_club_access_control() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.snoop_get_club_access_control() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.snoop_set_club_access_control(p_enabled boolean)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $access$
+DECLARE c uuid:=public.current_club_id();
+BEGIN
+ IF (select auth.uid()) IS NULL OR c IS NULL OR NOT public.is_current_user_club_admin(c)
+ THEN RAISE EXCEPTION 'ACCESS_CONTROL_ADMIN_ONLY' USING ERRCODE='42501'; END IF;
+ IF p_enabled IS NULL THEN RAISE EXCEPTION 'ACCESS_CONTROL_INVALID' USING ERRCODE='22023'; END IF;
+ UPDATE public.clubs SET access_control_enabled=p_enabled,updated_at=now()
+ WHERE id=c AND active=true;
+ IF NOT FOUND THEN RAISE EXCEPTION 'ACCESS_CONTROL_UNAVAILABLE' USING ERRCODE='42501'; END IF;
+ RETURN jsonb_build_object('enabled',p_enabled);
+END $access$;
+REVOKE ALL ON FUNCTION public.snoop_set_club_access_control(boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.snoop_set_club_access_control(boolean) TO authenticated;
+
+-- Restrictive RLS combines with every permissive INSERT policy: no scanner
+-- or direct API can write check-ins while the club has access control disabled.
+DROP POLICY IF EXISTS snoop_access_control_enabled_write ON public.check_ins;
+CREATE POLICY snoop_access_control_enabled_write ON public.check_ins
+ AS RESTRICTIVE FOR INSERT TO authenticated
+ WITH CHECK (
+   EXISTS (SELECT 1 FROM public.clubs c WHERE c.id=club_id
+    AND c.access_control_enabled=true)
+ );
+
+SELECT 'MERMA_POLICY_AND_GENERALES_SCHEMA_READY' as result;
 COMMIT;
