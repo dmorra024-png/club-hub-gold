@@ -2422,3 +2422,15 @@ body{background:var(--snoop-canvas);color:var(--snoop-foreground)}
 .snoop-informes-premium .snoop-informes-category-item strong {font-family:"Snoop Cash",var(--font-display),sans-serif;font-size:13px;white-space:nowrap;color:var(--snoop-accent);font-variant-numeric:tabular-nums}
 .snoop-informes-premium .snoop-informes-category-percent {min-width:45px;text-align:right;font-size:11px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
 @media(max-width:360px){.snoop-informes-premium .snoop-informes-category-item{grid-template-columns:10px minmax(0,1fr) auto;gap:6px}.snoop-informes-premium .snoop-informes-category-percent{grid-column:2/-1;text-align:right}}
+
+
+/* Informes custom date picker — adapts to the club's palette, mobile friendly. */
+.snoop-informes-premium .snoop-informes-custom-range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px;margin:-7px 0 20px;border:1px solid var(--snoop-border);border-radius:18px;background:linear-gradient(140deg,var(--snoop-elevated),var(--snoop-panel));box-shadow:0 0 12px color-mix(in srgb,var(--snoop-electric) 13%,transparent)}
+.snoop-informes-premium .snoop-informes-custom-range label{display:grid;min-width:0;gap:7px;font-size:12px;letter-spacing:.03em;color:var(--snoop-accent)}
+.snoop-informes-premium .snoop-informes-custom-range input{min-width:0;width:100%;min-height:46px;padding:8px;border:1px solid var(--snoop-border);border-radius:11px;color:var(--snoop-foreground);background:var(--snoop-panel);font:inherit;color-scheme:dark}
+.snoop-informes-premium .snoop-informes-custom-range input:focus-visible{outline:2px solid var(--snoop-accent);outline-offset:2px}
+.snoop-informes-premium .snoop-informes-custom-range button{grid-column:1/-1;min-height:43px;border-radius:12px;background:var(--snoop-accent);color:var(--snoop-canvas);font-family:"Snoop Cash",var(--font-display),sans-serif;font-weight:650}
+.snoop-informes-premium .snoop-informes-custom-range button:disabled{opacity:.5;cursor:not-allowed}
+.snoop-informes-premium .snoop-informes-custom-range [role="alert"]{grid-column:1/-1;font-size:12px;color:var(--destructive)}
+.snoop-informes-premium .snoop-informes-selected-period{margin:-8px 0 18px;color:var(--snoop-accent);font-size:13px;overflow-wrap:anywhere}
+@media(max-width:350px){.snoop-informes-premium .snoop-informes-custom-range{grid-template-columns:1fr}}
