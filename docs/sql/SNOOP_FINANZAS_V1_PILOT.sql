@@ -77,7 +77,7 @@ create policy snoop_purchase_admin_insert on public.snoop_purchases for insert t
 );
 -- Only explicitly authorised, audited annulment may change an expense; never delete rows.
 create or replace function public.snoop_cancel_expense(p_id uuid,p_reason text)
-returns uuid language plpgsql security definer set search_path='' as $
+returns uuid language plpgsql security definer set search_path='' as $finanzas$
 declare v_club uuid; v_record public.snoop_expenses;
 begin
  v_club:=public.current_club_id();
@@ -94,7 +94,7 @@ begin
  update public.snoop_expenses set cancelled_at=now(),cancelled_by=auth.uid(),cancel_reason=btrim(p_reason)
  where id=p_id and club_id=v_club;
  return p_id;
-end $;
+end $finanzas$;
 revoke all on function public.snoop_cancel_expense(uuid,text) from public,anon,authenticated;
 grant execute on function public.snoop_cancel_expense(uuid,text) to authenticated;
 notify pgrst,'reload schema';
