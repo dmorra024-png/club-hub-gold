@@ -2767,9 +2767,7 @@ table tbody tr:hover {background:color-mix(in srgb,var(--snoop-accent) 7%,transp
 /* Dialogs and menus mount outside .premium-shell in React portals.
    Scoping to an actively mounted management layout prevents accidental
    styling of the separate SNOOP Socio or login screens. */
-body.snoop-management-ui :is(
-  [role="dialog"],[role="alertdialog"]
-):not([data-state="closed"]) {
+body.snoop-management-ui .snoop-premium-dialog:not([data-state="closed"]) {
   max-width:min(calc(100vw - 24px),42rem);
   max-height:min(88dvh,900px);
   overflow-y:auto;
@@ -2784,18 +2782,18 @@ body.snoop-management-ui :is(
     0 0 26px color-mix(in srgb,var(--snoop-accent) 28%,transparent),
     0 15px 40px #00000036;
 }
-body.snoop-management-ui :is([role="dialog"],[role="alertdialog"])
+body.snoop-management-ui .snoop-premium-dialog
 :is(h1,h2,h3,[class*="font-semibold"]) {
   font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
 }
-body.snoop-management-ui :is([role="dialog"],[role="alertdialog"])
+body.snoop-management-ui .snoop-premium-dialog
 :is(input:not([type="checkbox"]):not([type="radio"]),textarea,select,[role="combobox"]) {
   max-width:100%;min-width:0;
   color:var(--snoop-foreground);
   border-color:color-mix(in srgb,var(--snoop-accent) 40%,var(--snoop-border));
   background:var(--snoop-elevated);
 }
-body.snoop-management-ui :is([role="dialog"],[role="alertdialog"])
+body.snoop-management-ui .snoop-premium-dialog
 :is(button,[role="button"]) {
   font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
 }
@@ -2825,14 +2823,33 @@ body.snoop-management-ui [data-sonner-toast] {
  }
  .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
  :is(table,[role="table"]) {font-size:clamp(12px,3vw,14px);}
- body.snoop-management-ui :is([role="dialog"],[role="alertdialog"]):not([data-state="closed"]) {
+ body.snoop-management-ui .snoop-premium-dialog:not([data-state="closed"]) {
   padding:clamp(16px,4vw,24px);
   max-height:calc(100dvh - 26px);
  }
 }
 @media(prefers-reduced-motion:reduce){
  .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) *,
- body.snoop-management-ui :is([role="dialog"],[role="alertdialog"]) * {
+ body.snoop-management-ui .snoop-premium-dialog * {
   transition-duration:0.01ms!important;
  }
+}
+
+/* Sheets/drawers keep their native edge positioning while sharing the Home
+   palette and gold material. Never apply centered-dialog sizing to them. */
+body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) {
+  background:
+    radial-gradient(ellipse at 52% 0%,color-mix(in srgb,var(--snoop-accent-light) 14%,transparent),transparent 72%),
+    linear-gradient(145deg,var(--snoop-panel),var(--snoop-canvas));
+  color:var(--snoop-foreground);
+  border-color:var(--snoop-ui-edge,color-mix(in srgb,var(--snoop-accent) 70%,var(--snoop-border)));
+  box-shadow:0 0 24px color-mix(in srgb,var(--snoop-accent) 23%,transparent);
+}
+body.snoop-management-ui .snoop-premium-drawer {
+  border-radius:24px 24px 0 0;
+  max-height:90dvh;
+  overflow-y:auto;
+}
+body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) :is(h1,h2,h3) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
 }
