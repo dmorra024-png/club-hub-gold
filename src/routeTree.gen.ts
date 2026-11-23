@@ -16,8 +16,8 @@ import { Route as ClubSlugRouteImport } from './routes/$clubSlug'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
-import { Route as AuthenticatedSnoopAdminRouteImport } from './routes/_authenticated/snoop-admin'
 import { Route as AuthenticatedSnoopDemoRouteImport } from './routes/_authenticated/snoop-demo'
+import { Route as AuthenticatedSnoopAdminRouteImport } from './routes/_authenticated/snoop-admin'
 import { Route as AuthenticatedProductosRouteImport } from './routes/_authenticated/productos'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedGeneticasRouteImport } from './routes/_authenticated/geneticas'
@@ -34,8 +34,12 @@ import { Route as AuthenticatedSociNuovoRouteImport } from './routes/_authentica
 import { Route as AuthenticatedSociImportarRouteImport } from './routes/_authenticated/soci.importar'
 import { Route as AuthenticatedSociGestisciRouteImport } from './routes/_authenticated/soci.gestisci'
 import { Route as AuthenticatedSociIdRouteImport } from './routes/_authenticated/soci.$id'
+import { Route as AuthenticatedAjustesTemaVisualRouteImport } from './routes/_authenticated/ajustes.tema-visual'
 import { Route as AuthenticatedAjustesSociosRouteImport } from './routes/_authenticated/ajustes.socios'
+import { Route as AuthenticatedAjustesPersonalizacionesRouteImport } from './routes/_authenticated/ajustes.personalizaciones'
+import { Route as AuthenticatedAjustesMonederoRouteImport } from './routes/_authenticated/ajustes.monedero'
 import { Route as AuthenticatedAjustesInformesRouteImport } from './routes/_authenticated/ajustes.informes'
+import { Route as AuthenticatedAjustesGeneralesRouteImport } from './routes/_authenticated/ajustes.generales'
 import { Route as AuthenticatedAjustesDispositivosRouteImport } from './routes/_authenticated/ajustes.dispositivos'
 import { Route as AuthenticatedAjustesCuotasRouteImport } from './routes/_authenticated/ajustes.cuotas'
 import { Route as AuthenticatedAjustesColaboradoresRouteImport } from './routes/_authenticated/ajustes.colaboradores'
@@ -81,14 +85,14 @@ const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   path: '/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSnoopAdminRoute = AuthenticatedSnoopAdminRouteImport.update({
-  id: '/snoop-admin',
-  path: '/snoop-admin',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedSnoopDemoRoute = AuthenticatedSnoopDemoRouteImport.update({
   id: '/snoop-demo',
   path: '/snoop-demo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSnoopAdminRoute = AuthenticatedSnoopAdminRouteImport.update({
+  id: '/snoop-admin',
+  path: '/snoop-admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedProductosRoute = AuthenticatedProductosRouteImport.update({
@@ -176,16 +180,40 @@ const AuthenticatedSociIdRoute = AuthenticatedSociIdRouteImport.update({
   path: '/soci/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAjustesTemaVisualRoute =
+  AuthenticatedAjustesTemaVisualRouteImport.update({
+    id: '/ajustes/tema-visual',
+    path: '/ajustes/tema-visual',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAjustesSociosRoute =
   AuthenticatedAjustesSociosRouteImport.update({
     id: '/ajustes/socios',
     path: '/ajustes/socios',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAjustesPersonalizacionesRoute =
+  AuthenticatedAjustesPersonalizacionesRouteImport.update({
+    id: '/ajustes/personalizaciones',
+    path: '/ajustes/personalizaciones',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAjustesMonederoRoute =
+  AuthenticatedAjustesMonederoRouteImport.update({
+    id: '/ajustes/monedero',
+    path: '/ajustes/monedero',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAjustesInformesRoute =
   AuthenticatedAjustesInformesRouteImport.update({
     id: '/ajustes/informes',
     path: '/ajustes/informes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAjustesGeneralesRoute =
+  AuthenticatedAjustesGeneralesRouteImport.update({
+    id: '/ajustes/generales',
+    path: '/ajustes/generales',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAjustesDispositivosRoute =
@@ -266,8 +294,12 @@ export interface FileRoutesByFullPath {
   '/ajustes/colaboradores': typeof AuthenticatedAjustesColaboradoresRoute
   '/ajustes/cuotas': typeof AuthenticatedAjustesCuotasRoute
   '/ajustes/dispositivos': typeof AuthenticatedAjustesDispositivosRoute
+  '/ajustes/generales': typeof AuthenticatedAjustesGeneralesRoute
   '/ajustes/informes': typeof AuthenticatedAjustesInformesRoute
+  '/ajustes/monedero': typeof AuthenticatedAjustesMonederoRoute
+  '/ajustes/personalizaciones': typeof AuthenticatedAjustesPersonalizacionesRoute
   '/ajustes/socios': typeof AuthenticatedAjustesSociosRoute
+  '/ajustes/tema-visual': typeof AuthenticatedAjustesTemaVisualRoute
   '/soci/$id': typeof AuthenticatedSociIdRouteWithChildren
   '/soci/gestisci': typeof AuthenticatedSociGestisciRoute
   '/soci/importar': typeof AuthenticatedSociImportarRoute
@@ -304,8 +336,12 @@ export interface FileRoutesByTo {
   '/ajustes/colaboradores': typeof AuthenticatedAjustesColaboradoresRoute
   '/ajustes/cuotas': typeof AuthenticatedAjustesCuotasRoute
   '/ajustes/dispositivos': typeof AuthenticatedAjustesDispositivosRoute
+  '/ajustes/generales': typeof AuthenticatedAjustesGeneralesRoute
   '/ajustes/informes': typeof AuthenticatedAjustesInformesRoute
+  '/ajustes/monedero': typeof AuthenticatedAjustesMonederoRoute
+  '/ajustes/personalizaciones': typeof AuthenticatedAjustesPersonalizacionesRoute
   '/ajustes/socios': typeof AuthenticatedAjustesSociosRoute
+  '/ajustes/tema-visual': typeof AuthenticatedAjustesTemaVisualRoute
   '/soci/$id': typeof AuthenticatedSociIdRouteWithChildren
   '/soci/gestisci': typeof AuthenticatedSociGestisciRoute
   '/soci/importar': typeof AuthenticatedSociImportarRoute
@@ -344,8 +380,12 @@ export interface FileRoutesById {
   '/_authenticated/ajustes/colaboradores': typeof AuthenticatedAjustesColaboradoresRoute
   '/_authenticated/ajustes/cuotas': typeof AuthenticatedAjustesCuotasRoute
   '/_authenticated/ajustes/dispositivos': typeof AuthenticatedAjustesDispositivosRoute
+  '/_authenticated/ajustes/generales': typeof AuthenticatedAjustesGeneralesRoute
   '/_authenticated/ajustes/informes': typeof AuthenticatedAjustesInformesRoute
+  '/_authenticated/ajustes/monedero': typeof AuthenticatedAjustesMonederoRoute
+  '/_authenticated/ajustes/personalizaciones': typeof AuthenticatedAjustesPersonalizacionesRoute
   '/_authenticated/ajustes/socios': typeof AuthenticatedAjustesSociosRoute
+  '/_authenticated/ajustes/tema-visual': typeof AuthenticatedAjustesTemaVisualRoute
   '/_authenticated/soci/$id': typeof AuthenticatedSociIdRouteWithChildren
   '/_authenticated/soci/gestisci': typeof AuthenticatedSociGestisciRoute
   '/_authenticated/soci/importar': typeof AuthenticatedSociImportarRoute
@@ -384,8 +424,12 @@ export interface FileRouteTypes {
     | '/ajustes/colaboradores'
     | '/ajustes/cuotas'
     | '/ajustes/dispositivos'
+    | '/ajustes/generales'
     | '/ajustes/informes'
+    | '/ajustes/monedero'
+    | '/ajustes/personalizaciones'
     | '/ajustes/socios'
+    | '/ajustes/tema-visual'
     | '/soci/$id'
     | '/soci/gestisci'
     | '/soci/importar'
@@ -422,8 +466,12 @@ export interface FileRouteTypes {
     | '/ajustes/colaboradores'
     | '/ajustes/cuotas'
     | '/ajustes/dispositivos'
+    | '/ajustes/generales'
     | '/ajustes/informes'
+    | '/ajustes/monedero'
+    | '/ajustes/personalizaciones'
     | '/ajustes/socios'
+    | '/ajustes/tema-visual'
     | '/soci/$id'
     | '/soci/gestisci'
     | '/soci/importar'
@@ -461,8 +509,12 @@ export interface FileRouteTypes {
     | '/_authenticated/ajustes/colaboradores'
     | '/_authenticated/ajustes/cuotas'
     | '/_authenticated/ajustes/dispositivos'
+    | '/_authenticated/ajustes/generales'
     | '/_authenticated/ajustes/informes'
+    | '/_authenticated/ajustes/monedero'
+    | '/_authenticated/ajustes/personalizaciones'
     | '/_authenticated/ajustes/socios'
+    | '/_authenticated/ajustes/tema-visual'
     | '/_authenticated/soci/$id'
     | '/_authenticated/soci/gestisci'
     | '/_authenticated/soci/importar'
@@ -548,18 +600,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/snoop-admin': {
-      id: '/_authenticated/snoop-admin'
-      path: '/snoop-admin'
-      fullPath: '/snoop-admin'
-      preLoaderRoute: typeof AuthenticatedSnoopAdminRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/snoop-demo': {
       id: '/_authenticated/snoop-demo'
       path: '/snoop-demo'
       fullPath: '/snoop-demo'
       preLoaderRoute: typeof AuthenticatedSnoopDemoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/snoop-admin': {
+      id: '/_authenticated/snoop-admin'
+      path: '/snoop-admin'
+      fullPath: '/snoop-admin'
+      preLoaderRoute: typeof AuthenticatedSnoopAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/productos': {
@@ -674,6 +726,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSociIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ajustes/tema-visual': {
+      id: '/_authenticated/ajustes/tema-visual'
+      path: '/ajustes/tema-visual'
+      fullPath: '/ajustes/tema-visual'
+      preLoaderRoute: typeof AuthenticatedAjustesTemaVisualRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ajustes/socios': {
       id: '/_authenticated/ajustes/socios'
       path: '/ajustes/socios'
@@ -681,11 +740,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAjustesSociosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ajustes/personalizaciones': {
+      id: '/_authenticated/ajustes/personalizaciones'
+      path: '/ajustes/personalizaciones'
+      fullPath: '/ajustes/personalizaciones'
+      preLoaderRoute: typeof AuthenticatedAjustesPersonalizacionesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ajustes/monedero': {
+      id: '/_authenticated/ajustes/monedero'
+      path: '/ajustes/monedero'
+      fullPath: '/ajustes/monedero'
+      preLoaderRoute: typeof AuthenticatedAjustesMonederoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ajustes/informes': {
       id: '/_authenticated/ajustes/informes'
       path: '/ajustes/informes'
       fullPath: '/ajustes/informes'
       preLoaderRoute: typeof AuthenticatedAjustesInformesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ajustes/generales': {
+      id: '/_authenticated/ajustes/generales'
+      path: '/ajustes/generales'
+      fullPath: '/ajustes/generales'
+      preLoaderRoute: typeof AuthenticatedAjustesGeneralesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ajustes/dispositivos': {
@@ -787,8 +867,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAjustesColaboradoresRoute: typeof AuthenticatedAjustesColaboradoresRoute
   AuthenticatedAjustesCuotasRoute: typeof AuthenticatedAjustesCuotasRoute
   AuthenticatedAjustesDispositivosRoute: typeof AuthenticatedAjustesDispositivosRoute
+  AuthenticatedAjustesGeneralesRoute: typeof AuthenticatedAjustesGeneralesRoute
   AuthenticatedAjustesInformesRoute: typeof AuthenticatedAjustesInformesRoute
+  AuthenticatedAjustesMonederoRoute: typeof AuthenticatedAjustesMonederoRoute
+  AuthenticatedAjustesPersonalizacionesRoute: typeof AuthenticatedAjustesPersonalizacionesRoute
   AuthenticatedAjustesSociosRoute: typeof AuthenticatedAjustesSociosRoute
+  AuthenticatedAjustesTemaVisualRoute: typeof AuthenticatedAjustesTemaVisualRoute
   AuthenticatedSociIdRoute: typeof AuthenticatedSociIdRouteWithChildren
   AuthenticatedSociGestisciRoute: typeof AuthenticatedSociGestisciRoute
   AuthenticatedSociImportarRoute: typeof AuthenticatedSociImportarRoute
@@ -813,8 +897,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedAjustesColaboradoresRoute,
   AuthenticatedAjustesCuotasRoute: AuthenticatedAjustesCuotasRoute,
   AuthenticatedAjustesDispositivosRoute: AuthenticatedAjustesDispositivosRoute,
+  AuthenticatedAjustesGeneralesRoute: AuthenticatedAjustesGeneralesRoute,
   AuthenticatedAjustesInformesRoute: AuthenticatedAjustesInformesRoute,
+  AuthenticatedAjustesMonederoRoute: AuthenticatedAjustesMonederoRoute,
+  AuthenticatedAjustesPersonalizacionesRoute:
+    AuthenticatedAjustesPersonalizacionesRoute,
   AuthenticatedAjustesSociosRoute: AuthenticatedAjustesSociosRoute,
+  AuthenticatedAjustesTemaVisualRoute: AuthenticatedAjustesTemaVisualRoute,
   AuthenticatedSociIdRoute: AuthenticatedSociIdRouteWithChildren,
   AuthenticatedSociGestisciRoute: AuthenticatedSociGestisciRoute,
   AuthenticatedSociImportarRoute: AuthenticatedSociImportarRoute,

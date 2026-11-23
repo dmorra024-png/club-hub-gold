@@ -119,7 +119,7 @@ export async function voiceCashPeriod(
     : evidence.topups.filter((row) => row.actorId === userId);
   const verifiedOrders = orders.map((order: any) => ({
     ...order,
-    payment_method: evidence.walletOrderIds.has(order.id) ? "wallet" : null,
+    payment_method: evidence.walletOrderIds.has(order.id) ? "wallet" : (order.payment_method ?? null),
   }));
   const summary = cashDaySummary(
     cashMovements(verifiedOrders, fees, [], scopedTopups),

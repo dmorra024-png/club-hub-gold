@@ -40,6 +40,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
+import { scanMemberIdentityWithQwen } from "@/lib/qwen-id.functions";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
   component: NewSocio,
@@ -120,10 +121,14 @@ function NewSocio() {
   const transcribe = useServerFn(transcribeAudio);
 
   const extractFromImages = useServerFn(extractMemberFieldsFromImages);
+  const scanQwen = useServerFn(scanMemberIdentityWithQwen);
 
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+  const [ocrReviewed, setOcrReviewed] = useState(true);
+  const [ocrMessage, setOcrMessage] = useState("");
+
 
   useEffect(() => {
     voiceMounted.current = true;
@@ -200,7 +205,7 @@ function NewSocio() {
     const onAiForm = (event: Event) => {
       const detail = (event as CustomEvent).detail;
       if (detail.kind !== "member") return;
-      const keys = ["first_name", "last_name", "birth_date", "city", "phone"] as const;
+      const keys = ["first_name", "last_name", "birth_date", "city", "phone", "email"] as const;
       const current = Object.fromEntries(keys.map((k) => [k, formRef.current[k]]));
       if (detail.patch)
         setForm((previous) => ({
@@ -342,65 +347,46 @@ function NewSocio() {
 
   // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
   async function scanDocuments(files: FileList | File[]) {
-    const initial = { ...formRef.current };
-    const status = await aiStatus();
-    if (!status.documents)
-      return toast.error(
-        "Procesamiento de documentos no autorizado. Introduce los datos manualmente.",
-      );
-    if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
-      return;
     const list = Array.from(files).slice(0, 2);
-    if (list.length === 0) return;
+    if (!list.length) return;
+    // Explicit user consent is required because these photos contain sensitive personal data.
+    if (!window.confirm("La foto del documento se enviará a Cloudflare Workers AI (Qwen) para extraer los datos. No se enviará a otros proveedores ni se guardará por este escáner. ¿Continuar?")) return;
+    const initial = { ...formRef.current };
     setScanStatus("scanning");
+    setOcrReviewed(true);
+    setOcrMessage("");
     try {
-      // Compress + convert each file
       const compressed: Blob[] = [];
-      for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-
-      // Preview URLs
-      const previews = await Promise.all(
-        compressed.map(
-          (b) =>
-            new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = () => res(r.result as string);
-              r.readAsDataURL(b);
-            }),
-        ),
-      );
+      for (const file of list) compressed.push(await compressImage(file, 1200, 0.72));
+      const previews = await Promise.all(compressed.map(blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No se pudo abrir la foto"));
+        reader.readAsDataURL(blob);
+      })));
+      const images = await Promise.all(compressed.map(async blob => ({
+        base64: await blobToBase64(blob), mimeType: "image/jpeg" as const
+      })));
+      const { fields } = await scanQwen({ data: { consent: true, images } });
       setScanPreviews(previews);
-
-      // Base64 payload for the AI Gateway
-      const images = await Promise.all(
-        compressed.map(async (b) => ({
-          base64: await blobToBase64(b),
-          mimeType: "image/jpeg",
-        })),
-      );
-
-      const { fields } = await extractFromImages({ data: { images } });
-
-      setForm((f) =>
-        mergeUneditedValues(f, initial, {
-          first_name: fields.first_name || f.first_name,
-          last_name: fields.last_name || f.last_name,
-          birth_date: fields.birth_date || f.birth_date,
-          dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-          address: fields.address || f.address,
-          city: fields.city || f.city,
-          postal_code: fields.postal_code || f.postal_code,
-        }),
-      );
-
-      // Reuse the front photo (first image) as the required DNI photo
-      const front = compressed[0];
-      set("dni_file", new File([front], "dni.jpg", { type: "image/jpeg" }));
+      setForm(current => mergeUneditedValues(current, initial, {
+        first_name: fields.first_name || current.first_name,
+        last_name: fields.last_name || current.last_name,
+        birth_date: fields.birth_date || current.birth_date,
+        dni_number: fields.dni_number || current.dni_number,
+        address: fields.address || current.address,
+        city: fields.city || current.city,
+        postal_code: fields.postal_code || current.postal_code
+      }));
+      setOcrReviewed(false);
+      setOcrMessage("La IA ha leído el documento. Comprueba los datos antes de guardar.");
+      const first = compressed[0];
+      set("dni_file", new File([first], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
-
-      toast.success("Datos rellenados desde el documento");
-    } catch (e: any) {
-      toast.error(e.message ?? "No se pudo leer el documento");
+      toast.success("Datos leídos. Comprueba los campos.");
+    } catch (error: any) {
+      setOcrMessage("La foto no se ha podido procesar. No se han cambiado los datos.");
+      toast.error(error?.message || "No se pudo leer el documento");
     } finally {
       setScanStatus("idle");
     }
@@ -431,6 +417,7 @@ function NewSocio() {
 
   async function submit(confirmedCents?: number) {
     setRegistrationError("");
+    if (!ocrReviewed) return failRegistration("Comprueba y confirma los datos del documento antes de guardar.");
     if (savingRef.current || !navigator.onLine)
       return failRegistration("Espera a que termine el envío y comprueba la conexión.");
     if (!form.first_name.trim() || !form.last_name.trim())
@@ -526,46 +513,13 @@ function NewSocio() {
 
       setPaymentOpen(false);
       registrationId.current = crypto.randomUUID();
-      // Email failure must not undo a committed registration. Open the new
-      // member card so a staff member can share its QR without a provider.
-      let qrMailFailed = false;
-      // Send the QR carnet by email if the socio provided one
-      try {
-        if (form.email.trim()) {
-          const { data: created } = await supabase
-            .from("members")
-            .select("member_number")
-            .eq("id", memberId)
-            .maybeSingle();
-          const { data: club } = await supabase
-            .from("clubs")
-            .select("name")
-            .eq("id", clubId)
-            .maybeSingle();
-          const { sendMemberQrEmail } = await import("@/lib/member-qr");
-          const mail = await sendMemberQrEmail({
-            memberId,
-            memberNumber: (created as any)?.member_number ?? "",
-            fullName: `${form.first_name} ${form.last_name}`.trim(),
-            email: form.email.trim(),
-            clubName: (club as any)?.name ?? "Club",
-          });
-          const { memberMailLabel } = await import("@/lib/member-mail-state");
-          toast.success("Socio creado — " + memberMailLabel(mail.status));
-        } else {
-          toast.success("Socio creado (sin email: no se envió el QR)");
-        }
-      } catch (mailErr: any) {
-        console.error("qr email failed", mailErr);
-        qrMailFailed = true;
-        toast.warning("Socio creado, pero falta el email. Comparte el QR desde esta ficha.");
-      }
-
+      // A newly registered member uses the single App Socio email invitation.
+      // No extra QR, duplicate member card or old QR-email is generated here.
+      toast.success("Socio creado. Envía su acceso desde «Enviar email App Socio».");
       try {
         window.sessionStorage.removeItem("snoop:new-member-transcript");
       } catch {}
-      if (qrMailFailed) nav({ to: "/soci/$id", params: { id: memberId } });
-      else nav({ to: "/soci/gestisci" });
+      nav({ to: "/soci/$id", params: { id: memberId } });
       return true;
     } catch (e: any) {
       failRegistration(e?.message || "Error al registrar el socio. No repitas el pago sin comprobar el estado.");
@@ -578,7 +532,7 @@ function NewSocio() {
   useVoiceToolPort("member.form", {
     snapshot: () =>
       Object.fromEntries(
-        ["first_name", "last_name", "birth_date", "city", "phone"].map((k) => [
+        ["first_name", "last_name", "birth_date", "city", "phone", "email"].map((k) => [
           k,
           (form as any)[k],
         ]),
@@ -588,7 +542,7 @@ function NewSocio() {
         ...previous,
         ...Object.fromEntries(
           Object.entries(patch).filter(([k]) =>
-            ["first_name", "last_name", "birth_date", "city", "phone"].includes(k),
+            ["first_name", "last_name", "birth_date", "city", "phone", "email"].includes(k),
           ),
         ),
       })),
@@ -653,27 +607,35 @@ function NewSocio() {
               Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.
             </p>
           </div>
-          <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
-            <Camera className="w-4 h-4" />
-            {scanStatus === "scanning"
-              ? "Leyendo..."
-              : scanPreviews.length
-                ? "Volver a escanear"
-                : "Escanear"}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className={`cursor-pointer min-h-12 rounded-xl border border-neon/40 text-neon hover:bg-neon/10 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : ""}`}>
+            <Camera className="w-5 h-5" />
+            {scanStatus === "scanning" ? "Leyendo..." : "Sacar foto"}
+            <input type="file" accept="image/*" capture="environment" className="sr-only"
               disabled={scanStatus === "scanning"}
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length) scanDocuments(e.target.files);
-                e.target.value = "";
-              }}
-            />
+              onChange={(e) => { if (e.target.files?.length) void scanDocuments(e.target.files); e.target.value = ""; }} />
+          </label>
+          <label className={`cursor-pointer min-h-12 rounded-xl border border-neon/40 text-neon hover:bg-neon/10 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : ""}`}>
+            <ScanLine className="w-5 h-5" />
+            {scanStatus === "scanning" ? "Leyendo..." : "Añadir foto de galería"}
+            <input type="file" accept="image/*" multiple className="sr-only"
+              disabled={scanStatus === "scanning"}
+              onChange={(e) => { if (e.target.files?.length) void scanDocuments(e.target.files); e.target.value = ""; }} />
           </label>
         </div>
+
+        {ocrMessage && (
+          <div className="mt-3 text-sm space-y-2" aria-live="polite">
+            <p className="text-muted-foreground">{ocrMessage}</p>
+            {!ocrReviewed && (
+              <label className="flex gap-2 items-start cursor-pointer">
+                <input type="checkbox" checked={ocrReviewed} onChange={(e) => setOcrReviewed(e.target.checked)} className="mt-1" />
+                <span>He comprobado los datos con el documento original.</span>
+              </label>
+            )}
+          </div>
+        )}
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
             {scanPreviews.map((src, i) => (

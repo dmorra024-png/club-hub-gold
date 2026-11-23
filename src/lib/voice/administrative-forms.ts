@@ -50,7 +50,7 @@ export const administrativeFormSchemas = {
 export const administrativeFormTargets = {
   collaborator_invite: "collaborators",
   membership_fee: "membership_fees",
-  discount: "membership_settings",
+  discount: "general_settings",
   member_discount: null,
   wallet_topup: null,
 } as const;

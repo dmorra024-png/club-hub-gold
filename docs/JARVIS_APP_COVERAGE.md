@@ -1,11 +1,19 @@
 # JARVIS application coverage — release candidate, not production parity
 
-Original base: `7c701cd`. Reconciled against the application actually deployed by
-workflow 44333581830: `1aa5c77388a08d89fa63a4c0204ece8b54c00e79` (the `main`
-workflow pins this application commit; `main` itself is not the application tree).
-Commit 78ea3fb imports those released dependencies unchanged, without production merge
-or deployment. `apps/socio` and the wallet transaction/configuration services remain
-byte-identical to that released commit. No REAL, credentials, schema or RLS changes.
+Original base: `7c701cd`. Current reconciliation uses the actual application published by
+workflow **45154177260**, release commit **ff60d647f000398bd5fbd06654cba542499f890e**
+(application source `3adb0ec53c383c7430ea74f94c0c013554e18143`, Worker version
+`f0eff938-e677-4ecc-b178-6fd11038438e`). `main` is a workflow branch and is not the
+application source. Released management dependencies are reconciled without a production
+merge or deployment. Independent `apps/socio` development is excluded and unchanged.
+Existing cash, wallet and order business logic is imported from that release, not rebuilt.
+No REAL, credentials, production database, schema or RLS changes.
+
+Current regressions also verify the moved discount editor in `/ajustes/generales`,
+Personalizaciones, wallet/theme settings destinations and member search readiness.
+The administrative discount proposal is routed to the current General settings page;
+no duplicate editor is introduced. The separately scoped Socio composition test was not
+imported because it requires changes in the excluded Socio application.
 
 ## Demonstrated defects addressed
 
@@ -48,7 +56,7 @@ server uses the authenticated user's existing query, not a service-role bypass.
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Home (`/`)                                           | Navigation                                                                                                     | Home widgets remain manual                                                                                                           |
 | Socios list / management (`/soci`, `/soci/gestisci`) | Navigation + local authorized search                                                                           | Selecting a particular member by ambiguous name needs explicit resolution                                                            |
-| New member (`/soci/nuovo`)                           | Progressive name, surname, birth date, city, phone drafts; corrections; refused phone remembered               | Other fields and final registration manual; synthetic personal data only                                                             |
+| New member (`/soci/nuovo`)                           | Progressive name, surname, birth date, city, phone and validated email drafts; corrections; refused phone remembered               | Other fields and final registration manual; synthetic personal data only                                                             |
 | Member details (`/soci/$id`)                         | Selected-member field corrections; open QR, history, discounts and renewal sections through scoped ports              | No guessed IDs, automatic renewals, outgoing email or signature fabrication                        |
 | Member import (`/soci/importar`)                     | Navigation, existing manage-members gate                                                                       | File selection, validation and import manual                                                                                         |
 | Products (`/productos`)                              | Navigation, existing search, on-demand authorized name lookup beyond the initial snapshot, name/category draft | Pricing, inventory and final writes not exposed by this voice schema                                                                 |
@@ -250,3 +258,21 @@ effect and never register request-specific capabilities. No save function change
 The browser regression repeats opening, three consecutive price patches and
 cancelling four times per engine, then verifies that an actual manual price edit
 is preserved. Assertions and security guards remain intact.
+
+## Current audio evidence
+
+See [JARVIS_AUDIO_REGRESSION.md](JARVIS_AUDIO_REGRESSION.md). The pre-fix application
+fails the reproducible early-interruption recovery test. Updated mounted Chromium and
+WebKit flows pass with synthetic authentication/provider/audio, including recovery without
+reopening the WebSocket, interruption and a subsequent nonzero PCM response. Separate
+real OfflineAudioContext rendering in both engines verifies signed PCM, odd packet
+boundaries, resampling, frequency, queue recovery and cancellation of the preceding response.
+This proves rendered software samples, not physical speaker loudness, microphone accuracy
+or a live Deepgram session. Diagnostics contain counters/states only, no transcript/audio.
+
+A generated route/API/UI inventory is maintained in
+[JARVIS_OPERATION_INVENTORY.md](JARVIS_OPERATION_INVENTORY.md). Its source entries are
+an implementation inventory, not a claim that every entry has voice coverage. Existing
+write confirmation remains the manual authorized application flow; this branch does not
+claim complete voice execution or full parity. Regulated product fulfillment is not added
+to the voice tools. No live write is enabled as part of these tests.

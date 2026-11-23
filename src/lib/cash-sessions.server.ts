@@ -88,7 +88,7 @@ export async function loadCash(client: any, scope: CashScope, day: string, now =
   const walletEvidence = await readWalletCashEvidence(client,earliest,latest);
   const ordersWithPayment = orders.map((order:any)=>({
     ...order,
-    payment_method:walletEvidence.walletOrderIds.has(order.id)?"wallet":null
+    payment_method:walletEvidence.walletOrderIds.has(order.id)?"wallet":(order.payment_method??null)
   }));
   const refunds = await financialRefundsInPeriod(
     client,

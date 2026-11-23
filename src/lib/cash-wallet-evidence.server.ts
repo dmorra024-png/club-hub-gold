@@ -6,12 +6,12 @@
  */
 const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 function safeId(v:unknown):v is string{return typeof v==="string"&&uuid.test(v);}
-function amount(v:unknown):v is number{return Number.isSafeInteger(v)&&Number(v)>0&&Number(v)<=10_000_000;}
+function amount(v:unknown):v is number{return Number.isSafeInteger(v)&&Number(v)!==0&&Math.abs(Number(v))<=10_000_000;}
 export async function readWalletCashEvidence(
  client:any,start:string,end:string
-):Promise<{walletOrderIds:Set<string>;topups:Array<{id:string;amountCents:number;cashSessionId:string;actorId:string;at:string}>}>{
+):Promise<{walletOrderIds:Set<string>;topups:Array<{id:string;amountCents:number;cashSessionId:string;actorId:string;at:string;paymentMethod:"cash"|"card"|"transfer";kind:"topup"|"topup_reversal";memberId:string;voided:boolean}>}>{
  const empty={walletOrderIds:new Set<string>(),topups:[] as Array<{
-  id:string;amountCents:number;cashSessionId:string;actorId:string;at:string
+  id:string;amountCents:number;cashSessionId:string;actorId:string;at:string;paymentMethod:"cash"|"card"|"transfer";kind:"topup"|"topup_reversal";memberId:string;voided:boolean
  }>};
  if(process.env.SNOOP_WALLET_OPERATIONS_ENABLED!=="true")return empty;
  const {data,error}=await client.rpc("socio_wallet_cash_evidence",
@@ -30,11 +30,17 @@ export async function readWalletCashEvidence(
  for(const row of data.topups){
   if(!safeId(row?.id)||seen.has(row.id)||!amount(row.amountCents)||
      !safeId(row.cashSessionId)||!safeId(row.actorId)||
-     typeof row.at!=="string"||!Number.isFinite(Date.parse(row.at)))
+     typeof row.at!=="string"||!Number.isFinite(Date.parse(row.at))||
+     !["cash","card","transfer"].includes(row.paymentMethod)||
+     !["topup","topup_reversal"].includes(row.kind)||
+     !safeId(row.memberId)||typeof row.voided!=="boolean"||
+     (row.kind==="topup"&&row.amountCents<=0)||
+     (row.kind==="topup_reversal"&&row.amountCents>=0))
     throw Error("Movimiento de recarga sin verificar");
   seen.add(row.id);
   topups.push({id:row.id,amountCents:row.amountCents,
-   cashSessionId:row.cashSessionId,actorId:row.actorId,at:row.at});
+   cashSessionId:row.cashSessionId,actorId:row.actorId,at:row.at,
+   paymentMethod:row.paymentMethod,kind:row.kind,memberId:row.memberId,voided:row.voided});
  }
  return {walletOrderIds,topups};
 }

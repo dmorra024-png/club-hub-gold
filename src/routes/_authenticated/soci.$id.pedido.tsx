@@ -26,6 +26,7 @@ import { parseOrderItems, transcribeAudio } from "@/lib/voice-agent.functions";
 import { formatPrice } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
 import { walletMemberStatus, walletCheckout } from "@/lib/wallet-management.functions";
+import {getClubMermaSettings} from "@/lib/club-merma.functions";
 import {
   readOnlyCatalog,
   filterReadOnlyCatalog,
@@ -96,8 +97,10 @@ function PedidoPage() {
   const [walletState, setWalletState] = useState<{enabled:boolean;clubEnabled:boolean;balanceCents:number|null}|null>(null);
   const [walletStatusError, setWalletStatusError] = useState(false);
   const [walletConfirmed, setWalletConfirmed] = useState(false);
-  const [paymentChoice, setPaymentChoice] = useState<"cash"|"wallet">("cash");
+  const [paymentChoice, setPaymentChoice] = useState<""|"cash"|"card"|"transfer"|"wallet">("");
   const [walletUncertain, setWalletUncertain] = useState(false);
+  const walletMode = walletState?.clubEnabled === true;
+  const formatCheckoutAmount = (cents:number) => walletMode ? `${(cents/100).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} créditos` : formatPrice(cents);
   const walletOperation = useRef<string|null>(null);
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -118,6 +121,16 @@ function PedidoPage() {
   const [grInput, setGrInput] = useState<Record<string, { qty: string; eur: string }>>({});
   // raw text for merma input keyed by product_id (so user can type "0", "0.", "0,05")
   const [mermaText, setMermaText] = useState<Record<string, string>>({});
+  const [mermaLimit,setMermaLimit]=useState<number|null>(null);
+  const [mermaConfigError,setMermaConfigError]=useState(false);
+  useEffect(()=>{
+    if(authLoading||!access.clubId)return;
+    let active=true;setMermaLimit(null);setMermaConfigError(false);
+    getClubMermaSettings().then(result=>{
+      if(active)setMermaLimit(result.maxMermaPerGram);
+    }).catch(()=>{if(active)setMermaConfigError(true);});
+    return()=>{active=false;};
+  },[authLoading,access.clubId]);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -166,14 +179,10 @@ function PedidoPage() {
 
   useEffect(() => {
     if (authLoading || accessError || !access.clubId || !can("use_cash")) return;
-    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
-      setWalletState({enabled:false,clubEnabled:false,balanceCents:null});
-      setWalletStatusError(false);setWalletUncertain(false);return;
-    }
     let active=true;
     setWalletState(null);setWalletStatusError(false);setWalletConfirmed(false);setWalletUncertain(false);
     walletMemberStatus({data:{memberId:id}})
-      .then(result=>{if(active)setWalletState(result);})
+      .then(result=>{if(active){setWalletState(result);setPaymentChoice(result.clubEnabled?"wallet":"");}})
       .catch(()=>{if(active)setWalletStatusError(true);});
     return()=>{active=false;};
   },[id,catalogScope,authLoading,accessError]);
@@ -212,11 +221,11 @@ function PedidoPage() {
     return Math.round(p.sell_price_eur * 100);
   }
 
-  /** For gr items: split actual weight into billed + merma (tolerance 0.05 g per 1 g billed). */
+  /** Split measured weight into billed grams + authorized club merma. */
   function splitGrTolerance(q: number): { billed: number; merma: number } {
     if (q <= 0) return { billed: 0, merma: 0 };
     const candidates = [Math.floor(q), Math.floor(q * 2) / 2, Math.round(q)];
-    const valid = candidates.filter((b) => b > 0 && q + 1e-9 >= b && q - b <= 0.05 * b + 1e-9);
+    const valid = candidates.filter((b) => b > 0 && q + 1e-9 >= b && q - b <= (mermaLimit??0) * b + 1e-9);
     const billed = valid.length ? Math.max(...valid) : q;
     const merma = Math.round((q - billed) * 1000) / 1000;
     return { billed: Math.round(billed * 1000) / 1000, merma };
@@ -230,6 +239,7 @@ function PedidoPage() {
     let billed = quantity;
     let autoMerma = 0;
     if (p.unit_type === "gr" && opts?.autoTolerance) {
+      if(mermaLimit===null)return toast.error("No se pudo verificar la merma permitida del club.");
       const s = splitGrTolerance(quantity);
       billed = s.billed;
       autoMerma = s.merma;
@@ -246,6 +256,7 @@ function PedidoPage() {
         const merged = [...prev];
         const newQty = Math.round((merged[i].quantity + billed) * 1000) / 1000;
         const newMerma = Math.round((merged[i].merma + autoMerma) * 1000) / 1000;
+        if (newMerma>newQty*(mermaLimit??0)+0.000001){toast.error("Merma superior al límite autorizado por el club.");return prev;}
         if (newQty + newMerma > p.stock) {
           toast.error(`Stock insuficiente de ${p.name}`);
           return prev;
@@ -280,6 +291,10 @@ function PedidoPage() {
       const next = [...prev];
       const cur = { ...next[idx], ...patch };
       const p = products.find((x) => x.id === cur.product_id);
+      if(cur.unit_type==="gr"&&cur.merma>cur.quantity*(mermaLimit??0)+0.000001){
+        toast.error("Merma superior al límite permitido por el club.");
+        return prev;
+      }
       if (p && cur.quantity + (cur.merma || 0) > p.stock) {
         toast.error(`Stock insuficiente de ${p.name}`);
         return prev;
@@ -514,14 +529,19 @@ function PedidoPage() {
 
   async function confirmar() {
     if (!cart.length) return toast.error("Carrito vacío");
-    // Efectivo is the existing, independent order workflow. An outage or
-    // permission failure in wallet status MUST NOT block a cash order.
-    // Wallet requests still fail closed and require a verified balance.
+    if(mermaLimit===null||mermaConfigError)return toast.error("No se puede verificar la merma permitida del club.");
+    if(cart.some(c=>(c.unit_type!=="gr"&&c.merma!==0)||
+       (c.unit_type==="gr"&&c.merma>c.quantity*mermaLimit+0.000001)))
+       return toast.error("La merma excede el límite del club. Corrige el pedido.");
+    // Fail closed while verifying club mode: an enabled Monedero club must
+    // never offer direct cash/card/transfer checkout.
     if(walletUncertain) return toast.error("Hay un pago anterior sin confirmar. Consulta el historial antes de otro pedido.");
+    if (!walletState || walletStatusError) return toast.error("No se ha podido verificar la configuración de Monedero del club.");
+    if (!paymentChoice || (walletMode && paymentChoice!=="wallet") || (!walletMode && paymentChoice==="wallet")) return toast.error("Forma de pago no válida para este club.");
     const payingWallet=paymentChoice==="wallet";
     if(payingWallet && (!walletState || walletStatusError || walletUncertain ||
        !walletState.clubEnabled)){
-      return toast.error("No se puede verificar Monedero. Elige Efectivo o reintenta más tarde.");
+      return toast.error("No se puede verificar Monedero. Reintenta o consulta la ficha del socio.");
     }
     if(payingWallet && !walletState?.enabled)
       return toast.error("El Monedero de este socio no está disponible.");
@@ -535,14 +555,21 @@ function PedidoPage() {
           memberId:id,notes:notes||"",items:cart,
           operationId:walletOperation.current,confirmed:true
         }});
+        if(result.status==="rejected"){
+          // Definitive DB rollback: safe to let the operator correct the cart.
+          walletOperation.current=null;
+          setWalletUncertain(false);
+          toast.error(result.reason);
+          return;
+        }
         walletOperation.current=null;
-        toast.success(`Pedido pagado con monedero · ${formatPrice(result.amountCents)}`);
+        toast.success(`Pedido pagado con Monedero · ${formatCheckoutAmount(result.amountCents)}`);
       } else {
-        const {error}=await (supabase.rpc as any)("create_order_with_items",{
-          _member_id:id,_notes:notes||null,_items:cart
+        const {error}=await (supabase.rpc as any)("create_order_with_items_and_payment",{
+          _member_id:id,_notes:notes||null,_items:cart,_payment_method:paymentChoice
         });
         if(error)throw error;
-        toast.success(`Pedido cerrado · ${formatPrice(total)}`);
+        toast.success(`Pedido cerrado · ${formatCheckoutAmount(total)}`);
       }
       nav({to:"/soci/$id",params:{id}});
     } catch(e:any){
@@ -784,7 +811,7 @@ function PedidoPage() {
                               <div className="min-w-0">
                                 <div className="text-sm text-foreground truncate">{p.name}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                                  {p.sell_price_eur.toFixed(2)} €/{p.unit_type} · stock {p.stock}
+                                  {p.sell_price_eur.toFixed(2)} {walletMode?"créditos":"€"}/{p.unit_type} · stock {p.stock}
                                 </div>
                               </div>
                             </div>
@@ -803,7 +830,7 @@ function PedidoPage() {
                                   inputMode="decimal"
                                   value={st.eur}
                                   onChange={(e) => setGrEur(p.id, e.target.value, p.sell_price_eur)}
-                                  placeholder="€"
+                                  placeholder={walletMode?"créditos":"€"}
                                   disabled={p.stock <= 0}
                                   className="w-full bg-input border border-border rounded px-2 py-1 text-xs focus:border-neon outline-none"
                                 />
@@ -853,11 +880,11 @@ function PedidoPage() {
                         <div className="text-sm text-foreground truncate">{c.product_name}</div>
                         <div className="text-[10px] text-muted-foreground">
                           {c.quantity}
-                          {c.unit_type === "gr" ? " g" : " ud"} × {formatPrice(c.unit_price_cents)}
+                          {c.unit_type === "gr" ? " g" : " ud"} × {formatCheckoutAmount(c.unit_price_cents)}
                         </div>
                       </div>
                       <div className="text-neon font-display whitespace-nowrap">
-                        {formatPrice(c.line_total_cents)}
+                        {formatCheckoutAmount(c.line_total_cents)}
                       </div>
                       <button
                         onClick={() => setCart((p) => p.filter((_, j) => j !== i))}
@@ -888,7 +915,7 @@ function PedidoPage() {
                           className="w-20 bg-input border border-border rounded px-2 py-1 text-xs focus:border-neon outline-none"
                         />
                         <span className="text-[10px] text-muted-foreground">
-                          g extra a descontar del stock
+                          g extra de stock · Máx. {mermaLimit===null?"…":(c.quantity*mermaLimit).toLocaleString("es-ES",{maximumFractionDigits:3})} g
                         </span>
                       </div>
                     )}
@@ -898,7 +925,7 @@ function PedidoPage() {
             )}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-neon/20">
               <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Total</div>
-              <div className="font-display text-2xl text-neon">{formatPrice(total)}</div>
+              <div className="font-display text-2xl text-neon">{formatCheckoutAmount(total)}</div>
             </div>
           </div>
 
@@ -910,47 +937,40 @@ function PedidoPage() {
             className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs focus:border-neon outline-none resize-none"
           />
 
-          {walletStatusError && (
-            <p role="status" className="text-amber-300 text-sm">
-              Monedero temporalmente no disponible. Los pedidos en efectivo siguen funcionando.
-            </p>
-          )}
-          {walletState?.clubEnabled && (
+          {walletStatusError && <p role="alert" className="text-amber-300 text-sm">
+            No se puede verificar la configuración del Monedero. No se registrará ningún pedido hasta comprobarla.
+          </p>}
+          {!walletState && !walletStatusError && <p role="status" className="text-sm text-muted-foreground">Verificando la configuración del club…</p>}
+          {walletMode ? (
+            <section className="rounded-xl border border-neon/30 p-3 space-y-3" aria-label="Pago con créditos">
+              <strong>Pago con créditos del Monedero</strong>
+              <p className="text-sm">Saldo disponible: <strong>{formatCheckoutAmount(walletState.balanceCents??0)}</strong></p>
+              {!walletState.enabled && <p role="alert" className="text-red-400 text-sm">
+                Monedero no disponible para este socio. Comprueba su membresía y tarjeta en la ficha del socio.
+              </p>}
+              {(walletState.balanceCents??0)<total && <p role="alert" className="text-red-400 text-sm">
+                Créditos insuficientes. Recarga desde la ficha del socio.
+              </p>}
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" disabled={busy||walletUncertain||!walletState.enabled}
+                  checked={walletConfirmed} onChange={e=>setWalletConfirmed(e.target.checked)}/>
+                Confirmo el descuento de {formatCheckoutAmount(total)} del Monedero de este socio.
+              </label>
+            </section>
+          ) : walletState && (
             <div className="rounded-xl border border-neon/30 p-3 space-y-3" aria-label="Forma de pago">
               <strong>Forma de pago</strong>
               <div className="flex flex-wrap gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="order-payment-method" value="cash"
-                    checked={paymentChoice==="cash"} disabled={busy||walletUncertain}
-                    onChange={()=>{setPaymentChoice("cash");setWalletConfirmed(false);}}/>
-                  Efectivo
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="order-payment-method" value="wallet"
-                    checked={paymentChoice==="wallet"} disabled={busy||walletUncertain||!walletState.enabled}
-                    onChange={()=>{setPaymentChoice("wallet");setWalletConfirmed(false);}}/>
-                  Monedero
-                </label>
-              </div>
-              {paymentChoice==="wallet" && (
-                <div className="space-y-2">
-                  <p className="text-sm">Saldo verificado: {formatPrice(walletState.balanceCents??0)}</p>
-                  {!walletState.enabled && <p role="alert" className="text-red-400 text-sm">
-                    Monedero no disponible para este socio. Puedes elegir efectivo.
-                  </p>}
-                  {(walletState.balanceCents??0)<total && (
-                    <p role="alert" className="text-red-400 text-sm">
-                      Saldo insuficiente. Recarga desde la ficha del socio.
-                    </p>
-                  )}
-                  <label className="flex items-start gap-2 text-sm">
-                    <input type="checkbox" disabled={busy||walletUncertain||!walletState.enabled}
-                      checked={walletConfirmed}
-                      onChange={e=>setWalletConfirmed(e.target.checked)}/>
-                    Confirmo el cargo de {formatPrice(total)} al Monedero de este socio.
+                {(["cash","card","transfer"] as const).map(method => (
+                  <label key={method} className="flex items-center gap-2">
+                    <input type="radio" name="order-payment-method" value={method}
+                      checked={paymentChoice===method} disabled={busy||walletUncertain}
+                      onChange={()=>{setPaymentChoice(method);setWalletConfirmed(false);}}/>
+                    {method==="cash"?"Efectivo":method==="card"?"Tarjeta / POS":"Transferencia"}
                   </label>
-                </div>
-              )}
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Registra el método utilizado; Tarjeta / POS no realiza un cargo al terminal.</p>
             </div>
           )}
           {walletUncertain && (
@@ -960,7 +980,7 @@ function PedidoPage() {
           )}
           <button
             onClick={confirmar}
-            disabled={!cart.length || busy || walletUncertain || (paymentChoice==="wallet" &&
+            disabled={!cart.length || !walletState || walletStatusError || !paymentChoice || busy || walletUncertain || (walletMode && paymentChoice!=="wallet") || (paymentChoice==="wallet" &&
               (!walletState || walletStatusError || walletUncertain || !walletState.clubEnabled ||
                !walletState.enabled || !walletConfirmed || (walletState.balanceCents??0)<total))}
             className="w-full bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"

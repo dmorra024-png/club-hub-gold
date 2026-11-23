@@ -579,7 +579,9 @@ export async function deepgramAppSocket(
                 speech = true;
                 newTurn = true;
               }
-              if (m.type === "AgentThinking") speech = false;
+              // AgentThinking is optional: a spoken reply also ends the user turn.
+              // Otherwise consecutive phrases share one tool budget and eventually fail.
+              if (m.type === "AgentThinking" || m.type === "AgentStartedSpeaking") speech = false;
               send({ type: m.type });
             }
           } catch {

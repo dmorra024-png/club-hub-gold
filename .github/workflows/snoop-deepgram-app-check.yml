@@ -29,6 +29,8 @@ jobs:
         run: npm test
       - name: Actual Workerd gateway with synthetic upstreams
         run: node scripts/test-deepgram-app-worker.mjs
+      - name: Consecutive turns without optional thinking events (synthetic)
+        run: node scripts/test-deepgram-app-worker.mjs --no-thinking
       - name: Prepare isolated synthetic build settings
         run: |
           cat > .env.sandbox.local <<'ENV'

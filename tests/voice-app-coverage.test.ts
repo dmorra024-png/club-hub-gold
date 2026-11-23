@@ -58,6 +58,10 @@ test("admin destinations reject collaborators and suspended or cross-scope sessi
     "membership_settings",
     "membership_fees",
     "devices",
+    "personalizations",
+    "general_settings",
+    "wallet_settings",
+    "theme_settings",
   ] as const) {
     assert.equal(conversationAllowed({ ...admin, role: "collaborator" }, proposal(target)), false);
     assert.equal(authorizeProposal(proposal(target), { ...admin, status: "suspended" }).ok, false);

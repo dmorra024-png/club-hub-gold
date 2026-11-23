@@ -17,16 +17,12 @@ import {
   Trash2,
   FileCheck,
   ShoppingBag,
-  QrCode,
   Pencil,
   Save,
   X,
-  Mail,
-  Share2,
 } from "lucide-react";
 import { expiryBadge, formatPrice, signedUrl } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
-import QRCode from "qrcode";
 
 export const Route = createFileRoute("/_authenticated/soci/$id")({
   component: SocioDetail,
@@ -68,7 +64,6 @@ function SocioDetail() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [dniUrl, setDniUrl] = useState<string>("");
   const [sigUrl, setSigUrl] = useState<string>("");
-  const [qrUrl, setQrUrl] = useState<string>("");
   const renewalRequest = useRef<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [renewing, setRenewing] = useState(false);
@@ -100,11 +95,10 @@ function SocioDetail() {
     },
     id,
   );
-  const [resendingQr, setResendingQr] = useState(false);
   // Existing member editor only: no persistence or personal data returned to AI.
   const memberVoiceValues = (source: Partial<Member> | null) =>
     Object.fromEntries(
-      ["first_name", "last_name", "birth_date", "city", "phone"].map((key) => [
+      ["first_name", "last_name", "birth_date", "city", "phone", "email"].map((key) => [
         key,
         String(source?.[key as keyof Member] ?? ""),
       ]),
@@ -126,7 +120,7 @@ function SocioDetail() {
       patch: (values) => {
         if (!memberCardVisible || !member || member.id !== id || savingEdit)
           throw Error("SNOOP_FORM_UNAVAILABLE");
-        const allowed = new Set(["first_name", "last_name", "birth_date", "city", "phone"]);
+        const allowed = new Set(["first_name", "last_name", "birth_date", "city", "phone", "email"]);
         if (Object.keys(values).some((key) => !allowed.has(key)))
           throw Error("SNOOP_FORM_UNAVAILABLE");
         setForm((current) => ({ ...(editing ? current : member), ...values }));
@@ -135,90 +129,6 @@ function SocioDetail() {
     },
     id,
   );
-
-  const [qrMailStatus, setQrMailStatus] = useState("");
-  async function checkQrMail() {
-    try {
-      const { getMemberMailStatus } = await import("@/lib/member-mail.functions");
-      const { memberMailLabel } = await import("@/lib/member-mail-state");
-      const result = await getMemberMailStatus({ data: { memberId: member!.id } });
-      setQrMailStatus(memberMailLabel(result.status));
-    } catch {
-      setQrMailStatus("Estado no disponible: entrega no verificada.");
-    }
-  }
-
-  async function resendQr() {
-    if (!member) return;
-    if (!member.email) return toast.error("Este socio no tiene email");
-    setResendingQr(true);
-    try {
-      const { data: m2 } = await supabase
-        .from("members")
-        .select("club_id")
-        .eq("id", member.id)
-        .maybeSingle();
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("name")
-        .eq("id", (m2 as any)?.club_id ?? "")
-        .maybeSingle();
-      const { sendMemberQrEmail } = await import("@/lib/member-qr");
-      const mail = await sendMemberQrEmail({
-        memberId: member.id,
-        memberNumber: member.member_number,
-        fullName: `${member.first_name} ${member.last_name}`.trim(),
-        email: member.email,
-        clubName: (club as any)?.name ?? "Club",
-      });
-      const { memberMailLabel } = await import("@/lib/member-mail-state");
-      setQrMailStatus(memberMailLabel(mail.status));
-      toast.info(memberMailLabel(mail.status));
-    } catch (e: any) {
-      toast.error(e.message ?? "No se pudo reenviar");
-    } finally {
-      setResendingQr(false);
-    }
-  }
-
-  // A local-only fallback when the transactional email provider is not configured.
-  // Never sends the QR to a server or to another app without an explicit tap.
-  async function shareQr() {
-    if (!member || !qrUrl) return;
-    try {
-      const encoded = qrUrl.split(",")[1];
-      if (!encoded) throw new Error("QR no disponible");
-      const raw = atob(encoded);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const filename = `snoop-carnet-${member.member_number.replace(/[^0-9]/g, "")}.png`;
-      const file = new File([bytes], filename, { type: "image/png" });
-      const name = [member.first_name, member.last_name].join(" ").trim();
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: "Carnet QR SNOOP",
-            text: `Carnet QR de ${name}`,
-          });
-        } catch (error) {
-          if ((error as Error)?.name !== "AbortError") throw error;
-        }
-      } else {
-        const url = URL.createObjectURL(file);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-        toast.info("QR descargado. Puedes adjuntarlo a un email.");
-      }
-    } catch {
-      toast.error("No se pudo compartir el QR. Usa la imagen del carnet.");
-    }
-  }
 
   async function saveEdit() {
     if (!member || savingEdit || !navigator.onLine) return;
@@ -269,16 +179,6 @@ function SocioDetail() {
       setDniUrl(await signedUrl((m as any).dni_photo_path).catch(() => ""));
     if ((m as any).signature_path)
       setSigUrl(await signedUrl((m as any).signature_path).catch(() => ""));
-    if ((m as any).member_number) {
-      try {
-        const url = await QRCode.toDataURL(`SNOOP:${(m as any).member_number}`, {
-          margin: 1,
-          width: 320,
-          color: { dark: "#39FF14", light: "#00000000" },
-        });
-        setQrUrl(url);
-      } catch {}
-    }
   }
   useEffect(() => {
     load();
@@ -374,7 +274,7 @@ function SocioDetail() {
   const badge = expiryBadge(member.expires_at);
 
   return (
-    <SnoopLayout>
+    <SnoopLayout contentClassName="snoop-member-home-type !pb-[calc(var(--snoop-nav-height,100px)+var(--snoop-safe-bottom,0px)+64px)]">
       <AdministrativePaymentDialog
         key={`${paymentOpen}:${newPlanId}:${paymentMethod}`}
         open={paymentOpen}
@@ -392,17 +292,17 @@ function SocioDetail() {
         <ArrowLeft className="w-4 h-4" /> Volver
       </Link>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid min-w-0 w-full max-w-full grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
         {/* Left: identity */}
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 backdrop-blur">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
+        <div className="min-w-0 w-full space-y-4 md:col-span-2 md:space-y-6">
+          <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6 backdrop-blur">
+            <div className="flex min-w-0 items-start justify-between gap-4 flex-wrap">
+              <div className="min-w-0 max-w-full break-words">
                 <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">Nº socio</div>
                 <div className="font-display text-2xl text-neon tracking-[0.25em] mt-0.5">
                   {member.member_number}
                 </div>
-                <h1 className="font-display text-3xl text-foreground mt-3">
+                <h1 className="font-display text-2xl sm:text-3xl text-foreground mt-3 break-words">
                   {member.first_name} {member.last_name}
                 </h1>
                 <div className="text-sm text-muted-foreground mt-1">{member.dni_number}</div>
@@ -428,7 +328,7 @@ function SocioDetail() {
             </div>
 
             {editing ? (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="mt-6 grid min-w-0 grid-cols-2 gap-3 [&>*]:min-w-0">
                 <EditField
                   label="Nombre"
                   value={form.first_name ?? ""}
@@ -460,7 +360,7 @@ function SocioDetail() {
                   value={form.phone ?? ""}
                   onChange={(v) => setForm({ ...form, phone: v })}
                 />
-                <div className="md:col-span-2">
+                <div className="col-span-2 min-w-0">
                   <EditField
                     label="Email"
                     type="email"
@@ -468,7 +368,7 @@ function SocioDetail() {
                     onChange={(v) => setForm({ ...form, email: v })}
                   />
                 </div>
-                <div className="md:col-span-2 flex justify-end gap-2 mt-1">
+                <div className="col-span-2 flex flex-wrap justify-end gap-2 mt-1">
                   <button
                     onClick={() => setEditing(false)}
                     className="px-3 py-2 text-xs uppercase tracking-widest border border-border rounded-lg text-muted-foreground hover:text-foreground"
@@ -485,7 +385,7 @@ function SocioDetail() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 text-sm">
+              <div className="grid min-w-0 grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-5 mt-6 text-sm [&>*]:min-w-0">
                 <Stat label="F. nacimiento" value={member.birth_date} />
                 <Stat label="Ciudad" value={member.city ?? "—"} />
                 <Stat label="Teléfono" value={member.phone ?? "—"} />
@@ -501,18 +401,18 @@ function SocioDetail() {
           </div>
 
           {/* DNI */}
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
+          <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6">
             <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-3">DNI</div>
             {dniUrl ? (
-              <img src={dniUrl} alt="DNI" className="max-w-full rounded-lg border border-border" />
+              <div className="flex w-full max-w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-black/20"><img src={dniUrl} alt="DNI" className="block w-full max-w-full max-h-[320px] h-auto object-contain object-center" /></div>
             ) : (
               <div className="text-muted-foreground text-sm">Sin foto</div>
             )}
           </div>
 
           {/* Contract */}
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="min-w-0 w-full max-w-full overflow-hidden bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-6">
+            <div className="flex min-w-0 items-center gap-2 mb-3">
               <FileCheck className="w-4 h-4 text-neon" />
               <div className="text-[10px] uppercase tracking-[0.3em] text-neon-dim">
                 Contrato firmado
@@ -520,7 +420,7 @@ function SocioDetail() {
             </div>
             {member.contract_signed_at ? (
               <>
-                <div className="text-xs text-muted-foreground mb-3">
+                <div className="text-xs text-muted-foreground mb-3 break-words">
                   Firmado el {new Date(member.contract_signed_at).toLocaleString("es-ES")} · versión{" "}
                   {member.contract_version}
                 </div>
@@ -528,7 +428,7 @@ function SocioDetail() {
                   <img
                     src={sigUrl}
                     alt="Firma"
-                    className="max-w-xs bg-black rounded-lg border border-border"
+                    className="block w-full max-w-full aspect-[1.85/1] object-contain object-center bg-black rounded-lg border border-border"
                   />
                 )}
               </>
@@ -539,67 +439,12 @@ function SocioDetail() {
         </div>
 
         {/* Right: actions */}
-        <div className="space-y-6">
-          <div className="bg-card/60 border border-neon/20 rounded-2xl p-6 flex flex-col items-center text-center">
-            <div className="flex items-center gap-2 mb-3">
-              <QrCode className="w-4 h-4 text-neon" />
-              <div
-                ref={(element) => {
-                  memberSections.current.qr = element;
-                }}
-                className="text-[10px] uppercase tracking-[0.3em] text-neon-dim"
-              >
-                Carnet QR
-              </div>
-            </div>
-            {qrUrl ? (
-              <img src={qrUrl} alt={`QR socio ${member.member_number}`} className="w-44 h-44" />
-            ) : (
-              <div className="w-44 h-44 flex items-center justify-center text-muted-foreground text-xs">
-                Generando…
-              </div>
-            )}
-            <div className="font-display text-neon tracking-[0.3em] mt-3">
-              {member.member_number}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Escanea el QR o dicta el número para abrir esta ficha.
-            </p>
-            <button
-              type="button"
-              onClick={() => void shareQr()}
-              disabled={!qrUrl}
-              className="mt-4 w-full flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-2.5 rounded-lg text-[11px] uppercase tracking-widest font-semibold disabled:opacity-50"
-              title="Compartir el QR como imagen desde este dispositivo"
-            >
-              <Share2 className="w-3.5 h-3.5" /> Compartir carnet QR
-            </button>
-            <p className="text-[10px] text-muted-foreground mt-2">
-              Puedes elegir tu app de email o descargar la imagen. No se envía automáticamente.
-            </p>
-            <button
-              type="button"
-              onClick={resendQr}
-              disabled={resendingQr || !member.email}
-              className="mt-2 w-full flex items-center justify-center gap-2 border border-neon/40 text-neon py-2 rounded-lg text-[11px] uppercase tracking-widest hover:bg-neon/10 disabled:opacity-50"
-              title={member.email ? "" : "Este socio no tiene email"}
-            >
-              <Mail className="w-3.5 h-3.5" />{" "}
-              {resendingQr ? "Solicitando…" : "Reenviar QR por email"}
-            </button>
-            <button type="button" className="mt-2 text-sm underline" onClick={checkQrMail}>
-              Consultar estado del email QR
-            </button>
-            {qrMailStatus && (
-              <p role="status" className="text-xs mt-2">
-                {qrMailStatus}
-              </p>
-            )}
-          </div>
+        <div className="min-w-0 w-full space-y-4 md:space-y-6">
+          <div ref={element => {memberSections.current.qr=element;}}><SocioClientLinkPanel memberId={id} /></div>
 
           <button
             onClick={nuevoPedido}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon"
+            className="w-full min-w-0 min-h-11 flex items-center justify-center gap-2 bg-gradient-neon text-primary-foreground py-3 rounded-xl font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon"
           >
             <ShoppingBag className="w-4 h-4" /> Hacer pedido
           </button>
@@ -623,7 +468,7 @@ function SocioDetail() {
                 setNewPlanId(e.target.value);
                 renewalRequest.current = null;
               }}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
+              className="w-full min-w-0 max-w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
             >
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -641,7 +486,7 @@ function SocioDetail() {
                   setPaymentMethod(e.target.value);
                   renewalRequest.current = null;
                 }}
-                className="w-full bg-input border border-border p-2"
+                className="w-full min-w-0 max-w-full bg-input border border-border rounded-md p-2"
               >
                 <option value="cash">Efectivo</option>
                 <option value="card">Tarjeta</option>
@@ -652,7 +497,7 @@ function SocioDetail() {
             <button
               onClick={() => renew()}
               disabled={renewing}
-              className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
+              className="mt-3 w-full min-h-11 bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display font-semibold uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
             >
               {renewing ? "..." : "Renovar"}
             </button>
@@ -679,7 +524,6 @@ function SocioDetail() {
       >
         <MemberDiscounts memberId={id} />
       </div>
-      <SocioClientLinkPanel memberId={id} />
       <WalletTopupPanel memberId={id} />
       <div
         ref={(element) => {
@@ -696,7 +540,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-[0.25em] text-neon-dim">{label}</div>
-      <div className="mt-1 text-foreground break-words">{value}</div>
+      <div className="mt-1 text-foreground break-all sm:break-words">{value}</div>
     </div>
   );
 }

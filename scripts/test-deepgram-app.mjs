@@ -33,6 +33,8 @@ const statusId = await serverFunctionId("deepgramPilotStatus", "deepgram-pilot.f
   historyId = await serverFunctionId("getMemberOrderHistory", "member-order-history.functions-"),
   collaboratorListId = await serverFunctionId("listCollaborators", "platform.functions-"),
   walletStatusId = await serverFunctionId("walletMemberStatus", "wallet-management.functions-");
+const accessSettingsId = await serverFunctionId("getClubAccessControl", "club-access-control.functions-"),
+  mermaSettingsId = await serverFunctionId("getClubMermaSettings", "club-merma.functions-");
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -306,6 +308,8 @@ for (const [label, engine, device] of [
         });
       if (u.pathname.includes(historyId))
         return json({ result: { orders: [], ownOnly: false, hasMore: false }, context: {} });
+      if (u.pathname.includes(accessSettingsId)) return json({ result: { enabled: false }, context: {} });
+      if (u.pathname.includes(mermaSettingsId)) return json({ result: { maxMermaPerGram: 0.1 }, context: {} });
       if (u.pathname.includes("_serverFn")) {
         unexpected.push(u.pathname);
         return json({ result: { available: false }, context: {} });
@@ -443,6 +447,12 @@ for (const [label, engine, device] of [
       await page.getByLabel("Fecha de nacimiento *", { exact: true }).inputValue(),
       "1995-03-12",
     );
+    await send(proposal("member", "member_create", { member: { email: "synthetic.member@example.test" } }));
+    await page.getByLabel("Email", { exact: true }).waitFor();
+    await page.waitForFunction(() => [...document.querySelectorAll("input")].some(i => i.value === "synthetic.member@example.test"));
+    await page.getByLabel("Email", { exact: true }).fill("manual@example.test");
+    await send(proposal("member", "member_create", { member: { email: "other@example.test" } }));
+    assert.equal(await page.getByLabel("Email", { exact: true }).inputValue(), "manual@example.test");
     await page.getByLabel("Apellidos *", { exact: true }).fill("Manual");
     await send(
       proposal("member", "member_create", { member: { last_name: "Modelo", city: "Inca" } }),
@@ -458,8 +468,7 @@ for (const [label, engine, device] of [
       animations: "disabled",
     });
 
-    await send(proposal("navigate", "members"));
-    await page.getByRole("link", { name: /Marco Rossi/ }).click();
+    await send(proposal("search", "members", {query:"Marco Rossi"}));
     await page.getByRole("heading", { name: "Marco Rossi", exact: true }).waitFor();
     await send(proposal("member_edit", null, { member: { last_name: "Bianchi", city: "Inca" } }));
     await page.waitForFunction(() =>
@@ -699,7 +708,7 @@ for (const [label, engine, device] of [
     assert.equal(await page.getByLabel("Precio (€)", { exact: true }).inputValue(), "45.75");
     assert.equal(writes, 0, "consecutive corrections must never save a fee");
     await send(
-      proposal("administrative_draft", "membership_settings", {
+      proposal("administrative_draft", "general_settings", {
         form: {
           kind: "discount",
           fields: {
@@ -717,7 +726,7 @@ for (const [label, engine, device] of [
       ),
     );
     await send(
-      proposal("administrative_draft", "membership_settings", {
+      proposal("administrative_draft", "general_settings", {
         form: { kind: "discount", fields: { percentage: "15,25" } },
       }),
     );
@@ -838,7 +847,7 @@ for (const [label, engine, device] of [
     await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
     await page.getByRole("link", { name: "Ajustes", exact: true }).first().click();
     await page.getByRole("heading", { name: "Ajustes", exact: true }).waitFor();
-    await page.getByRole("link", { name: /Mi perfil/ }).waitFor();
+    await page.getByRole("link", { name: "Mi perfil", exact: true }).waitFor();
     assert.equal(await page.getByRole("link", { name: /Colaboradores/ }).count(), 0);
     assert.equal(await page.getByRole("link", { name: /Cuotas/ }).count(), 0);
     assert.equal(writes, 0);

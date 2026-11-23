@@ -187,6 +187,7 @@ test("voice period matches released wallet accounting and never converts evidenc
           {
             id: topup,
             amountCents: 3000,
+            paymentMethod:"cash",kind:"topup",memberId:session,voided:false,
             cashSessionId: session,
             actorId: actor,
             at: "2026-11-18T12:00:00Z",
@@ -194,6 +195,7 @@ test("voice period matches released wallet accounting and never converts evidenc
           {
             id: session,
             amountCents: 9900,
+            paymentMethod:"cash",kind:"topup",memberId:session,voided:false,
             cashSessionId: session,
             actorId: order,
             at: "2026-11-18T12:00:00Z",

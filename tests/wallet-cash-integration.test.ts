@@ -48,7 +48,7 @@ test("wallet cash evidence requires verified RPC rows, not guessed method or arb
    assert.equal(args.p_start,start);assert.equal(args.p_end,end);
    return {error:null,data:{
     walletOrders:[{orderId:club,amountCents:900,paymentMethod:"wallet"}],
-    topups:[{id:user,amountCents:3500,cashSessionId:session,actorId:user,at:date}]
+    topups:[{id:user,amountCents:3500,cashSessionId:session,actorId:user,at:date,paymentMethod:"cash",kind:"topup",memberId:club,voided:false}]
    }};
   }};
   const result=await readWalletCashEvidence(client,start,end);

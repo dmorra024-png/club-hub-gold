@@ -16,6 +16,7 @@ export const memberFields = z
     birth_date: z.string().max(10).optional(),
     city: z.string().max(120).optional(),
     phone: z.string().max(24).optional(),
+    email: z.string().trim().email().max(254).optional(),
   })
   .strict();
 // Informational fields only. No pricing, stock mutation, payment or fulfillment tools.

@@ -46,15 +46,15 @@ export const walletTopup=createServerFn({method:"POST"})
  .middleware([requireClubCashAuth])
  .inputValidator((input:unknown)=>z.object({
   memberId:uuid,cashSessionId:uuid,operationId:uuid,
-  amountCents:cents,confirmed:z.literal(true)
+  amountCents:cents,paymentMethod:z.enum(["cash","card","transfer"]),confirmed:z.literal(true)
  }).strict().parse(input))
  .handler(async ({context,data})=>{
   if(!available())fail();
   await checkMember(context,data.memberId);
-  const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_topup",{
+  const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_topup_with_method",{
    p_club_id:context.clubId,p_member_id:data.memberId,
    p_cash_session_id:data.cashSessionId,p_operation_id:data.operationId,
-   p_amount_cents:data.amountCents
+   p_amount_cents:data.amountCents,p_payment_method:data.paymentMethod
   });
   if(error||!result||!["applied","duplicate"].includes(result.status)||
       result.operationId!==data.operationId||
@@ -75,7 +75,30 @@ export const walletCheckout=createServerFn({method:"POST"})
    p_member_id:data.memberId,p_notes:data.notes,p_items:data.items,
    p_operation_id:data.operationId
   });
-  if(error||!result||result.status!=="applied"||
+  if(error){
+   // A PostgreSQL transaction rejection is definitive: all writes in this
+   // single RPC were rolled back. Network/protocol errors remain uncertain.
+   const dbCode=String(error.code??"");
+   const detail=String(error.message??"");
+   const rejected=/^(22|23|42|P0001)/.test(dbCode) &&
+     (/^WALLET_[A-Z_]+/.test(detail) || /Stock insuficiente|Producto no encontrado|Club operation denied|Club not authorized/.test(detail));
+   if(rejected){
+    const reason=/PRICE_MISMATCH/.test(detail)
+      ? "Precio o cantidad modificados. Actualiza el carrito."
+      : /INSUFFICIENT_BALANCE/.test(detail)
+      ? "Saldo de créditos insuficiente."
+      : /STOCK|PRODUCT_UNAVAILABLE|Producto no encontrado/.test(detail)
+      ? "Producto sin stock suficiente o no disponible."
+      : /MEMBER_INACTIVE/.test(detail)
+      ? "La membresía o tarjeta del socio no está activa."
+      : /FORBIDDEN|Club operation denied|Club not authorized/.test(detail)
+      ? "No tienes permiso para registrar este pedido."
+      : "Pedido rechazado. No se han descontado créditos.";
+    return {status:"rejected" as const,reason};
+   }
+   fail();
+  }
+  if(!result||result.status!=="applied"||
      result.operationId!==data.operationId||
      !Number.isSafeInteger(result.balanceCents)||result.balanceCents<0||
      !uuid.safeParse(result.orderId).success)fail();
@@ -110,4 +133,46 @@ export const walletCancel=createServerFn({method:"POST"})
      result.refundOperationId!==data.operationId||result.orderId!==data.orderId||
      !Number.isSafeInteger(result.balanceCents)||result.balanceCents<0)fail();
   return result as {status:"applied";orderId:string;balanceCents:number;refundCents:number};
+ });
+
+/** Audited topup cancellation: caller must certify refund already completed.
+ * Cash/POS/transfer refund is recorded but never initiated by SNOOP.
+ * Database atomically removes unused credits and posts the negative receipt.
+ */
+export const walletVoidTopup=createServerFn({method:"POST"})
+ .middleware([requireClubCashAuth])
+ .inputValidator((input:unknown)=>z.object({
+   topupId:uuid,operationId:uuid,
+   reason:z.string().trim().min(5).max(2000),
+   refundMethod:z.enum(["cash","card","transfer"]),confirmed:z.literal(true)
+ }).strict().parse(input))
+ .handler(async ({context,data})=>{
+  if(!available())fail();
+  await requireOperationalClub(context,"manage_members");
+  const {data:cashSessionId,error:cashError}=await (context.supabase as any).rpc("current_open_cash_session");
+  if(cashError||!uuid.safeParse(cashSessionId).success)
+   return {status:"rejected" as const,reason:"Abre tu propia caja antes de registrar la devolución."};
+  const {data:result,error}=await (context.supabase as any).rpc("socio_wallet_void_topup",{
+   p_topup_id:data.topupId,p_cash_session_id:cashSessionId,
+   p_operation_id:data.operationId,p_reason:data.reason,
+   p_refund_method:data.refundMethod,p_refund_confirmed:true
+  });
+  if(error){
+   const code=String(error.code??""),message=String(error.message??"");
+   if(/^(22|23|42|P0001)/.test(code)&&/^WALLET_/.test(message)){
+    const reason=message.includes("CREDITS_ALREADY_USED")
+       ?"No se puede anular: los créditos de esta recarga ya se han gastado. Requiere conciliación administrativa."
+       :message.includes("ALREADY_VOIDED")
+       ?"La recarga ya estaba anulada."
+       :message.includes("REFUND_CASH_NOT_OPEN")
+       ?"Abre tu caja antes de registrar la devolución."
+       :"No se pudo anular la recarga. Revisa permisos, saldo e historial.";
+    return {status:"rejected" as const,reason};
+   }
+   fail();
+  }
+  if(!result||!["applied","duplicate"].includes(result.status)||
+   result.topupId!==data.topupId||result.operationId!==data.operationId||
+   !Number.isSafeInteger(result.balanceCents)||result.balanceCents<0)fail();
+  return result as {status:"applied"|"duplicate";topupId:string;operationId:string;balanceCents:number;refundCents:number};
  });

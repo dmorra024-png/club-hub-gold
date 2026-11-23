@@ -95,10 +95,8 @@ export function FinancialRecordDialog({
   }, [scope, allowed, retry]);
   useEffect(()=>{
     if(!allowed)return;
-    if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true"){
-      setWalletPayment(false);setWalletStatusError(false);setWalletUncertain(false);
-      return;
-    }
+    // Classify the actual original payment on the authorized server.
+    // Build-time flags must never turn a wallet order into a cash cancellation.
     let active=true;
     setWalletPayment(null);setWalletStatusError(false);setWalletUncertain(false);
     walletOrderPaymentState({data:{orderId}})
@@ -156,15 +154,15 @@ export function FinancialRecordDialog({
     }
   }
   async function refund() {
-    if (
-      sending.current ||
-      refundRecorded ||
-      !order?.canRefund || walletPayment!==false ||
-      !refundConfirmed ||
-      !refundMethod ||
-      refundReason.trim().length < 5
-    )
+    if (sending.current || refundRecorded || !order?.canRefund || walletPayment !== false) return;
+    if (!refundConfirmed || !refundMethod) {
+      setError("Selecciona el método real y confirma que el dinero ya se ha devuelto.");
       return;
+    }
+    if (refundReason.trim().length < 5) {
+      setError("Escribe al menos 5 caracteres en el motivo del reembolso.");
+      return;
+    }
     sending.current = true;
     setBusy(true);
     setError("");
@@ -218,7 +216,7 @@ export function FinancialRecordDialog({
         <DialogHeader>
           <DialogTitle>Detalle del registro</DialogTitle>
           <DialogDescription>
-            Historial original y rectificación contable. Al anular, se repone la cantidad vendida en el inventario; la merma no se repone.
+            Historial original y rectificación contable. Al anular, se repone la cantidad total descontada del stock, incluida la merma registrada en el pedido.
           </DialogDescription>
         </DialogHeader>
         {!data && !error && <p role="status">Consultando registro…</p>}
@@ -330,13 +328,11 @@ export function FinancialRecordDialog({
                         />
                         Confirmo que el dinero ya se ha devuelto y no está registrado previamente.
                       </label>
+                      {refundReason.trim().length > 0 && refundReason.trim().length < 5 && (
+                        <p className="text-xs text-amber-300" role="status">El motivo necesita al menos 5 caracteres para registrar el reembolso.</p>
+                      )}
                       <Button
-                        disabled={
-                          busy ||
-                          !refundConfirmed ||
-                          !refundMethod ||
-                          refundReason.trim().length < 5
-                        }
+                        disabled={busy || !refundConfirmed || !refundMethod}
                         onClick={refund}
                       >
                         Confirmar registro de reembolso
@@ -356,7 +352,7 @@ export function FinancialRecordDialog({
             {order.canCancel && can("use_cash") && !committed && (
               <div className="space-y-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground">
-                  Anular conserva el original, descuenta el importe del resultado contable y repone la cantidad vendida en el inventario (no la merma). No realiza un reembolso automático.
+                  Anular conserva el original, descuenta el importe del resultado contable y repone toda la cantidad descontada del inventario, incluida la merma registrada. No realiza un reembolso automático.
                 </p>
                 <label className="block text-sm">
                   Motivo de anulación

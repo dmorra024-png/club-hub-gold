@@ -66,7 +66,7 @@ export async function readCashLedger(
   const orders = await cashPages(() => {
     let q = client
       .from("orders")
-      .select("id,total_cents,created_by,created_at,cash_session_id,status")
+      .select("id,total_cents,created_by,created_at,cash_session_id,status,payment_method")
       .eq("club_id", scope.clubId)
       .gte("created_at", start)
       .lt("created_at", end);

@@ -46,3 +46,19 @@ business writes. Live Deepgram and physical Android/iPhone audibility remain unv
 
 This is an audio correction, not certification of full manual/voice parity. Reconcile
 current application services and rerun all checks before a future authorized release.
+
+## Consecutive-turn regression
+
+A separate Workerd regression deliberately omits the optional `AgentThinking` event.
+Before the fix, the 20-turn scenario fails waiting for a subsequent accepted proposal:
+`AgentStartedSpeaking` did not clear the user-speech flag, so later utterances did not
+reset the per-turn tool budget. The fix treats the explicit spoken-response event as
+the end of the preceding user turn. The limit remains eight tool calls per turn; it
+is not increased or removed. The identical 20-turn regression now passes, including
+authenticated tools, rejected identities/clubs and metering close retry. Upstreams are
+synthetic, and no production database or live Deepgram call is involved.
+
+After current-release reconciliation, 491 unit/integration tests and TypeScript pass.
+PostgreSQL 17 concurrency checks pass with isolated synthetic records: seven competing
+annulment requests produce one reversal, and seven refund requests produce one refund.
+These tests do not execute physical payment or change production inventory.

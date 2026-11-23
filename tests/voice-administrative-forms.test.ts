@@ -54,7 +54,7 @@ test("every administrative draft is typed, permission checked and routed to a re
           {
             collaborators: "/ajustes/colaboradores",
             membership_fees: "/ajustes/cuotas",
-            membership_settings: "/ajustes/socios",
+            general_settings: "/ajustes/generales",
           } as any
         )[value.target]
       : "/soci/synthetic";

@@ -5,7 +5,7 @@ import { chromium, webkit, devices } from "playwright-core";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3091";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL || (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
 );
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
@@ -41,7 +41,7 @@ for (const [label, engine, device] of [
           executablePath: existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined,
           args: ["--no-sandbox"],
         }
-      : {}),
+      : { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }),
   });
   try {
     for (const mode of ["admin", "staff", "missing-schema"]) {
@@ -159,7 +159,7 @@ for (const [label, engine, device] of [
       const page = await context.newPage();
       page.on("pageerror", (e) => errors.push(e.message));
       if (mode === "admin") {
-        await page.goto(base + "/ajustes/socios");
+        await page.goto(base + "/ajustes/generales");
         await page.getByRole("button", { name: "Nuevo descuento", exact: true }).click();
         await page.getByLabel("Nombre", { exact: true }).fill("Participación");
         await page.getByLabel("Porcentaje (%)", { exact: true }).fill("12,50");
