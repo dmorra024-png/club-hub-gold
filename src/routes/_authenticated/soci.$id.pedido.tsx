@@ -26,6 +26,7 @@ import { parseOrderItems, transcribeAudio } from "@/lib/voice-agent.functions";
 import { formatPrice } from "@/lib/snoop";
 import { useAuth } from "@/hooks/useAuth";
 import { walletMemberStatus, walletCheckout } from "@/lib/wallet-management.functions";
+import {getClubMermaSettings} from "@/lib/club-merma.functions";
 import {
   readOnlyCatalog,
   filterReadOnlyCatalog,
@@ -120,6 +121,16 @@ function PedidoPage() {
   const [grInput, setGrInput] = useState<Record<string, { qty: string; eur: string }>>({});
   // raw text for merma input keyed by product_id (so user can type "0", "0.", "0,05")
   const [mermaText, setMermaText] = useState<Record<string, string>>({});
+  const [mermaLimit,setMermaLimit]=useState<number|null>(null);
+  const [mermaConfigError,setMermaConfigError]=useState(false);
+  useEffect(()=>{
+    if(authLoading||!access.clubId)return;
+    let active=true;setMermaLimit(null);setMermaConfigError(false);
+    getClubMermaSettings().then(result=>{
+      if(active)setMermaLimit(result.maxMermaPerGram);
+    }).catch(()=>{if(active)setMermaConfigError(true);});
+    return()=>{active=false;};
+  },[authLoading,access.clubId]);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -210,11 +221,11 @@ function PedidoPage() {
     return Math.round(p.sell_price_eur * 100);
   }
 
-  /** For gr items: split actual weight into billed + merma (tolerance 0.05 g per 1 g billed). */
+  /** Split measured weight into billed grams + authorized club merma. */
   function splitGrTolerance(q: number): { billed: number; merma: number } {
     if (q <= 0) return { billed: 0, merma: 0 };
     const candidates = [Math.floor(q), Math.floor(q * 2) / 2, Math.round(q)];
-    const valid = candidates.filter((b) => b > 0 && q + 1e-9 >= b && q - b <= 0.05 * b + 1e-9);
+    const valid = candidates.filter((b) => b > 0 && q + 1e-9 >= b && q - b <= (mermaLimit??0) * b + 1e-9);
     const billed = valid.length ? Math.max(...valid) : q;
     const merma = Math.round((q - billed) * 1000) / 1000;
     return { billed: Math.round(billed * 1000) / 1000, merma };
@@ -228,6 +239,7 @@ function PedidoPage() {
     let billed = quantity;
     let autoMerma = 0;
     if (p.unit_type === "gr" && opts?.autoTolerance) {
+      if(mermaLimit===null)return toast.error("No se pudo verificar la merma permitida del club.");
       const s = splitGrTolerance(quantity);
       billed = s.billed;
       autoMerma = s.merma;
@@ -244,6 +256,7 @@ function PedidoPage() {
         const merged = [...prev];
         const newQty = Math.round((merged[i].quantity + billed) * 1000) / 1000;
         const newMerma = Math.round((merged[i].merma + autoMerma) * 1000) / 1000;
+        if (newMerma>newQty*(mermaLimit??0)+0.000001){toast.error("Merma superior al límite autorizado por el club.");return prev;}
         if (newQty + newMerma > p.stock) {
           toast.error(`Stock insuficiente de ${p.name}`);
           return prev;
@@ -278,6 +291,10 @@ function PedidoPage() {
       const next = [...prev];
       const cur = { ...next[idx], ...patch };
       const p = products.find((x) => x.id === cur.product_id);
+      if(cur.unit_type==="gr"&&cur.merma>cur.quantity*(mermaLimit??0)+0.000001){
+        toast.error("Merma superior al límite permitido por el club.");
+        return prev;
+      }
       if (p && cur.quantity + (cur.merma || 0) > p.stock) {
         toast.error(`Stock insuficiente de ${p.name}`);
         return prev;
@@ -512,6 +529,10 @@ function PedidoPage() {
 
   async function confirmar() {
     if (!cart.length) return toast.error("Carrito vacío");
+    if(mermaLimit===null||mermaConfigError)return toast.error("No se puede verificar la merma permitida del club.");
+    if(cart.some(c=>(c.unit_type!=="gr"&&c.merma!==0)||
+       (c.unit_type==="gr"&&c.merma>c.quantity*mermaLimit+0.000001)))
+       return toast.error("La merma excede el límite del club. Corrige el pedido.");
     // Fail closed while verifying club mode: an enabled Monedero club must
     // never offer direct cash/card/transfer checkout.
     if(walletUncertain) return toast.error("Hay un pago anterior sin confirmar. Consulta el historial antes de otro pedido.");
@@ -894,7 +915,7 @@ function PedidoPage() {
                           className="w-20 bg-input border border-border rounded px-2 py-1 text-xs focus:border-neon outline-none"
                         />
                         <span className="text-[10px] text-muted-foreground">
-                          g extra a descontar del stock
+                          g extra de stock · Máx. {mermaLimit===null?"…":(c.quantity*mermaLimit).toLocaleString("es-ES",{maximumFractionDigits:3})} g
                         </span>
                       </div>
                     )}

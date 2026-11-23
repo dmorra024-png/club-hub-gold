@@ -1,4 +1,3 @@
-import { MemberDiscounts } from "@/components/MemberDiscounts";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -72,9 +71,8 @@ function AjustesSocios() {
   if (loading || !isAdmin) return <SnoopLayout><div className="p-8 text-muted-foreground">Cargando…</div></SnoopLayout>;
 
   return (
-    <SnoopLayout title="Socios" subtitle="Descuentos y campos de inscripción">
+    <SnoopLayout title="Socios" subtitle="Campos de inscripción">
       <div className="max-w-3xl">
-        <MemberDiscounts />
         <div className="mb-4 text-xs text-muted-foreground">
           <strong className="text-foreground">Nombre</strong> y <strong className="text-foreground">Apellidos</strong> son siempre obligatorios.
         </div>

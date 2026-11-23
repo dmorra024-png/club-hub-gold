@@ -21,6 +21,7 @@ import {
 import type { Permission } from "@/lib/access-context";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import {getClubAccessControl} from "@/lib/club-access-control.functions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 const NAV: {
   to: string;
@@ -57,6 +58,19 @@ export function SnoopLayout({
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const [clubAccessEnabled,setClubAccessEnabled]=useState<boolean|null>(null);
+  useEffect(()=>{
+    if(loading||!access.clubId)return;
+    let active=true;
+    const refresh=()=>{
+      getClubAccessControl().then(result=>{
+        if(active)setClubAccessEnabled(result.enabled);
+      }).catch(()=>{if(active)setClubAccessEnabled(false);});
+    };
+    refresh();
+    window.addEventListener("snoop:club-access-changed",refresh);
+    return()=>{active=false;window.removeEventListener("snoop:club-access-changed",refresh);};
+  },[access.clubId,loading]);
   const keyboard = useMobileKeyboard();
   // Portaled dialogs, sheets and dropdowns are rendered outside the shell.
   // Mark the body only while the Gestionale is mounted, so shared UI components
@@ -94,7 +108,7 @@ export function SnoopLayout({
   if (!loading && !accessError && isSuperAdmin) return <Navigate to="/snoop-admin" />;
   if (!loading && !accessError && access.status !== "active") return <Navigate to="/club-status" />;
   const visible = NAV.filter(
-    (item) => (!item.admin || isAdmin) && (!item.permission || can(item.permission)),
+    (item) => (!item.admin || isAdmin) && (!item.permission || can(item.permission)) && (item.to!=="/control-acceso" || clubAccessEnabled===true),
   );
   const close = () => {
     setOpen(false);

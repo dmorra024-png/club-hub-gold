@@ -30,7 +30,7 @@ function AjustesIndex() {
     <SnoopLayout title="Ajustes" subtitle={isAdmin ? "Configuración del club" : "Opciones de tu cuenta y permisos"}>
       <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
         {isAdmin && <>
-          <Tile to="/ajustes/personalizaciones" icon={SlidersHorizontal} title="Personalizaciones club" text="Cuotas, Monedero, Socios, Dispositivos y Tema visual." />
+          <Tile to="/ajustes/personalizaciones" icon={SlidersHorizontal} title="Personalizaciones club" text="Cuotas, Monedero, Socios, Dispositivos, Tema visual y Generales." />
           <Tile to="/ajustes/colaboradores" icon={ShieldCheck} title="Colaboradores" text="Crea cuentas con permisos específicos para tu equipo." />
         </>}
         {can("view_reports") && <Tile to="/ajustes/informes" icon={BarChart3} title="Informes" text="Informes y estadísticas autorizados para tu rol." />}

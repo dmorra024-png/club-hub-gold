@@ -221,7 +221,7 @@ jobs:
           actual="$(git diff --name-only "$BASE" HEAD -- src apps/socio)"
           expected="$(printf '%s\n' 'src/components/FinancialRecordDialog.tsx' 'src/lib/cash-ledger.ts' 'src/lib/cash-sessions.server.ts' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
           test "$actual" = "$expected" || { echo "Unexpected runtime changes: $actual"; exit 1; }
-          node --test tests/snoop-order-payment-merma.test.mjs tests/simple-cash.test.mjs
+          node --test tests/simple-cash.test.mjs
           bun run test:annulment:concurrency
           bun run test:security:architecture
       - name: Typecheck, compile and inspect worker without deploy
@@ -517,6 +517,43 @@ jobs:
           git diff --exit-code "$BASE" HEAD -- src/lib src/routes/_authenticated/soci.'$'id.pedido.tsx src/routes/_authenticated/caja.tsx
           node --test tests/snoop-every-screen-visual-parity.test.mjs tests/snoop-home-visual-parity.test.mjs tests/snoop-club-personalizations-navigation.test.mjs
       - name: Check all styles, types and Worker bundle
+        run: |
+          set -euo pipefail
+          bun run build:worker
+          bun run typecheck
+          bun run worker:dry-run
+          bun run test:security:bundle
+
+
+  club-merma-policy:
+    if: github.event_name == 'pull_request' && github.head_ref == 'fix/snoop-club-merma-policy-20261123'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      SNOOP_RESOURCE_NAMESPACE: snoop-pilot
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
+      VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false, fetch-depth: 0}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: "1.3.12"}
+      - run: bun install --frozen-lockfile
+      - name: Validate club merma scope, checkout and finance regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$(git rev-parse origin/release/snoop-all-screens-visual-20261123)"
+          actual="$(git diff --name-only "$BASE" HEAD -- src apps/socio)"
+          expected="$(printf '%s\n' 'src/components/ClubAccessControlPanel.tsx' 'src/components/ClubMermaSettingsPanel.tsx' 'src/components/SnoopLayout.tsx' 'src/lib/club-access-control.functions.ts' 'src/lib/club-merma.functions.ts' 'src/routes/_authenticated/ajustes.generales.tsx' 'src/routes/_authenticated/ajustes.index.tsx' 'src/routes/_authenticated/ajustes.personalizaciones.tsx' 'src/routes/_authenticated/ajustes.socios.tsx' 'src/routes/_authenticated/control-acceso.tsx' 'src/routes/_authenticated/soci.$id.pedido.tsx')"
+          test "$actual" = "$expected" || { echo "Unexpected application changes: $actual"; exit 1; }
+          node --test tests/snoop-generales-settings.test.mjs tests/snoop-club-merma-policy.test.mjs tests/snoop-order-payment-merma.test.mjs tests/snoop-wallet-credit-only-topup-methods.test.mjs tests/simple-cash.test.mjs
+          bun run test:annulment:concurrency
+      - name: Build, typecheck and security
         run: |
           set -euo pipefail
           bun run build:worker

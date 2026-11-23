@@ -1,7 +1,7 @@
 import {createFileRoute,Link} from "@tanstack/react-router";
 import {SnoopLayout} from "@/components/SnoopLayout";
 import {useAuth} from "@/hooks/useAuth";
-import {BadgeEuro,Wallet,Users,Cable,Palette,ChevronRight} from "lucide-react";
+import {BadgeEuro,Wallet,Users,Cable,Palette,Settings2,ChevronRight} from "lucide-react";
 
 export const Route=createFileRoute("/_authenticated/ajustes/personalizaciones")({
  component:PersonalizacionesClub,
@@ -9,9 +9,10 @@ export const Route=createFileRoute("/_authenticated/ajustes/personalizaciones")(
 const settings=[
  {to:"/ajustes/cuotas",icon:BadgeEuro,title:"Cuotas",description:"Inscripción, duración y precio de las cuotas."},
  {to:"/ajustes/monedero",icon:Wallet,title:"Monedero",description:"Activación y desactivación del Monedero para todo el club."},
- {to:"/ajustes/socios",icon:Users,title:"Socios",description:"Descuentos y campos de inscripción de los socios."},
+ {to:"/ajustes/socios",icon:Users,title:"Socios",description:"Campos y datos de inscripción de los socios."},
  {to:"/ajustes/dispositivos",icon:Cable,title:"Dispositivos",description:"Báscula, lector QR y firma digital."},
  {to:"/ajustes/tema-visual",icon:Palette,title:"Tema visual",description:"Paleta y apariencia del club."},
+ {to:"/ajustes/generales",icon:Settings2,title:"Generales",description:"Control de acceso, merma permitida y descuentos."},
 ] as const;
 function PersonalizacionesClub(){
  const {isAdmin,loading}=useAuth();
