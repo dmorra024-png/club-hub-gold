@@ -2618,3 +2618,277 @@ button:not([role="switch"]):not(:disabled):active {
 @media(prefers-reduced-motion:reduce){
  .premium-shell.snoop-unified-shell .snoop-club-customize .snoop-settings-card {transition:none!important}
 }
+
+
+/* SNOOP management-wide visual parity V2.
+   All authenticated pages, panels, forms, menus, reports and overlay portals
+   follow the same typographic/material system as the approved Home. CSS only;
+   semantic status colors (error/success/warnings), charts, buttons and behavior
+   retain their existing functional meanings. Theme colors are club variables. */
+.premium-shell.snoop-unified-shell {
+  --snoop-ui-surface:
+    radial-gradient(ellipse 85% 45% at 50% -9%,color-mix(in srgb,var(--snoop-accent-light) 20%,transparent),transparent 86%),
+    linear-gradient(145deg,var(--snoop-panel),color-mix(in srgb,var(--snoop-elevated) 34%,var(--snoop-panel)) 65%,var(--snoop-panel));
+  --snoop-ui-edge:color-mix(in srgb,var(--snoop-accent) 73%,var(--snoop-border));
+  --snoop-ui-shadow:
+    inset 0 1px 0 color-mix(in srgb,var(--snoop-accent-light) 76%,transparent),
+    0 0 0 1px color-mix(in srgb,var(--snoop-accent) 11%,transparent),
+    0 6px 18px color-mix(in srgb,var(--snoop-accent) 17%,transparent),
+    0 0 11px color-mix(in srgb,var(--snoop-electric) 12%,transparent);
+  --snoop-ui-icon-shadow:drop-shadow(0 0 6px color-mix(in srgb,var(--snoop-accent) 43%,transparent));
+}
+/* Shared brand, header and dock: no page-specific jump in font/light. */
+.premium-shell.snoop-unified-shell .premium-header-brand {
+  filter:drop-shadow(0 0 7px color-mix(in srgb,var(--snoop-accent) 73%,transparent))
+    drop-shadow(0 0 10px color-mix(in srgb,var(--snoop-accent) 25%,transparent));
+}
+.premium-shell.snoop-unified-shell .premium-header-button svg,
+.premium-shell.snoop-unified-shell .premium-bottom-nav .snoop-dock-icon {
+  color:var(--snoop-accent);
+  filter:var(--snoop-ui-icon-shadow);
+}
+.premium-shell.snoop-unified-shell .premium-menu,
+.premium-shell.snoop-unified-shell .snoop-desktop-rail {
+  background:
+    radial-gradient(ellipse at 40% 0%,color-mix(in srgb,var(--snoop-accent-light) 12%,transparent),transparent 68%),
+    linear-gradient(145deg,var(--snoop-panel),var(--snoop-canvas));
+  border-color:var(--snoop-ui-edge);
+  box-shadow:0 0 19px color-mix(in srgb,var(--snoop-accent) 18%,transparent);
+}
+.premium-shell.snoop-unified-shell :is(.premium-menu,.snoop-desktop-rail) a[aria-current="page"] {
+  color:var(--snoop-accent);
+  background:color-mix(in srgb,var(--snoop-accent) 12%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  h1,h2,h3,h4,h5,
+  .font-display,
+  .premium-section-heading,
+  .snoop-caja-section-heading,
+  .snoop-informes-section-heading
+) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+  letter-spacing:.015em;
+}
+/* Common surfaces across native components and pages built without UI/Card. */
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  article,section,div
+):where(
+  .bg-card,
+  [class~="bg-card/50"],[class~="bg-card/60"],[class~="bg-card/70"],
+  [class~="bg-card/80"],[class~="bg-card/90"],
+  .snoop-caja-overview,.snoop-caja-shift,.snoop-caja-session-card,
+  .snoop-informes-chart-card,.snoop-informes-kpi,.snoop-informes-insights
+) {
+  background:var(--snoop-ui-surface);
+  border-color:var(--snoop-ui-edge);
+  box-shadow:var(--snoop-ui-shadow);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  article,section,div
+):where([class*="rounded-xl"],[class*="rounded-2xl"],[class*="rounded-3xl"]):where(
+  [class*="border"],[class*="bg-card"]
+) {
+  border-color:color-mix(in srgb,var(--snoop-accent) 55%,var(--snoop-border));
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  .snoop-caja-overview,.snoop-caja-shift,.snoop-caja-session-card,
+  .snoop-informes-chart-card,.snoop-informes-kpi,.snoop-informes-insights
+) {
+  border-radius:clamp(18px,4.5vw,24px);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.snoop-caja-section-heading h3,.snoop-informes-section-heading h2) {
+  font-family:"Snoop Cash",var(--font-display),sans-serif;
+  color:var(--snoop-foreground);
+  text-shadow:0 0 7px color-mix(in srgb,var(--snoop-accent) 16%,transparent);
+}
+/* Shared forms: retain input type and number/decimal handling, validation,
+   textarea resize, checkbox/radio affordances and keyboard accessibility. */
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+  textarea,select,[role="combobox"]
+) {
+  color:var(--snoop-foreground);
+  border:1px solid color-mix(in srgb,var(--snoop-accent) 43%,var(--snoop-border));
+  border-radius:clamp(11px,2.7vw,15px);
+  background:linear-gradient(145deg,var(--snoop-elevated),var(--snoop-panel));
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--snoop-accent-light) 12%,transparent);
+  min-width:0;max-width:100%;
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(input,textarea,select,[role="combobox"]):focus-visible {
+  border-color:var(--snoop-accent);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--snoop-accent) 20%,transparent),
+    0 0 12px color-mix(in srgb,var(--snoop-accent) 18%,transparent);
+  outline:2px solid var(--snoop-accent);
+  outline-offset:1px;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  input[type="checkbox"],input[type="radio"],[role="checkbox"],[role="radio"],[role="switch"]
+) {
+  accent-color:var(--snoop-accent);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(button,[role="button"],a[class*="bg-primary"],a[class*="bg-secondary"]) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+  letter-spacing:.012em;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) :is(
+  button,a
+):where([class*="bg-primary"],[class*="bg-secondary"],[class*="border-input"]) {
+  border-radius:clamp(11px,2.5vw,16px);
+  box-shadow:0 3px 12px color-mix(in srgb,var(--snoop-accent) 15%,transparent),
+    inset 0 1px 0 color-mix(in srgb,var(--snoop-accent-light) 22%,transparent);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(button,a):disabled {box-shadow:none;cursor:not-allowed;}
+/* Product/socio/stock lists, Caja tables and analytical datasets.
+   Do not force cards or text-wrap on dynamic monetary totals. */
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(table,[role="table"]) {
+  color:var(--snoop-foreground);
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+table :is(th,thead) {
+  color:var(--snoop-accent);
+  border-color:var(--snoop-border);
+}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+table tr {border-color:color-mix(in srgb,var(--snoop-accent) 22%,var(--snoop-border));}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+table tbody tr:hover {background:color-mix(in srgb,var(--snoop-accent) 7%,transparent);}
+.premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+:is(.snoop-gold-icon,svg.lucide):not(.text-destructive) {
+  filter:var(--snoop-ui-icon-shadow);
+}
+/* Dialogs and menus mount outside .premium-shell in React portals.
+   Scoping to an actively mounted management layout prevents accidental
+   styling of the separate SNOOP Socio or login screens. */
+body.snoop-management-ui .snoop-premium-dialog:not([data-state="closed"]) {
+  max-width:min(calc(100vw - 24px),42rem);
+  max-height:min(88dvh,900px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  border:1px solid color-mix(in srgb,var(--snoop-accent) 77%,var(--snoop-border));
+  border-radius:clamp(18px,4.5vw,27px);
+  background:
+    radial-gradient(ellipse at 48% 0%,color-mix(in srgb,var(--snoop-accent-light) 17%,transparent),transparent 74%),
+    linear-gradient(145deg,var(--snoop-panel),var(--snoop-canvas));
+  color:var(--snoop-foreground);
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--snoop-accent-light) 75%,transparent),
+    0 0 26px color-mix(in srgb,var(--snoop-accent) 28%,transparent),
+    0 15px 40px #00000036;
+}
+body.snoop-management-ui .snoop-premium-dialog
+:is(h1,h2,h3,[class*="font-semibold"]) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+}
+body.snoop-management-ui .snoop-premium-dialog
+:is(input:not([type="checkbox"]):not([type="radio"]),textarea,select,[role="combobox"]) {
+  max-width:100%;min-width:0;
+  color:var(--snoop-foreground);
+  border-color:color-mix(in srgb,var(--snoop-accent) 40%,var(--snoop-border));
+  background:var(--snoop-elevated);
+}
+body.snoop-management-ui .snoop-premium-dialog
+:is(button,[role="button"]) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+}
+body.snoop-management-ui :is([role="menu"],[role="listbox"]),
+body.snoop-management-ui [data-radix-popper-content-wrapper] :is(.bg-popover,.bg-background) {
+  border-color:color-mix(in srgb,var(--snoop-accent) 65%,var(--snoop-border));
+  border-radius:clamp(12px,3vw,17px);
+  background:linear-gradient(145deg,var(--snoop-panel),var(--snoop-elevated));
+  color:var(--snoop-foreground);
+  box-shadow:0 0 18px color-mix(in srgb,var(--snoop-accent) 22%,transparent);
+}
+body.snoop-management-ui :is([role="menuitem"],[role="option"]):focus-visible {
+  outline:2px solid var(--snoop-accent);outline-offset:-2px;
+}
+body.snoop-management-ui [data-sonner-toast] {
+  border:1px solid color-mix(in srgb,var(--snoop-accent) 55%,var(--snoop-border));
+  border-radius:15px;
+  background:var(--snoop-panel);
+  color:var(--snoop-foreground);
+  box-shadow:0 0 15px color-mix(in srgb,var(--snoop-accent) 16%,transparent);
+}
+/* The Home layout is the visual reference; retain its exact individual card
+   proportions and do not replace its purpose-built premium elements. */
+@media(max-width:480px) {
+ .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) {
+  padding-inline:clamp(12px,3.5vw,20px);
+ }
+ .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home)
+ :is(table,[role="table"]) {font-size:clamp(12px,3vw,14px);}
+ body.snoop-management-ui .snoop-premium-dialog:not([data-state="closed"]) {
+  padding:clamp(16px,4vw,24px);
+  max-height:calc(100dvh - 26px);
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ .premium-shell.snoop-unified-shell .premium-main:not(.snoop-approved-home) *,
+ body.snoop-management-ui .snoop-premium-dialog * {
+  transition-duration:0.01ms!important;
+ }
+}
+
+/* Sheets/drawers keep their native edge positioning while sharing the Home
+   palette and gold material. Never apply centered-dialog sizing to them. */
+body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) {
+  background:
+    radial-gradient(ellipse at 52% 0%,color-mix(in srgb,var(--snoop-accent-light) 14%,transparent),transparent 72%),
+    linear-gradient(145deg,var(--snoop-panel),var(--snoop-canvas));
+  color:var(--snoop-foreground);
+  border-color:var(--snoop-ui-edge,color-mix(in srgb,var(--snoop-accent) 70%,var(--snoop-border)));
+  box-shadow:0 0 24px color-mix(in srgb,var(--snoop-accent) 23%,transparent);
+}
+body.snoop-management-ui .snoop-premium-drawer {
+  border-radius:24px 24px 0 0;
+  max-height:90dvh;
+  overflow-y:auto;
+}
+body.snoop-management-ui :is(.snoop-premium-sheet,.snoop-premium-drawer) :is(h1,h2,h3) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+}
+
+/* Super Admin and suspended-club access are authenticated management routes,
+   but intentionally use their own shells. Give both the same palette and
+   illuminated SNOOP material, without changing their privileged actions. */
+:is(.snoop-platform-visual,.snoop-club-status-visual) {
+  --snoop-ui-surface:
+    radial-gradient(ellipse at 45% 0%,color-mix(in srgb,var(--snoop-accent-light) 18%,transparent),transparent 76%),
+    linear-gradient(145deg,var(--snoop-panel),var(--snoop-elevated));
+  background:
+    radial-gradient(ellipse 75% 32% at 48% 0%,color-mix(in srgb,var(--snoop-accent-light) 14%,transparent),transparent 80%),
+    var(--snoop-canvas);
+  color:var(--snoop-foreground);
+  font-family:var(--font-body),Inter,system-ui,sans-serif;
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(h1,h2,h3,h4,.font-display) {
+  font-family:"Snoop Cash",var(--font-display),system-ui,sans-serif;
+  letter-spacing:.015em;
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(article,section,div):where(
+  .bg-card,[class~="bg-card/60"],[class~="bg-card/70"],
+  [class~="bg-card/80"]
+) {
+  background:var(--snoop-ui-surface);
+  border-color:color-mix(in srgb,var(--snoop-accent) 70%,var(--snoop-border));
+  border-radius:clamp(18px,4vw,24px);
+  box-shadow:inset 0 1px color-mix(in srgb,var(--snoop-accent-light) 62%,transparent),
+    0 5px 20px color-mix(in srgb,var(--snoop-accent) 18%,transparent);
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(input,textarea,select) {
+  font-size:16px;
+  min-width:0;max-width:100%;
+  border-color:var(--snoop-border);
+  background:var(--snoop-elevated);
+  color:var(--snoop-foreground);
+  border-radius:12px;
+}
+:is(.snoop-platform-visual,.snoop-club-status-visual) :is(button,a):focus-visible {
+  outline:2px solid var(--snoop-accent);outline-offset:3px;
+}
