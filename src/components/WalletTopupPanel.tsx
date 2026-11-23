@@ -20,7 +20,8 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
  const inFlight=useRef(false);
  const scope=JSON.stringify([user?.id,access.clubId,access.status,memberId]);
  useEffect(()=>{
-  if(import.meta.env.VITE_SNOOP_WALLET_OPERATIONS_ENABLED!=="true")return;
+  // Server authorization and club configuration are authoritative.
+  // Do not silently hide the panel when a build-time flag is absent.
   if(accessError||!can("use_cash")||!can("manage_members"))return;
   let active=true;
   setStatus(null);setProblem("");setConfirmed(false);setAmount("");
@@ -30,7 +31,15 @@ export function WalletTopupPanel({memberId}:{memberId:string}){
    .catch(()=>{if(active)setProblem("No se pudo consultar el monedero.");});
   return()=>{active=false;};
  },[scope,accessError]);
- if(!can("use_cash")||!can("manage_members")||accessError||!status?.enabled)return null;
+ if(!can("use_cash")||!can("manage_members")||accessError)return null;
+ if(problem&&!status)return <section className="rounded-2xl border border-border bg-card/60 p-4 space-y-2" aria-label="Monedero del socio">
+  <h2 className="font-display text-lg">Monedero</h2><p role="alert" className="text-sm text-muted-foreground">{problem}</p>
+ </section>;
+ if(!status?.clubEnabled)return null;
+ if(!status.enabled)return <section className="rounded-2xl border border-border bg-card/60 p-4 space-y-2" aria-label="Monedero del socio">
+  <h2 className="font-display text-lg">Monedero</h2>
+  <p role="status" className="text-sm text-muted-foreground">Monedero activado para el club, pero no disponible para este socio. Comprueba que su membresía y tarjeta estén activas.</p>
+ </section>;
  const cents=parseCashCents(amount);
  async function topup(){
   if(inFlight.current||!confirmed||cents===null||cents<=0||cents>10000000||
