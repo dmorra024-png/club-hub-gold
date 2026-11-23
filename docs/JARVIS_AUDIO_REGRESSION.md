@@ -98,3 +98,11 @@ collaborator fallback and zero automatic writes are checked. Synthetic provenanc
 per-engine outcomes are in JARVIS_MOUNTED_BROWSER_RESULTS.json. Real browser DSP results
 are in JARVIS_PCM_BROWSER_RESULTS.json. These are not live Deepgram or physical-device
 certifications, and do not establish complete voice write parity.
+
+The full Account security job also exposed an obsolete administrative-records mock:
+all requests containing memberId were counted as order-history reads, including the
+current wallet status query. The fixture now identifies the exact compiled wallet
+functions, returns an explicit disabled-club state, and denies wallet-payment reads
+without cash permission. The original lazy-history assertion remains zero before
+opening history. All six admin/staff/no-finance Chromium/WebKit scenarios pass.
+No application history loading or wallet authorization logic was changed.
