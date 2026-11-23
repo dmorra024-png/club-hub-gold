@@ -49,7 +49,7 @@ BEGIN
   -- On first insertion previous fields are NULL; set them after verifying operation fingerprint.
   UPDATE public.members SET avalador_first_name=v_avalador_first, avalador_last_name=v_avalador_last
   WHERE club_id=c AND id=result_id
-    AND avalador_v_avalador_first IS NULL AND avalador_v_avalador_last IS NULL;
+    AND avalador_first_name IS NULL AND avalador_last_name IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'La inscripción ya tiene otro avalador' USING errcode='23505'; END IF;
  END IF;
  RETURN result_id;
