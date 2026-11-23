@@ -534,6 +534,13 @@ function PedidoPage() {
           memberId:id,notes:notes||"",items:cart,
           operationId:walletOperation.current,confirmed:true
         }});
+        if(result.status==="rejected"){
+          // Definitive DB rollback: safe to let the operator correct the cart.
+          walletOperation.current=null;
+          setWalletUncertain(false);
+          toast.error(result.reason);
+          return;
+        }
         walletOperation.current=null;
         toast.success(`Pedido pagado con Monedero · ${formatCheckoutAmount(result.amountCents)}`);
       } else {
