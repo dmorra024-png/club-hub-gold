@@ -9,3 +9,5 @@ Stock UX v4: remove standalone warehouse view; inline Almacén beneath Stock in 
 Valuation v1: cost price × inventory for each product; show total EUR and by warehouse/dispensary, with warnings for zero cost. Isolated verification passed.
 
 Informes pilot: dated opening-of-day inventory at current purchase prices; inbound/outbound stock movement valuation; historic purchases disclosed as current price estimates; no Stock valuation panel. CI green.
+
+Product economics pilot: selectable as-of date, per-product dated stock recharge entries, recorded completed-order revenue, remaining value, expected gross margin, aggregated club totals. CI green and secured read RPC installed.
