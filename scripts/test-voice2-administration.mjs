@@ -1,16 +1,20 @@
 import { dialogueCases } from "../tests/fixtures/snoop-dialogue-cases.mjs";
 import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 import { privateCatalogCommand } from "../src/lib/private-voice.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3040";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL || (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
+const topupIds=new Set();
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("cash-sessions.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']getRecentWalletTopups["']/g))topupIds.add(match[1]);
+assert.equal(topupIds.size,1);const topupId=[...topupIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
   plan = "20000000-0000-4000-8000-000000000001";
@@ -247,6 +251,11 @@ for (const [name, engine, device] of [
           (!api.pathname.replace(/\/$/, "") ||
             u.pathname.startsWith(api.pathname.replace(/\/$/, "") + "/"));
       if (u.origin !== new URL(base).origin && !isApi) return route.abort();
+      if(u.pathname.includes(topupId)) {
+        assert.equal(req.method(),"POST");
+        assert.deepEqual(fromJSON(JSON.parse(req.postData())).data,{limit:100});
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({result:[],context:{}})});
+      }
       if (u.pathname.includes("_serverFn")) {
         let result = {
           ...(aiDialogue ? { pilot: true, real: false } : {}),

@@ -134,3 +134,11 @@ The critical email UI test now targets the current authenticated invitation, not
 removed QR delivery widget: five explicit simulated requests verify that only accepted
 is acknowledged and no response is presented as proof of delivery. Existing queue and
 provider delivery-state unit tests remain. Both complete critical browser flows pass.
+
+The final regression pass distinguishes existing read-only server metadata from model
+requests. Voice 2.0's strict no-personal-data model assertion remains unchanged; only
+the exact compiled wallet-activity read with `{limit:100}` is separately mocked. The
+product-information browser guard separately identifies the current optional access
+control GET; its zero obsolete-archive-call and zero-write assertions remain enforced.
+Both scripts accept the isolated test API origin explicitly instead of requiring a
+local production-origin configuration. No application AI/privacy gate is relaxed.
