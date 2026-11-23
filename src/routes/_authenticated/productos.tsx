@@ -30,6 +30,7 @@ import { getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
 import { readCatalogImage } from "@/lib/catalog-image";
 import type { CatalogImage } from "@/lib/catalog-enrichment.server";
 import { enrichProduct } from "@/lib/products-enrich.functions";
+import { WarehousePanel } from "@/components/WarehousePanel";
 
 export const Route = createFileRoute("/_authenticated/productos")({
   component: ProductosPage,
@@ -182,6 +183,7 @@ type StockCommand = { text: string; at: number };
 
 const TABS = [
   { id: "stock", label: "Stock" },
+  { id: "almacen", label: "Almacén" },
   { id: "nuevo", label: "Crear producto" },
   { id: "categoria", label: "Crear categoría" },
 ] as const;
@@ -564,6 +566,8 @@ function ProductosPage() {
           stockCommand={stockCommand}
           clearStockCommand={() => setStockCommand(null)}
         />
+      ) : tab === "almacen" ? (
+        <WarehousePanel products={prods.filter(p=>p.active!==false)} onChange={load}/>
       ) : tab === "nuevo" ? (
         <NuevoProducto
           cats={cats.filter((c) => !c.archived)}
@@ -1555,6 +1559,7 @@ function NuevoProducto({
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
   const [stock, setStock] = useState(0);
+  const [initialLocation,setInitialLocation] = useState<"almacen"|"dispensario">("dispensario");
   const [buy, setBuy] = useState(0);
   const [sell, setSell] = useState(0);
   const [strain, setStrain] = useState<Strain | "">("");
@@ -1632,8 +1637,8 @@ function NuevoProducto({
       return toast.error("No tienes un club asignado");
     }
     const productName = name.trim();
-    const { error } = await (supabase as any).rpc("save_administrative_product", {
-      p_id: null,
+    const { error } = await (supabase as any).rpc("snoop_create_product_located", {
+      p_location: initialLocation,
       p_values: {
         category_id: categoryId,
         name: productName,
@@ -1650,6 +1655,7 @@ function NuevoProducto({
     toast.success("Producto creado. Puedes solicitar una propuesta de IA desde la ficha.");
     setName("");
     setStock(0);
+    setInitialLocation("dispensario");
     setBuy(0);
     setSell(0);
     setStrain("");
@@ -1705,6 +1711,16 @@ function NuevoProducto({
         <MoneyField label="P. venta €" value={sell} onChange={setSell} />
       </div>
 
+      <Field label="Ubicación inicial del stock">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" aria-pressed={initialLocation==="almacen"} onClick={()=>setInitialLocation("almacen")} className={"rounded-xl border p-3 text-sm "+(initialLocation==="almacen"?"border-neon bg-neon/10 text-neon":"border-border")}>
+            Almacén <span className="block text-xs opacity-70">Reserva</span>
+          </button>
+          <button type="button" aria-pressed={initialLocation==="dispensario"} onClick={()=>setInitialLocation("dispensario")} className={"rounded-xl border p-3 text-sm "+(initialLocation==="dispensario"?"border-neon bg-neon/10 text-neon":"border-border")}>
+            Dispensario <span className="block text-xs opacity-70">Disponible para pedidos</span>
+          </button>
+        </div>
+      </Field>
       {cat?.is_smokeable && (
         <Field label="Tipo (fumable)">
           <select
