@@ -142,3 +142,12 @@ product-information browser guard separately identifies the current optional acc
 control GET; its zero obsolete-archive-call and zero-write assertions remain enforced.
 Both scripts accept the isolated test API origin explicitly instead of requiring a
 local production-origin configuration. No application AI/privacy gate is relaxed.
+
+The legacy standard voice browser test now compares the current approved dock's
+interactive geometry (four equal columns, equal top/height, minimum 44px touch areas,
+and legible SVGs contained in each column). It does not force the released QR and
+branded SNOOP artwork to share the old identical inner-SVG dimensions or misidentify
+the branded container as a text baseline. No application artwork changes accompany
+this test update. The actual 51-turn AI dialogue, conversational member flow, continuous
+session and private diagnostics/preferences tests pass on Chromium and WebKit with
+synthetic audio/provider data. These results are not real-provider accuracy evidence.

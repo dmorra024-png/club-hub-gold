@@ -1159,16 +1159,25 @@ for (const [name, engine, device] of [
           iconWidth: i.width,
           iconHeight: i.height,
           labelTop: l.top,
+          iconContained:i.left>=r.left&&i.right<=r.right&&i.top>=r.top&&i.bottom<=r.bottom,
         };
       }),
     );
-    for (const field of ["width", "top", "height", "iconWidth", "iconHeight", "labelTop"])
+    for (const field of ["width", "top", "height"])
       assert.ok(
         Math.max(...dockGeometry.map((r) => r[field])) -
           Math.min(...dockGeometry.map((r) => r[field])) <
           1,
         `equal dock ${field}`,
       );
+
+    // Current approved artwork has a branded SNOOP mark and larger QR glyph.
+    // Interactive columns stay equal; do not replace the released artwork to
+    // satisfy an obsolete requirement that every inner SVG have the same size.
+    for(const item of dockGeometry) {
+      assert(item.width>=44&&item.height>=44,"Every dock action has a full touch target");
+      assert(item.iconWidth>=20&&item.iconHeight>=20&&item.iconContained,"Approved icon remains legible inside its own column");
+    }
 
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
     assert.equal(
