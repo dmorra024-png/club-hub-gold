@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronDown, RefreshCw, Package, Receipt, Coins, TrendingUp } from "lucide-react";
+import { CalendarDays, ChevronDown, RefreshCw, Coins } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { madridToday } from "@/lib/member-administration";
 
