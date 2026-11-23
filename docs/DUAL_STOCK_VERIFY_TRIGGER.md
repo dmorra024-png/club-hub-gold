@@ -17,3 +17,5 @@ New reports: product-level recharge timestamps, cumulative actual recorded compl
 Inventory UX simplification: remove separate Rentabilidad por producto report; embed purchase cost and net-of-product-cost projected profit within existing inventory valuation card, with per-item breakdown. SQL RPC test verified.
 
 Valuation correction: sale-price stock value is the principal headline; configured buy price is hypothetical reference cost, never money paid, net or realized profit. No product prices or stock changed.
+
+Final UI layout: principal figure at top is value of active stocked merchandise at sale price; historical day movement report and notional cost/margin remain secondary.
