@@ -9,3 +9,5 @@ Fix inventory number labels: select product first, display its g/u in Almacén, 
 Product-row stock UX: warehouse shown directly below dispensary stock, transfers under edit pencil; removed top-level location dashboard; decimal input validation repaired.
 
 Valuation v1: calculate per-item quantity times purchase price, summarize euros by location, warn on missing cost.
+
+Informes day-opening inventory valuation: moving from Stock to Informes, 00:00 Madrid historical inventory quantity, entrances, exits and closing cost from canonical ledger.
