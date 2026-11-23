@@ -64,6 +64,11 @@ export function InventoryCostReport({clubId}:{clubId:string}){
   {loading&&<p role="status" className="text-sm text-muted-foreground">Calculando valor al inicio del día y movimientos…</p>}
   {error&&<p role="alert" className="rounded-xl border border-destructive/40 p-3 text-xs text-destructive">{error}</p>}
   {!loading&&report&&<>
+   <div className="rounded-2xl border-2 border-neon/50 bg-neon/10 p-5 space-y-2" aria-label="Valor principal de la mercancía del club">
+    <p className="text-xs font-display uppercase tracking-wider text-neon">VALOR DE VENTA DEL STOCK DEL CLUB</p>
+    <p className="font-display text-4xl text-foreground" data-testid="inventory-sale-value">{report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_sale_eur))}</p>
+    <p className="text-xs text-muted-foreground">Solo productos activos con stock · gramos o unidades × precio de venta · {day===madridToday()?"ahora":"cierre del día seleccionado"}. No es dinero ya cobrado.</p>
+   </div>
    <div className="rounded-xl border border-neon/25 bg-input/25 p-4">
     <p className="text-xs text-muted-foreground">Valor de venta al inicio del día · 00:00</p>
     <p className="mt-1 font-display text-3xl text-foreground" data-testid="inventory-opening-eur">{eur(Number(report.opening_sale_eur))}</p>
@@ -81,8 +86,7 @@ export function InventoryCostReport({clubId}:{clubId:string}){
     </div>
    </div>
    <div className="rounded-xl border border-neon/40 bg-neon/5 p-4 space-y-3">
-    <p className="flex items-center gap-2 text-xs text-muted-foreground"><Warehouse size={16}/> Valor de venta de la mercancía {day===madridToday()?"actual":"al finalizar el día"}</p>
-    <p className="font-display text-3xl text-neon" data-testid="inventory-sale-value">{report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_sale_eur))}</p>
+    <p className="flex items-center gap-2 text-xs text-muted-foreground"><Warehouse size={16}/> Costo y margen estimado del inventario</p>
     <div className="grid grid-cols-2 gap-3 border-t border-neon/20 pt-3">
      <div><p className="text-xs text-muted-foreground">Coste teórico (P. compra configurado)</p><p className="font-display text-xl text-foreground" data-testid="inventory-product-cost">{report.missing_cost||report.invalid_quantities?"—":eur(Number(report.closing_eur))}</p></div>
      <div><p className="text-xs text-muted-foreground">Margen teórico previsto</p><p className="font-display text-xl text-neon" data-testid="inventory-expected-profit">{report.missing_cost||report.missing_sale_price||report.invalid_quantities?"—":eur(Number(report.closing_expected_profit_eur))}</p></div>
