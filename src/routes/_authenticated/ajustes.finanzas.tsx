@@ -25,7 +25,7 @@ function parseCents(value:string) {
 const input="w-full rounded-xl border border-neon/25 bg-card/75 p-3 text-foreground outline-none focus:border-neon";
 const btn="rounded-xl border border-neon/35 bg-card/75 px-4 py-3 text-foreground hover:border-neon disabled:opacity-40";
 function Finanzas(){
- const {isAdmin,loading,access}=useAuth();
+ const {isAdmin,loading,access,user}=useAuth();
  const nav=useNavigate();
  const [tab,setTab]=useState<Tab>("gastos");
  const [suppliers,setSuppliers]=useState<Supplier[]>([]);
@@ -96,7 +96,7 @@ function Finanzas(){
    {notice&&<p role="status" className="rounded-xl border border-neon/30 p-3 text-sm">{notice}</p>}
    {tab==="proveedores"&&<section className="space-y-4">
     <form className="rounded-2xl border border-neon/25 bg-card/40 p-4 space-y-3" onSubmit={e=>{e.preventDefault();void submit(async()=>{
-     const {error}=await db.from("snoop_suppliers").insert({club_id:access.clubId,created_by:access.userId,name:supplierName.trim(),contact:supplierContact.trim(),notes:supplierNotes.trim()});
+     const {error}=await db.from("snoop_suppliers").insert({club_id:access.clubId,created_by:user?.id,name:supplierName.trim(),contact:supplierContact.trim(),notes:supplierNotes.trim()});
      if(error)throw Error("No se pudo guardar el proveedor");setSupplierName("");setSupplierContact("");setSupplierNotes("");
     });}}>
      <h2 className="font-display text-lg">Nuevo proveedor</h2>
@@ -111,7 +111,7 @@ function Finanzas(){
    {tab==="gastos"&&<section className="space-y-4">
     <form className="rounded-2xl border border-neon/25 bg-card/40 p-4 space-y-3" onSubmit={e=>{e.preventDefault();void submit(async()=>{
       const cents=parseCents(amount);
-      const {error}=await db.from("snoop_expenses").insert({club_id:access.clubId,created_by:access.userId,request_id:crypto.randomUUID(),supplier_id:supplierId||null,category,description:description.trim(),amount_cents:cents,payment_method:method});
+      const {error}=await db.from("snoop_expenses").insert({club_id:access.clubId,created_by:user?.id,request_id:crypto.randomUUID(),supplier_id:supplierId||null,category,description:description.trim(),amount_cents:cents,payment_method:method});
       if(error)throw Error("No se pudo registrar el gasto");setDescription("");setAmount("");
     });}}>
      <h2 className="font-display text-lg">Registrar gasto</h2>
@@ -130,7 +130,7 @@ function Finanzas(){
    {tab==="compras"&&<section className="space-y-4">
     <form className="rounded-2xl border border-neon/25 bg-card/40 p-4 space-y-3" onSubmit={e=>{e.preventDefault();void submit(async()=>{
       const cents=parseCents(purchaseAmount);
-      const {error}=await db.from("snoop_purchases").insert({club_id:access.clubId,created_by:access.userId,request_id:crypto.randomUUID(),supplier_id:purchaseSupplier,reference:purchaseRef.trim(),description:purchaseDescription.trim(),amount_cents:cents,status:"pendiente"});
+      const {error}=await db.from("snoop_purchases").insert({club_id:access.clubId,created_by:user?.id,request_id:crypto.randomUUID(),supplier_id:purchaseSupplier,reference:purchaseRef.trim(),description:purchaseDescription.trim(),amount_cents:cents,status:"pendiente"});
       if(error)throw Error("No se pudo registrar la compra");setPurchaseDescription("");setPurchaseAmount("");setPurchaseRef("");
     });}}>
      <h2 className="font-display text-lg">Registrar compra prevista</h2>
