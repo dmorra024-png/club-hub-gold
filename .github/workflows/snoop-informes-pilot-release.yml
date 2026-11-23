@@ -1,7 +1,7 @@
-name: SNOOP Informes analytics — guarded pilot release
+name: SNOOP Informes category and dates — guarded pilot release
 on:
   push:
-    branches: [release/snoop-informes-themed-analytics-20261123]
+    branches: [release/snoop-informes-category-dates-20261123]
     paths: [docs/SNOOP_INFORMES_RELEASE_TRIGGER.md]
 permissions:
   contents: read
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   validate-and-deploy:
-    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'release-snoop-informes-themed-pilot'
+    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'release-snoop-informes-category-dates-pilot'
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 30
@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERIFIED="e0745a64ef006a10ec2edf0974aa6bcdfe5cb4be"
+          VERIFIED="7698981dca0880d4e623b0ed0ab0a4f29f1f7ddd"
           git cat-file -e "$VERIFIED^{commit}"
           git diff --exit-code "$VERIFIED" HEAD -- src apps/socio package.json bun.lock wrangler.json scripts tests
           BASE="$(git rev-parse origin/release/snoop-caja-premium-validated-20261121)"
@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
-          node --test tests/snoop-informes-themed-insights.test.mjs tests/simple-cash.test.mjs
+          node --test tests/snoop-informes-custom-range.test.mjs tests/snoop-informes-category-chart.test.mjs tests/snoop-informes-themed-insights.test.mjs tests/simple-cash.test.mjs
           bun run test:annulment:concurrency
           bun run test:security:architecture
           bun run typecheck
