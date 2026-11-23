@@ -1,0 +1,1 @@
+Authorized pilot-only test of JARVIS 3 from verified PR #27 source 8043d9915d2cfa58fba5e4ceb5f132547c1fceba. Deploy only existing snoop-pilot Worker, with unchanged bindings and no REAL activation. Do not migrate databases or change apps/socio. Physical mobile/Deepgram test pending; this is not full voice parity.
