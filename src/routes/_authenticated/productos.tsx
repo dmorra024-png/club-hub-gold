@@ -1565,10 +1565,10 @@ function NuevoProducto({
   const [stock, setStock] = useState(0);
   const [initialLocation, setInitialLocation] = useState<"almacen"|"dispensario">("dispensario");
   const creationRequest = useRef<string | null>(null);
-  useEffect(() => {creationRequest.current=null;},[categoryId,name,stock,buy,sell,strain,initialLocation]);
   const [buy, setBuy] = useState(0);
   const [sell, setSell] = useState(0);
   const [strain, setStrain] = useState<Strain | "">("");
+  useEffect(() => {creationRequest.current=null;},[categoryId,name,stock,buy,sell,strain,initialLocation]);
   const [saving, setSaving] = useState(false);
   const cat = cats.find((c) => c.id === categoryId);
 
