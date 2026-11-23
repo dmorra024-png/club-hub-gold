@@ -23,3 +23,5 @@ Final UI layout: principal figure at top is value of active stocked merchandise 
 Correction: cancelled sale stock movements net to zero; replace + and - gross quantities with one net inventory value change, explicitly not Caja revenue.
 
 Member endorsement: new socio form asks avalador first/last names; per-club required/optional setting, atomic registration RPC and detail display. SQL transaction smoke test rolled back successfully.
+
+Avalador form comma corrected after first build syntax check; rerun full validation.
