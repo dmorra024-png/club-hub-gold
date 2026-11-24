@@ -141,3 +141,55 @@ export async function sendProviderEmail(
     throw new Error("Email provider returned no message ID");
   return { success: true, message_id: result.id };
 }
+
+
+/** Mailjet v3.1 transactional sender. Dedicated provider-specific secrets.
+ * Do not accept endpoints from environment or forward credentials on redirects.
+ * Resend remains untouched until the operator explicitly configures Mailjet.
+ */
+export async function sendMailjetEmail(
+  payload: { to: string; subject: string; html: string; text: string },
+  options: { apiKey: string; secretKey: string; from: string },
+) {
+  if (!options.apiKey || !options.secretKey || !options.from)
+    throw new Error("Mailjet credentials and verified sender are required");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(options.from))
+    throw new Error("Mailjet sender must be a verified email address");
+  const credentials = Buffer.from(options.apiKey + ":" + options.secretKey).toString("base64");
+  const response = await fetch("https://api.mailjet.com/v3.1/send", {
+    method: "POST",
+    redirect: "manual",
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      Authorization: "Basic " + credentials,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      Messages: [{
+        From: { Email: options.from, Name: "SNOOP Socio" },
+        To: [{ Email: payload.to }],
+        Subject: payload.subject,
+        HTMLPart: payload.html,
+        TextPart: payload.text,
+      }],
+    }),
+  });
+  if (!response.ok) {
+    const retry = Number(response.headers.get("retry-after"));
+    throw new EmailAPIError(
+      response.status,
+      Number.isFinite(retry) && retry > 0 ? Math.min(retry, 3600) : null,
+    );
+  }
+  const data = (await response.json()) as {
+    Messages?: Array<{Status?: unknown;To?: Array<{MessageID?: unknown}>}>;
+  };
+  const accepted = data?.Messages?.[0];
+  const messageId = accepted?.To?.[0]?.MessageID;
+  if (data?.Messages?.length !== 1 || accepted?.Status !== "success" ||
+      (typeof messageId !== "number" && typeof messageId !== "string") ||
+      !String(messageId))
+    throw new Error("Mailjet did not confirm message acceptance");
+  return { success: true, message_id: String(messageId) };
+}
