@@ -1,7 +1,7 @@
 name: SNOOP Dual Stock — isolated verification
 on:
   push:
-    branches: [feature/snoop-double-stock-20261123]
+    branches: [feature/snoop-double-stock-20261123, integration/jarvis-verified-pilot-20261124]
     paths: [docs/DUAL_STOCK_VERIFY_TRIGGER.md]
 permissions: {contents: read}
 jobs:
