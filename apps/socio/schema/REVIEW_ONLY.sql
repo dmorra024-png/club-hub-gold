@@ -112,7 +112,7 @@ create policy socio_wallet_read_own on public.socio_wallet_accounts
       and l.club_id=socio_wallet_accounts.club_id
       and l.member_id=socio_wallet_accounts.member_id
       and l.status='verified' and l.revoked_at is null
-      and c.active and c.wallet_enabled and c.revoked_at is null
+      and c.active and c.revoked_at is null
       and exists(select 1 from public.socio_club_wallet_settings ws
        where ws.club_id=socio_wallet_accounts.club_id and ws.enabled))
  );
@@ -155,7 +155,7 @@ create policy socio_ledger_read_own on public.socio_wallet_ledger
     join public.socio_member_cards c on c.club_id=l.club_id and c.member_id=l.member_id
     where l.auth_user_id=(select auth.uid()) and l.club_id=socio_wallet_ledger.club_id
       and l.member_id=socio_wallet_ledger.member_id and l.status='verified'
-      and l.revoked_at is null and c.active and c.wallet_enabled and c.revoked_at is null
+      and l.revoked_at is null and c.active and c.revoked_at is null
       and exists(select 1 from public.socio_club_wallet_settings ws
        where ws.club_id=socio_wallet_ledger.club_id and ws.enabled))
  );
