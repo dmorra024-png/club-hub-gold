@@ -42,7 +42,7 @@ jobs:
           git diff --exit-code HEAD^ HEAD -- src apps/socio package.json bun.lock wrangler.json supabase scripts tests .github/workflows
           node - <<'NODE'
           const c=require('./wrangler.json');
-          if(c.name!=='snoop-pilot'||!c.workers_dev||c.ai?.binding!=='SNOOP_AI'||c.assets?.binding!=='ASSETS'||c.vars?.SNOOP_RESOURCE_NAMESPACE!=='snoop-pilot') process.exit(1);
+          if(c.name!=='snoop-pilot'||!c.workers_dev||c.ai?.binding!=='SNOOP_AI'||c.assets?.binding!=='ASSETS'||c.vars?.SNOOP_RESOURCE_NAMESPACE!=='snoop-pilot'||c.vars?.SNOOP_VOICE_EXECUTION_PILOT_ENABLED!=='true') process.exit(1);
           if(c.vars?.SNOOP_WALLET_OPERATIONS_ENABLED === 'true') process.exit(1);
           NODE
           test -n "$CLOUDFLARE_API_TOKEN" && test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
@@ -73,7 +73,10 @@ jobs:
           assert.equal(knownResources.length,0,'Unexpected Worker resource bindings');
           // Do not log any secret or any personal allowlist UUID.
           console.log('Protected Pilot bindings checked without reading secret values.');
-          console.log('Deepgram secret configured:',b.get('DEEPGRAM_API_KEY')==='secret_text');
+          assert.equal(b.get('DEEPGRAM_API_KEY'),'secret_text','Live Deepgram pilot secret absent; abort rather than publish an unusable voice pilot.');
+          for(const name of ['SNOOP_DEEPGRAM_PILOT_ENABLED','SNOOP_DEEPGRAM_PILOT_USER_ID','SNOOP_DEEPGRAM_PILOT_CLUB_ID'])
+            assert.ok(b.has(name),'Missing restricted Deepgram pilot allowlist binding '+name);
+          console.log('Deepgram key and scoped Pilot allowlist binding names verified; values not logged.');
           NODE
       - name: Verify live Pilot before deployment
         run: curl -fsS --max-time 25 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-before
