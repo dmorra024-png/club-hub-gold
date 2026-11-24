@@ -42,6 +42,7 @@ before(async () => {
       membership.indexOf("ALTER TABLE public.orders ADD"),
     ),
   );
+  await db.exec(await readFile("tests/fixtures/voice-current-membership-rpc.sql", "utf8"));
   await db.exec(
     `INSERT INTO public.product_categories(id,club_id,name)VALUES('${uid(201)}','${club}','Office'),('${uid(202)}','${other}','Other');INSERT INTO public.products(id,club_id,category_id,name,stock,buy_price,sell_price)VALUES('${uid(301)}','${club}','${uid(201)}','Synthetic Notebook',10,100,200);INSERT INTO public.membership_plans(id,club_id,name,duration_days,price_cents)VALUES('${uid(401)}','${club}','Synthetic fee',30,1000);INSERT INTO public.members(id,club_id,first_name,last_name,birth_date,dni_number,expires_at)VALUES('${uid(501)}','${club}','Ana','Synthetic','1990-01-01','SYNTHETIC-VOICE','2030-01-01');`,
   );
