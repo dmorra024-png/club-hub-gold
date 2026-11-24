@@ -26,8 +26,9 @@ jobs:
         run: npm run test:annulment:concurrency
       - name: PostgreSQL concurrent confirmed voice execution (synthetic, isolated)
         run: node scripts/test-voice-execution-concurrency.mjs
-      - run: npm run typecheck
+      # Vite/TanStack generates the route tree during build; typecheck the generated routes after that.
       - run: npm run build
+      - run: npm run typecheck
       - name: Account HTTP smoke test
         shell: bash
         run: |
