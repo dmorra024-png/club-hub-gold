@@ -15,6 +15,13 @@ export const memberFields = z
     last_name: z.string().max(120).optional(),
     birth_date: z.string().max(10).optional(),
     city: z.string().max(120).optional(),
+    address: z.string().trim().max(240).optional(),
+    postal_code: z
+      .string()
+      .trim()
+      .regex(/^[\p{L}\p{N} -]{1,20}$/u)
+      .optional(),
+    plan_name: z.string().trim().min(1).max(120).optional(),
     phone: z.string().max(24).optional(),
     email: z.string().trim().email().max(254).optional(),
   })
@@ -132,6 +139,14 @@ export const ConversationProposal = z
       ctx.addIssue({ code: "custom", message: "Wrong product intent" });
     if (v.intent === "member" && v.target !== "member_create")
       ctx.addIssue({ code: "custom", message: "Wrong member target" });
+    if (
+      v.intent === "member_edit" &&
+      ["address", "postal_code", "plan_name"].some((key) => Object.hasOwn(v.member, key))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Creation-only fields require the existing registration form",
+      });
     if (v.intent === "member_edit" && v.target !== null)
       ctx.addIssue({ code: "custom", message: "Edit only the currently selected member" });
     if (v.intent === "product" && v.target !== "product_create")

@@ -1,3 +1,4 @@
+import { memberCreationKeys, memberCreationPatch } from "@/lib/voice/member-creation-fields";
 import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import {
   memberConversation,
@@ -152,7 +153,8 @@ function NewSocio() {
   const [lastHeard, setLastHeard] = useState(""),
     [voiceSummary, setVoiceSummary] = useState("");
   const voiceMounted = useRef(true),
-    plansReady = useRef(false);
+    plansReady = useRef(false),
+    fieldConfigReady = useRef(false);
   const formRef = useRef(form);
   formRef.current = form;
   const voiceInitial = useRef(form);
@@ -287,7 +289,9 @@ function NewSocio() {
         .from("club_member_field_config")
         .select("field_key, visible, required")
         .eq("club_id", clubId);
+      if (!voiceMounted.current) return;
       setFieldCfg(mergeFieldConfig((data as any) ?? []));
+      fieldConfigReady.current = true;
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
@@ -579,22 +583,18 @@ function NewSocio() {
   }
 
   useVoiceToolPort("member.form", {
-    snapshot: () =>
-      Object.fromEntries(
-        ["first_name", "last_name", "birth_date", "city", "phone", "email"].map((k) => [
-          k,
-          (form as any)[k],
-        ]),
-      ),
-    patch: (patch) =>
-      setForm((previous) => ({
-        ...previous,
-        ...Object.fromEntries(
-          Object.entries(patch).filter(([k]) =>
-            ["first_name", "last_name", "birth_date", "city", "phone", "email"].includes(k),
-          ),
-        ),
-      })),
+    ready: () => plansReady.current && fieldConfigReady.current,
+    snapshot: () => Object.fromEntries(memberCreationKeys.map(key => [key,
+      key === "plan_name" ? plansRef.current.find(plan => plan.id === formRef.current.plan_id)?.name ?? "" : formRef.current[key],
+    ])),
+    patch: (patch) => {
+      // Resolve the entire proposed patch before mutating the member registration form.
+      // Keep club visibility rules and never permit changing the confirmed avalador by voice.
+      const visible = memberCreationKeys.filter(key =>
+        key === "first_name" || key === "last_name" || fieldCfg[key === "plan_name" ? "plan" : key].visible);
+      const values = memberCreationPatch(patch, plansRef.current, visible);
+      setForm(previous => ({...previous, ...values}));
+    },
   });
   return (
     <SnoopLayout title="Nuevo socio" subtitle="Dicta los datos o rellénalos a mano">

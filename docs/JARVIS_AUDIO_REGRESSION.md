@@ -156,3 +156,70 @@ The standard legacy voice flow also waits for the current dynamic welcome headin
 (`Bienvenido, <club>`), rather than the retired heading containing only the club name.
 The existing club identity and navigation checks are retained; application text is
 not changed to satisfy the test. The complete standard Samsung flow passes locally.
+
+## Follow-up to the pilot derived from 8043d991
+
+The owner subsequently released `release/jarvis3-pilot-test-20261123` at
+`91c37419fd68632634434fe995860b585ad2467e`, workflow `45224641289`.
+Its `src`, `public` and Wrangler application configuration match `8043d991`;
+the release-only workflow/documentation does not alter the audio chain.
+This development follow-up does not publish another version.
+
+A new mounted regression reproduces an activation deadlock: `AudioContext.resume()`
+remains pending until microphone activation, but the component awaited it before
+calling `getUserMedia()`. The pre-fix component times out before the microphone
+request (four-second assertion). Both requests now start in the initiating gesture
+without waiting for the context resume promise. Stopping during permission activation
+also closes the pending context. Later permission results are generation-checked and
+released. This is a reproduced browser-condition defect, not a diagnosis proven on
+the owner's physical device.
+
+`--pending-resume --startup-only` tests the condition on all four mounted profiles.
+`--native-audio --startup-only` preserves the browser's actual AudioContext and
+AudioWorklet: an oscillator-backed synthetic MediaStream enters the application,
+nonzero signed PCM reaches its socket, and returned PCM produces measurable signal
+at the real Web Audio output graph. Chromium/WebKit mobile, desktop and tablet profiles
+pass; observed output peak RMS is about 0.177–0.181 for the reference tone. The output
+measurement taps the actual destination path; it is not a speaker or hearing test.
+The WebSocket provider and authentication remain synthetic, with zero business writes.
+
+The separate capture test executes the production inline AudioWorklet code with a
+native browser MediaStream. It verifies mono signed little-endian PCM, signal amplitude,
+frame sizes and dominant 440 Hz spectral frequency. Whole-stream zero-crossing counts
+are retained as diagnostics only: MediaStream block discontinuities under load distort
+that estimate. The frequency assertion uses windowed per-frame spectral energy rather
+than loosening pitch tolerances. No audio recording is saved.
+
+Capture health now distinguishes context suspension, muted input, processor failure
+and missing frames after a five-second startup grace. Ordinary silence remains valid
+input. The authenticated existing WebSocket reports only bounded numeric counters for
+input received/forwarded, provider messages and output frames/bytes. Admin diagnostics
+combine these with local capture, transport and playback counters, allowing the failing
+stage to be identified without transcripts, audio, tokens or new diagnostic endpoints.
+
+The registration port additionally supports explicitly dictated address, postal code
+and membership fee name. Fee resolution uses the existing authorized active-club query;
+unknown or duplicate names reject the whole patch before any field changes. No amount,
+plan identifier, document or signature is inferred; manual edits stay protected and
+final registration/payment still use their original explicit confirmation flow.
+
+No live Ddr-authenticated Deepgram session or physical microphone/speaker is available
+in this execution environment. Accordingly, no live-service success, recognition
+accuracy, physical audibility or complete application-write parity is claimed here.
+
+Final local follow-up checks: 498/498 unit/integration tests; both TypeScript projects;
+Node and Cloudflare-module builds; Wrangler dry-run; source Workerd twenty-turn and
+beyond-90-second sessions; compiled application Worker close-retry/authenticated audio;
+native capture and PCM rendering in Chromium/WebKit; all four mounted administrative,
+pending-resume and native-duplex profiles; existing registration/renewal browser flow
+in Chromium and WebKit. PostgreSQL 17 isolated concurrency checks also pass. No live
+Deepgram request or physical device is included in these results. Synthetic build keys
+are used; the Cloudflare build still enforces its configured project/namespace checks.
+
+Club-disabled fields are rejected atomically instead of silently populating hidden
+inputs. Voice registration waits for both the existing fee query and field-configuration
+query. An unavailable field configuration cannot be treated as a successful draft.
+The mounted test explicitly enables address/postal code in its synthetic club fixture;
+existing settings/member-card fee queries retain their original authenticated RLS flow.
+Unknown fee, ambiguous fee and disabled-field results carry bounded reason codes and
+specific clarification messages, with no personal values in diagnostics.

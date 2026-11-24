@@ -39,6 +39,7 @@ import { Route as AuthenticatedAjustesSociosRouteImport } from './routes/_authen
 import { Route as AuthenticatedAjustesPersonalizacionesRouteImport } from './routes/_authenticated/ajustes.personalizaciones'
 import { Route as AuthenticatedAjustesMonederoRouteImport } from './routes/_authenticated/ajustes.monedero'
 import { Route as AuthenticatedAjustesInformesRouteImport } from './routes/_authenticated/ajustes.informes'
+import { Route as AuthenticatedAjustesFinanzasRouteImport } from './routes/_authenticated/ajustes.finanzas'
 import { Route as AuthenticatedAjustesGeneralesRouteImport } from './routes/_authenticated/ajustes.generales'
 import { Route as AuthenticatedAjustesDispositivosRouteImport } from './routes/_authenticated/ajustes.dispositivos'
 import { Route as AuthenticatedAjustesCuotasRouteImport } from './routes/_authenticated/ajustes.cuotas'
@@ -210,6 +211,12 @@ const AuthenticatedAjustesInformesRoute =
     path: '/ajustes/informes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAjustesFinanzasRoute =
+  AuthenticatedAjustesFinanzasRouteImport.update({
+    id: '/ajustes/finanzas',
+    path: '/ajustes/finanzas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAjustesGeneralesRoute =
   AuthenticatedAjustesGeneralesRouteImport.update({
     id: '/ajustes/generales',
@@ -296,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/ajustes/dispositivos': typeof AuthenticatedAjustesDispositivosRoute
   '/ajustes/generales': typeof AuthenticatedAjustesGeneralesRoute
   '/ajustes/informes': typeof AuthenticatedAjustesInformesRoute
+  '/ajustes/finanzas': typeof AuthenticatedAjustesFinanzasRoute
   '/ajustes/monedero': typeof AuthenticatedAjustesMonederoRoute
   '/ajustes/personalizaciones': typeof AuthenticatedAjustesPersonalizacionesRoute
   '/ajustes/socios': typeof AuthenticatedAjustesSociosRoute
@@ -338,6 +346,7 @@ export interface FileRoutesByTo {
   '/ajustes/dispositivos': typeof AuthenticatedAjustesDispositivosRoute
   '/ajustes/generales': typeof AuthenticatedAjustesGeneralesRoute
   '/ajustes/informes': typeof AuthenticatedAjustesInformesRoute
+  '/ajustes/finanzas': typeof AuthenticatedAjustesFinanzasRoute
   '/ajustes/monedero': typeof AuthenticatedAjustesMonederoRoute
   '/ajustes/personalizaciones': typeof AuthenticatedAjustesPersonalizacionesRoute
   '/ajustes/socios': typeof AuthenticatedAjustesSociosRoute
@@ -382,6 +391,7 @@ export interface FileRoutesById {
   '/_authenticated/ajustes/dispositivos': typeof AuthenticatedAjustesDispositivosRoute
   '/_authenticated/ajustes/generales': typeof AuthenticatedAjustesGeneralesRoute
   '/_authenticated/ajustes/informes': typeof AuthenticatedAjustesInformesRoute
+  '/_authenticated/ajustes/finanzas': typeof AuthenticatedAjustesFinanzasRoute
   '/_authenticated/ajustes/monedero': typeof AuthenticatedAjustesMonederoRoute
   '/_authenticated/ajustes/personalizaciones': typeof AuthenticatedAjustesPersonalizacionesRoute
   '/_authenticated/ajustes/socios': typeof AuthenticatedAjustesSociosRoute
@@ -426,6 +436,7 @@ export interface FileRouteTypes {
     | '/ajustes/dispositivos'
     | '/ajustes/generales'
     | '/ajustes/informes'
+    | '/ajustes/finanzas'
     | '/ajustes/monedero'
     | '/ajustes/personalizaciones'
     | '/ajustes/socios'
@@ -468,6 +479,7 @@ export interface FileRouteTypes {
     | '/ajustes/dispositivos'
     | '/ajustes/generales'
     | '/ajustes/informes'
+    | '/ajustes/finanzas'
     | '/ajustes/monedero'
     | '/ajustes/personalizaciones'
     | '/ajustes/socios'
@@ -511,6 +523,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ajustes/dispositivos'
     | '/_authenticated/ajustes/generales'
     | '/_authenticated/ajustes/informes'
+    | '/_authenticated/ajustes/finanzas'
     | '/_authenticated/ajustes/monedero'
     | '/_authenticated/ajustes/personalizaciones'
     | '/_authenticated/ajustes/socios'
@@ -761,6 +774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAjustesInformesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ajustes/finanzas': {
+      id: '/_authenticated/ajustes/finanzas'
+      path: '/ajustes/finanzas'
+      fullPath: '/ajustes/finanzas'
+      preLoaderRoute: typeof AuthenticatedAjustesFinanzasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ajustes/generales': {
       id: '/_authenticated/ajustes/generales'
       path: '/ajustes/generales'
@@ -869,6 +889,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAjustesDispositivosRoute: typeof AuthenticatedAjustesDispositivosRoute
   AuthenticatedAjustesGeneralesRoute: typeof AuthenticatedAjustesGeneralesRoute
   AuthenticatedAjustesInformesRoute: typeof AuthenticatedAjustesInformesRoute
+  AuthenticatedAjustesFinanzasRoute: typeof AuthenticatedAjustesFinanzasRoute
   AuthenticatedAjustesMonederoRoute: typeof AuthenticatedAjustesMonederoRoute
   AuthenticatedAjustesPersonalizacionesRoute: typeof AuthenticatedAjustesPersonalizacionesRoute
   AuthenticatedAjustesSociosRoute: typeof AuthenticatedAjustesSociosRoute
@@ -899,6 +920,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAjustesDispositivosRoute: AuthenticatedAjustesDispositivosRoute,
   AuthenticatedAjustesGeneralesRoute: AuthenticatedAjustesGeneralesRoute,
   AuthenticatedAjustesInformesRoute: AuthenticatedAjustesInformesRoute,
+  AuthenticatedAjustesFinanzasRoute: AuthenticatedAjustesFinanzasRoute,
   AuthenticatedAjustesMonederoRoute: AuthenticatedAjustesMonederoRoute,
   AuthenticatedAjustesPersonalizacionesRoute:
     AuthenticatedAjustesPersonalizacionesRoute,

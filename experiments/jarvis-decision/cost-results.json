@@ -1,0 +1,310 @@
+{
+  "date": "2026-11-24",
+  "currency": "USD",
+  "taxes": false,
+  "fxAssumed": false,
+  "promotionalCreditsIncluded": false,
+  "capacityMeasured": false,
+  "results": [
+    {
+      "name": "Deepgram Standard",
+      "minutes": 500,
+      "clubs": 20,
+      "providerAndModelUSD": 750,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 755,
+      "perClubUSD": 37.75,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Deepgram Advanced",
+      "minutes": 500,
+      "clubs": 20,
+      "providerAndModelUSD": 1630,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 1635,
+      "perClubUSD": 81.75,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Composable Flux STT + Flux TTS",
+      "minutes": 500,
+      "clubs": 20,
+      "providerAndModelUSD": 239.75000000000003,
+      "fixedInfrastructureUSD": 25,
+      "totalUSD": 264.75,
+      "perClubUSD": 13.2375,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 250 USD fixed",
+      "minutes": 500,
+      "clubs": 20,
+      "providerAndModelUSD": 20,
+      "fixedInfrastructureUSD": 250,
+      "totalUSD": 270,
+      "perClubUSD": 13.5,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 1000 USD fixed",
+      "minutes": 500,
+      "clubs": 20,
+      "providerAndModelUSD": 20,
+      "fixedInfrastructureUSD": 1000,
+      "totalUSD": 1020,
+      "perClubUSD": 51,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Deepgram Standard",
+      "minutes": 500,
+      "clubs": 100,
+      "providerAndModelUSD": 3750,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 3755,
+      "perClubUSD": 37.55,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Deepgram Advanced",
+      "minutes": 500,
+      "clubs": 100,
+      "providerAndModelUSD": 8150,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 8155,
+      "perClubUSD": 81.55,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Composable Flux STT + Flux TTS",
+      "minutes": 500,
+      "clubs": 100,
+      "providerAndModelUSD": 1198.7500000000002,
+      "fixedInfrastructureUSD": 25,
+      "totalUSD": 1223.7500000000002,
+      "perClubUSD": 12.237500000000002,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 250 USD fixed",
+      "minutes": 500,
+      "clubs": 100,
+      "providerAndModelUSD": 100,
+      "fixedInfrastructureUSD": 250,
+      "totalUSD": 350,
+      "perClubUSD": 3.5,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 1000 USD fixed",
+      "minutes": 500,
+      "clubs": 100,
+      "providerAndModelUSD": 100,
+      "fixedInfrastructureUSD": 1000,
+      "totalUSD": 1100,
+      "perClubUSD": 11,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Deepgram Standard",
+      "minutes": 1000,
+      "clubs": 20,
+      "providerAndModelUSD": 1500,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 1505,
+      "perClubUSD": 75.25,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Deepgram Advanced",
+      "minutes": 1000,
+      "clubs": 20,
+      "providerAndModelUSD": 3260,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 3265,
+      "perClubUSD": 163.25,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Composable Flux STT + Flux TTS",
+      "minutes": 1000,
+      "clubs": 20,
+      "providerAndModelUSD": 479.50000000000006,
+      "fixedInfrastructureUSD": 25,
+      "totalUSD": 504.50000000000006,
+      "perClubUSD": 25.225,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 250 USD fixed",
+      "minutes": 1000,
+      "clubs": 20,
+      "providerAndModelUSD": 40,
+      "fixedInfrastructureUSD": 250,
+      "totalUSD": 290,
+      "perClubUSD": 14.5,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 1000 USD fixed",
+      "minutes": 1000,
+      "clubs": 20,
+      "providerAndModelUSD": 40,
+      "fixedInfrastructureUSD": 1000,
+      "totalUSD": 1040,
+      "perClubUSD": 52,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Deepgram Standard",
+      "minutes": 1000,
+      "clubs": 100,
+      "providerAndModelUSD": 7500,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 7505,
+      "perClubUSD": 75.05,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Deepgram Advanced",
+      "minutes": 1000,
+      "clubs": 100,
+      "providerAndModelUSD": 16300,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 16305,
+      "perClubUSD": 163.05,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Composable Flux STT + Flux TTS",
+      "minutes": 1000,
+      "clubs": 100,
+      "providerAndModelUSD": 2397.5000000000005,
+      "fixedInfrastructureUSD": 25,
+      "totalUSD": 2422.5000000000005,
+      "perClubUSD": 24.225000000000005,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 250 USD fixed",
+      "minutes": 1000,
+      "clubs": 100,
+      "providerAndModelUSD": 200,
+      "fixedInfrastructureUSD": 250,
+      "totalUSD": 450,
+      "perClubUSD": 4.5,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 1000 USD fixed",
+      "minutes": 1000,
+      "clubs": 100,
+      "providerAndModelUSD": 200,
+      "fixedInfrastructureUSD": 1000,
+      "totalUSD": 1200,
+      "perClubUSD": 12,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Deepgram Standard",
+      "minutes": 2000,
+      "clubs": 20,
+      "providerAndModelUSD": 3000,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 3005,
+      "perClubUSD": 150.25,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Deepgram Advanced",
+      "minutes": 2000,
+      "clubs": 20,
+      "providerAndModelUSD": 6520,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 6525,
+      "perClubUSD": 326.25,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Composable Flux STT + Flux TTS",
+      "minutes": 2000,
+      "clubs": 20,
+      "providerAndModelUSD": 959.0000000000001,
+      "fixedInfrastructureUSD": 25,
+      "totalUSD": 984.0000000000001,
+      "perClubUSD": 49.2,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 250 USD fixed",
+      "minutes": 2000,
+      "clubs": 20,
+      "providerAndModelUSD": 80,
+      "fixedInfrastructureUSD": 250,
+      "totalUSD": 330,
+      "perClubUSD": 16.5,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 1000 USD fixed",
+      "minutes": 2000,
+      "clubs": 20,
+      "providerAndModelUSD": 80,
+      "fixedInfrastructureUSD": 1000,
+      "totalUSD": 1080,
+      "perClubUSD": 54,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Deepgram Standard",
+      "minutes": 2000,
+      "clubs": 100,
+      "providerAndModelUSD": 15000,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 15005,
+      "perClubUSD": 150.05,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Deepgram Advanced",
+      "minutes": 2000,
+      "clubs": 100,
+      "providerAndModelUSD": 32600,
+      "fixedInfrastructureUSD": 5,
+      "totalUSD": 32605,
+      "perClubUSD": 326.05,
+      "assumptionsRequired": false
+    },
+    {
+      "name": "Composable Flux STT + Flux TTS",
+      "minutes": 2000,
+      "clubs": 100,
+      "providerAndModelUSD": 4795.000000000001,
+      "fixedInfrastructureUSD": 25,
+      "totalUSD": 4820.000000000001,
+      "perClubUSD": 48.20000000000001,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 250 USD fixed",
+      "minutes": 2000,
+      "clubs": 100,
+      "providerAndModelUSD": 400,
+      "fixedInfrastructureUSD": 250,
+      "totalUSD": 650,
+      "perClubUSD": 6.5,
+      "assumptionsRequired": true
+    },
+    {
+      "name": "Self-host scenario 1000 USD fixed",
+      "minutes": 2000,
+      "clubs": 100,
+      "providerAndModelUSD": 400,
+      "fixedInfrastructureUSD": 1000,
+      "totalUSD": 1400,
+      "perClubUSD": 14,
+      "assumptionsRequired": true
+    }
+  ]
+}
