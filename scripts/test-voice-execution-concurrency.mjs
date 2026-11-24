@@ -108,6 +108,8 @@ try {
       access.indexOf("-- Restrictive RLS combines"),
     ),
   );
+  await psql(await readFile("docs/sql/SNOOP_MEMBER_DISCOUNTS_PROPOSED.sql", "utf8"));
+  await psql(await readFile("docs/sql/SNOOP_CASH_SESSION_AUDIT_PROPOSED.sql", "utf8"));
   await psql(await readFile("docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql", "utf8"));
   await psql(
     `insert into auth.users(id,email)values('${uid(1)}','synthetic@example.test');insert into public.clubs(id,name,slug)values('${uid(101)}','Voice concurrency','voice-concurrency');insert into public.user_roles(user_id,role,club_id,permissions)values('${uid(1)}','admin','${uid(101)}','{}');insert into public.membership_plans(id,club_id,name,duration_days,price_cents)values('${uid(401)}','${uid(101)}','Synthetic fee',30,1000);insert into public.members(id,club_id,first_name,last_name,birth_date,dni_number,expires_at)values('${uid(501)}','${uid(101)}','Ana','Synthetic','1990-01-01','SYNTHETIC','2030-01-01');`,

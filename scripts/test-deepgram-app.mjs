@@ -110,6 +110,8 @@ for (const [label, engine, device] of [
       actionReceipts = [],
       stops = 0;
     const unexpected = [];
+    const extraExecutions = new Set();
+    const receiptExecutions = new Set();
     let executionConfirms = 0,
       executionChecks = 0,
       executionCancels = 0;
@@ -466,7 +468,8 @@ for (const [label, engine, device] of [
         if (executionUI && m.type === "AppExecutionConfirm") {
           executionConfirms++;
           assert.equal(m.confirmed, true);
-          assert([club, secondExecutionId].includes(m.id));
+          if (receiptExecutions.has(m.id)) assert.equal(m.receiptConfirmed, true);
+          assert([club, secondExecutionId].includes(m.id) || extraExecutions.has(m.id));
           assert.equal(m.token, uid);
           peer.send(
             JSON.stringify({
@@ -618,10 +621,70 @@ for (const [label, engine, device] of [
       );
       await panel.getByRole("button", { name: "Annulla proposta", exact: true }).click();
       await review.waitFor({ state: "hidden" });
+      for (const [action, title, changes, expected] of [
+        [
+          "product.create",
+          "Crear ficha",
+          { name: "Synthetic Binder", buy_price: 420, sell_price: 1350 },
+          ["4,20", "13,50"],
+        ],
+        ["cash.open", "Abrir caja", { opening_cash_cents: 5000 }, ["50,00"]],
+        [
+          "cash.close",
+          "Cerrar caja",
+          { closing_cash_cents: 4950, notes: "Synthetic cash count" },
+          ["49,50", "Synthetic cash count"],
+        ],
+        ["discount.create", "Crear descuento", { percentage_basis_points: 1250 }, ["12,5"]],
+        ["wallet.topup", "Recarga de créditos", { amount_cents: 1250, method: "cash" }, ["12,50"]],
+      ]) {
+        const id = crypto.randomUUID();
+        extraExecutions.add(id);
+        if (action === "wallet.topup") receiptExecutions.add(id);
+        peer.send(
+          JSON.stringify({
+            type: "AppExecutionPrepared",
+            id,
+            token: uid,
+            action,
+            summary: {
+              label: title,
+              changes,
+              ...(action === "wallet.topup"
+                ? { attestation: "Confirmo el cobro de la recarga." }
+                : {}),
+            },
+          }),
+        );
+        await review.getByText(title, { exact: true }).waitFor();
+        const text = await review.innerText();
+        for (const value of expected)
+          assert(text.includes(value), title + " must display " + value);
+        assert(!text.includes(id), "Never display an internal UUID as an operation label");
+        await page.screenshot({
+          path: `.sandbox/deepgram/${label}-${action}-confirmation.png`,
+          fullPage: true,
+          animations: "disabled",
+        });
+        if (action === "wallet.topup") {
+          assert(
+            await review
+              .getByRole("button", { name: "Conferma modifica", exact: true })
+              .isDisabled(),
+          );
+          await review.getByRole("checkbox", { name: "Confirmo el cobro de la recarga." }).check();
+        }
+        await review.getByRole("button", { name: "Conferma modifica", exact: true }).click();
+        await review.waitFor({ state: "hidden" });
+      }
+      peer.send(
+        JSON.stringify({ type: "AppExecutionRejected", code: "VOICE_HUMAN_DOCUMENTS_REQUIRED" }),
+      );
+      await panel.getByRole("status").filter({ hasText: "Completa documento y firma" }).waitFor();
       assert.equal(executionCancels, 1);
       assert.equal(writes, 0);
       await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
-      assert.equal(executionConfirms, 2);
+      assert.equal(executionConfirms, 7);
       assert.equal(executionChecks, 1);
       browserResults.push({
         browser: label,

@@ -481,6 +481,7 @@ function ProductosPage() {
   }, []);
 
   useVoiceToolPort("products.page", {
+    refresh:load,
     open: (target, query) => {
       if (target === "product_create") setTab("nuevo");
       else if (target === "categories") setTab("categoria");

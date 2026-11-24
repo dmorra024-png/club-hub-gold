@@ -1,11 +1,41 @@
-import { ExecutionRequest, executionNames } from "./execution-registry.ts";
+import { ExecutionRequest, executionNames, executionResults } from "./execution-registry.ts";
 import { z } from "zod";
+const safeExecutionCodes = new Set([
+  "VOICE_RECEIPT_CONFIRMATION_REQUIRED",
+  "VOICE_HUMAN_DOCUMENTS_REQUIRED",
+  "VOICE_REQUIRED_FIELD",
+  "VOICE_FIELD_DISABLED",
+  "VOICE_WALLET_UNAVAILABLE",
+  "VOICE_REFERENCE_NOT_FOUND",
+  "VOICE_DUPLICATE_NAME",
+  "VOICE_INSUFFICIENT_STOCK",
+  "VOICE_WHOLE_UNITS_REQUIRED",
+  "VOICE_LEGACY_PRICE_UNSUPPORTED",
+  "VOICE_CASH_ALREADY_OPEN",
+  "VOICE_CASH_AUDIT_REQUIRED",
+  "VOICE_INVALID_MEMBER",
+  "VOICE_STATE_CHANGED",
+  "VOICE_ACCESS_DENIED",
+]);
+export const voiceExecutionFailure = (error: unknown) =>
+  error instanceof Error && safeExecutionCodes.has(error.message)
+    ? error.message
+    : "VOICE_EXECUTION_REJECTED";
+async function rejectExecution(response: Response): Promise<never> {
+  const body = (await response.json().catch(() => null)) as { message?: unknown } | null;
+  throw Error(
+    typeof body?.message === "string" && safeExecutionCodes.has(body.message)
+      ? body.message
+      : "VOICE_EXECUTION_REJECTED",
+  );
+}
 export const ExecutionConfirmation = z
   .object({
     type: z.literal("AppExecutionConfirm"),
     id: z.string().uuid(),
     token: z.string().uuid(),
     confirmed: z.literal(true),
+    receiptConfirmed: z.literal(true).optional(),
   })
   .strict();
 const Result = z
@@ -47,7 +77,7 @@ export async function voiceAccessOperation(
     redirect: "manual",
     signal: AbortSignal.timeout(8000),
   });
-  if (!response.ok) throw Error("VOICE_EXECUTION_REJECTED");
+  if (!response.ok) await rejectExecution(response);
   const result = Result.parse(await response.json());
   if (
     result.id !== id ||
@@ -98,6 +128,7 @@ export async function voiceCommandOperation(
     action?: string;
     arguments?: Record<string, unknown>;
     token?: string;
+    receiptConfirmed?: boolean;
   },
 ) {
   if (!options.enabled) throw Error("VOICE_EXECUTION_DISABLED");
@@ -123,12 +154,13 @@ export async function voiceCommandOperation(
         p_action: prepared?.action ?? null,
         p_arguments: prepared?.arguments ?? null,
         p_token: request.token ?? null,
+        p_receipt_confirmed: request.receiptConfirmed === true,
       }),
       redirect: "manual",
       signal: AbortSignal.timeout(8000),
     },
   );
-  if (!response.ok) throw Error("VOICE_EXECUTION_REJECTED");
+  if (!response.ok) await rejectExecution(response);
   const value = z
     .object({
       id: z.string().uuid(),
@@ -142,17 +174,7 @@ export async function voiceCommandOperation(
     .parse(await response.json());
   if (value.id !== id) throw Error("VOICE_RESULT_UNVERIFIED");
   if (value.status === "completed") {
-    const schemas = {
-      "access_control.set": z.object({ enabled: z.boolean() }).strict(),
-      "category.update": z
-        .object({ id: z.string().uuid(), name: z.string(), archived: z.boolean() })
-        .strict(),
-      "product.description": z.object({ id: z.string().uuid(), description: z.string() }).strict(),
-      "member.renew": z
-        .object({ id: z.string().uuid(), expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
-        .strict(),
-    };
-    if (!schemas[value.action].safeParse(value.result).success)
+    if (!executionResults[value.action].safeParse(value.result).success)
       throw Error("VOICE_RESULT_UNVERIFIED");
   }
   return {

@@ -3,7 +3,8 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { readdir } from "node:fs/promises";
-const registryMode = process.argv.includes("--registry");
+const databaseMode = process.argv.includes("--database");
+const registryMode = process.argv.includes("--registry") || databaseMode;
 const executionMode = process.argv.includes("--execution") || registryMode;
 const compiled = process.argv.includes("--compiled");
 const closeRetryOnly = process.argv.includes("--close-retry");
@@ -28,6 +29,19 @@ const script =
   '\nexport default{async fetch(req,env,ctx){req.waitUntil=ctx.waitUntil.bind(ctx);return await deepgramAppSocket(req,req.headers.get("x-test-wrong-project")?{...env,SUPABASE_URL:"https://other-project.example.invalid"}:env)??new Response("normal app");}}';
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
+const sqlDb = databaseMode
+  ? await (await import("../tests/helpers/voice-execution-db.mjs")).voiceExecutionDatabase(club)
+  : null;
+if (sqlDb)
+  await sqlDb.query("update public.product_categories set name='Synthetic category' where id=$1", [
+    "00000000-0000-4000-8000-000000000201",
+  ]);
+const sqlActor = async (sql, args = []) =>
+  sqlDb.transaction(async (tx) => {
+    await tx.exec("SET LOCAL ROLE authenticated");
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [uid]);
+    return tx.query(sql, args);
+  });
 const bindings = {
   SNOOP_VOICE_EXECUTION_PILOT_ENABLED: executionMode ? "true" : "false",
   DEEPGRAM_API_KEY: "test-provider-only",
@@ -39,7 +53,7 @@ const bindings = {
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_synthetic-meter",
   SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
 };
-const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];let executionWrites=0;const executionRecords=new Map();export default{async fetch(req){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
+const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];let executionWrites=0;const executionRecords=new Map();export default{async fetch(req,env){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
  if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools,closeAttempts,closeDurations,cashResponses,tables,executionWrites});
  if(u.hostname==='bnwanxbmprbymbutoths.supabase.co'){
   if(u.pathname==='/rest/v1/rpc/snoop_voice_usage'){
@@ -49,6 +63,7 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
    return Response.json({session:p.p_id,sequence:p.p_sequence,state:p.p_operation==='close'?'closed':'active',leaseUntil:new Date(Date.now()+30000).toISOString(),reservedSeconds:30*(p.p_sequence+1),remainingSeconds:3500,monthlySeconds:3600,connectedMs:p.p_connected_ms,estimatedMicrousd:null,billedCostVerified:false});
   }
   if(u.pathname==='/rest/v1/rpc/snoop_voice_command'){
+   ${databaseMode ? "return env.SQL.fetch(req);" : ""}
    if(token!=='Bearer synthetic.authorized.token')throw Error('Execution identity');
    const body=await req.json();let value=executionRecords.get(body.p_request);
    if(body.p_operation==='prepare'){value={id:body.p_request,status:'confirmation_required',action:body.p_action,summary:body.p_action==='access_control.set'?{label:'Control',enabled:body.p_arguments.enabled}:{label:'Category',name:body.p_arguments.name,archived:body.p_arguments.archived,id:body.p_arguments.id},result:null,token:'${uid}'};executionRecords.set(body.p_request,value);}
@@ -58,6 +73,7 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
    return Response.json(value);
   }
   if(u.pathname==='/rest/v1/product_categories'&&u.searchParams.get('select')==='id,name,archived'){
+    ${databaseMode ? "return env.SQL.fetch(req);" : ""}
     if(token!=='Bearer synthetic.authorized.token'||u.searchParams.get('club_id')!=='eq.${club}'||u.searchParams.get('limit')!=='7')throw Error('Registry read scope');
     return Response.json([{id:'00000000-0000-4000-8000-000000000201',name:'Synthetic category',archived:false}]);
   }
@@ -101,7 +117,7 @@ if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.st
    if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
    if(new Uint8Array(e.data)[0]===8){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'status-'+count,name:'snoop_execution_status',client_side:true,arguments:'{}'}]}));return;}
    if(new Uint8Array(e.data)[0]===7){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cancel-'+count,name:'snoop_cancel_pending',client_side:true,arguments:'{}'}]}));return;}
-   if(new Uint8Array(e.data)[0]===6){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'records-'+count,name:'snoop_records_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Synthetic'})}]}));return;}
+   if(new Uint8Array(e.data)[0]===6){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'records-'+count,name:'snoop_records_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'${databaseMode ? "" : "Synthetic"}'})}]}));return;}
    if(new Uint8Array(e.data)[0]===5){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'execute-'+count,name:'snoop_access_control',client_side:true,arguments:JSON.stringify({enabled:false})}]}));return;}
    if([3,4].includes(new Uint8Array(e.data)[0])){const period=new Uint8Array(e.data)[0]===3;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'read-'+count,name:period?'snoop_cash_period':'snoop_genetics_information',client_side:true,arguments:JSON.stringify(period?{from:'2026-10-24',to:'2026-10-25'}:{name:'Amnesia Haze'})}]}));return;}
    if(new Uint8Array(e.data)[0]===2){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-'+count,name:'snoop_catalog_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Flores Especial'})}]}));return;}
@@ -119,6 +135,49 @@ const compiledFiles = compiled
       ),
     ]
   : [];
+const sqlService = async (req) => {
+  const url = new URL(req.url);
+  if (
+    url.hostname === "bnwanxbmprbymbutoths.supabase.co" &&
+    url.pathname === "/rest/v1/rpc/snoop_voice_command"
+  ) {
+    assert.equal(req.headers.get("authorization"), "Bearer synthetic.authorized.token");
+    const body = await req.json();
+    try {
+      const r = await sqlActor("select public.snoop_voice_command($1,$2,$3,$4,$5,$6) value", [
+        body.p_request,
+        body.p_operation,
+        body.p_action,
+        body.p_arguments,
+        body.p_token,
+        body.p_receipt_confirmed === true,
+      ]);
+      return Response.json(r.rows[0].value);
+    } catch (error) {
+      return Response.json(
+        { code: error.code, message: "Isolated SQL rejected command" },
+        { status: 400 },
+      );
+    }
+  }
+  if (
+    url.hostname === "bnwanxbmprbymbutoths.supabase.co" &&
+    url.pathname === "/rest/v1/product_categories" &&
+    url.searchParams.get("select") === "id,name,archived"
+  ) {
+    assert.equal(req.headers.get("authorization"), "Bearer synthetic.authorized.token");
+    assert.equal(url.searchParams.get("club_id"), "eq." + club);
+    return Response.json(
+      (
+        await sqlActor(
+          "select id,name,archived from public.product_categories where club_id=$1 order by id limit 7",
+          [club],
+        )
+      ).rows,
+    );
+  }
+  return new Response("Unexpected isolated SQL bridge request", { status: 403 });
+};
 const mf = new Miniflare(
   convertV4MiniflareOptions({
     workers: [
@@ -147,7 +206,13 @@ const mf = new Miniflare(
         bindings: { ...bindings, SUPABASE_URL: "https://other-project.example.invalid" },
         outboundService: "fake",
       },
-      { name: "fake", modules: true, script: fake, compatibilityDate: "2026-11-05" },
+      {
+        name: "fake",
+        modules: true,
+        script: fake,
+        compatibilityDate: "2026-11-05",
+        ...(databaseMode ? { serviceBindings: { SQL: sqlService } } : {}),
+      },
     ],
   }),
 );
@@ -205,8 +270,18 @@ async function until(test, ms = 4000) {
   assert(test(), "worker condition timed out");
 }
 try {
-  const stats = async () =>
-    await (await (await mf.getWorker("fake")).fetch("https://metrics.invalid")).json();
+  const stats = async () => {
+    const data = await (await (await mf.getWorker("fake")).fetch("https://metrics.invalid")).json();
+    if (sqlDb)
+      data.executionWrites = Number(
+        (
+          await sqlDb.query(
+            "select count(*)::int n from public.snoop_voice_executions where completed_at is not null",
+          )
+        ).rows[0].n,
+      );
+    return data;
+  };
   for (const scenario of ["staff", "otheruser", "otherclub", "revoked"]) {
     const s = await socket("synthetic." + scenario + ".token");
     await until(() => s.events.some((e) => e.type === "AppClosed"));
@@ -444,6 +519,26 @@ try {
   );
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
+  if (sqlDb) {
+    const actual = (
+      await sqlDb.query(
+        "select name,archived from public.product_categories where id='00000000-0000-4000-8000-000000000201'",
+      )
+    ).rows[0];
+    assert.deepEqual(actual, { name: "Updated category", archived: true });
+    assert.equal(
+      (await sqlActor("select public.snoop_get_club_access_control() value")).rows[0].value.enabled,
+      false,
+    );
+    assert.equal(
+      (
+        await sqlDb.query(
+          "select count(*)::int n from public.snoop_voice_executions where completed_at is not null",
+        )
+      ).rows[0].n,
+      2,
+    );
+  }
   console.log(
     (compiled ? "PASS compiled application Worker: " : "PASS isolated Workerd gateway: ") +
       (noThinking
@@ -452,10 +547,16 @@ try {
           ? " two synthetic turns"
           : " eight turns beyond 90s") +
       (executionMode
-        ? ", explicit server execution confirmation/status with synthetic backend; SQL persistence tested separately"
+        ? databaseMode
+          ? ", real shared gateway -> user-scoped transport -> original SQL RPC -> persisted readback; provider and authentication synthetic"
+          : ", explicit server execution confirmation/status with synthetic backend; SQL persistence tested separately"
         : "") +
-      ", explicit day/period cash reads and sourced botanical information, on-demand catalog lookup beyond initial snapshot, authenticated audio, one active session, failed close retried once with frozen duration, no production business writes or secret exposure (provider/backend simulated)",
+      ", explicit day/period cash reads and sourced botanical information, on-demand catalog lookup beyond initial snapshot, authenticated audio, one active session, failed close retried once with frozen duration, no production business writes or secret exposure" +
+      (databaseMode
+        ? " (provider/authentication simulated; SQL persistence real and isolated)"
+        : " (provider/backend simulated)"),
   );
 } finally {
   await mf.dispose();
+  await sqlDb?.close();
 }

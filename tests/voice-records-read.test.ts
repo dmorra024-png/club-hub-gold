@@ -96,3 +96,43 @@ test("catalog punctuation is retained and wildcard characters are escaped as lit
     { kind: "products", query: "Gelato #41 CBD 10%" },
   );
 });
+
+test("cash-session references are always scoped to the verified actor; discounts retain the club filter", async () => {
+  let calls = 0;
+  const options = {
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "synthetic",
+    jwt: "synthetic",
+    actor: rowId,
+    access: {
+      ...access,
+      permissions: [...access.permissions, "use_cash"] as AccountAccess["permissions"],
+    },
+    fetch: async (input: RequestInfo | URL) => {
+      calls++;
+      const url = new URL(String(input));
+      assert.equal(url.searchParams.get("club_id"), "eq." + access.clubId);
+      if (url.pathname.endsWith("/cash_sessions")) {
+        assert.equal(url.searchParams.get("user_id"), "eq." + rowId);
+        assert.equal(url.searchParams.get("order"), "opened_at.desc,id");
+      }
+      return Response.json([
+        {
+          id: rowId,
+          status: "open",
+          name: "Synthetic discount",
+          percentage_basis_points: 1250,
+          active: true,
+          valid_from: null,
+          valid_until: null,
+        },
+      ]);
+    },
+  };
+  await voiceRecordsRead(options, { kind: "cash_sessions", query: "" });
+  await voiceRecordsRead(options, { kind: "discounts", query: "Synthetic" });
+  await assert.rejects(() =>
+    voiceRecordsRead({ ...options, actor: undefined }, { kind: "cash_sessions", query: "" }),
+  );
+  assert.equal(calls, 2);
+});

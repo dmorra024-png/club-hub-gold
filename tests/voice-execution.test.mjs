@@ -1,7 +1,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { separationDatabase, uid } from "./helpers/separation-db.mjs";
+import { uid } from "./helpers/separation-db.mjs";
+import { voiceExecutionDatabase } from "./helpers/voice-execution-db.mjs";
 import {
   voiceAccessOperation,
   voiceCommandOperation,
@@ -18,42 +19,9 @@ const actor = (user, sql, args = []) =>
     return tx.query(sql, args);
   });
 before(async () => {
-  db = await separationDatabase();
-  await db.exec(
-    await readFile("supabase/migrations/20261106150000_platform_club_separation.sql", "utf8"),
-  );
-  for (let n = 1; n < 4; n++)
-    await db.query("insert into auth.users(id,email)values($1,$2)", [
-      uid(n),
-      `voice-${n}@example.test`,
-    ]);
-  await db.exec(
-    `insert into public.clubs(id,name,slug)values('${club}','Voice A','voice-a'),('${other}','Voice B','voice-b');insert into public.user_roles(user_id,role,club_id,permissions)values('${uid(1)}','admin','${club}','{}'),('${uid(2)}','admin','${other}','{}'),('${uid(3)}','collaborator','${club}','{}');`,
-  );
-  for (const name of [
-    "20261107120000_catalog_lifecycle.sql",
-    "20261107123000_membership_payment_flow.sql",
-  ])
-    await db.exec(await readFile("supabase/migrations/" + name, "utf8"));
-  const membership = await readFile("docs/sql/SNOOP_ADMINISTRATIVE_RECORDS_PROPOSED.sql", "utf8");
-  await db.exec(
-    membership.slice(
-      membership.indexOf("CREATE FUNCTION public.confirm_membership_with_receipt("),
-      membership.indexOf("ALTER TABLE public.orders ADD"),
-    ),
-  );
-  await db.exec(
-    `INSERT INTO public.product_categories(id,club_id,name)VALUES('${uid(201)}','${club}','Office'),('${uid(202)}','${other}','Other');INSERT INTO public.products(id,club_id,category_id,name,stock,buy_price,sell_price)VALUES('${uid(301)}','${club}','${uid(201)}','Synthetic Notebook',10,100,200);INSERT INTO public.membership_plans(id,club_id,name,duration_days,price_cents)VALUES('${uid(401)}','${club}','Synthetic fee',30,1000);INSERT INTO public.members(id,club_id,first_name,last_name,birth_date,dni_number,expires_at)VALUES('${uid(501)}','${club}','Ana','Synthetic','1990-01-01','SYNTHETIC-VOICE','2030-01-01');`,
-  );
-  const existing = await readFile("docs/sql/SNOOP_CLUB_MERMA_POLICY_REVIEW.sql", "utf8");
-  await db.exec(
-    existing.slice(
-      existing.indexOf("ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS access_control_enabled"),
-      existing.indexOf("-- Restrictive RLS combines"),
-    ),
-  );
-  await db.exec(await readFile("docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql", "utf8"));
+  db = await voiceExecutionDatabase();
 });
+
 after(async () => {
   await db?.close();
 });
@@ -251,14 +219,23 @@ test("adapter rejects redirects, wrong receipts and unverifiable completion inst
     /REJECTED/,
   );
 });
-const command = async (user, id, operation, action = null, args = null, token = null) =>
+const command = async (
+  user,
+  id,
+  operation,
+  action = null,
+  args = null,
+  token = null,
+  receiptConfirmed = false,
+) =>
   (
-    await actor(user, "select public.snoop_voice_command($1,$2,$3,$4,$5) value", [
+    await actor(user, "select public.snoop_voice_command($1,$2,$3,$4,$5,$6) value", [
       id,
       operation,
       action,
       args,
       token,
+      receiptConfirmed,
     ])
   ).rows[0].value;
 test("one registry persists category rename/archive and restore through the original RPC", async () => {
@@ -585,5 +562,627 @@ test("changed fee duration invalidates confirmation without silently changing me
       )
     ).rows[0].n,
     0,
+  );
+});
+
+const routedCommand = (user, request) =>
+  voiceCommandOperation(
+    {
+      url: "https://bnwanxbmprbymbutoths.supabase.co",
+      key: "synthetic",
+      jwt: "synthetic-user-" + user,
+      enabled: true,
+      fetch: async (url, options) => {
+        assert.equal(new URL(String(url)).pathname, "/rest/v1/rpc/snoop_voice_command");
+        assert.equal(
+          new Headers(options.headers).get("Authorization"),
+          "Bearer synthetic-user-" + user,
+        );
+        const body = JSON.parse(options.body);
+        return Response.json(
+          await command(
+            user,
+            body.p_request,
+            body.p_operation,
+            body.p_action,
+            body.p_arguments,
+            body.p_token,
+            body.p_receipt_confirmed === true,
+          ),
+        );
+      },
+    },
+    request,
+  );
+const confirmCommand = async (user, id, action, args) => {
+  const p = await routedCommand(user, { id, operation: "prepare", action, arguments: args });
+  assert.equal(p.status, "confirmation_required");
+  const result = await routedCommand(user, {
+    id,
+    operation: "confirm",
+    token: p.token,
+    receiptConfirmed: action === "wallet.topup",
+  });
+  assert.equal(result.status, "completed");
+  assert.deepEqual(
+    await routedCommand(user, {
+      id,
+      operation: "confirm",
+      token: p.token,
+      receiptConfirmed: action === "wallet.topup",
+    }),
+    result,
+  );
+  return result;
+};
+
+test("category creation uses a durable operation ID and preserves the original catalog on replay", async () => {
+  const r = await confirmCommand(1, uid(1001), "category.create", {
+    name: "Synthetic administration",
+    unit_type: "unit",
+    is_smokeable: false,
+  });
+  assert.equal(r.result.name, "Synthetic administration");
+  assert.equal(
+    (
+      await db.query("select count(*)::int n from public.product_categories where id=$1", [
+        uid(1001),
+      ])
+    ).rows[0].n,
+    1,
+  );
+  await assert.rejects(
+    () =>
+      command(1, uid(1002), "prepare", "category.create", {
+        name: "Synthetic administration",
+        unit_type: "unit",
+        is_smokeable: false,
+      }),
+    /DUPLICATE_NAME/,
+  );
+});
+test("member changes preserve all unrelated membership/document fields and reject underage or unknown values", async () => {
+  const before = (
+    await db.query("select to_jsonb(m) value from public.members m where id=$1", [uid(501)])
+  ).rows[0].value;
+  const r = await confirmCommand(1, uid(1003), "member.update", {
+    id: uid(501),
+    last_name: "Synthetic Corrected",
+    city: "Palma",
+    phone: "666123456",
+    email: "synthetic@example.test",
+  });
+  assert.equal(r.result.last_name, "Synthetic Corrected");
+  const after = (
+    await db.query("select to_jsonb(m) value from public.members m where id=$1", [uid(501)])
+  ).rows[0].value;
+  for (const key of [
+    "id",
+    "club_id",
+    "first_name",
+    "birth_date",
+    "dni_number",
+    "dni_photo_path",
+    "signature_path",
+    "plan_id",
+    "expires_at",
+    "created_by",
+  ])
+    assert.deepEqual(after[key], before[key]);
+  await assert.rejects(
+    () =>
+      command(1, uid(1004), "prepare", "member.update", { id: uid(501), birth_date: "2020-01-01" }),
+    /INVALID_MEMBER/,
+  );
+  await assert.rejects(
+    () => command(1, uid(1004), "prepare", "member.update", { id: uid(501), role: "admin" }),
+    /INVALID_ARGUMENTS/,
+  );
+  await assert.rejects(
+    () =>
+      command(1, uid(1004), "prepare", "member.update", { id: uid(501), email: "not-an-email" }),
+    /INVALID_MEMBER/,
+  );
+  const p = await command(1, uid(1005), "prepare", "member.update", {
+    id: uid(501),
+    city: "Barcelona",
+  });
+  await db.query("update public.members set phone='666000000' where id=$1", [uid(501)]);
+  await assert.rejects(
+    () => command(1, uid(1005), "confirm", null, null, p.token),
+    /STATE_CHANGED/,
+  );
+  assert.equal(
+    (await db.query("select city from public.members where id=$1", [uid(501)])).rows[0].city,
+    "Palma",
+  );
+});
+test("membership plan create/update uses cents and never rewrites receipts or prior expirations", async () => {
+  const history = await db.query(
+    "select id,amount_cents from public.membership_receipts order by id",
+  );
+  const member = (await db.query("select expires_at from public.members where id=$1", [uid(501)]))
+    .rows[0];
+  await confirmCommand(1, uid(1006), "fee.create", {
+    name: "Synthetic future fee",
+    duration_days: 180,
+    price_cents: 3250,
+    active: true,
+  });
+  await confirmCommand(1, uid(1007), "fee.update", {
+    id: uid(1006),
+    name: "Synthetic future fee corrected",
+    duration_days: 365,
+    price_cents: 5000,
+    active: false,
+  });
+  assert.deepEqual(
+    await db.query("select id,amount_cents from public.membership_receipts order by id"),
+    history,
+  );
+  assert.deepEqual(
+    (await db.query("select expires_at from public.members where id=$1", [uid(501)])).rows[0],
+    member,
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "select price_cents,active,duration_days from public.membership_plans where id=$1",
+        [uid(1006)],
+      )
+    ).rows[0],
+    { price_cents: 5000, active: false, duration_days: 365 },
+  );
+  await assert.rejects(
+    () =>
+      command(3, uid(1008), "prepare", "fee.create", {
+        name: "Not authorized",
+        duration_days: 30,
+        price_cents: 100,
+        active: true,
+      }),
+    /ACCESS_DENIED/,
+  );
+});
+test("discount lifecycle and assignment use current club policies and retain original financial records", async () => {
+  const original = await db.query(
+    "select id,amount_cents from public.membership_receipts order by id",
+  );
+  const values = {
+    name: "Synthetic discount",
+    percentage_basis_points: 1250,
+    active: true,
+    valid_from: null,
+    valid_until: null,
+  };
+  await confirmCommand(1, uid(1010), "discount.create", values);
+  await confirmCommand(1, uid(1011), "member.discount.set", {
+    member_id: uid(501),
+    discount_id: uid(1010),
+  });
+  assert.equal(
+    (
+      await db.query(
+        "select discount_id from public.member_discount_assignments where member_id=$1",
+        [uid(501)],
+      )
+    ).rows[0].discount_id,
+    uid(1010),
+  );
+  await confirmCommand(1, uid(1012), "discount.update", {
+    id: uid(1010),
+    ...values,
+    name: "Synthetic discount changed",
+    active: false,
+  });
+  await assert.rejects(
+    () =>
+      command(1, uid(1013), "prepare", "member.discount.set", {
+        member_id: uid(501),
+        discount_id: uid(1010),
+      }),
+    /DISCOUNT_UNAVAILABLE/,
+  );
+  await confirmCommand(1, uid(1014), "member.discount.clear", { member_id: uid(501) });
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from public.member_discount_assignments where member_id=$1",
+        [uid(501)],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.deepEqual(
+    await db.query("select id,amount_cents from public.membership_receipts order by id"),
+    original,
+  );
+  await assert.rejects(
+    () =>
+      command(1, uid(1015), "prepare", "discount.create", {
+        ...values,
+        name: "Invalid interval",
+        valid_from: "2030-02-01",
+        valid_until: "2030-01-01",
+      }),
+    /INVALID_ARGUMENTS/,
+  );
+});
+test("cash open/close uses existing audit trigger, server time and responsible operator without treating float as income", async () => {
+  const receipts = await db.query(
+    "select id,amount_cents from public.membership_receipts order by id",
+  );
+  const opened = await confirmCommand(1, uid(1020), "cash.open", { opening_cash_cents: 5000 });
+  assert.equal(opened.result.status, "open");
+  const row = (await db.query("select * from public.cash_sessions where id=$1", [uid(1020)]))
+    .rows[0];
+  assert.equal(row.user_id, uid(1));
+  assert.equal(row.club_id, club);
+  assert(row.opened_at);
+  assert.equal(row.closed_by, null);
+  await assert.rejects(
+    () => command(1, uid(1021), "prepare", "cash.open", { opening_cash_cents: 1000 }),
+    /ALREADY_OPEN/,
+  );
+  const closed = await confirmCommand(1, uid(1022), "cash.close", {
+    id: uid(1020),
+    closing_cash_cents: 4950,
+    notes: "Synthetic count only",
+  });
+  assert.equal(closed.result.closed_by, uid(1));
+  assert.equal(closed.result.closing_cash_cents, 4950);
+  const final = (await db.query("select * from public.cash_sessions where id=$1", [uid(1020)]))
+    .rows[0];
+  assert.equal(final.notes, "Synthetic count only");
+  assert(final.closed_at);
+  assert.equal(final.opened_at.toISOString(), row.opened_at.toISOString());
+  assert.deepEqual(
+    await db.query("select id,amount_cents from public.membership_receipts order by id"),
+    receipts,
+  );
+  await assert.rejects(
+    () =>
+      command(1, uid(1023), "prepare", "cash.close", {
+        id: uid(1020),
+        closing_cash_cents: 5000,
+        notes: "Again",
+      }),
+    /REFERENCE_NOT_FOUND/,
+  );
+  await assert.rejects(
+    () => command(3, uid(1024), "prepare", "cash.open", { opening_cash_cents: 100 }),
+    /ACCESS_DENIED/,
+  );
+});
+test("every new action rejects a foreign-club record and leaves no prepared ledger row", async () => {
+  for (const [n, action, args] of [
+    [1030, "member.update", { id: uid(501), city: "Other club" }],
+    [
+      1031,
+      "fee.update",
+      { id: uid(401), name: "Foreign", duration_days: 30, price_cents: 100, active: true },
+    ],
+    [
+      1032,
+      "discount.update",
+      {
+        id: uid(1010),
+        name: "Foreign",
+        percentage_basis_points: 1000,
+        active: true,
+        valid_from: null,
+        valid_until: null,
+      },
+    ],
+    [1033, "member.discount.set", { member_id: uid(501), discount_id: uid(1010) }],
+    [1034, "member.discount.clear", { member_id: uid(501) }],
+    [1035, "cash.close", { id: uid(1020), closing_cash_cents: 100, notes: "Foreign" }],
+  ]) {
+    await assert.rejects(() => command(2, uid(n), "prepare", action, args));
+    assert.equal(
+      (
+        await db.query("select count(*)::int n from public.snoop_voice_executions where id=$1", [
+          uid(n),
+        ])
+      ).rows[0].n,
+      0,
+    );
+  }
+});
+
+test("registration refuses missing human evidence and server field configuration cannot be bypassed", async () => {
+  const args = {
+    first_name: "Synthetic",
+    last_name: "New Member",
+    birth_date: "1995-03-12",
+    city: "Palma",
+    phone: "666123456",
+    email: "",
+    address: "",
+    postal_code: "",
+    plan_id: uid(401),
+    method: "cash",
+  };
+  await assert.rejects(
+    () => command(1, uid(1040), "prepare", "member.create", args),
+    /HUMAN_DOCUMENTS_REQUIRED/,
+  );
+  assert.equal(
+    (await db.query("select count(*)::int n from public.members where id=$1", [uid(1040)])).rows[0]
+      .n,
+    0,
+  );
+  await assert.rejects(
+    () =>
+      command(3, uid(1041), "prepare", "member_field.set", {
+        field_key: "signature",
+        visible: false,
+        required: false,
+      }),
+    /ACCESS_DENIED/,
+  );
+  for (const [i, key] of ["dni_number", "dni_photo", "signature"].entries())
+    await confirmCommand(1, uid(1042 + i), "member_field.set", {
+      field_key: key,
+      visible: false,
+      required: false,
+    });
+  await assert.rejects(
+    () => command(1, uid(1045), "prepare", "member.create", { ...args, phone: "" }),
+    /REQUIRED_FIELD/,
+  );
+  const p = await command(1, uid(1046), "prepare", "member.create", args);
+  await confirmCommand(1, uid(1047), "member_field.set", {
+    field_key: "signature",
+    visible: true,
+    required: true,
+  });
+  await assert.rejects(
+    () => command(1, uid(1046), "confirm", null, null, p.token),
+    /HUMAN_DOCUMENTS_REQUIRED|STATE_CHANGED/,
+  );
+  await confirmCommand(1, uid(1048), "member_field.set", {
+    field_key: "signature",
+    visible: false,
+    required: false,
+  });
+  const receipts = (await db.query("select count(*)::int n from public.membership_receipts"))
+    .rows[0].n;
+  const created = await confirmCommand(1, uid(1049), "member.create", args);
+  assert.equal(created.result.id, uid(1049));
+  const member = (
+    await db.query(
+      "select first_name,last_name,birth_date,city,created_by,club_id,dni_photo_path,signature_path from public.members where id=$1",
+      [uid(1049)],
+    )
+  ).rows[0];
+  assert.equal(member.first_name, "Synthetic");
+  assert.equal(member.city, "Palma");
+  assert.equal(member.created_by, uid(1));
+  assert.equal(member.club_id, club);
+  assert.equal(member.dni_photo_path, "");
+  assert.equal(member.signature_path, "");
+  assert.equal(
+    (await db.query("select count(*)::int n from public.membership_receipts")).rows[0].n,
+    receipts + 1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from public.membership_operations where request_id=$1",
+        [uid(1049)],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await assert.rejects(
+    () => command(1, uid(1050), "prepare", "member.create", { ...args, first_name: null }),
+    /INVALID_ARGUMENTS/,
+  );
+  await assert.rejects(
+    () => command(1, uid(1050), "prepare", "member.create", { ...args, birth_date: "2020-03-12" }),
+    /INVALID_MEMBER/,
+  );
+});
+
+test("wallet configuration and recharge delegate to original RPCs; confirmations cannot duplicate credit or cash evidence", async () => {
+  await confirmCommand(1, uid(1060), "wallet.configure", { enabled: true });
+  await confirmCommand(1, uid(1061), "cash.open", { opening_cash_cents: 5000 });
+  const before = await db.query(
+    "select id,amount_cents from public.membership_receipts order by id",
+  );
+  const p = await command(1, uid(1062), "prepare", "wallet.topup", {
+    member_id: uid(501),
+    cash_session_id: uid(1061),
+    amount_cents: 1250,
+    method: "card",
+  });
+  assert.equal(
+    (
+      await db.query("select balance_cents from public.socio_wallet_accounts where member_id=$1", [
+        uid(501),
+      ])
+    ).rows[0].balance_cents,
+    0,
+  );
+  await assert.rejects(
+    () => command(1, uid(1062), "confirm", null, null, p.token),
+    /RECEIPT_CONFIRMATION_REQUIRED/,
+  );
+  const done = await command(1, uid(1062), "confirm", null, null, p.token, true);
+  assert.equal(done.result.balanceCents, 1250);
+  assert(
+    (
+      await db.query("select receipt_confirmed_at from public.snoop_voice_executions where id=$1", [
+        uid(1062),
+      ])
+    ).rows[0].receipt_confirmed_at,
+  );
+  assert.deepEqual(await command(1, uid(1062), "confirm", null, null, p.token, true), done);
+  assert.deepEqual(
+    (
+      await db.query(
+        "select delta_cents,payment_method,actor_id,cash_session_id from public.socio_wallet_ledger where operation_id=$1",
+        [uid(1062)],
+      )
+    ).rows,
+    [{ delta_cents: 1250, payment_method: "card", actor_id: uid(1), cash_session_id: uid(1061) }],
+  );
+  assert.equal(
+    (
+      await db.query("select balance_cents from public.socio_wallet_accounts where member_id=$1", [
+        uid(501),
+      ])
+    ).rows[0].balance_cents,
+    1250,
+  );
+  assert.deepEqual(
+    await db.query("select id,amount_cents from public.membership_receipts order by id"),
+    before,
+  );
+  const pending = await command(1, uid(1063), "prepare", "wallet.topup", {
+    member_id: uid(501),
+    cash_session_id: uid(1061),
+    amount_cents: 100,
+    method: "cash",
+  });
+  await confirmCommand(1, uid(1064), "wallet.configure", { enabled: false });
+  await assert.rejects(
+    () => command(1, uid(1063), "confirm", null, null, pending.token, true),
+    /WALLET_UNAVAILABLE/,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from public.socio_wallet_ledger where operation_id=$1",
+        [uid(1063)],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await assert.rejects(
+    () =>
+      command(2, uid(1065), "prepare", "wallet.topup", {
+        member_id: uid(501),
+        cash_session_id: uid(1061),
+        amount_cents: 100,
+        method: "cash",
+      }),
+    /REFERENCE_NOT_FOUND|ACCESS_DENIED/,
+  );
+  await assert.rejects(
+    () => command(3, uid(1066), "prepare", "wallet.configure", { enabled: true }),
+    /ACCESS_DENIED/,
+  );
+  await confirmCommand(1, uid(1067), "cash.close", {
+    id: uid(1061),
+    closing_cash_cents: 5000,
+    notes: "Card topup does not increase physical cash",
+  });
+});
+
+test("product card creation and edits use original catalog RPCs without an implicit stock movement or historical price rewrite", async () => {
+  const history = await db.query("select * from public.stock_movements order by id");
+  const created = await confirmCommand(1, uid(1070), "product.create", {
+    name: "Synthetic Binder",
+    category_id: uid(1001),
+    buy_price: 420,
+    sell_price: 1250,
+    strain: null,
+    notes: "Synthetic office inventory",
+    description: "Informational description",
+  });
+  const product = created.result.id;
+  assert.equal(created.result.stock, 0);
+  assert.deepEqual(await db.query("select * from public.stock_movements order by id"), history);
+  const updated = await confirmCommand(1, uid(1071), "product.update", {
+    id: product,
+    sell_price: 1350,
+    description: "Corrected only",
+    active: false,
+  });
+  assert.equal(updated.result.sell_price, 1350);
+  assert.equal(updated.result.buy_price, 420);
+  assert.equal(updated.result.name, "Synthetic Binder");
+  assert.equal(updated.result.stock, 0);
+  assert.equal(updated.result.active, false);
+  assert.deepEqual(await db.query("select * from public.stock_movements order by id"), history);
+  await assert.rejects(
+    () => command(1, uid(1072), "prepare", "product.update", { id: product, stock: 20 }),
+    /INVALID_ARGUMENTS/,
+  );
+  await assert.rejects(
+    () => command(2, uid(1072), "prepare", "product.update", { id: product, name: "Foreign" }),
+    /REFERENCE_NOT_FOUND/,
+  );
+});
+test("physical inventory correction persists exactly once with original expected-stock checks and audit", async () => {
+  const product = (await db.query("select id from public.products where name='Synthetic Binder'"))
+    .rows[0].id;
+  await confirmCommand(1, uid(1073), "stock.adjust", {
+    id: product,
+    delta: "10",
+    notes: "Verified synthetic physical count",
+  });
+  assert.equal(
+    Number(
+      (await db.query("select stock from public.products where id=$1", [product])).rows[0].stock,
+    ),
+    10,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from public.stock_movements where product_id=$1 and reason='administrative_adjustment'",
+        [product],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await assert.rejects(
+    () =>
+      command(1, uid(1074), "prepare", "stock.adjust", {
+        id: product,
+        delta: "0.50",
+        notes: "Half a unit is invalid",
+      }),
+    /WHOLE_UNITS_REQUIRED/,
+  );
+  await assert.rejects(
+    () =>
+      command(1, uid(1074), "prepare", "stock.adjust", {
+        id: product,
+        delta: "-11",
+        notes: "Would go negative",
+      }),
+    /INSUFFICIENT_STOCK/,
+  );
+  const pending = await command(1, uid(1075), "prepare", "stock.adjust", {
+    id: product,
+    delta: "-2",
+    notes: "Verified synthetic recount",
+  });
+  await actor(1, "select public.adjust_administrative_stock($1,1,10,$2)", [
+    product,
+    "Independent manual correction",
+  ]);
+  await assert.rejects(
+    () => command(1, uid(1075), "confirm", null, null, pending.token),
+    /STATE_CHANGED/,
+  );
+  assert.equal(
+    Number(
+      (await db.query("select stock from public.products where id=$1", [product])).rows[0].stock,
+    ),
+    11,
+  );
+  await assert.rejects(
+    () =>
+      command(2, uid(1076), "prepare", "stock.adjust", {
+        id: product,
+        delta: "1",
+        notes: "Foreign product",
+      }),
+    /REFERENCE_NOT_FOUND/,
   );
 });

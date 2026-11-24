@@ -17,6 +17,7 @@ export function useVoiceToolPort(name: string, handlers: VoicePort, registration
     if (!owner) return;
     const port: VoicePort = {
       ready: () => latest.current.ready?.() ?? true,
+      refresh: handlers.refresh ? () => latest.current.refresh?.() : undefined,
       baseline: handlers.baseline ? () => latest.current.baseline!() : undefined,
       snapshot: () => {
         if (!latest.current.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");

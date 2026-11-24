@@ -78,6 +78,7 @@ function SocioDetail() {
   useVoiceToolPort(
     "member.sections",
     {
+      refresh:load,
       ready: () => memberCardVisible && !!member && member.id === id,
       open: (section) => {
         if (

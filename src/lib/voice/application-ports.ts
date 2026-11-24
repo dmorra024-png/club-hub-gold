@@ -4,6 +4,7 @@ export function isMemberCardPath(path: string) {
   return !!match && !["nuovo", "gestisci", "importar"].includes(match[1]);
 }
 export type VoicePort = {
+  refresh?: () => void | Promise<void>;
   ready?: () => boolean;
   snapshot?: () => Record<string, string>;
   baseline?: () => Record<string, string>;

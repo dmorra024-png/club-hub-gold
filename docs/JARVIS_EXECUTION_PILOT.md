@@ -95,3 +95,36 @@ Il futuro rilascio richiede autorizzazione specifica, CI sul commit esatto, pref
 binding/secret protetto e allowlist Pilot invariata. REAL rimane disattivato.
 Rollback: disabilitare il solo flag e ripristinare il codice verificato; mantenere
 registro/RPC per audit e riconciliazione. Non invertire dati o movimenti automaticamente.
+
+## Extension after cfe78658
+
+The authoritative action list is now `JARVIS_CAPABILITY_MATRIX.json`: 21 persistent
+commands, seven bounded record search kinds and a shared detail inspector. The earlier
+"not connected" section is superseded for member card edits, human-input-free eligible
+registrations, product creation/metadata, audited physical inventory correction and
+cash/wallet operations listed in that matrix. Remaining operations are explicit there.
+
+For basic CRUD, the private `snoop_voice_entity` helper performs the same table
+operations as the existing manual PostgREST APIs and retains their constraints/audit.
+It is not granted to users. The single public command RPC still owns authorization,
+confirmation, idempotency, stale-state locking, atomic execution and durable results.
+Original catalog/membership/stock/wallet RPCs remain authoritative for their operations.
+
+The review-only proposal has additional schema prerequisites: discounts, assignments
+and member field configuration. Missing prerequisites fail before installation. Cash
+writes additionally fail without the existing session audit trigger. Wallet commands
+are hidden and refused when the original wallet feature gate is disabled. No previous
+migration is rerun and no dependency is silently installed on production.
+
+Wallet recharges require a separately checked receipt acknowledgment, validated by
+both the gateway and the command RPC and timestamped server-side. A model cannot
+manufacture the user's confirmation token. Credits are not a claim that SNOOP has
+initiated or completed an external card/transfer payment.
+
+Verified completion refreshes only the relevant existing screen via its scoped read
+port. Financial views reuse the existing records-changed event. There is no page
+reload, extra save, accounting formula change or replacement of the manual handlers.
+
+The new Workerd `--database` mode invokes the real isolated SQL ledger and original
+RPCs through the actual gateway and HTTP transport. Provider and identity upstreams
+are synthetic; this is still not a real Deepgram or physical-phone test.

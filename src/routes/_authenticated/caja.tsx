@@ -48,6 +48,7 @@ function Caja() {
     [busy, setBusy] = useState(false);
   const data = stored?.scope === scope && stored?.requestedDay === day ? stored : null;
   useVoiceToolPort("cash.page", {
+    refresh:setRefresh,
     open: (target, requestedDay) => {
       if (target === "mine") {
         if (day !== null) cashVoicePending.current = true;

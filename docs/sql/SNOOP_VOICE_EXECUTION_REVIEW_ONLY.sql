@@ -8,6 +8,7 @@ DO $$ BEGIN
  to_regprocedure('public.save_administrative_product_checked(uuid,jsonb,numeric)') IS NULL OR
  to_regprocedure('public.confirm_membership_with_receipt(jsonb,uuid,text,uuid,boolean,date,integer)') IS NULL THEN
  RAISE EXCEPTION 'VOICE_EXECUTION_DEPENDENCY_MISSING'; END IF;
+ IF to_regclass('public.member_discounts') IS NULL OR to_regclass('public.member_discount_assignments') IS NULL OR to_regclass('public.club_member_field_config') IS NULL THEN RAISE EXCEPTION 'VOICE_EXECUTION_DEPENDENCY_MISSING';END IF;
 END $$;
 -- Personal search text is a POST body argument, never a URL query parameter.
 CREATE FUNCTION public.snoop_voice_find_members(p_query text,p_club uuid,p_limit integer DEFAULT 7)
@@ -27,7 +28,7 @@ CREATE TABLE public.snoop_voice_executions (
  id uuid PRIMARY KEY, actor uuid NOT NULL, club uuid NOT NULL,
  token uuid NOT NULL DEFAULT gen_random_uuid(), action text NOT NULL,
  arguments jsonb NOT NULL, expected jsonb NOT NULL, summary jsonb NOT NULL,
- prepared_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz,cancelled_at timestamptz,result jsonb
+ prepared_at timestamptz NOT NULL DEFAULT now(), receipt_confirmed_at timestamptz, completed_at timestamptz,cancelled_at timestamptz,result jsonb
 );
 ALTER TABLE public.snoop_voice_executions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.snoop_voice_executions FROM PUBLIC,anon,authenticated;
@@ -35,16 +36,172 @@ CREATE FUNCTION public.snoop_voice_authorized(p_action text,p_club uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
  SELECT auth.uid() IS NOT NULL AND p_club=public.current_club_id() AND public.can_operate_club(p_club,NULL) IS TRUE AND
  CASE p_action WHEN 'access_control.set' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'product.create' THEN public.can_manage_snoop_catalog(p_club)
+ WHEN 'product.update' THEN public.can_manage_snoop_catalog(p_club)
+ WHEN 'stock.adjust' THEN public.can_manage_snoop_catalog(p_club)
+ WHEN 'category.create' THEN public.can_manage_snoop_catalog(p_club)
  WHEN 'category.update' THEN public.can_manage_snoop_catalog(p_club)
  WHEN 'product.description' THEN public.can_manage_snoop_catalog(p_club)
- WHEN 'member.renew' THEN public.can_operate_club(p_club,'manage_members') ELSE false END IS TRUE;
+ WHEN 'member.renew' THEN public.can_operate_club(p_club,'manage_members')
+ WHEN 'wallet.configure' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'wallet.topup' THEN public.can_operate_club(p_club,'use_cash') AND public.can_operate_club(p_club,'manage_members')
+ WHEN 'member.create' THEN public.can_operate_club(p_club,'manage_members')
+ WHEN 'member_field.set' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'member.update' THEN public.can_operate_club(p_club,'manage_members')
+ WHEN 'cash.open' THEN public.can_operate_club(p_club,'use_cash')
+ WHEN 'cash.close' THEN public.can_operate_club(p_club,'use_cash')
+ WHEN 'fee.create' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'fee.update' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'discount.create' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'discount.update' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'member.discount.set' THEN public.is_current_user_club_admin(p_club)
+ WHEN 'member.discount.clear' THEN public.is_current_user_club_admin(p_club)
+ ELSE false END IS TRUE;
 $$;
 REVOKE ALL ON FUNCTION public.snoop_voice_authorized(text,uuid) FROM PUBLIC,anon,authenticated;
+-- Same table operations as existing manual PostgREST APIs; existing constraints,
+-- audit triggers and accounting RPCs remain authoritative. Private dispatch only.
+CREATE FUNCTION public.snoop_voice_entity(p_action text,p_args jsonb,p_apply boolean,p_request uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE c uuid:=public.current_club_id();a uuid:=auth.uid();v jsonb;desired jsonb;result jsonb;rid uuid;d date:=(now() AT TIME ZONE 'Europe/Madrid')::date;k text;allowed text[];required_keys text[];
+BEGIN
+ IF public.snoop_voice_authorized(p_action,c) IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED' USING ERRCODE='42501';END IF;
+ CASE p_action
+ WHEN 'member_field.set' THEN allowed:=ARRAY['field_key','visible','required'];required_keys:=allowed;
+ WHEN 'category.create' THEN allowed:=ARRAY['name','unit_type','is_smokeable'];required_keys:=allowed;
+ WHEN 'member.update' THEN allowed:=ARRAY['id','first_name','last_name','birth_date','city','phone','email'];required_keys:=ARRAY['id'];
+ WHEN 'fee.create' THEN allowed:=ARRAY['name','duration_days','price_cents','active'];required_keys:=allowed;
+ WHEN 'fee.update' THEN allowed:=ARRAY['id','name','duration_days','price_cents','active'];required_keys:=allowed;
+ WHEN 'discount.create' THEN allowed:=ARRAY['name','percentage_basis_points','active','valid_from','valid_until'];required_keys:=allowed;
+ WHEN 'discount.update' THEN allowed:=ARRAY['id','name','percentage_basis_points','active','valid_from','valid_until'];required_keys:=allowed;
+ WHEN 'member.discount.set' THEN allowed:=ARRAY['member_id','discount_id'];required_keys:=allowed;
+ WHEN 'member.discount.clear' THEN allowed:=ARRAY['member_id'];required_keys:=allowed;
+ WHEN 'cash.open' THEN allowed:=ARRAY['opening_cash_cents'];required_keys:=allowed;
+ WHEN 'cash.close' THEN allowed:=ARRAY['id','closing_cash_cents','notes'];required_keys:=allowed;
+ ELSE RAISE EXCEPTION 'VOICE_ACTION_NOT_REGISTERED';END CASE;
+ IF jsonb_typeof(p_args) IS DISTINCT FROM 'object' OR p_args-allowed<>'{}'::jsonb OR NOT(p_args?&required_keys) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+ FOR k IN SELECT jsonb_object_keys(p_args) LOOP
+  IF k=ANY(ARRAY['opening_cash_cents','closing_cash_cents','price_cents','duration_days','percentage_basis_points']) THEN
+   IF jsonb_typeof(p_args->k) IS DISTINCT FROM 'number' OR (p_args->>k)::numeric<>trunc((p_args->>k)::numeric) OR (p_args->>k)::numeric NOT BETWEEN 0 AND 10000000 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  ELSIF k=ANY(ARRAY['active','is_smokeable','visible','required']) THEN
+   IF jsonb_typeof(p_args->k) IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  ELSIF k=ANY(ARRAY['valid_from','valid_until']) THEN
+   IF p_args->k<>'null'::jsonb AND (jsonb_typeof(p_args->k) IS DISTINCT FROM 'string' OR (p_args->>k)!~'^\d{4}-\d{2}-\d{2}$') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+   PERFORM (p_args->>k)::date;
+  ELSE
+   IF jsonb_typeof(p_args->k) IS DISTINCT FROM 'string' OR length(p_args->>k)>2000 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  END IF;
+ END LOOP;
+ IF p_args?'name' AND length(trim(p_args->>'name')) NOT BETWEEN 1 AND (CASE WHEN p_action LIKE 'discount.%' THEN 100 ELSE 120 END) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+ IF p_action='member_field.set' THEN
+  IF (p_args->>'field_key') NOT IN ('birth_date','dni_number','dni_photo','address','city','postal_code','phone','email','plan','signature') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  SELECT coalesce((SELECT to_jsonb(t) FROM public.club_member_field_config t WHERE club_id=c AND field_key=p_args->>'field_key' FOR UPDATE),'{}'::jsonb) INTO v;
+  IF p_apply THEN
+   INSERT INTO public.club_member_field_config(club_id,field_key,visible,required) VALUES(c,p_args->>'field_key',(p_args->>'visible')::boolean,(p_args->>'required')::boolean) ON CONFLICT(club_id,field_key) DO UPDATE SET visible=excluded.visible,required=excluded.required;
+   SELECT jsonb_build_object('id',id,'field_key',field_key,'visible',visible,'required',required) INTO result FROM public.club_member_field_config WHERE club_id=c AND field_key=p_args->>'field_key';
+   desired:=p_args;
+  END IF;
+ ELSIF p_action='category.create' THEN
+  IF (p_args->>'unit_type') NOT IN ('gr','unit') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF EXISTS(SELECT 1 FROM public.product_categories WHERE club_id=c AND lower(trim(name))=lower(trim(p_args->>'name'))) THEN RAISE EXCEPTION 'VOICE_DUPLICATE_NAME';END IF;
+  v:='{"available":true}'::jsonb;
+  IF p_apply THEN
+   INSERT INTO public.product_categories(id,club_id,name,unit_type,is_smokeable) VALUES(p_request,c,trim(p_args->>'name'),(p_args->>'unit_type')::public.product_unit,(p_args->>'is_smokeable')::boolean);
+   SELECT jsonb_build_object('id',id,'name',name,'unit_type',unit_type,'is_smokeable',is_smokeable) INTO result FROM public.product_categories WHERE id=p_request AND club_id=c;
+   desired:=jsonb_build_object('name',trim(p_args->>'name'),'unit_type',p_args->'unit_type','is_smokeable',p_args->'is_smokeable');
+  END IF;
+ ELSIF p_action='member.update' THEN
+  IF p_args-'id'='{}'::jsonb THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  SELECT jsonb_build_object('id',m.id,'first_name',first_name,'last_name',last_name,'birth_date',birth_date,'city',city,'phone',phone,'email',email,'has_document',length(trim(coalesce(dni_number,'')))>0,'updated_at',updated_at) INTO v FROM public.members m WHERE m.id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  desired:=v||(p_args-'id');
+  IF length(trim(desired->>'first_name')) NOT BETWEEN 1 AND 120 OR length(trim(desired->>'last_name')) NOT BETWEEN 1 AND 120 OR (desired->>'has_document')::boolean IS DISTINCT FROM true OR (desired->>'birth_date')!~'^\d{4}-\d{2}-\d{2}$' OR (desired->>'birth_date')::date>d-interval '18 years' OR (desired->>'birth_date')::date<'1900-01-01'::date OR length(coalesce(desired->>'city',''))>200 OR length(coalesce(desired->>'phone',''))>50 OR length(coalesce(desired->>'email',''))>254 OR (coalesce(desired->>'email','')<>'' AND (desired->>'email')!~'^[^\s@]+@[^\s@]+\.[^\s@]+$') THEN RAISE EXCEPTION 'VOICE_INVALID_MEMBER';END IF;
+  IF p_apply THEN
+   UPDATE public.members SET first_name=trim(desired->>'first_name'),last_name=trim(desired->>'last_name'),birth_date=(desired->>'birth_date')::date,city=nullif(trim(desired->>'city'),''),phone=nullif(trim(desired->>'phone'),''),email=nullif(trim(desired->>'email'),'') WHERE id=(p_args->>'id')::uuid AND club_id=c;
+   SELECT jsonb_build_object('id',id,'first_name',first_name,'last_name',last_name,'birth_date',birth_date,'city',coalesce(city,''),'phone',coalesce(phone,''),'email',coalesce(email,'')) INTO result FROM public.members WHERE id=(p_args->>'id')::uuid AND club_id=c;
+   desired:=jsonb_build_object('first_name',trim(desired->>'first_name'),'last_name',trim(desired->>'last_name'),'birth_date',desired->'birth_date','city',coalesce(nullif(trim(desired->>'city'),''),''),'phone',coalesce(nullif(trim(desired->>'phone'),''),''),'email',coalesce(nullif(trim(desired->>'email'),''),''));
+  END IF;
+ ELSIF p_action IN ('fee.create','fee.update') THEN
+  IF (p_args->>'duration_days')::integer NOT BETWEEN 1 AND 36600 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_action='fee.update' THEN SELECT to_jsonb(t) INTO v FROM public.membership_plans t WHERE id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
+  ELSE
+   IF EXISTS(SELECT 1 FROM public.membership_plans WHERE club_id=c AND lower(trim(name))=lower(trim(p_args->>'name'))) THEN RAISE EXCEPTION 'VOICE_DUPLICATE_NAME';END IF;
+   v:='{"available":true}'::jsonb;
+  END IF;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF p_apply THEN
+   rid:=CASE WHEN p_action='fee.create' THEN p_request ELSE (p_args->>'id')::uuid END;
+   IF p_action='fee.create' THEN INSERT INTO public.membership_plans(id,club_id,name,duration_days,price_cents,active) VALUES(rid,c,trim(p_args->>'name'),(p_args->>'duration_days')::int,(p_args->>'price_cents')::int,(p_args->>'active')::boolean);
+   ELSE UPDATE public.membership_plans SET name=trim(p_args->>'name'),duration_days=(p_args->>'duration_days')::int,price_cents=(p_args->>'price_cents')::int,active=(p_args->>'active')::boolean WHERE id=rid AND club_id=c;END IF;
+   SELECT jsonb_build_object('id',id,'name',name,'duration_days',duration_days,'price_cents',price_cents,'active',active) INTO result FROM public.membership_plans WHERE id=rid AND club_id=c;
+   desired:=(p_args-'id')||jsonb_build_object('name',trim(p_args->>'name'));
+  END IF;
+ ELSIF p_action IN ('discount.create','discount.update') THEN
+  IF (p_args->>'percentage_basis_points')::int NOT BETWEEN 1 AND 10000 OR (p_args->>'valid_from')::date>(p_args->>'valid_until')::date THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_action='discount.update' THEN SELECT to_jsonb(t) INTO v FROM public.member_discounts t WHERE id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
+  ELSE
+   IF EXISTS(SELECT 1 FROM public.member_discounts WHERE club_id=c AND lower(trim(name))=lower(trim(p_args->>'name'))) THEN RAISE EXCEPTION 'VOICE_DUPLICATE_NAME';END IF;
+   v:='{"available":true}'::jsonb;
+  END IF;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF p_apply THEN
+   rid:=CASE WHEN p_action='discount.create' THEN p_request ELSE (p_args->>'id')::uuid END;
+   IF p_action='discount.create' THEN INSERT INTO public.member_discounts(id,club_id,name,percentage_basis_points,active,valid_from,valid_until) VALUES(rid,c,trim(p_args->>'name'),(p_args->>'percentage_basis_points')::int,(p_args->>'active')::boolean,(p_args->>'valid_from')::date,(p_args->>'valid_until')::date);
+   ELSE UPDATE public.member_discounts SET name=trim(p_args->>'name'),percentage_basis_points=(p_args->>'percentage_basis_points')::int,active=(p_args->>'active')::boolean,valid_from=(p_args->>'valid_from')::date,valid_until=(p_args->>'valid_until')::date WHERE id=rid AND club_id=c;END IF;
+   SELECT jsonb_build_object('id',id,'name',name,'percentage_basis_points',percentage_basis_points,'active',active,'valid_from',valid_from,'valid_until',valid_until) INTO result FROM public.member_discounts t WHERE id=rid AND club_id=c;
+   desired:=(p_args-'id')||jsonb_build_object('name',trim(p_args->>'name'));
+  END IF;
+ ELSIF p_action IN ('member.discount.set','member.discount.clear') THEN
+  SELECT jsonb_build_object('id',m.id,'updated_at',m.updated_at,'assignment',(SELECT to_jsonb(x) FROM public.member_discount_assignments x WHERE x.member_id=m.id AND x.club_id=c)) INTO v FROM public.members m WHERE id=(p_args->>'member_id')::uuid AND club_id=c FOR UPDATE;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF p_action='member.discount.set' THEN
+   SELECT v||jsonb_build_object('discount',to_jsonb(t)) INTO v FROM public.member_discounts t WHERE id=(p_args->>'discount_id')::uuid AND club_id=c AND active AND (valid_from IS NULL OR valid_from<=d) AND (valid_until IS NULL OR valid_until>=d) FOR SHARE;
+   IF v IS NULL THEN RAISE EXCEPTION 'VOICE_DISCOUNT_UNAVAILABLE';END IF;
+  END IF;
+  IF p_apply THEN
+   IF p_action='member.discount.clear' THEN DELETE FROM public.member_discount_assignments WHERE member_id=(p_args->>'member_id')::uuid AND club_id=c;
+   ELSE INSERT INTO public.member_discount_assignments(member_id,club_id,discount_id) VALUES((p_args->>'member_id')::uuid,c,(p_args->>'discount_id')::uuid) ON CONFLICT(member_id) DO UPDATE SET discount_id=excluded.discount_id WHERE member_discount_assignments.club_id=c;END IF;
+   result:=jsonb_build_object('id',p_args->'member_id','discount_id',(SELECT discount_id FROM public.member_discount_assignments WHERE member_id=(p_args->>'member_id')::uuid AND club_id=c));
+   desired:=jsonb_build_object('discount_id',CASE WHEN p_action='member.discount.clear' THEN 'null'::jsonb ELSE p_args->'discount_id' END);
+  END IF;
+ ELSIF p_action IN ('cash.open','cash.close') THEN
+  IF to_regprocedure('public.snoop_cash_session_audit()') IS NULL OR NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.cash_sessions'::regclass AND tgname='snoop_cash_session_audit' AND tgenabled='O') THEN RAISE EXCEPTION 'VOICE_CASH_AUDIT_REQUIRED';END IF;
+  IF p_action='cash.open' THEN
+   IF EXISTS(SELECT 1 FROM public.cash_sessions WHERE club_id=c AND user_id=a AND status='open') THEN RAISE EXCEPTION 'VOICE_CASH_ALREADY_OPEN';END IF;
+   v:='{"available":true}'::jsonb;
+  ELSE
+   SELECT to_jsonb(t) INTO v FROM public.cash_sessions t WHERE id=(p_args->>'id')::uuid AND club_id=c AND user_id=a AND status='open' FOR UPDATE;
+  END IF;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF p_apply THEN
+   rid:=CASE WHEN p_action='cash.open' THEN p_request ELSE (p_args->>'id')::uuid END;
+   IF p_action='cash.open' THEN INSERT INTO public.cash_sessions(id,club_id,user_id,opening_cash_cents) VALUES(rid,c,a,(p_args->>'opening_cash_cents')::int);
+   ELSE UPDATE public.cash_sessions SET status='closed',closing_cash_cents=(p_args->>'closing_cash_cents')::int,notes=p_args->>'notes',closed_at=now() WHERE id=rid AND club_id=c AND user_id=a AND status='open';END IF;
+   SELECT jsonb_build_object('id',id,'status',status,'opening_cash_cents',opening_cash_cents,'closing_cash_cents',closing_cash_cents,'closed_by',closed_by) INTO result FROM public.cash_sessions WHERE id=rid AND club_id=c AND user_id=a;
+   desired:=CASE WHEN p_action='cash.open' THEN jsonb_build_object('status','open','opening_cash_cents',p_args->'opening_cash_cents') ELSE jsonb_build_object('status','closed','closing_cash_cents',p_args->'closing_cash_cents','closed_by',a) END;
+  END IF;
+ END IF;
+ IF p_apply THEN
+  IF result IS NULL OR NOT(result@>desired) THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+  RETURN result;
+ END IF;
+ RETURN v;
+END $$;
+REVOKE ALL ON FUNCTION public.snoop_voice_entity(text,jsonb,boolean,uuid) FROM PUBLIC,anon,authenticated;
+
 CREATE FUNCTION public.snoop_voice_snapshot(p_action text,p_args jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE c uuid:=public.current_club_id();v jsonb;
 BEGIN
  IF public.snoop_voice_authorized(p_action,c) IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED' USING ERRCODE='42501'; END IF;
+ IF p_action IN ('product.create','product.update') THEN
+  IF EXISTS(SELECT 1 FROM jsonb_each(p_args) e WHERE e.key IN ('buy_price','sell_price') AND (jsonb_typeof(e.value) IS DISTINCT FROM 'number' OR (e.value::text)::numeric<>trunc((e.value::text)::numeric) OR (e.value::text)::numeric NOT BETWEEN 0 AND 10000000)) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args?'name' AND (jsonb_typeof(p_args->'name') IS DISTINCT FROM 'string' OR length(trim(p_args->>'name')) NOT BETWEEN 1 AND 120) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args?'description' AND (jsonb_typeof(p_args->'description') IS DISTINCT FROM 'string' OR length(p_args->>'description')>4000) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args?'notes' AND (jsonb_typeof(p_args->'notes') IS DISTINCT FROM 'string' OR length(p_args->>'notes')>1000) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args?'active' AND jsonb_typeof(p_args->'active') IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args?'strain' AND p_args->'strain'<>'null'::jsonb AND (p_args->>'strain') NOT IN ('sativa','indica','hybrid') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+ END IF;
  CASE p_action
  WHEN 'access_control.set' THEN
   IF p_args - 'enabled'<>'{}'::jsonb OR jsonb_typeof(p_args->'enabled') IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'VOICE_VALUE_REQUIRED';END IF;
@@ -58,6 +215,56 @@ BEGIN
   IF public.can_manage_snoop_catalog(c) IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED';END IF;
   SELECT jsonb_build_object('id',id,'name',name,'category_id',category_id,'stock',stock,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'updated_at',updated_at) INTO v FROM public.products WHERE id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
   IF (v->>'buy_price')::numeric<>trunc((v->>'buy_price')::numeric) OR (v->>'sell_price')::numeric<>trunc((v->>'sell_price')::numeric) THEN RAISE EXCEPTION 'VOICE_LEGACY_PRICE_UNSUPPORTED';END IF;
+ WHEN 'product.create' THEN
+  IF p_args-ARRAY['name','category_id','buy_price','sell_price','strain','notes','description']<>'{}'::jsonb OR NOT(p_args?&ARRAY['name','category_id','buy_price','sell_price','strain','notes','description']) OR jsonb_typeof(p_args->'name') IS DISTINCT FROM 'string' OR length(trim(p_args->>'name')) NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  SELECT to_jsonb(t) INTO v FROM public.product_categories t WHERE id=(p_args->>'category_id')::uuid AND club_id=c AND coalesce(archived,false)=false FOR SHARE;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF EXISTS(SELECT 1 FROM public.products WHERE club_id=c AND lower(trim(name))=lower(trim(p_args->>'name'))) THEN RAISE EXCEPTION 'VOICE_DUPLICATE_NAME';END IF;
+ WHEN 'product.update' THEN
+  IF p_args-ARRAY['id','name','category_id','buy_price','sell_price','strain','notes','description','active']<>'{}'::jsonb OR p_args-'id'='{}'::jsonb THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  SELECT jsonb_build_object('id',id,'name',name,'category_id',category_id,'stock',stock,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'active',active,'updated_at',updated_at) INTO v FROM public.products WHERE id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF p_args?'category_id' THEN
+   PERFORM 1 FROM public.product_categories WHERE id=(p_args->>'category_id')::uuid AND club_id=c AND coalesce(archived,false)=false FOR SHARE;
+   IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  END IF;
+  IF (coalesce(p_args->>'buy_price',v->>'buy_price'))::numeric<>trunc((coalesce(p_args->>'buy_price',v->>'buy_price'))::numeric) OR (coalesce(p_args->>'sell_price',v->>'sell_price'))::numeric<>trunc((coalesce(p_args->>'sell_price',v->>'sell_price'))::numeric) THEN RAISE EXCEPTION 'VOICE_LEGACY_PRICE_UNSUPPORTED';END IF;
+ WHEN 'stock.adjust' THEN
+  IF p_args-ARRAY['id','delta','notes']<>'{}'::jsonb OR NOT(p_args?&ARRAY['id','delta','notes']) OR jsonb_typeof(p_args->'delta') IS DISTINCT FROM 'string' OR (p_args->>'delta')!~'^-?\d{1,7}(\.\d{1,2})?$' OR (p_args->>'delta')::numeric=0 OR abs((p_args->>'delta')::numeric)>1000000 OR jsonb_typeof(p_args->'notes') IS DISTINCT FROM 'string' OR length(trim(p_args->>'notes')) NOT BETWEEN 5 AND 1000 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  SELECT jsonb_build_object('id',p.id,'name',p.name,'stock',p.stock,'category_id',p.category_id,'unit_type',cat.unit_type) INTO v FROM public.products p JOIN public.product_categories cat ON cat.id=p.category_id AND cat.club_id=c WHERE p.id=(p_args->>'id')::uuid AND p.club_id=c FOR UPDATE OF p FOR SHARE OF cat;
+  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  IF v->>'unit_type'='unit' AND (p_args->>'delta')::numeric<>trunc((p_args->>'delta')::numeric) THEN RAISE EXCEPTION 'VOICE_WHOLE_UNITS_REQUIRED';END IF;
+  IF (v->>'stock')::numeric+(p_args->>'delta')::numeric<0 THEN RAISE EXCEPTION 'VOICE_INSUFFICIENT_STOCK';END IF;
+ WHEN 'wallet.configure' THEN
+  IF p_args-'enabled'<>'{}'::jsonb OR jsonb_typeof(p_args->'enabled') IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF to_regprocedure('public.socio_wallet_club_configuration()') IS NULL OR to_regprocedure('public.socio_wallet_set_club_enabled(boolean,boolean)') IS NULL THEN RAISE EXCEPTION 'VOICE_WALLET_UNAVAILABLE';END IF;
+  v:=public.socio_wallet_club_configuration();
+ WHEN 'wallet.topup' THEN
+  IF p_args-ARRAY['member_id','cash_session_id','amount_cents','method']<>'{}'::jsonb OR NOT(p_args?&ARRAY['member_id','cash_session_id','amount_cents','method']) OR jsonb_typeof(p_args->'amount_cents') IS DISTINCT FROM 'number' OR (p_args->>'amount_cents')::numeric<>trunc((p_args->>'amount_cents')::numeric) OR (p_args->>'amount_cents')::numeric NOT BETWEEN 1 AND 10000000 OR (p_args->>'method') NOT IN ('cash','card','transfer') OR jsonb_typeof(p_args->'method') IS DISTINCT FROM 'string' THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF to_regprocedure('public.socio_wallet_staff_member_state(uuid)') IS NULL OR to_regprocedure('public.socio_wallet_topup_with_method(uuid,uuid,uuid,uuid,bigint,text)') IS NULL THEN RAISE EXCEPTION 'VOICE_WALLET_UNAVAILABLE';END IF;
+  PERFORM 1 FROM public.members WHERE id=(p_args->>'member_id')::uuid AND club_id=c;
+  IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  PERFORM 1 FROM public.cash_sessions WHERE id=(p_args->>'cash_session_id')::uuid AND club_id=c AND user_id=auth.uid() AND status='open' AND closed_at IS NULL;
+  IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+  v:=public.socio_wallet_staff_member_state((p_args->>'member_id')::uuid);
+  IF (v->>'enabled')::boolean IS DISTINCT FROM true OR (v->>'clubEnabled')::boolean IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_WALLET_UNAVAILABLE';END IF;
+ WHEN 'member.create' THEN
+  IF p_args-ARRAY['first_name','last_name','birth_date','city','phone','email','address','postal_code','plan_id','method']<>'{}'::jsonb OR NOT(p_args?&ARRAY['first_name','last_name','birth_date','city','phone','email','address','postal_code','plan_id','method']) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_each(p_args) f WHERE f.key<>'plan_id' AND jsonb_typeof(f.value) IS DISTINCT FROM 'string') OR (p_args->'plan_id'<>'null'::jsonb AND jsonb_typeof(p_args->'plan_id') IS DISTINCT FROM 'string') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF length(trim(p_args->>'first_name')) NOT BETWEEN 1 AND 120 OR length(trim(p_args->>'last_name')) NOT BETWEEN 1 AND 120 OR (p_args->>'birth_date')!~'^\d{4}-\d{2}-\d{2}$' OR (p_args->>'birth_date')::date>(now() AT TIME ZONE 'Europe/Madrid')::date-interval '18 years' OR (p_args->>'birth_date')::date<'1900-01-01'::date OR (p_args->>'method') NOT IN ('cash','card','transfer','other') OR length(p_args->>'city')>200 OR length(p_args->>'phone')>50 OR length(p_args->>'address')>200 OR length(p_args->>'postal_code')>20 OR length(p_args->>'email')>254 OR (p_args->>'email'<>'' AND (p_args->>'email')!~'^[^\s@]+@[^\s@]+\.[^\s@]+$') THEN RAISE EXCEPTION 'VOICE_INVALID_MEMBER';END IF;
+  LOCK TABLE public.club_member_field_config IN SHARE MODE;
+  SELECT jsonb_object_agg(f.key,jsonb_build_object('visible',coalesce(t.visible,f.visible),'required',coalesce(t.required,f.required))) INTO v
+  FROM (VALUES ('birth_date',true,true),('dni_number',true,true),('dni_photo',true,true),('address',false,false),('city',true,true),('postal_code',false,false),('phone',true,true),('email',true,false),('plan',true,true),('signature',true,true)) f(key,visible,required)
+  LEFT JOIN public.club_member_field_config t ON t.club_id=c AND t.field_key=f.key;
+  IF EXISTS(SELECT 1 FROM jsonb_each(v) f WHERE f.key IN ('dni_number','dni_photo','signature') AND (f.value->>'visible')::boolean AND (f.value->>'required')::boolean) THEN RAISE EXCEPTION 'VOICE_HUMAN_DOCUMENTS_REQUIRED';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_each(v) f WHERE f.key NOT IN ('dni_number','dni_photo','signature') AND (f.value->>'visible')::boolean AND (f.value->>'required')::boolean AND coalesce(trim(p_args->>CASE WHEN f.key='plan' THEN 'plan_id' ELSE f.key END),'')='') THEN RAISE EXCEPTION 'VOICE_REQUIRED_FIELD';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_each(v) f WHERE f.key IN ('address','city','postal_code','phone','email','plan') AND NOT (f.value->>'visible')::boolean AND coalesce(trim(p_args->>CASE WHEN f.key='plan' THEN 'plan_id' ELSE f.key END),'')<>'') THEN RAISE EXCEPTION 'VOICE_FIELD_DISABLED';END IF;
+  v:=jsonb_build_object('config',v,'plan',NULL);
+  IF p_args->>'plan_id' IS NOT NULL THEN
+   SELECT v||jsonb_build_object('plan',to_jsonb(p)) INTO v FROM public.membership_plans p WHERE id=(p_args->>'plan_id')::uuid AND club_id=c AND active FOR SHARE;
+   IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
+   IF (v->'plan'->>'price_cents')::int>0 AND public.can_operate_club(c,'use_cash') IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED';END IF;
+  END IF;
  WHEN 'member.renew' THEN
   IF p_args-ARRAY['member_id','plan_id','method']<>'{}'::jsonb OR NOT(p_args?'method') OR (p_args->>'method') NOT IN ('cash','card','transfer','other') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF public.can_operate_club(c,'manage_members') IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED';END IF;
@@ -69,13 +276,13 @@ BEGIN
   FROM public.members m JOIN public.membership_plans p ON p.id=(p_args->>'plan_id')::uuid AND p.club_id=c AND p.active
   WHERE m.id=(p_args->>'member_id')::uuid AND m.club_id=c;
   IF (v->>'amount_cents')::int>0 AND public.can_operate_club(c,'use_cash') IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED';END IF;
- ELSE RAISE EXCEPTION 'VOICE_ACTION_NOT_REGISTERED';
+ ELSE v:=public.snoop_voice_entity(p_action,p_args,false,NULL);
  END CASE;
  IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
  RETURN v;
 END $$;
 REVOKE ALL ON FUNCTION public.snoop_voice_snapshot(text,jsonb) FROM PUBLIC,anon,authenticated;
-CREATE FUNCTION public.snoop_voice_command(p_request uuid,p_operation text,p_action text DEFAULT NULL,p_arguments jsonb DEFAULT NULL,p_token uuid DEFAULT NULL)
+CREATE FUNCTION public.snoop_voice_command(p_request uuid,p_operation text,p_action text DEFAULT NULL,p_arguments jsonb DEFAULT NULL,p_token uuid DEFAULT NULL,p_receipt_confirmed boolean DEFAULT false)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE c uuid:=public.current_club_id();a uuid:=auth.uid();r public.snoop_voice_executions;v jsonb;res jsonb;mid uuid;
 BEGIN
@@ -90,7 +297,11 @@ BEGIN
   VALUES(p_request,a,c,p_action,p_arguments,v,
     CASE p_action WHEN 'access_control.set' THEN jsonb_build_object('label','Control de acceso','enabled',p_arguments->'enabled')
     WHEN 'member.renew' THEN jsonb_build_object('label','Renovar cuota','member_name',v->'member_name','plan',v->'plan_name','amount_cents',v->'amount_cents','duration_days',v->'duration_days','method',p_arguments->'method')
-    ELSE jsonb_build_object('label',CASE p_action WHEN 'category.update' THEN 'Actualizar categoría' ELSE 'Actualizar descripción' END,'name',v->'name','changes',p_arguments-'id') END)
+    ELSE jsonb_build_object('label',CASE p_action WHEN 'category.update' THEN 'Actualizar categoría' WHEN 'product.description' THEN 'Actualizar descripción' WHEN 'category.create' THEN 'Crear categoría' WHEN 'product.create' THEN 'Crear ficha de producto (sin existencias)' WHEN 'product.update' THEN 'Actualizar ficha de producto' WHEN 'stock.adjust' THEN 'Rectificación de inventario verificado' WHEN 'wallet.configure' THEN 'Configurar Monedero del club' WHEN 'wallet.topup' THEN 'Registrar recarga de créditos' WHEN 'member.create' THEN 'Registrar socio' WHEN 'member_field.set' THEN 'Configurar campo de socio' WHEN 'member.update' THEN 'Actualizar socio' WHEN 'fee.create' THEN 'Crear cuota' WHEN 'fee.update' THEN 'Actualizar cuota' WHEN 'discount.create' THEN 'Crear descuento' WHEN 'discount.update' THEN 'Actualizar descuento' WHEN 'member.discount.set' THEN 'Asignar descuento' WHEN 'member.discount.clear' THEN 'Quitar descuento' WHEN 'cash.open' THEN 'Abrir caja' WHEN 'cash.close' THEN 'Cerrar caja' ELSE 'Operación' END,'name',coalesce(p_arguments->'name',v->'name'),'changes',p_arguments-ARRAY['id','member_id','discount_id','category_id','plan_id','cash_session_id']) || jsonb_strip_nulls(jsonb_build_object(
+    'category',CASE WHEN p_arguments?'category_id' THEN (SELECT name FROM public.product_categories WHERE id=(p_arguments->>'category_id')::uuid AND club_id=c) ELSE NULL END,
+    'member_name',CASE WHEN p_arguments?'member_id' OR p_action='member.update' THEN (SELECT concat_ws(' ',first_name,last_name) FROM public.members WHERE id=coalesce(p_arguments->>'member_id',p_arguments->>'id')::uuid AND club_id=c) ELSE NULL END,
+    'discount',CASE WHEN p_arguments?'discount_id' THEN (SELECT name FROM public.member_discounts WHERE id=(p_arguments->>'discount_id')::uuid AND club_id=c) ELSE NULL END,
+    'unit_type',v->'unit_type','opened_at',v->'opened_at','attestation',CASE WHEN p_action='wallet.topup' THEN 'Confirmo que la recarga ya se ha cobrado por el método indicado.' ELSE NULL END)) END)
   ON CONFLICT(id) DO NOTHING;
  END IF;
  SELECT * INTO r FROM public.snoop_voice_executions WHERE id=p_request FOR UPDATE;
@@ -104,6 +315,7 @@ BEGIN
   SELECT * INTO r FROM public.snoop_voice_executions WHERE id=r.id;
  END IF;
  IF p_operation='confirm' THEN
+  IF r.action='wallet.topup' AND p_receipt_confirmed IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_RECEIPT_CONFIRMATION_REQUIRED';END IF;
   IF r.cancelled_at IS NOT NULL THEN RAISE EXCEPTION 'VOICE_CANCELLED';END IF;
   IF p_token IS DISTINCT FROM r.token THEN RAISE EXCEPTION 'VOICE_CONFIRMATION_REQUIRED';END IF;
   IF r.completed_at IS NULL THEN
@@ -124,6 +336,40 @@ BEGIN
     PERFORM 1 FROM public.products WHERE id=mid AND club_id=c AND stock=(v->>'stock')::numeric AND buy_price=(v->>'buy_price')::numeric AND sell_price=(v->>'sell_price')::numeric;
     IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
     IF mid IS DISTINCT FROM (r.arguments->>'id')::uuid OR res->>'description' IS DISTINCT FROM r.arguments->>'description' THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+   WHEN 'product.create' THEN
+    mid:=public.save_administrative_product(NULL,r.arguments||jsonb_build_object('stock',0));
+    UPDATE public.products SET description=r.arguments->>'description' WHERE id=mid AND club_id=c;
+    SELECT jsonb_build_object('id',id,'name',name,'stock',stock,'category_id',category_id,'buy_price',buy_price,'sell_price',sell_price,'description',description,'strain',strain,'notes',notes) INTO res FROM public.products WHERE id=mid AND club_id=c;
+    IF res IS NULL OR NOT(res@>r.arguments) OR (res->>'stock')::numeric<>0 THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+   WHEN 'product.update' THEN
+    mid:=public.save_administrative_product_checked((r.arguments->>'id')::uuid,v||r.arguments||jsonb_build_object('buy_price',(coalesce(r.arguments->>'buy_price',v->>'buy_price'))::numeric::int,'sell_price',(coalesce(r.arguments->>'sell_price',v->>'sell_price'))::numeric::int),(v->>'stock')::numeric);
+    IF r.arguments?'active' THEN UPDATE public.products SET active=(r.arguments->>'active')::boolean WHERE id=mid AND club_id=c;END IF;
+    SELECT jsonb_build_object('id',id,'name',name,'stock',stock,'category_id',category_id,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'active',active) INTO res FROM public.products WHERE id=mid AND club_id=c;
+    IF res IS NULL OR mid IS DISTINCT FROM (r.arguments->>'id')::uuid OR NOT(res@>r.arguments) OR (res->>'stock')::numeric IS DISTINCT FROM (v->>'stock')::numeric THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+   WHEN 'stock.adjust' THEN
+    PERFORM public.adjust_administrative_stock((r.arguments->>'id')::uuid,(r.arguments->>'delta')::numeric,(v->>'stock')::numeric,r.arguments->>'notes');
+    SELECT jsonb_build_object('id',id,'stock',stock) INTO res FROM public.products WHERE id=(r.arguments->>'id')::uuid AND club_id=c;
+    IF res IS NULL OR (res->>'stock')::numeric IS DISTINCT FROM (v->>'stock')::numeric+(r.arguments->>'delta')::numeric THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+    PERFORM 1 FROM public.stock_movements WHERE product_id=(r.arguments->>'id')::uuid AND club_id=c AND created_by=a AND delta=(r.arguments->>'delta')::numeric AND notes=r.arguments->>'notes' AND reason='administrative_adjustment';
+    IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+   WHEN 'wallet.configure' THEN
+    v:=public.socio_wallet_set_club_enabled((r.arguments->>'enabled')::boolean,true);
+    IF (v->>'clubEnabled')::boolean IS DISTINCT FROM (r.arguments->>'enabled')::boolean OR (public.socio_wallet_club_configuration()->>'clubEnabled')::boolean IS DISTINCT FROM (r.arguments->>'enabled')::boolean THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+    res:=v||jsonb_build_object('id',c);
+   WHEN 'wallet.topup' THEN
+    v:=public.socio_wallet_topup_with_method(c,(r.arguments->>'member_id')::uuid,(r.arguments->>'cash_session_id')::uuid,r.id,(r.arguments->>'amount_cents')::bigint,r.arguments->>'method');
+    IF v->>'operationId' IS DISTINCT FROM r.id::text OR v->>'status' NOT IN ('applied','duplicate') THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+    PERFORM 1 FROM public.socio_wallet_ledger l JOIN public.socio_wallet_accounts ac ON ac.member_id=l.member_id AND ac.club_id=l.club_id WHERE l.operation_id=r.id AND l.club_id=c AND l.member_id=(r.arguments->>'member_id')::uuid AND l.kind='topup' AND l.actor_id=a AND l.delta_cents=(r.arguments->>'amount_cents')::bigint AND l.payment_method=r.arguments->>'method' AND l.cash_session_id=(r.arguments->>'cash_session_id')::uuid AND ac.balance_cents=(v->>'balanceCents')::bigint;
+    IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+    res:=jsonb_build_object('id',r.id,'balanceCents',v->'balanceCents');
+   WHEN 'member.create' THEN
+    IF r.arguments->>'plan_id' IS NULL THEN
+     mid:=public.save_membership_with_receipt(r.arguments||jsonb_build_object('id',r.id,'dni_number','','dni_photo_path','','signature_path',''),NULL,r.arguments->>'method',r.id,false,NULL);
+    ELSE
+     mid:=public.confirm_membership_with_receipt(r.arguments||jsonb_build_object('id',r.id,'dni_number','','dni_photo_path','','signature_path',''),(r.arguments->>'plan_id')::uuid,r.arguments->>'method',r.id,false,NULL,(v->'plan'->>'price_cents')::int);
+    END IF;
+    SELECT jsonb_build_object('id',m.id) INTO res FROM public.members m JOIN public.membership_operations o ON o.member_id=m.id AND o.club_id=c AND o.request_id=r.id AND o.actor_id=a WHERE m.id=mid AND m.id=r.id AND m.club_id=c AND m.created_by=a AND m.first_name=trim(r.arguments->>'first_name') AND m.last_name=trim(r.arguments->>'last_name') AND m.birth_date=(r.arguments->>'birth_date')::date;
+    IF res IS NULL THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
    WHEN 'member.renew' THEN
     mid:=public.confirm_membership_with_receipt(jsonb_build_object('id',r.arguments->>'member_id'),(r.arguments->>'plan_id')::uuid,r.arguments->>'method',r.id,true,(v->>'expires_at')::date,(v->>'amount_cents')::int);
     SELECT jsonb_build_object('id',id,'expires_at',expires_at) INTO res FROM public.members WHERE id=mid AND club_id=c;
@@ -134,18 +380,18 @@ BEGIN
      PERFORM 1 FROM public.membership_receipts WHERE club_id=c AND request_id=r.id AND member_id=mid AND amount_cents=(v->>'amount_cents')::int AND payment_method=r.arguments->>'method';
      IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
     END IF;
-   ELSE RAISE EXCEPTION 'VOICE_ACTION_NOT_REGISTERED';
+   ELSE res:=public.snoop_voice_entity(r.action,r.arguments,true,r.id);
    END CASE;
    IF res IS NULL THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
-   UPDATE public.snoop_voice_executions SET result=res,completed_at=now() WHERE id=r.id;
+   UPDATE public.snoop_voice_executions SET result=res,completed_at=now(),receipt_confirmed_at=CASE WHEN r.action='wallet.topup' THEN now() ELSE NULL END WHERE id=r.id;
    SELECT * INTO r FROM public.snoop_voice_executions WHERE id=r.id;
   END IF;
  END IF;
  RETURN jsonb_build_object('id',r.id,'status',CASE WHEN r.cancelled_at IS NOT NULL THEN 'cancelled' WHEN r.completed_at IS NULL THEN 'confirmation_required' ELSE 'completed' END,
  'action',r.action,'summary',r.summary,'result',r.result,'token',CASE WHEN p_operation='prepare' THEN r.token ELSE NULL END);
 END $$;
-REVOKE ALL ON FUNCTION public.snoop_voice_command(uuid,text,text,jsonb,uuid) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.snoop_voice_command(uuid,text,text,jsonb,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.snoop_voice_command(uuid,text,text,jsonb,uuid,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.snoop_voice_command(uuid,text,text,jsonb,uuid,boolean) TO authenticated;
 -- Compatibility wrapper, no second execution engine.
 CREATE FUNCTION public.snoop_voice_access(p_request uuid,p_operation text,p_enabled boolean DEFAULT NULL,p_token uuid DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$

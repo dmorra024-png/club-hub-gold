@@ -14,8 +14,9 @@ import { type ConversationProposalValue } from "@/lib/snoop-conversation";
 import type { DictationPhase } from "@/hooks/useWhisperDictation";
 
 import { applyDeepgramDraft } from "@/lib/deepgram-draft-actions";
-import { voiceOwner } from "@/lib/voice/application-ports";
+import { applicationPorts, voiceOwner } from "@/lib/voice/application-ports";
 import type { AccountAccess } from "@/lib/access-context";
+import { RECORDS_CHANGED } from "@/components/FinancialRecordDialog";
 import { voiceGeneticsSource } from "@/lib/voice/source-links";
 
 type Language = "it" | "es" | "en";
@@ -51,6 +52,7 @@ export function DeepgramPilotVoice({
   const starting = useRef(false);
   const voiceValues = useRef<Record<string, Record<string, string>>>({});
   const utterancePath = useRef(path);
+  const providerTurn = useRef<number | null>(null);
   const applying = useRef(false);
   const resumeRef = useRef<string | undefined>(undefined);
   const [usage, setUsage] = useState<{
@@ -83,6 +85,7 @@ export function DeepgramPilotVoice({
     token: string;
     enabled?: boolean;
     summary?: Record<string, unknown>;
+    attested?: boolean;
     busy?: boolean;
     uncertain?: boolean;
   } | null>(null);
@@ -332,6 +335,59 @@ export function DeepgramPilotVoice({
             setStatus(
               message.enabled ? "Controllo entrate attivo." : "Controllo entrate disattivato.",
             );
+          } else if (message.type === "AppInspectionResult") {
+            if (message.kind === "wallet_balance")
+              setStatus(
+                message.summary?.enabled && Number.isSafeInteger(message.summary.balanceCents)
+                  ? `Saldo: ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(message.summary.balanceCents / 100)}`
+                  : "Monedero no disponible para este socio.",
+              );
+            else if (
+              message.kind === "cash_session" &&
+              Number.isSafeInteger(message.summary?.recordedCents)
+            )
+              setStatus(
+                `Ingresos de la sesión: ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(message.summary.recordedCents / 100)}. Fondo inicial separado.`,
+              );
+            else
+              setStatus(
+                `Consulta verificada: ${Array.isArray(message.summary?.records) ? message.summary.records.length : (message.summary?.count ?? 0)} registros.`,
+              );
+            if (
+              message.kind === "member_history" &&
+              Number.isInteger(message.turn) &&
+              message.turn === providerTurn.current &&
+              pathRef.current === utterancePath.current &&
+              typeof message.destination?.memberId === "string"
+            ) {
+              await navigate({ to: "/soci/$id", params: { id: message.destination.memberId } });
+              const owner = voiceOwner(auth.session!.user.id, accessRef.current.clubId!);
+              const port = await applicationPorts.wait(
+                owner,
+                "member.sections",
+                () => generation.current === current && accessRef.current.status === "active",
+              );
+              port.open?.("history");
+            }
+          } else if (message.type === "AppExecutionRejected") {
+            setStatus(
+              (
+                {
+                  VOICE_RECEIPT_CONFIRMATION_REQUIRED:
+                    "Confirma que la recarga ya se ha cobrado antes de añadir créditos.",
+                  VOICE_HUMAN_DOCUMENTS_REQUIRED:
+                    "Completa documento y firma en el formulario existente. No se ha guardado nada.",
+                  VOICE_REQUIRED_FIELD: "Faltan campos obligatorios del club.",
+                  VOICE_STATE_CHANGED: "Los datos han cambiado. Revisa una nueva propuesta.",
+                  VOICE_REFERENCE_NOT_FOUND: "El registro no está disponible en este club.",
+                  VOICE_WALLET_UNAVAILABLE: "Monedero no habilitado o socio no autorizado.",
+                  VOICE_CASH_ALREADY_OPEN: "Ya tienes una caja abierta.",
+                  VOICE_WHOLE_UNITS_REQUIRED: "Este producto requiere unidades enteras.",
+                  VOICE_INSUFFICIENT_STOCK: "La rectificación dejaría existencias negativas.",
+                  VOICE_DUPLICATE_NAME: "Ya existe un registro con ese nombre.",
+                } as Record<string, string>
+              )[String(message.code)] ?? "Operación no disponible. No se ha guardado nada.",
+            );
           } else if (message.type === "AppExecutionPrepared") {
             if (
               typeof message.id === "string" &&
@@ -369,6 +425,40 @@ export function DeepgramPilotVoice({
                   ? { ...current, busy: false, uncertain: message.status === "uncertain" }
                   : null,
             );
+            if (
+              message.status === "completed" &&
+              typeof message.action === "string" &&
+              auth.session?.user.id &&
+              accessRef.current.clubId
+            ) {
+              const owner = voiceOwner(auth.session.user.id, accessRef.current.clubId);
+              const port =
+                message.action.startsWith("category.") ||
+                message.action.startsWith("product.") ||
+                message.action.startsWith("stock.")
+                  ? "products.page"
+                  : message.action.startsWith("fee.")
+                    ? "admin.membership_fee"
+                    : message.action.startsWith("member.")
+                      ? "member.sections"
+                      : message.action.startsWith("cash.")
+                        ? "cash.page"
+                        : null;
+              if (port) {
+                try {
+                  await applicationPorts.get(owner, port)?.refresh?.();
+                } catch {
+                  setStatus("Operazione salvata. Aggiorna la vista per leggere i dati.");
+                }
+              }
+              if (
+                message.action.startsWith("cash.") ||
+                message.action.startsWith("wallet.") ||
+                message.action === "member.renew" ||
+                message.action === "member.create"
+              )
+                window.dispatchEvent(new Event(RECORDS_CHANGED));
+            }
           } else if (message.type === "AppAudioHealth") {
             const parsed = ServerAudioHealth.safeParse(message);
             if (parsed.success) state.serverHealth = parsed.data;
@@ -408,6 +498,7 @@ export function DeepgramPilotVoice({
               ].slice(-8),
             );
           } else if (message.type === "UserStartedSpeaking") {
+            providerTurn.current = Number.isInteger(message.turn) ? message.turn : null;
             utterancePath.current = pathRef.current;
             interrupt();
             setStatus("Ti ascolto…");
@@ -709,7 +800,12 @@ export function DeepgramPilotVoice({
             {privateRecords.map((row, index) => (
               <li key={String(row.ref)}>
                 {index + 1}.{" "}
-                {String(row.name ?? [row.first_name, row.last_name].filter(Boolean).join(" "))}
+                {String(
+                  row.name ??
+                    (row.opened_at
+                      ? `Caja · ${String(row.opened_at)} · ${String(row.status)}`
+                      : [row.first_name, row.last_name].filter(Boolean).join(" ")),
+                )}
                 {row.stock !== undefined
                   ? ` · Stock: ${String(row.stock)} ${row.unit_type === "gr" ? "g" : row.unit_type === "unit" ? "uds." : "(unidad no verificada)"}`
                   : ""}
@@ -728,13 +824,17 @@ export function DeepgramPilotVoice({
               <strong>{String(execution.summary.label)}</strong>
               <dl>
                 {Object.entries(execution.summary)
-                  .filter(([key]) => key !== "label" && key !== "changes")
+                  .filter(([key]) => key !== "label" && key !== "changes" && key !== "attestation")
                   .map(([key, value]) => (
                     <div key={key}>
                       <dt>
                         {(
                           {
                             name: "Registro",
+                            category: "Categoría",
+                            discount: "Descuento",
+                            unit_type: "Unidad",
+                            opened_at: "Apertura",
                             member_name: "Socio",
                             plan: "Cuota",
                             amount_cents: "Importe",
@@ -745,25 +845,33 @@ export function DeepgramPilotVoice({
                         )[key] ?? key}
                       </dt>
                       <dd>
-                        {key === "amount_cents" && typeof value === "number"
+                        {(key === "amount_cents" ||
+                          key.endsWith("_cash_cents") ||
+                          key === "price_cents") &&
+                        typeof value === "number"
                           ? new Intl.NumberFormat("es-ES", {
                               style: "currency",
                               currency: "EUR",
                             }).format(value / 100)
-                          : key === "method" && typeof value === "string"
-                            ? ((
-                                {
-                                  cash: "Efectivo",
-                                  card: "Tarjeta",
-                                  transfer: "Transferencia",
-                                  other: "Otro",
-                                } as Record<string, string>
-                              )[value] ?? value)
-                            : typeof value === "boolean"
-                              ? value
-                                ? "Sí"
-                                : "No"
-                              : String(value ?? "")}
+                          : key === "percentage_basis_points" && typeof value === "number"
+                            ? new Intl.NumberFormat("es-ES", {
+                                style: "percent",
+                                maximumFractionDigits: 2,
+                              }).format(value / 10000)
+                            : key === "method" && typeof value === "string"
+                              ? ((
+                                  {
+                                    cash: "Efectivo",
+                                    card: "Tarjeta",
+                                    transfer: "Transferencia",
+                                    other: "Otro",
+                                  } as Record<string, string>
+                                )[value] ?? value)
+                              : typeof value === "boolean"
+                                ? value
+                                  ? "Sí"
+                                  : "No"
+                                : String(value ?? "")}
                       </dd>
                     </div>
                   ))}
@@ -774,13 +882,50 @@ export function DeepgramPilotVoice({
                           {(
                             {
                               name: "Nombre",
+                              buy_price: "Importe adquisición",
+                              sell_price: "Importe catálogo",
+                              delta: "Variación de inventario verificada",
                               description: "Descripción",
                               archived: "Archivado",
+                              first_name: "Nombre",
+                              last_name: "Apellidos",
+                              birth_date: "Nacimiento",
+                              city: "Ciudad",
+                              phone: "Teléfono",
+                              email: "Email",
+                              unit_type: "Unidad",
+                              is_smokeable: "Categoría fumable",
+                              price_cents: "Importe",
+                              duration_days: "Duración (días)",
+                              percentage_basis_points: "Descuento",
+                              active: "Activo",
+                              valid_from: "Desde",
+                              valid_until: "Hasta",
+                              opening_cash_cents: "Fondo inicial",
+                              closing_cash_cents: "Contante contado",
+                              notes: "Notas",
                             } as Record<string, string>
                           )[key] ?? key}
                         </dt>
                         <dd>
-                          {typeof value === "boolean" ? (value ? "Sí" : "No") : String(value ?? "")}
+                          {(key.endsWith("_cents") ||
+                            key === "buy_price" ||
+                            key === "sell_price") &&
+                          typeof value === "number"
+                            ? new Intl.NumberFormat("es-ES", {
+                                style: "currency",
+                                currency: "EUR",
+                              }).format(value / 100)
+                            : key === "percentage_basis_points" && typeof value === "number"
+                              ? new Intl.NumberFormat("es-ES", {
+                                  style: "percent",
+                                  maximumFractionDigits: 2,
+                                }).format(value / 10000)
+                              : typeof value === "boolean"
+                                ? value
+                                  ? "Sí"
+                                  : "No"
+                                : String(value ?? "")}
                         </dd>
                       </div>
                     ))
@@ -790,9 +935,26 @@ export function DeepgramPilotVoice({
           ) : (
             <p>{execution.enabled ? "Attivare" : "Disattivare"} il controllo entrate del club?</p>
           )}
+          {typeof execution.summary?.attestation === "string" && !execution.uncertain && (
+            <label>
+              <input
+                type="checkbox"
+                checked={execution.attested === true}
+                onChange={(e) =>
+                  setExecution((value) => (value ? { ...value, attested: e.target.checked } : null))
+                }
+              />
+              {execution.summary.attestation}
+            </label>
+          )}
           <button
             type="button"
-            disabled={execution.busy}
+            disabled={
+              execution.busy ||
+              (!execution.uncertain &&
+                typeof execution.summary?.attestation === "string" &&
+                !execution.attested)
+            }
             onClick={() => {
               if (!audio.current) return;
               setExecution({ ...execution, busy: true });
@@ -804,6 +966,7 @@ export function DeepgramPilotVoice({
                       id: execution.id,
                       token: execution.token,
                       confirmed: true,
+                      ...(execution.attested ? { receiptConfirmed: true } : {}),
                     },
               );
             }}

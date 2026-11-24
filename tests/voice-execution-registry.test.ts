@@ -3,15 +3,27 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   executionSchemas,
+  executionResults,
   executionCapabilities,
   ExecutionRequest,
 } from "../src/lib/voice/execution-registry.ts";
 import { agentSettings } from "../src/lib/voice/agent-settings.server.ts";
 test("one bounded registry and advertised provider tool agree; unapproved writes stay unadvertised", async () => {
   assert.deepEqual(Object.keys(executionSchemas).sort(), Object.keys(executionCapabilities).sort());
+  assert.deepEqual(Object.keys(executionSchemas).sort(), Object.keys(executionResults).sort());
+  assert(
+    !executionResults["wallet.topup"].safeParse({
+      id: "00000000-0000-4000-8000-000000000001",
+      balanceCents: -1,
+    }).success,
+  );
+  assert(
+    !executionResults["cash.close"].safeParse({ id: "00000000-0000-4000-8000-000000000001" })
+      .success,
+  );
   const disabled = agentSettings("it", 48000);
   assert(!disabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
-  const enabled = agentSettings("it", 48000, undefined, true);
+  const enabled = agentSettings("it", 48000, undefined, true, true);
   const tool = enabled.agent.think.functions.find((f) => f.name === "snoop_execute");
   assert(tool);
   const schema = JSON.parse(JSON.stringify(tool)).parameters;
@@ -41,6 +53,40 @@ test("typed actions normalize fields and reject arbitrary RPCs, invented stock/p
     {
       action: "member.renew",
       arguments: { member_id: id, plan_id: id, method: "cash", amount_cents: 1 },
+    },
+  ])
+    assert(!ExecutionRequest.safeParse(input).success);
+});
+
+test("registered references and disabled wallet capability cannot be guessed or silently advertised", () => {
+  const disabled = agentSettings("es", 48000, undefined, true, false).agent.think.functions.find(
+    (f) => f.name === "snoop_execute",
+  );
+  assert(disabled);
+  assert(!JSON.stringify(disabled).includes("wallet.topup"));
+  for (const input of [
+    {
+      action: "stock.adjust",
+      arguments: {
+        id: "00000000-0000-4000-8000-000000000201",
+        delta: "1.001",
+        notes: "Invalid precision",
+      },
+    },
+    { action: "cash.open", arguments: { opening_cash_cents: 125.5 } },
+    {
+      action: "member.update",
+      arguments: { id: "00000000-0000-4000-8000-000000000201", permissions: ["admin"] },
+    },
+    {
+      action: "wallet.topup",
+      arguments: {
+        member_id: "00000000-0000-4000-8000-000000000201",
+        cash_session_id: "00000000-0000-4000-8000-000000000201",
+        amount_cents: 100,
+        method: "cash",
+        confirmed: true,
+      },
     },
   ])
     assert(!ExecutionRequest.safeParse(input).success);

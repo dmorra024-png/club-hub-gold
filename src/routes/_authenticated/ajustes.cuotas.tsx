@@ -39,6 +39,7 @@ function PianiPage() {
   useVoiceToolPort(
     "admin.membership_fee",
     {
+      refresh:load,
       ready: () => isAdmin,
       baseline: () =>
         planValues(

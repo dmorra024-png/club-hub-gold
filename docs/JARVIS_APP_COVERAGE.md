@@ -311,3 +311,47 @@ signature and configurable club-field requirements that its underlying old RPC d
 not fully enforce; directly exposing that RPC would bypass the existing human checks.
 Those checks need a shared server validator before safe voice registration, not a
 claim of successful creation. No regulated-distribution automation is added here.
+
+## Current extension — authoritative over older draft-only rows above
+
+The current register has 21 persistent actions (see `JARVIS_CAPABILITY_MATRIX.json`).
+The older rows describing categories, fees, member edits, cash and wallet writes as
+entirely manual describe the earlier revision, not this extension.
+
+- Member registration uses the existing membership/receipt RPC only when current
+  club requirements can be satisfied without human documents/signature/identity data.
+  Defaults require those inputs and therefore reject unattended registration. Current
+  club field configuration is locked/revalidated; missing/disabled data, underage dates,
+  changed fees and unavailable plans cannot bypass the manual rules.
+- Member card edits preserve document paths, membership, expiry, accounting and other
+  fields. Only the requested whitelisted card fields can change.
+- Category create/rename/archive/restore; product card create/edit/archive; descriptions;
+  prices in cents; initial product stock is zero. Physical inventory corrections use the
+  original optimistic-locking/audited RPC, respect whole units, and cannot be used to
+  dispense an order. No order fulfillment automation is added.
+- Fee create/update/activation and discount create/update/activation/validity/assignment/
+  removal use the same tables and constraints as the manual APIs. Existing receipts,
+  order amounts and historical membership expirations are not rewritten.
+- Cash opening/closing uses the original table operations and mandatory existing audit
+  trigger: authenticated owner, server timestamps, opening/count/notes. No fixed shifts,
+  balance formula or accounting engine is introduced. Existing reports reconcile money.
+- Wallet club configuration and credit topup call the original RPCs; both the existing
+  wallet feature gate and club switch remain mandatory. A topup needs an explicit
+  authenticated receipt attestation before any credits are added, stored in the ledger's
+  receipt_confirmed_at. No POS/transfer payment is initiated. No Socio code is modified.
+- The inspector consults existing member history, cash sessions across midnight,
+  inventory movements and enabled wallet balance. It reuses existing history/report
+  services, exposes no personal notes/operator identities to the model, and does not
+  permit unknown IDs. Existing member history opens only for the current speech turn
+  and unchanged navigation context. Cash-session record lookup currently lists own
+  sessions; the existing date/period report remains the club aggregate for admins.
+
+Source/compiled Workerd can now be tested against real isolated PostgreSQL/PGlite
+RPC persistence using `--database --close-retry`; only the auth/provider are simulated.
+This closes the earlier separation between a fake gateway HTTP backend and SQL unit tests.
+No real Deepgram STT/TTS quality or physical audibility is certified by that test.
+
+Remaining writes are explicitly recorded in the matrix. Regulated-product fulfillment
+is not automated. Invitations/permission changes, topup reversals and order refund/
+annulment adapters remain manual. Passwords, signatures, documents and physical input
+must use their existing secure human flows. No full manual/voice parity is claimed.

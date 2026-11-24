@@ -1,8 +1,14 @@
+import { voiceInspect } from "./voice/inspect.server.ts";
 import { voiceRecordsRead, RecordsQuery } from "./voice/records-read.server.ts";
-import { ExecutionRequest } from "./voice/execution-registry.ts";
+import {
+  ExecutionRequest,
+  executionReferences,
+  executionInvalidFields,
+} from "./voice/execution-registry.ts";
 import { z } from "zod";
 import {
   voiceCommandOperation,
+  voiceExecutionFailure,
   voiceAccessRead,
   ExecutionConfirmation,
 } from "./voice/execution.server.ts";
@@ -145,15 +151,9 @@ export async function deepgramAppSocket(
   let lastExecutionId: string | undefined;
   const resolveReferences = (action: string, args: Record<string, unknown>) => {
     const next = { ...args };
-    for (const [key, kind] of Object.entries(
-      action === "member.renew"
-        ? { member_id: "members", plan_id: "membership_plans" }
-        : action === "category.update"
-          ? { id: "categories" }
-          : action === "product.description"
-            ? { id: "products" }
-            : {},
-    )) {
+    for (const [key, kind] of Object.entries(executionReferences[action] ?? {})) {
+      if (action === "product.update" && key === "category_id" && next[key] === undefined) continue;
+      if (action === "member.create" && key === "plan_id" && next[key] === null) continue;
       const ref = recordReferences.get(String(next[key]));
       if (!ref || ref.kind !== kind) throw Error("VOICE_REFERENCE_REQUIRED");
       next[key] = ref.id;
@@ -163,12 +163,20 @@ export async function deepgramAppSocket(
   let executionPreparing = false;
   const executions = new Map<
     string,
-    { toolId: string; toolName: string; timer: ReturnType<typeof setTimeout> }
+    {
+      toolId: string;
+      toolName: string;
+      requiresReceipt: boolean;
+      timer: ReturnType<typeof setTimeout>;
+    }
   >();
   const executionEnabled = setting(env, "SNOOP_VOICE_EXECUTION_PILOT_ENABLED") === "true";
+  const walletEnabled = setting(env, "SNOOP_WALLET_OPERATIONS_ENABLED") === "true";
   const execute = async (
     request: Parameters<typeof voiceCommandOperation>[1] & { value?: boolean },
   ) => {
+    if (request.action?.startsWith("wallet.") && !walletEnabled)
+      throw Error("VOICE_WALLET_DISABLED");
     const checked = await verifySession(verifiedToken, env, authController.signal);
     if (
       !verifiedSession ||
@@ -343,6 +351,7 @@ export async function deepgramAppSocket(
           a.sampleRate,
           verified.catalog,
           executionEnabled,
+          walletEnabled,
         );
         settings.tags = ["snoop-admin-pilot"];
         settings.agent.think.prompt +=
@@ -396,6 +405,82 @@ export async function deepgramAppSocket(
             const m = JSON.parse(event.data);
             if (m.type === "FunctionCallRequest") {
               for (const f of m.functions || []) {
+                if (f.name === "snoop_inspect" && f.client_side === true) {
+                  if (typeof f.id !== "string" || seen.has(f.id)) continue;
+                  seen.add(f.id);
+                  const requestTurn = turn;
+                  try {
+                    if (!newTurn || ++calls > 8) throw Error("DENIED");
+                    const args = z
+                      .object({
+                        kind: z.enum([
+                          "member_history",
+                          "cash_session",
+                          "stock_history",
+                          "wallet_balance",
+                        ]),
+                        reference: z.string().max(100),
+                        page: z.number().int().min(0).max(100).default(0),
+                      })
+                      .strict()
+                      .parse(JSON.parse(f.arguments));
+                    const ref = recordReferences.get(args.reference);
+                    const kind =
+                      args.kind === "stock_history"
+                        ? "products"
+                        : args.kind === "cash_session"
+                          ? "cash_sessions"
+                          : "members";
+                    if (!ref || ref.kind !== kind) throw Error("DENIED");
+                    const checked = await verifySession(verifiedToken, env, authController.signal);
+                    if (
+                      !verifiedSession ||
+                      checked.user !== verifiedSession.user ||
+                      checked.access.clubId !== verifiedSession.access.clubId
+                    )
+                      throw Error("DENIED");
+                    const result = await voiceInspect(
+                      {
+                        url: setting(env, "SUPABASE_URL"),
+                        key: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                        jwt: verifiedToken,
+                        actor: checked.user,
+                        access: checked.access,
+                        walletEnabled,
+                      },
+                      { kind: args.kind, id: ref.id, page: args.page },
+                    );
+                    send({ type: "AppInspectionResult", ...result, turn: requestTurn });
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({
+                          ok: true,
+                          status: "read",
+                          kind: result.kind,
+                          summary: result.summary,
+                          persisted: false,
+                        }),
+                      }),
+                    );
+                  } catch {
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({
+                          ok: false,
+                          status: "unavailable",
+                          persisted: false,
+                        }),
+                      }),
+                    );
+                  }
+                  continue;
+                }
                 if (f.name === "snoop_execution_status" && f.client_side === true) {
                   if (typeof f.id !== "string" || seen.has(f.id)) continue;
                   seen.add(f.id);
@@ -419,7 +504,12 @@ export async function deepgramAppSocket(
                       continue;
                     }
                     const result = await execute({ id: lastExecutionId, operation: "status" });
-                    send({ type: "AppExecutionResult", id: result.id, status: result.status });
+                    send({
+                      type: "AppExecutionResult",
+                      id: result.id,
+                      status: result.status,
+                      action: result.action,
+                    });
                     upstream?.send(
                       JSON.stringify({
                         type: "FunctionCallResponse",
@@ -500,6 +590,7 @@ export async function deepgramAppSocket(
                         key: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
                         jwt: verifiedToken,
                         access: checked.access,
+                        actor: checked.user,
                       },
                       RecordsQuery.parse(JSON.parse(f.arguments)),
                     );
@@ -538,6 +629,23 @@ export async function deepgramAppSocket(
                               : rows.map((row) => ({
                                   ref: row.ref,
                                   name: row.name,
+                                  ...(data.kind === "discounts"
+                                    ? {
+                                        percentage_basis_points: row.percentage_basis_points,
+                                        active: row.active,
+                                        valid_from: row.valid_from,
+                                        valid_until: row.valid_until,
+                                      }
+                                    : {}),
+                                  ...(data.kind === "cash_sessions"
+                                    ? {
+                                        status: row.status,
+                                        opened_at: row.opened_at,
+                                        closed_at: row.closed_at,
+                                        opening_cash_cents: row.opening_cash_cents,
+                                        closing_cash_cents: row.closing_cash_cents,
+                                      }
+                                    : {}),
                                   ...(data.kind === "stock"
                                     ? { stock: row.stock, unit_type: row.unit_type }
                                     : {}),
@@ -674,9 +782,17 @@ export async function deepgramAppSocket(
                       );
                     }, 60000);
                     lastExecutionId = result.id;
-                    executions.set(result.id, { toolId: f.id, toolName: f.name, timer });
+                    executions.set(result.id, {
+                      toolId: f.id,
+                      toolName: f.name,
+                      requiresReceipt: result.action === "wallet.topup",
+                      timer,
+                    });
                     send({ type: "AppExecutionPrepared", ...result });
-                  } catch {
+                  } catch (error) {
+                    const code = voiceExecutionFailure(error);
+                    const fields = executionInvalidFields(error);
+                    send({ type: "AppExecutionRejected", code });
                     upstream?.send(
                       JSON.stringify({
                         type: "FunctionCallResponse",
@@ -685,6 +801,8 @@ export async function deepgramAppSocket(
                         content: JSON.stringify({
                           ok: false,
                           status: "rejected",
+                          code,
+                          fields,
                           persisted: false,
                         }),
                       }),
@@ -964,7 +1082,7 @@ export async function deepgramAppSocket(
               // AgentThinking is optional: a spoken reply also ends the user turn.
               // Otherwise consecutive phrases share one tool budget and eventually fail.
               if (m.type === "AgentThinking" || m.type === "AgentStartedSpeaking") speech = false;
-              send({ type: m.type });
+              send({ type: m.type, ...(m.type === "UserStartedSpeaking" ? { turn } : {}) });
             }
           } catch {
             close("PROVIDER_INVALID");
@@ -1055,6 +1173,7 @@ export async function deepgramAppSocket(
               type: "AppExecutionResult",
               id: outcome.id,
               status: outcome.status,
+              action: outcome.action,
               enabled: outcome.enabled,
             });
           } catch {
@@ -1066,6 +1185,10 @@ export async function deepgramAppSocket(
           const confirmation = ExecutionConfirmation.parse(incoming);
           const item = executions.get(confirmation.id);
           if (!item) return;
+          if (item.requiresReceipt && confirmation.receiptConfirmed !== true) {
+            send({ type: "AppExecutionRejected", code: "VOICE_RECEIPT_CONFIRMATION_REQUIRED" });
+            return;
+          }
           clearTimeout(item.timer);
           executions.delete(confirmation.id);
           try {
@@ -1073,12 +1196,14 @@ export async function deepgramAppSocket(
               id: confirmation.id,
               operation: "confirm",
               token: confirmation.token,
+              receiptConfirmed: confirmation.receiptConfirmed === true,
             });
             if (outcome.status !== "completed") throw Error("UNVERIFIED");
             send({
               type: "AppExecutionResult",
               id: outcome.id,
               status: "completed",
+              action: outcome.action,
               enabled: outcome.enabled,
             });
             upstream?.send(

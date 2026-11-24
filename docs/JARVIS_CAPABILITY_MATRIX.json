@@ -1,0 +1,282 @@
+{
+  "actions": [
+    {
+      "action": "product.create",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "save_administrative_product",
+      "referenceKinds": {
+        "category_id": "categories"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "product.update",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "save_administrative_product_checked",
+      "referenceKinds": {
+        "id": "products",
+        "category_id": "categories"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "stock.adjust",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "adjust_administrative_stock",
+      "referenceKinds": {
+        "id": "products"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "wallet.topup",
+      "permission": "use_cash+manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "socio_wallet_topup_with_method",
+      "referenceKinds": {
+        "member_id": "members",
+        "cash_session_id": "cash_sessions"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "wallet.configure",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "socio_wallet_set_club_enabled",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.create",
+      "permission": "manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "confirm_membership_with_receipt",
+      "referenceKinds": {
+        "plan_id": "membership_plans"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member_field.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "category.create",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.update",
+      "permission": "manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "members"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "fee.create",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "fee.update",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "membership_plans"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "discount.create",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "discount.update",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "discounts"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.discount.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "member_id": "members",
+        "discount_id": "discounts"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.discount.clear",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "member_id": "members"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "cash.open",
+      "permission": "use_cash",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "cash.close",
+      "permission": "use_cash",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "cash_sessions"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "access_control.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_set_club_access_control",
+      "referenceKinds": {},
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "category.update",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "manage_administrative_category",
+      "referenceKinds": {
+        "id": "categories"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "product.description",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "save_administrative_product_checked",
+      "referenceKinds": {
+        "id": "products"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.renew",
+      "permission": "manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "confirm_membership_with_receipt",
+      "referenceKinds": {
+        "member_id": "members",
+        "plan_id": "membership_plans"
+      },
+      "confirmation": "manual authenticated token; wallet.topup also requires receiptConfirmed recorded by server",
+      "persistence": "isolated PostgreSQL original RPC/table operations with readback",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    }
+  ],
+  "physicalInputs": [
+    "identity documents",
+    "signature",
+    "file import",
+    "camera capture",
+    "credential changes"
+  ],
+  "notImplemented": [
+    "regulated-product order fulfillment",
+    "order annulment/refund adapters",
+    "outgoing collaborator invitations/permission changes",
+    "wallet topup reversal adapter",
+    "full-page-reload pending-request recovery"
+  ],
+  "liveDeepgramVerified": false
+}

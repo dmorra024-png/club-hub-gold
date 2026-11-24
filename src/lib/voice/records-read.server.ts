@@ -2,7 +2,15 @@ import { z } from "zod";
 import type { AccountAccess } from "../access-context.ts";
 export const RecordsQuery = z
   .object({
-    kind: z.enum(["members", "products", "categories", "stock", "membership_plans"]),
+    kind: z.enum([
+      "members",
+      "products",
+      "categories",
+      "stock",
+      "membership_plans",
+      "discounts",
+      "cash_sessions",
+    ]),
     query: z
       .string()
       .trim()
@@ -16,18 +24,29 @@ const projections = {
   products: "id,name,description,category_id",
   categories: "id,name,archived",
   stock: "id,name,stock,category_id",
-  membership_plans: "id,name,price_cents,duration_days",
+  membership_plans: "id,name,price_cents,duration_days,active",
+  discounts: "id,name,percentage_basis_points,active,valid_from,valid_until",
+  cash_sessions: "id,status,opened_at,closed_at,opening_cash_cents,closing_cash_cents,notes",
 } as const;
 export async function voiceRecordsRead(
-  options: { url: string; key: string; jwt: string; access: AccountAccess; fetch?: typeof fetch },
+  options: {
+    url: string;
+    key: string;
+    jwt: string;
+    access: AccountAccess;
+    actor?: string;
+    fetch?: typeof fetch;
+  },
   input: unknown,
 ) {
   const query = RecordsQuery.parse(input),
     access = options.access;
   const permission =
-    query.kind === "members" || query.kind === "membership_plans"
+    query.kind === "members" || query.kind === "membership_plans" || query.kind === "discounts"
       ? "manage_members"
-      : "manage_products";
+      : query.kind === "cash_sessions"
+        ? "use_cash"
+        : "manage_products";
   if (access.status !== "active" || !access.clubId || !access.permissions.includes(permission))
     throw Error("VOICE_READ_FORBIDDEN");
   if (options.url !== "https://bnwanxbmprbymbutoths.supabase.co") throw Error("VOICE_READ_CONFIG");
@@ -36,14 +55,22 @@ export async function voiceRecordsRead(
       ? "product_categories"
       : query.kind === "stock"
         ? "products"
-        : query.kind;
+        : query.kind === "discounts"
+          ? "member_discounts"
+          : query.kind;
   const params = new URLSearchParams({
     select: projections[query.kind],
     club_id: "eq." + access.clubId,
     limit: "7",
     order: "id",
   });
-  if (query.query && query.kind !== "members")
+  if (query.kind === "cash_sessions") {
+    if (!z.string().uuid().safeParse(options.actor).success || query.query)
+      throw Error("VOICE_READ_INVALID_QUERY");
+    params.set("user_id", "eq." + options.actor);
+    params.set("order", "opened_at.desc,id");
+  }
+  if (query.query && query.kind !== "members" && query.kind !== "cash_sessions")
     params.set("name", "ilike.%" + query.query.replace(/[\\%_]/g, "\\$&") + "%");
   const personal = query.kind === "members";
   const response = await (options.fetch ?? fetch)(
