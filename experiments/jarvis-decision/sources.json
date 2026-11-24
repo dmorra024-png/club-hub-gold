@@ -1,0 +1,68 @@
+[
+  {
+    "id": "livekit",
+    "url": "https://raw.githubusercontent.com/livekit/agents/main/LICENSE",
+    "bytes": 11357,
+    "ok": true
+  },
+  {
+    "id": "pipecat",
+    "url": "https://raw.githubusercontent.com/pipecat-ai/pipecat/main/LICENSE",
+    "bytes": 1299,
+    "ok": true
+  },
+  {
+    "id": "ten",
+    "url": "https://raw.githubusercontent.com/TEN-framework/ten-framework/main/LICENSE",
+    "bytes": 2234,
+    "ok": true
+  },
+  {
+    "id": "vocode",
+    "url": "https://raw.githubusercontent.com/vocodedev/vocode-core/main/LICENSE",
+    "bytes": 1065,
+    "ok": true
+  },
+  {
+    "id": "agents",
+    "url": "https://raw.githubusercontent.com/openai/openai-agents-python/main/LICENSE",
+    "bytes": 1063,
+    "ok": true
+  },
+  {
+    "id": "deepgram_price",
+    "url": "https://deepgram.com/pricing",
+    "bytes": 594406,
+    "ok": true
+  },
+  {
+    "id": "openai_price",
+    "url": "https://openai.com/api/pricing/",
+    "ok": false,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "id": "livekit_price",
+    "url": "https://livekit.io/pricing",
+    "ok": false,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "id": "hetzner",
+    "url": "https://www.hetzner.com/cloud/",
+    "bytes": 155929,
+    "ok": true
+  },
+  {
+    "id": "kokoro",
+    "url": "https://huggingface.co/hexgrad/Kokoro-82M/raw/main/README.md",
+    "bytes": 6303,
+    "ok": true
+  },
+  {
+    "id": "supertonic",
+    "url": "https://raw.githubusercontent.com/supertone-inc/supertonic/main/LICENSE",
+    "bytes": 1070,
+    "ok": true
+  }
+]

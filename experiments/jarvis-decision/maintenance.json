@@ -1,0 +1,37 @@
+[
+  {
+    "full_name": "livekit/agents",
+    "archived": false,
+    "pushed_at": "2026-11-24T05:06:02Z",
+    "updated_at": "2026-11-24T08:20:16Z",
+    "open_issues_count": 1023
+  },
+  {
+    "full_name": "pipecat-ai/pipecat",
+    "archived": false,
+    "pushed_at": "2026-11-24T05:08:37Z",
+    "updated_at": "2026-11-24T07:05:40Z",
+    "open_issues_count": 564
+  },
+  {
+    "full_name": "TEN-framework/ten-framework",
+    "archived": false,
+    "pushed_at": "2026-11-24T08:11:57Z",
+    "updated_at": "2026-11-24T00:59:08Z",
+    "open_issues_count": 270
+  },
+  {
+    "full_name": "vocodedev/vocode-core",
+    "archived": false,
+    "pushed_at": "2024-11-15T22:16:58Z",
+    "updated_at": "2026-11-22T11:16:18Z",
+    "open_issues_count": 3
+  },
+  {
+    "full_name": "openai/openai-agents-python",
+    "archived": false,
+    "pushed_at": "2026-11-24T08:23:22Z",
+    "updated_at": "2026-11-24T08:04:08Z",
+    "open_issues_count": 84
+  }
+]

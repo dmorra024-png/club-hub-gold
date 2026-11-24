@@ -1,0 +1,44 @@
+[
+  {
+    "id": "livekit_turn",
+    "url": "https://raw.githubusercontent.com/livekit/agents/main/livekit-agents/livekit/agents/voice/agent_session.py",
+    "bytes": 110174,
+    "ok": true
+  },
+  {
+    "id": "pipecat_turn",
+    "url": "https://raw.githubusercontent.com/pipecat-ai/pipecat/main/src/pipecat/turns/user_turn_controller.py",
+    "bytes": 32290,
+    "ok": true
+  },
+  {
+    "id": "ten_graph",
+    "url": "https://raw.githubusercontent.com/TEN-framework/ten-framework/main/ai_agents/agents/examples/voice-assistant/tenapp/property.json",
+    "bytes": 60116,
+    "ok": true
+  },
+  {
+    "id": "vocode_agent",
+    "url": "https://raw.githubusercontent.com/vocodedev/vocode-core/main/vocode/streaming/streaming_conversation.py",
+    "bytes": 46386,
+    "ok": true
+  },
+  {
+    "id": "openai_tools",
+    "url": "https://raw.githubusercontent.com/openai/openai-agents-python/main/src/agents/tool.py",
+    "bytes": 116811,
+    "ok": true
+  },
+  {
+    "id": "deepgram_config",
+    "url": "https://developers.deepgram.com/docs/configure-voice-agent.md",
+    "error": "HTTP Error 403: Forbidden",
+    "ok": false
+  },
+  {
+    "id": "deepgram_billing",
+    "url": "https://developers.deepgram.com/docs/voice-agent-billing.md",
+    "error": "HTTP Error 403: Forbidden",
+    "ok": false
+  }
+]
