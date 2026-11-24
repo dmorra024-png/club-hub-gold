@@ -24,8 +24,11 @@ jobs:
       - run: npm test
       - name: PostgreSQL concurrent accounting checks (synthetic, isolated)
         run: npm run test:annulment:concurrency
-      - run: npm run typecheck
+      - name: PostgreSQL concurrent confirmed voice execution (synthetic, isolated)
+        run: node scripts/test-voice-execution-concurrency.mjs
+      # Vite/TanStack generates the route tree during build; typecheck the generated routes after that.
       - run: npm run build
+      - run: npm run typecheck
       - name: Account HTTP smoke test
         shell: bash
         run: |
@@ -52,6 +55,8 @@ jobs:
           npx playwright-core install --with-deps chromium webkit
       - name: Real Web Audio PCM rendering (synthetic, Chromium and WebKit)
         run: node scripts/test-voice-pcm-browser.mjs
+      - name: Real AudioWorklet capture graph (synthetic stream, Chromium and WebKit)
+        run: node scripts/test-voice-capture-browser.mjs
       - name: Production PWA and administrative browser tests
         shell: bash
         run: |
@@ -93,6 +98,9 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:voice:browser
           TEST_BASE_URL=http://127.0.0.1:3001 npm run test:genetics:browser
           TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs
+          TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs --pending-resume --startup-only
+          TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs --native-audio --startup-only
+          TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs --execution-ui
       - name: Mounted JARVIS administrative drafts with synthetic Monedero
         shell: bash
         run: |
@@ -121,6 +129,7 @@ jobs:
           path: |
             .sandbox/deepgram/
             .sandbox/voice-pcm/
+            .sandbox/voice-capture/
             .sandbox/screenshots/premium/
             .sandbox/PREMIUM_HOME_RESULTS.json
             docs/screenshots/genetics-*.png
