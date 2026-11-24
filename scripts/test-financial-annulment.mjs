@@ -420,7 +420,16 @@ for (const [label, engine, device] of [
         assert.equal(refundWrites, 1);
         assert.equal(writes, 2);
         await page.goto(base + "/ajustes/informes");
-        await page.getByText("Ingresos", { exact: true }).waitFor();
+        try {
+          await page.getByText("Ingresos", { exact: true }).waitFor();
+        } catch (err) {
+          // Synthetic browser fixture: preserve the assertion and expose only
+          // bounded route/error metadata so a missing KPI is not silently ignored.
+          const preview = (await page.locator("body").innerText()).slice(0, 950);
+          throw new Error("Informes KPI missing; pathname=" + new URL(page.url()).pathname +
+            "; pageErrors=" + JSON.stringify(errors.slice(-3)) +
+            "; visibleText=" + preview, { cause: err });
+        }
         await page.waitForLoadState("networkidle");
         await page
           .getByText("Ingresos", { exact: true })
