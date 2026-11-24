@@ -5,7 +5,7 @@ This is a source inventory, not a claim that listed actions execute by voice.
 File-level permission references are evidence to inspect, not per-action authorization proof.
 SNOOP Socio is excluded. Full JSON: `.sandbox/jarvis-inventory/operations.json`.
 
-Scanned files: 218; routes: 28; UI/API entries: 301; route-owned ports: 14.
+Scanned files: 221; routes: 28; UI/API entries: 307; route-owned ports: 14.
 
 | Source | Kind | Operation / handler | Voice persistence verified |
 | --- | --- | --- | --- |
@@ -20,13 +20,15 @@ Scanned files: 218; routes: 28; UI/API entries: 301; route-owned ports: 14.
 | src/components/ClubThemeSettingsPanel.tsx:53 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/ClubThemeSettingsPanel.tsx:70 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/ClubWalletSettingsPanel.tsx:62 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:623 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:630 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:690 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/DeepgramPilotVoice.tsx:697 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:717 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:721 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:724 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:733 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:786 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:806 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:878 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:898 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:902 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:905 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:914 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/FinancialRecordDialog.tsx:336 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/FinancialRecordDialog.tsx:377 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/FinancialRecordDialog.tsx:389 | ui_action | onClick | No automatic claim; see runtime matrix |
@@ -103,9 +105,13 @@ Scanned files: 218; routes: 28; UI/API entries: 301; route-owned ports: 14.
 | src/lib/club-merma.functions.ts:21 | api_rpc | snoop_set_club_merma | No automatic claim; see runtime matrix |
 | src/lib/club-theme-storage.ts:13 | api_upsert | upsert | No automatic claim; see runtime matrix |
 | src/lib/club.ts:7 | api_rpc | rpc | No automatic claim; see runtime matrix |
-| src/lib/deepgram-app-gateway.ts:218 | api_delete | delete | No automatic claim; see runtime matrix |
-| src/lib/deepgram-app-gateway.ts:510 | api_delete | delete | No automatic claim; see runtime matrix |
-| src/lib/deepgram-app-gateway.ts:656 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:279 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:465 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:609 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:822 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:971 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:1016 | api_delete | delete | No automatic claim; see runtime matrix |
+| src/lib/deepgram-app-gateway.ts:1070 | api_delete | delete | No automatic claim; see runtime matrix |
 | src/lib/deepgram-pilot.functions.ts:12 | server_function | server-handler | No automatic claim; see runtime matrix |
 | src/lib/deepgram-pilot.functions.ts:27 | api_rpc | snoop_access_context | No automatic claim; see runtime matrix |
 | src/lib/deepgram-pilot.functions.ts:69 | server_function | server-handler | No automatic claim; see runtime matrix |

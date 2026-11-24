@@ -77,10 +77,12 @@ export function DeepgramPilotVoice({
       })
     | null
   >(null);
+  const [privateRecords, setPrivateRecords] = useState<Array<Record<string, unknown>>>([]);
   const [execution, setExecution] = useState<{
     id: string;
     token: string;
-    enabled: boolean;
+    enabled?: boolean;
+    summary?: Record<string, unknown>;
     busy?: boolean;
     uncertain?: boolean;
   } | null>(null);
@@ -112,6 +114,7 @@ export function DeepgramPilotVoice({
       setLines([]);
       setProposal(null);
       setExecution(null);
+      setPrivateRecords([]);
       setCitations(null);
       const state = audio.current;
       const pending = activatingContext.current;
@@ -314,7 +317,18 @@ export function DeepgramPilotVoice({
       const receive = async (message: any) => {
         if (generation.current !== current) return;
         try {
-          if (message.type === "AppAccessControlStatus" && typeof message.enabled === "boolean") {
+          if (message.type === "AppPrivateRecords" && Array.isArray(message.rows)) {
+            setPrivateRecords(message.rows.slice(0, 6));
+            setExpanded(true);
+            setStatus(
+              message.rows.length
+                ? "Registros autorizados encontrados."
+                : "No hay registros coincidentes.",
+            );
+          } else if (
+            message.type === "AppAccessControlStatus" &&
+            typeof message.enabled === "boolean"
+          ) {
             setStatus(
               message.enabled ? "Controllo entrate attivo." : "Controllo entrate disattivato.",
             );
@@ -322,24 +336,34 @@ export function DeepgramPilotVoice({
             if (
               typeof message.id === "string" &&
               typeof message.token === "string" &&
-              typeof message.enabled === "boolean"
+              (typeof message.enabled === "boolean" || typeof message.summary?.label === "string")
             ) {
-              setExecution({ id: message.id, token: message.token, enabled: message.enabled });
+              setExecution({
+                id: message.id,
+                token: message.token,
+                enabled: message.enabled,
+                summary: message.summary,
+              });
               setExpanded(true);
             }
           } else if (message.type === "AppExecutionExpired") {
             setExecution(null);
             setStatus("Conferma scaduta. Nessuna modifica eseguita.");
+          } else if (message.type === "AppExecutionCancelRequested") {
+            setExpanded(true);
+            setStatus("Premi Annulla proposta per cancellare la modifica non confermata.");
           } else if (message.type === "AppExecutionResult") {
             setStatus(
               message.status === "completed"
-                ? "Impostazione salvata e verificata dal server."
-                : message.status === "confirmation_required"
-                  ? "Il server non registra un completamento. Richiedi una nuova conferma."
-                  : "Esito incerto. Non ripetere: verifica lo stato dell'operazione.",
+                ? "Operazione completata e verificata dal server."
+                : message.status === "cancelled"
+                  ? "Proposta annullata. Nessuna operazione eseguita."
+                  : message.status === "confirmation_required"
+                    ? "Il server non registra un completamento. Richiedi una nuova conferma."
+                    : "Esito incerto. Non ripetere: verifica lo stato dell'operazione.",
             );
             setExecution((current) =>
-              message.status === "completed" || message.status === "confirmation_required"
+              ["completed", "confirmation_required", "cancelled"].includes(message.status)
                 ? null
                 : current
                   ? { ...current, busy: false, uncertain: message.status === "uncertain" }
@@ -679,9 +703,93 @@ export function DeepgramPilotVoice({
           ✕
         </button>
       </div>
+      {!!privateRecords.length && expanded && (
+        <section aria-label="Registros autorizados">
+          <ol>
+            {privateRecords.map((row, index) => (
+              <li key={String(row.ref)}>
+                {index + 1}.{" "}
+                {String(row.name ?? [row.first_name, row.last_name].filter(Boolean).join(" "))}
+                {row.stock !== undefined
+                  ? ` · Stock: ${String(row.stock)} ${row.unit_type === "gr" ? "g" : row.unit_type === "unit" ? "uds." : "(unidad no verificada)"}`
+                  : ""}
+                {row.price_cents !== undefined
+                  ? ` · ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Number(row.price_cents) / 100)}`
+                  : ""}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       {execution && (
         <section aria-label="Conferma operazione">
-          <p>{execution.enabled ? "Attivare" : "Disattivare"} il controllo entrate del club?</p>
+          {execution.summary ? (
+            <>
+              <strong>{String(execution.summary.label)}</strong>
+              <dl>
+                {Object.entries(execution.summary)
+                  .filter(([key]) => key !== "label" && key !== "changes")
+                  .map(([key, value]) => (
+                    <div key={key}>
+                      <dt>
+                        {(
+                          {
+                            name: "Registro",
+                            member_name: "Socio",
+                            plan: "Cuota",
+                            amount_cents: "Importe",
+                            duration_days: "Duración (días)",
+                            method: "Pago",
+                            enabled: "Control de acceso",
+                          } as Record<string, string>
+                        )[key] ?? key}
+                      </dt>
+                      <dd>
+                        {key === "amount_cents" && typeof value === "number"
+                          ? new Intl.NumberFormat("es-ES", {
+                              style: "currency",
+                              currency: "EUR",
+                            }).format(value / 100)
+                          : key === "method" && typeof value === "string"
+                            ? ((
+                                {
+                                  cash: "Efectivo",
+                                  card: "Tarjeta",
+                                  transfer: "Transferencia",
+                                  other: "Otro",
+                                } as Record<string, string>
+                              )[value] ?? value)
+                            : typeof value === "boolean"
+                              ? value
+                                ? "Sí"
+                                : "No"
+                              : String(value ?? "")}
+                      </dd>
+                    </div>
+                  ))}
+                {execution.summary.changes && typeof execution.summary.changes === "object"
+                  ? Object.entries(execution.summary.changes).map(([key, value]) => (
+                      <div key={key}>
+                        <dt>
+                          {(
+                            {
+                              name: "Nombre",
+                              description: "Descripción",
+                              archived: "Archivado",
+                            } as Record<string, string>
+                          )[key] ?? key}
+                        </dt>
+                        <dd>
+                          {typeof value === "boolean" ? (value ? "Sí" : "No") : String(value ?? "")}
+                        </dd>
+                      </div>
+                    ))
+                  : null}
+              </dl>
+            </>
+          ) : (
+            <p>{execution.enabled ? "Attivare" : "Disattivare"} il controllo entrate del club?</p>
+          )}
           <button
             type="button"
             disabled={execution.busy}
@@ -701,6 +809,21 @@ export function DeepgramPilotVoice({
             }}
           >
             {execution.uncertain ? "Verifica esito" : "Conferma modifica"}
+          </button>
+          <button
+            type="button"
+            disabled={execution.busy || execution.uncertain}
+            onClick={() => {
+              if (!audio.current) return;
+              setExecution({ ...execution, busy: true });
+              audio.current.transport.send({
+                type: "AppExecutionCancel",
+                id: execution.id,
+                token: execution.token,
+              });
+            }}
+          >
+            Annulla proposta
           </button>
         </section>
       )}

@@ -1,74 +1,97 @@
-# Esecuzione autorizzata JARVIS — candidato isolato
+# JARVIS — registro condiviso di lettura ed esecuzione
 
-Questo intervento aggiunge un percorso persistente reale, non abilita tutte le
-operazioni del gestionale e non abilita scritture nel Pilot attuale.
+Ramo di sviluppo isolato. Nessuna migrazione applicata da Codex, nessun flag attivato,
+nessun merge o deployment. Non è certificazione di parità completa con l'app manuale.
 
-## Percorso implementato
-- `snoop_access_control_status`: lettura tramite la RPC esistente, JWT dell'utente.
-- `snoop_access_control`: prepara la modifica del controllo entrate (non QR di
-  dispensazione). Proposta booleana rigorosa; amministratore pilota verificato.
-- UI di conferma separata dal modello; token casuale di singola operazione, mai
-  trasmesso al modello o nei log. Doppio invio non produce una seconda esecuzione.
-- `voiceAccessOperation`: trasporto server user-scoped, nessuna service-role key;
-  timeout, redirect rifiutati, schema del risultato e identificativo verificati.
-- `snoop_voice_access`: registro persistente e transazione che richiama
-  `snoop_set_club_access_control`, poi rilegge con `snoop_get_club_access_control`.
-  Non duplica la logica delle impostazioni e non riscrive servizi manuali.
-- Autore/club, valore originale, valore richiesto, data di preparazione/completamento
-  e risultato conservati. Tabelle di audit senza privilegi diretti per il client,
-  RLS attivo, RPC con controlli amministrativi anche nel database.
-- Chiave persistente; lock della richiesta e del club; conferma scaduta o stato
-  cambiato rifiutati; errore della RPC annulla insieme impostazione e completamento.
-- Il gateway restituisce `completed` al modello soltanto dopo la risposta verificata
-  della RPC. Il vecchio `AppActionResult completed` dal browser resta vietato.
-- Risposta persa dopo il commit = `uncertain`, mai retry automatico. Pulsante
-  `Verifica esito` legge il registro; non ripete la modifica. Non annunciare una
-  nuova esecuzione quando si consulta un risultato storico.
+## Meccanismo comune implementato
+`execution-registry.ts` definisce nomi, schemi, permessi e RPC delle capacità.
+`snoop_execute` accetta solo una capacità registrata: niente URL, SQL o nomi RPC liberi.
+Il gateway risolve riferimenti temporanei ottenuti da letture autorizzate, ricontrolla
+identità/club e prepara il comando. Il modello non riceve token di conferma.
 
-## Protezioni e limiti
-Il tool di scrittura non è offerto senza `SNOOP_VOICE_EXECUTION_PILOT_ENABLED=true`.
-Il flag non è stato configurato su Cloudflare. Si mantengono allowlist utente/club,
-consenso e dati sintetici del Pilot; REAL rimane invariato.
+Una sola tabella e una sola RPC transazionale (`snoop_voice_command`) gestiscono:
+preparazione, token, scadenza, conferma, annullamento della proposta, idempotenza,
+lock, audit, lettura dell'esito e verifica della persistenza. `snoop_voice_access`
+rimane un wrapper compatibile, non un secondo motore. Dopo errori di rete l'esito
+è incerto: si legge il registro, senza retry automatici della scrittura. Annullare
+una proposta non annulla né rimborsa un'operazione già completata.
 
-La migrazione unica `docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql` è preparata ma
-NON applicata. Prima dell'applicazione verificare conflitti di nomi, disponibilità
-delle due RPC esistenti, current_club_id/is_current_user_club_admin/can_operate_club
-e backup delle definizioni. Se una dipendenza manca, la transazione si interrompe.
-Non eliminare o rieseguire migrazioni esistenti. Nessuna modifica a contabilità,
-stock, ordini, Monedero, Socio o Security PSG.
+Il tool può confermare al modello solo l'esito verificato dal server. Il browser
+non può promuovere il vecchio `AppActionResult` a `completed`.
 
-## Evidenze riproducibili
-`node --test tests/voice-execution.test.mjs` usa PostgreSQL/PGlite isolato con ruoli,
-club e utenti sintetici, importando le vere RPC get/set esistenti. Verifica lettura,
-nessuna modifica prima della conferma, persistenza riletta, replay, autorizzazioni,
-RLS/privilegi del registro, stale state, scadenza, rollback e risposta persa dopo commit.
-Il trasporto HTTP è un adapter di test verso quel database, non Supabase remoto.
+## Operazioni persistenti collegate e provate su SQL isolato
 
-`node scripts/test-deepgram-app-worker.mjs --execution --close-retry` e variante
-`--compiled` verificano il gateway Workerd, doppia conferma, risposta al provider
-solo dopo esecuzione e lettura esito. Provider e backend HTTP di questi test sono
-sintetici; non confonderli con la verifica PostgreSQL separata.
+| Capacità | API/RPC riutilizzata | Verifica |
+|---|---|---|
+| Controllo entrate attivo/disattivo | snoop_set_club_access_control | Rilettura del valore, audit e replay |
+| Categoria: rinomina, archivio, ripristino | manage_administrative_category | Nome/stato riletti; prodotti e stock conservati |
+| Descrizione informativa prodotto | save_administrative_product_checked | Descrizione riletta; stock, prezzi e movimenti invariati |
+| Rinnovo quota socio | confirm_membership_with_receipt | Socio/piano/scadenza, membership_operations e ricevuta effettiva; importo ricavato dal piano |
 
-`node scripts/test-deepgram-app.mjs --execution-ui` verifica conferma e stato incerto
-nei quattro profili Chromium/WebKit. Gateway e audio sono sintetici. Il test nativo
-`--native-audio --startup-only` verifica separatamente cattura e rendering PCM.
-Non certificano microfono fisico, Deepgram reale, qualità linguistica o accuratezza.
+Per i prezzi legacy frazionari, la vecchia RPC catalogo non accetta la rappresentazione
+esistente: l'adapter si ferma prima della conferma; non arrotonda e non corregge prezzi.
+Normalizza solo valori matematicamente interi e ne verifica l'invarianza dopo il salvataggio.
+Non vengono inventati importi, metodi di pagamento o quantità.
 
-## Ambito ancora non implementato
-Questo contratto può ospitare altri adapter, ma non dichiara implementati rinnovi,
-registrazione persistente soci, variazioni stock, transazioni ordini/Monedero o cassa.
-Occorrono adapter specifici sulle rispettive API/RPC e test transazionali dedicati;
-non estendere automaticamente la conferma di un'impostazione a operazioni economiche.
-La riconnessione mantiene i vincoli precedenti; la risoluzione di operazioni persistenti
-oltre ricaricamento completo richiede ancora una vista dei propri risultati pendenti.
-Il controllo esito nella sessione corrente è implementato, non un nuovo report.
+I controlli SQL rispettano i permessi specifici; è verificato anche un collaboratore
+catalogo autorizzato, e il rifiuto senza permessi. L'amministratore può consultare
+l'audit di altri operatori dello stesso club senza confermarne le richieste.
+L'allowlist vocale del Pilot resta amministratore Ddr: nessuna apertura globale.
 
-## Blocco del collaudo online
-Richiede autorizzazione separata per applicare la sola nuova migrazione, abilitare il
-flag per il Pilot autorizzato e rilasciare il commit esatto dopo CI. Non sono stati
-eseguiti push, merge, deployment, nuove credenziali o chiamate Deepgram reali.
-Non è disponibile una sessione Ddr autenticata o un telefono fisico nel workspace.
+## Letture collegate
+`snoop_records_search`: soci, prodotti, categorie, stock e quote. JWT utente,
+club esplicito, proiezioni limitate, massimo sei risultati più indicazione di troncamento.
+La ricerca soci usa la nuova RPC read-only POST: nomi nel corpo, mai nell'URL.
+La RPC è SECURITY INVOKER e usa RLS oltre al controllo del club e di manage_members.
+I nomi e i dati personali dei soci sono mostrati solo nell'app autenticata; al modello
+vanno riferimenti anonimi. Catalogo, stock e quote restituiscono solo i campi non
+personali richiesti. Le unità stock provengono dalla categoria; se mancanti non vengono
+inventate. La memoria dei riferimenti è limitata alla connessione e pulita alla chiusura.
 
-Rollback: disabilitare prima il solo flag vocale e ripristinare il precedente codice
-verificato. Conservare registro e RPC per audit/riconciliazione: non eliminare dati
-né invertire automaticamente impostazioni che un amministratore abbia poi modificato.
+Sono mantenuti i servizi vocali preesistenti di cassa giornaliera/intervallo, navigazione,
+bozze, vocabolario e fonti botaniche. Nessuna seconda logica contabile o wallet.
+
+## Evidenze e limiti della verifica
+- Suite unit/integration e TypeScript; build Node e Worker, dry-run.
+- PostgreSQL/PGlite isolato: RPC originali applicate dal repository, persistenza reale,
+  RLS, privilegi, conferma, prezzo cambiato, token errato, cancellazione, replay,
+  rollback, risposta persa dopo commit, cross-club per ogni nuova operazione.
+- PostgreSQL 17 in Docker con rete none: sette sessioni concorrenti, attese su lock
+  osservate, un solo rinnovo/ricevuta/audit e importo 1000 centesimi una sola volta.
+- Workerd sorgente/compilato: lettura, riferimenti tipizzati, conferma ed esito server,
+  doppio clic, controllo stato e cancellazione; upstream HTTP/provider sintetici.
+- Chromium/WebKit: quattro profili Samsung, iPhone, desktop e tablet; riepilogo socio,
+  piano, importo e metodo, conferma, cancellazione e stato incerto. Provider sintetico.
+- Percorso PCM nativo e regressioni dei moduli preesistenti verificati separatamente.
+
+Non è stata misurata l'accuratezza STT reale, la latenza Deepgram o l'udibilità fisica.
+Nel workspace e nei file di configurazione previsti non sono presenti DEEPGRAM_API_KEY,
+credenziali Cloudflare utilizzabili o una sessione autenticata Ddr. Nessuna chiave
+nuova creata o estratta. Non creare endpoint pubblici di diagnostica per aggirare il blocco.
+
+## Parti ancora non collegate a scrittura
+Creazione/modifica persistente anagrafica socio, creazione completa prodotto, rettifiche
+stock, transazioni ordini, scritture Caja e Monedero non sono implementate nel registro.
+I flussi manuali restano quelli esistenti, con controlli e conferme originali.
+La registrazione manuale controlla documenti, firma e campi obbligatori del club che
+la vecchia RPC da sola non verifica completamente: esporla direttamente aggirerebbe
+quelle protezioni. Occorre prima un validatore server condiviso e integrazione con gli
+input umani esistenti. Non vengono fabricate firme, documenti o accettazioni.
+Non è aggiunta automazione di distribuzione di sostanze regolamentate.
+
+La risoluzione dopo un completo ricaricamento dell'app richiede ancora una vista delle
+richieste pendenti: il controllo esito nella sessione attiva è implementato. Non
+presentare una richiesta preparata/cancellata come operazione completata.
+
+## Attivazione e rollback
+`snoop_execute` resta disabilitato senza SNOOP_VOICE_EXECUTION_PILOT_ENABLED=true.
+Il flag non è stato configurato. La proposta SQL unica
+`docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql` sostituisce quella precedente NON
+applicata da Codex. Se è stata applicata da altri, il controllo iniziale si ferma:
+serve un upgrade revisionato, non eliminare il registro né rieseguire la proposta.
+Verificare prima schema reale, dipendenze RPC e conflitti. Nessuna migrazione automatica.
+
+Il futuro rilascio richiede autorizzazione specifica, CI sul commit esatto, preflight
+binding/secret protetto e allowlist Pilot invariata. REAL rimane disattivato.
+Rollback: disabilitare il solo flag e ripristinare il codice verificato; mantenere
+registro/RPC per audit e riconciliazione. Non invertire dati o movimenti automaticamente.

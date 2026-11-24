@@ -4,6 +4,8 @@ import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 const pendingResume = process.argv.includes("--pending-resume");
+const thirdExecutionId = "70000000-0000-4000-8000-000000000003";
+const secondExecutionId = "70000000-0000-4000-8000-000000000002";
 const executionUI = process.argv.includes("--execution-ui");
 const startupOnly = process.argv.includes("--startup-only");
 const nativeAudio = process.argv.includes("--native-audio");
@@ -109,7 +111,8 @@ for (const [label, engine, device] of [
       stops = 0;
     const unexpected = [];
     let executionConfirms = 0,
-      executionChecks = 0;
+      executionChecks = 0,
+      executionCancels = 0;
     let capturedInputBytes = 0,
       capturedInputSignal = false;
     let firstReady;
@@ -463,9 +466,22 @@ for (const [label, engine, device] of [
         if (executionUI && m.type === "AppExecutionConfirm") {
           executionConfirms++;
           assert.equal(m.confirmed, true);
-          assert.equal(m.id, club);
+          assert([club, secondExecutionId].includes(m.id));
           assert.equal(m.token, uid);
-          peer.send(JSON.stringify({ type: "AppExecutionResult", id: club, status: "uncertain" }));
+          peer.send(
+            JSON.stringify({
+              type: "AppExecutionResult",
+              id: m.id,
+              status: m.id === club ? "uncertain" : "completed",
+            }),
+          );
+          return;
+        }
+        if (executionUI && m.type === "AppExecutionCancel") {
+          executionCancels++;
+          assert.equal(m.id, thirdExecutionId);
+          assert.equal(m.token, uid);
+          peer.send(JSON.stringify({ type: "AppExecutionResult", id: m.id, status: "cancelled" }));
           return;
         }
         if (executionUI && m.type === "AppExecutionCheck") {
@@ -553,11 +569,59 @@ for (const [label, engine, device] of [
       await panel.getByRole("button", { name: "Verifica esito", exact: true }).click();
       await panel
         .getByRole("status")
-        .filter({ hasText: "Impostazione salvata e verificata dal server." })
+        .filter({ hasText: "Operazione completata e verificata dal server." })
         .waitFor();
+      peer.send(
+        JSON.stringify({
+          type: "AppPrivateRecords",
+          kind: "members",
+          rows: [{ ref: "record-1", first_name: "Ana", last_name: "Synthetic" }],
+        }),
+      );
+      await panel
+        .locator('[aria-label="Registros autorizados"]')
+        .getByText("1. Ana Synthetic", { exact: true })
+        .waitFor();
+      peer.send(
+        JSON.stringify({
+          type: "AppExecutionPrepared",
+          id: secondExecutionId,
+          token: uid,
+          action: "member.renew",
+          summary: {
+            label: "Renovar cuota",
+            member_name: "Ana Synthetic",
+            plan: "Synthetic fee",
+            amount_cents: 1000,
+            method: "cash",
+          },
+        }),
+      );
+      const review = panel.locator('[aria-label="Conferma operazione"]');
+      await review.getByText("Ana Synthetic", { exact: true }).waitFor();
+      assert((await review.innerText()).includes("10,00"));
+      assert((await review.innerText()).includes("Efectivo"));
+      await review.getByRole("button", { name: "Conferma modifica", exact: true }).click();
+      await review.waitFor({ state: "hidden" });
+      peer.send(
+        JSON.stringify({
+          type: "AppExecutionPrepared",
+          id: thirdExecutionId,
+          token: uid,
+          action: "category.update",
+          summary: {
+            label: "Actualizar categoría",
+            name: "Synthetic",
+            changes: { name: "Cancelled name", archived: true },
+          },
+        }),
+      );
+      await panel.getByRole("button", { name: "Annulla proposta", exact: true }).click();
+      await review.waitFor({ state: "hidden" });
+      assert.equal(executionCancels, 1);
       assert.equal(writes, 0);
       await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
-      assert.equal(executionConfirms, 1);
+      assert.equal(executionConfirms, 2);
       assert.equal(executionChecks, 1);
       browserResults.push({
         browser: label,

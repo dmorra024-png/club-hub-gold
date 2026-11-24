@@ -24,6 +24,8 @@ jobs:
       - run: npm test
       - name: PostgreSQL concurrent accounting checks (synthetic, isolated)
         run: npm run test:annulment:concurrency
+      - name: PostgreSQL concurrent confirmed voice execution (synthetic, isolated)
+        run: node scripts/test-voice-execution-concurrency.mjs
       - run: npm run typecheck
       - run: npm run build
       - name: Account HTTP smoke test

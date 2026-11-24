@@ -276,3 +276,38 @@ an implementation inventory, not a claim that every entry has voice coverage. Ex
 write confirmation remains the manual authorized application flow; this branch does not
 claim complete voice execution or full parity. Regulated product fulfillment is not added
 to the voice tools. No live write is enabled as part of these tests.
+
+## Shared execution registry — local development candidate, 24 November
+
+The unactivated extension in `voice/execution-registry.ts` / `execution.server.ts`
+uses one confirmation/transaction/audit engine. Its SQL is a review-only replacement
+of the previous unapplied proposal; it fails if that schema is already present.
+No production migration, flag change, merge or deployment has occurred.
+
+| Manual operation | Voice tool / registered action | Permission | Existing service | Confirmation | Evidence |
+|---|---|---|---|---|---|
+| Search members | snoop_records_search / members | manage_members | member SELECT under RLS, new read-only POST wrapper | No | SQL + adapter; names private to app, references only to model |
+| Read products/categories/stock | snoop_records_search | manage_products | Existing scoped SELECTs | No | SQL/RLS + HTTP adapter; units read from real category |
+| Consult membership plans | snoop_records_search / membership_plans | manage_members | Existing scoped SELECT | No | SQL/RLS + HTTP adapter |
+| Enable/disable entrance control | access_control.set | admin | snoop_set_club_access_control | Manual button + scoped token | Real SQL, replay, permission, rollback tests |
+| Rename/archive/restore category | category.update | manage_products | manage_administrative_category | Same common confirmation | Real SQL; linked stock retained |
+| Edit informational product description | product.description | manage_products | save_administrative_product_checked | Same common confirmation | Real SQL; stock/prices/history unchanged; fractional legacy prices rejected |
+| Renew member fee | member.renew | manage_members; use_cash for paid fee | confirm_membership_with_receipt | Exact member/plan/amount/method reviewed | Real SQL + 7 actual concurrent PostgreSQL sessions; one receipt |
+| Existing day/period cash reports | existing cash tools | Existing report permissions | Existing ledger reader | Read only | Previous tests retained; no second accounting engine |
+
+Record IDs for new voice writes must originate from session-scoped references returned
+by an authorized search. Unknown, expired or wrong-kind references fail before prepare.
+Personal member search text travels in POST JSON, not URL query parameters. Members'
+names/details are displayed only in the authenticated app; the model receives anonymous
+references. Only non-personal requested catalog/stock/fee fields are returned to it.
+The current voice pilot allowlist remains Ddr/admin; SQL also tests permitted catalog
+collaborators without globally enabling them on voice.
+
+This is NOT complete manual/voice parity. Member registration/edit persistence, full
+product creation, stock writes, order transactions, cash-session writes and wallet
+transactions are not wired into this registry. Existing manual flows and their
+confirmations remain intact. In particular, the registration route enforces document,
+signature and configurable club-field requirements that its underlying old RPC does
+not fully enforce; directly exposing that RPC would bypass the existing human checks.
+Those checks need a shared server validator before safe voice registration, not a
+claim of successful creation. No regulated-distribution automation is added here.

@@ -1,23 +1,53 @@
 {
-  "scope": "club entrance-control setting only",
-  "unitTests": 504,
+  "scope": "Shared server execution registry: access control, category lifecycle, informational product description, association membership renewal; five authorized record read kinds",
+  "unitTests": 519,
   "typecheck": "PASS",
   "nodeBuild": "PASS",
   "workerBuild": "PASS",
   "workerDryRun": "PASS",
+  "bundleCredentialScan": "PASS",
   "postgresql": {
     "engine": "PGlite/PostgreSQL isolated",
     "syntheticUsersAndClubs": true,
     "existingApplicationRPCs": true,
-    "cases": 6,
-    "result": "PASS"
+    "cases": 17,
+    "result": "PASS",
+    "verification": [
+      "actual read-back persistence",
+      "receipt and membership audit",
+      "cross-club denial",
+      "staff permissions",
+      "stale price and plan duration rejection",
+      "rollback",
+      "cancel without business reversal",
+      "durable idempotency",
+      "lost-response reconciliation"
+    ]
+  },
+  "concurrency": {
+    "engine": "PostgreSQL 17.11",
+    "sessions": 7,
+    "lockWaitersObserved": 1,
+    "synthetic": true,
+    "network": "none",
+    "productionDatabase": false,
+    "liveDeepgram": false,
+    "result": "PASS",
+    "audit": 1,
+    "amount": 1000,
+    "expires": "2030-01-31",
+    "receipts": 1,
+    "operations": 1
   },
   "workerd": {
     "source": "PASS",
     "compiled": "PASS",
+    "withoutOptionalThinkingEvents": "PASS",
     "providerAndHttpBackend": "synthetic",
+    "typedRecordReferences": "PASS",
     "duplicateConfirmation": "PASS",
-    "statusReconciliation": "PASS"
+    "statusReconciliation": "PASS",
+    "cancelProposal": "PASS"
   },
   "browser": {
     "engines": [
@@ -37,8 +67,20 @@
     "provider": "synthetic"
   },
   "liveDeepgram": false,
+  "liveDeepgramBlock": "No usable Deepgram/Cloudflare credential or authenticated Ddr session available in this workspace; no credentials extracted or created",
   "productionDatabaseTouched": false,
   "migrationApplied": false,
   "pilotFlagEnabled": false,
-  "githubCIOnThisBranch": "not run; local branch not published"
+  "merge": false,
+  "deployment": false,
+  "githubCIOnThisBranch": "Pending development push; local checks above only",
+  "notImplemented": [
+    "persistent member registration and demographic edits",
+    "complete product creation",
+    "stock writes",
+    "order transactions",
+    "cash writes",
+    "wallet writes",
+    "pending-request recovery after full page reload"
+  ]
 }

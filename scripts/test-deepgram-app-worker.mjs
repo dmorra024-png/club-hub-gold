@@ -3,7 +3,8 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { readdir } from "node:fs/promises";
-const executionMode = process.argv.includes("--execution");
+const registryMode = process.argv.includes("--registry");
+const executionMode = process.argv.includes("--execution") || registryMode;
 const compiled = process.argv.includes("--compiled");
 const closeRetryOnly = process.argv.includes("--close-retry");
 const noThinking = process.argv.includes("--no-thinking");
@@ -47,13 +48,18 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
    if(p.p_operation==='close'){closeAttempts++;closeDurations.push(p.p_connected_ms);if(closeAttempts===1)return Response.json({message:'synthetic transient close failure'},{status:503});}
    return Response.json({session:p.p_id,sequence:p.p_sequence,state:p.p_operation==='close'?'closed':'active',leaseUntil:new Date(Date.now()+30000).toISOString(),reservedSeconds:30*(p.p_sequence+1),remainingSeconds:3500,monthlySeconds:3600,connectedMs:p.p_connected_ms,estimatedMicrousd:null,billedCostVerified:false});
   }
-  if(u.pathname==='/rest/v1/rpc/snoop_voice_access'){
+  if(u.pathname==='/rest/v1/rpc/snoop_voice_command'){
    if(token!=='Bearer synthetic.authorized.token')throw Error('Execution identity');
    const body=await req.json();let value=executionRecords.get(body.p_request);
-   if(body.p_operation==='prepare'){value={id:body.p_request,status:'confirmation_required',enabled:body.p_enabled,result:null,token:'${uid}'};executionRecords.set(body.p_request,value);}
+   if(body.p_operation==='prepare'){value={id:body.p_request,status:'confirmation_required',action:body.p_action,summary:body.p_action==='access_control.set'?{label:'Control',enabled:body.p_arguments.enabled}:{label:'Category',name:body.p_arguments.name,archived:body.p_arguments.archived,id:body.p_arguments.id},result:null,token:'${uid}'};executionRecords.set(body.p_request,value);}
    if(!value)return new Response('missing',{status:404});
-   if(body.p_operation==='confirm'){if(body.p_token!=='${uid}')throw Error('Confirmation token');if(value.status!=='completed'){executionWrites++;value={...value,status:'completed',result:{enabled:value.enabled},token:null};executionRecords.set(body.p_request,value);}}
+   if(body.p_operation==='cancel'){if(body.p_token!=='${uid}'||value.status==='completed')throw Error('Invalid cancellation');value={...value,status:'cancelled',token:null};executionRecords.set(body.p_request,value);}
+   if(body.p_operation==='confirm'){if(value.status==='cancelled')throw Error('Cancelled');if(body.p_token!=='${uid}')throw Error('Confirmation token');if(value.status!=='completed'){executionWrites++;value={...value,status:'completed',result:value.action==='access_control.set'?{enabled:value.summary.enabled}:{id:value.summary.id,name:value.summary.name,archived:value.summary.archived},token:null};executionRecords.set(body.p_request,value);}}
    return Response.json(value);
+  }
+  if(u.pathname==='/rest/v1/product_categories'&&u.searchParams.get('select')==='id,name,archived'){
+    if(token!=='Bearer synthetic.authorized.token'||u.searchParams.get('club_id')!=='eq.${club}'||u.searchParams.get('limit')!=='7')throw Error('Registry read scope');
+    return Response.json([{id:'00000000-0000-4000-8000-000000000201',name:'Synthetic category',archived:false}]);
   }
   authCalls++;tables.push(u.pathname);if(token.includes('revoked'))return new Response('denied',{status:401});
   if(u.pathname==='/auth/v1/user')return Response.json({id:token.includes('otheruser')?'00000000-0000-4000-8000-000000000002':'${uid}'});
@@ -84,11 +90,18 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
     p[1].send(JSON.stringify({type:'SettingsApplied'}));
    }
    if(m.type==='FunctionCallResponse'){const r=JSON.parse(m.content);
-    if(m.name==='snoop_access_control'){if(!r.ok||r.status!=='completed'||r.persisted!==true||m.content.includes('${uid}'))throw Error('Unverified execution outcome');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));return;}
+    if(m.name==='snoop_execution_status'){if(r.status!=='cancelled'||r.persisted!==false||r.readOnly!==true)throw Error('False completion after cancellation');tools++;return;}
+    if(m.name==='snoop_cancel_pending'){if(r.status!=='cancel_confirmation_requested')throw Error('Cancel preparation');tools++;return;}
+    if(m.name==='snoop_execute'&&r.status==='cancelled'){if(r.persisted!==false)throw Error('Cancelled operation was applied');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));return;}
+    if(m.name==='snoop_records_search'){if(!r.ok||r.references.length!==1||m.content.includes('FORBIDDEN_MEMBER'))throw Error('Registry privacy');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'registry-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify({action:'category.update',arguments:{id:r.references[0].ref,name:'Updated category',archived:true}})}]}));return;}
+    if(m.name==='snoop_access_control'||m.name==='snoop_execute'){if(!r.ok||r.status!=='completed'||r.persisted!==true||m.content.includes('${uid}'))throw Error('Unverified execution outcome');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));return;}
     if(m.name==='snoop_catalog_search'){if(!r.ok||r.persisted!==false||r.matches.length!==1||r.matches[0]!=='Flores Especial')throw Error('Catalog lookup result');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'product',target:'product_create',member:{},product:{name:'Synthetic',category:'Flores Especial'},query:null,declined:[],question:'',asking:null})}]}));return;}
 if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
   }else{
    if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
+   if(new Uint8Array(e.data)[0]===8){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'status-'+count,name:'snoop_execution_status',client_side:true,arguments:'{}'}]}));return;}
+   if(new Uint8Array(e.data)[0]===7){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cancel-'+count,name:'snoop_cancel_pending',client_side:true,arguments:'{}'}]}));return;}
+   if(new Uint8Array(e.data)[0]===6){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'records-'+count,name:'snoop_records_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Synthetic'})}]}));return;}
    if(new Uint8Array(e.data)[0]===5){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'execute-'+count,name:'snoop_access_control',client_side:true,arguments:JSON.stringify({enabled:false})}]}));return;}
    if([3,4].includes(new Uint8Array(e.data)[0])){const period=new Uint8Array(e.data)[0]===3;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'read-'+count,name:period?'snoop_cash_period':'snoop_genetics_information',client_side:true,arguments:JSON.stringify(period?{from:'2026-10-24',to:'2026-10-25'}:{name:'Amnesia Haze'})}]}));return;}
    if(new Uint8Array(e.data)[0]===2){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-'+count,name:'snoop_catalog_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Flores Especial'})}]}));return;}
@@ -323,6 +336,67 @@ try {
     );
     assert.equal((await stats()).executionWrites, 1);
   }
+  if (registryMode) {
+    const bytes = new Uint8Array(4800);
+    bytes[0] = 6;
+    s.ws.send(bytes.buffer);
+    await until(() =>
+      s.events.some((e) => e.type === "AppExecutionPrepared" && e.action === "category.update"),
+    );
+    assert(
+      s.events.some(
+        (e) => e.type === "AppPrivateRecords" && e.rows[0].name === "Synthetic category",
+      ),
+    );
+    const p = s.events.find(
+      (e) => e.type === "AppExecutionPrepared" && e.action === "category.update",
+    );
+    assert.equal((await stats()).executionWrites, 1);
+    s.ws.send(
+      JSON.stringify({ type: "AppExecutionConfirm", id: p.id, token: p.token, confirmed: true }),
+    );
+    await until(() =>
+      s.events.some(
+        (e) => e.type === "AppExecutionResult" && e.id === p.id && e.status === "completed",
+      ),
+    );
+    assert.equal((await stats()).executionWrites, 2);
+    s.ws.send(bytes.buffer);
+    await until(
+      () =>
+        s.events.filter((e) => e.type === "AppExecutionPrepared" && e.action === "category.update")
+          .length === 2,
+    );
+    const next = s.events.filter(
+      (e) => e.type === "AppExecutionPrepared" && e.action === "category.update",
+    )[1];
+    const cancelAudio = new Uint8Array(4800);
+    cancelAudio[0] = 7;
+    s.ws.send(cancelAudio.buffer);
+    await until(() =>
+      s.events.some((e) => e.type === "AppExecutionCancelRequested" && e.id === next.id),
+    );
+    s.ws.send(JSON.stringify({ type: "AppExecutionCancel", id: next.id, token: next.token }));
+    await until(() =>
+      s.events.some(
+        (e) => e.type === "AppExecutionResult" && e.id === next.id && e.status === "cancelled",
+      ),
+    );
+    assert.equal((await stats()).executionWrites, 2);
+    const beforeStatus = (await stats()).tools;
+    const statusAudio = new Uint8Array(4800);
+    statusAudio[0] = 8;
+    s.ws.send(statusAudio.buffer);
+    await until(
+      () =>
+        s.events.filter(
+          (e) => e.type === "AppExecutionResult" && e.id === next.id && e.status === "cancelled",
+        ).length === 2,
+    );
+    for (let n = 0; n < 50 && (await stats()).tools === beforeStatus; n++)
+      await new Promise((r) => setTimeout(r, 20));
+    assert.equal((await stats()).tools, beforeStatus + 1);
+  }
   await until(
     () =>
       s.events.some((e) => e.type === "AppAudioHealth" && e.inputBytes > 0 && e.outputBytes > 0),
@@ -364,7 +438,10 @@ try {
     "retry must not charge network outage time",
   );
   assert.equal(final.forbiddenCalls, 0);
-  assert.equal(final.tools, conversationTurns + 5 + (executionMode ? 1 : 0));
+  assert.equal(
+    final.tools,
+    conversationTurns + 5 + (executionMode ? 1 : 0) + (registryMode ? 6 : 0),
+  );
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
   console.log(

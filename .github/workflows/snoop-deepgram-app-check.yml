@@ -49,7 +49,7 @@ jobs:
       - name: Compiled application WebSocket regression (synthetic)
         run: node scripts/test-deepgram-app-worker.mjs --compiled
       - name: Confirmed execution gateway (synthetic backend, no production writes)
-        run: node scripts/test-deepgram-app-worker.mjs --compiled --execution --close-retry
+        run: node scripts/test-deepgram-app-worker.mjs --compiled --registry --close-retry
       - name: Scan public bundle for credentials
         run: npm run test:security:bundle
       - name: No deployment or database writes
