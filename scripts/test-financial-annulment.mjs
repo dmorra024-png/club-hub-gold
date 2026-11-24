@@ -253,6 +253,14 @@ for (const [label, engine, device] of [
           };
         else if (u.pathname.endsWith("/rpc/current_club_id")) data = effectiveClub;
         else if (u.pathname.endsWith("/rpc/is_super_admin")) data = false;
+        else if (u.pathname.endsWith("/rpc/snoop_inventory_cost_report"))
+          // Read-only Pilot valuation RPC returns a JSON object, not a row array.
+          data = {
+            day: "2026-11-24", opening_eur: 0, incoming_eur: 0, outgoing_eur: 0,
+            closing_eur: 0, opening_sale_eur: 0, incoming_sale_eur: 0,
+            outgoing_sale_eur: 0, closing_sale_eur: 0, closing_expected_profit_eur: 0,
+            missing_sale_price: 0, missing_cost: 0, invalid_quantities: 0, lines: [],
+          };
         else if (u.pathname.endsWith("/members")) data = u.searchParams.has("id") ? member : [];
         else if (u.pathname.endsWith("/orders")) {
           assert.equal(u.searchParams.get("club_id"), `eq.${effectiveClub}`);
