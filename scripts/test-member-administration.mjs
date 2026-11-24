@@ -140,6 +140,7 @@ try {
       );
     else if (
       url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
+      url.pathname.endsWith("/rpc/snoop_register_member_with_avalador") ||
       url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
     ) {
       const payload = request.postDataJSON();
