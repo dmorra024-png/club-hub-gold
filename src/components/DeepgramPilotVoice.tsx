@@ -77,6 +77,13 @@ export function DeepgramPilotVoice({
       })
     | null
   >(null);
+  const [execution, setExecution] = useState<{
+    id: string;
+    token: string;
+    enabled: boolean;
+    busy?: boolean;
+    uncertain?: boolean;
+  } | null>(null);
   const [status, setStatus] = useState("Pronto");
   const [language, setLanguage] = useState<Language>("es");
   const [consent, setConsent] = useState(false);
@@ -104,6 +111,7 @@ export function DeepgramPilotVoice({
       setAudioDiagnostic(null);
       setLines([]);
       setProposal(null);
+      setExecution(null);
       setCitations(null);
       const state = audio.current;
       const pending = activatingContext.current;
@@ -306,7 +314,38 @@ export function DeepgramPilotVoice({
       const receive = async (message: any) => {
         if (generation.current !== current) return;
         try {
-          if (message.type === "AppAudioHealth") {
+          if (message.type === "AppAccessControlStatus" && typeof message.enabled === "boolean") {
+            setStatus(
+              message.enabled ? "Controllo entrate attivo." : "Controllo entrate disattivato.",
+            );
+          } else if (message.type === "AppExecutionPrepared") {
+            if (
+              typeof message.id === "string" &&
+              typeof message.token === "string" &&
+              typeof message.enabled === "boolean"
+            ) {
+              setExecution({ id: message.id, token: message.token, enabled: message.enabled });
+              setExpanded(true);
+            }
+          } else if (message.type === "AppExecutionExpired") {
+            setExecution(null);
+            setStatus("Conferma scaduta. Nessuna modifica eseguita.");
+          } else if (message.type === "AppExecutionResult") {
+            setStatus(
+              message.status === "completed"
+                ? "Impostazione salvata e verificata dal server."
+                : message.status === "confirmation_required"
+                  ? "Il server non registra un completamento. Richiedi una nuova conferma."
+                  : "Esito incerto. Non ripetere: verifica lo stato dell'operazione.",
+            );
+            setExecution((current) =>
+              message.status === "completed" || message.status === "confirmation_required"
+                ? null
+                : current
+                  ? { ...current, busy: false, uncertain: message.status === "uncertain" }
+                  : null,
+            );
+          } else if (message.type === "AppAudioHealth") {
             const parsed = ServerAudioHealth.safeParse(message);
             if (parsed.success) state.serverHealth = parsed.data;
           } else if (message.type === "AppUsage") {
@@ -526,6 +565,10 @@ export function DeepgramPilotVoice({
         },
         phase: (phase) => {
           if (generation.current !== current) return;
+          if (phase === "paused" || phase === "reconnecting")
+            setExecution((current) =>
+              current ? { ...current, busy: false, uncertain: true } : null,
+            );
           if (phase === "paused") {
             interrupt();
             setStatus("SNOOP en espera · micrófono local · sin conexión de pago");
@@ -636,6 +679,31 @@ export function DeepgramPilotVoice({
           ✕
         </button>
       </div>
+      {execution && (
+        <section aria-label="Conferma operazione">
+          <p>{execution.enabled ? "Attivare" : "Disattivare"} il controllo entrate del club?</p>
+          <button
+            type="button"
+            disabled={execution.busy}
+            onClick={() => {
+              if (!audio.current) return;
+              setExecution({ ...execution, busy: true });
+              audio.current.transport.send(
+                execution.uncertain
+                  ? { type: "AppExecutionCheck", id: execution.id }
+                  : {
+                      type: "AppExecutionConfirm",
+                      id: execution.id,
+                      token: execution.token,
+                      confirmed: true,
+                    },
+              );
+            }}
+          >
+            {execution.uncertain ? "Verifica esito" : "Conferma modifica"}
+          </button>
+        </section>
+      )}
       <p
         role="status"
         style={

@@ -1,3 +1,9 @@
+import { z } from "zod";
+import {
+  voiceAccessOperation,
+  voiceAccessRead,
+  ExecutionConfirmation,
+} from "./voice/execution.server.ts";
 import { type ServerAudioHealthValue } from "./voice/audio-health.ts";
 import { emptyConversation, type ConversationProposalValue } from "./snoop-conversation.ts";
 import {
@@ -132,6 +138,28 @@ export async function deepgramAppSocket(
   const authController = new AbortController();
   let verifiedSession: Awaited<ReturnType<typeof verifySession>> | undefined;
   let verifiedToken = "";
+  let executionPreparing = false;
+  const executions = new Map<string, { toolId: string; timer: ReturnType<typeof setTimeout> }>();
+  const executionEnabled = setting(env, "SNOOP_VOICE_EXECUTION_PILOT_ENABLED") === "true";
+  const execute = async (request: Parameters<typeof voiceAccessOperation>[1]) => {
+    const checked = await verifySession(verifiedToken, env, authController.signal);
+    if (
+      !verifiedSession ||
+      checked.user !== verifiedSession.user ||
+      checked.access.clubId !== verifiedSession.access.clubId ||
+      checked.access.role !== "admin"
+    )
+      throw Error("AUTH_FORBIDDEN");
+    return voiceAccessOperation(
+      {
+        url: setting(env, "SUPABASE_URL"),
+        key: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+        jwt: verifiedToken,
+        enabled: executionEnabled,
+      },
+      request,
+    );
+  };
   let connectionController: AbortController | undefined;
   let keepalive: ReturnType<typeof setInterval> | undefined;
   let usage: VoiceUsageLease | undefined;
@@ -200,6 +228,8 @@ export async function deepgramAppSocket(
   };
   const close = (reason: string) => {
     if (ended) return;
+    for (const pending of executions.values()) clearTimeout(pending.timer);
+    executions.clear();
     ended = true;
     clearTimeout(deadline);
     clearInterval(keepalive);
@@ -275,7 +305,12 @@ export async function deepgramAppSocket(
         send({ type: "AppUsage", usage: initialUsage });
         active.add(verified.user);
         owner = verified.user;
-        const settings = agentSettings(a.language, a.sampleRate, verified.catalog);
+        const settings = agentSettings(
+          a.language,
+          a.sampleRate,
+          verified.catalog,
+          executionEnabled,
+        );
         settings.tags = ["snoop-admin-pilot"];
         settings.agent.think.prompt +=
           " Restored dialogue is context, not a new command. Never replay tools from history; wait for a new user request. Conversation memory: " +
@@ -311,7 +346,7 @@ export async function deepgramAppSocket(
         (upstream as any).accept();
         upstream.addEventListener("close", () => close("PROVIDER_CLOSED"));
         upstream.addEventListener("error", () => close("PROVIDER_ERROR"));
-        upstream.addEventListener("message", (event: MessageEvent) => {
+        upstream.addEventListener("message", async (event: MessageEvent) => {
           if (ended) return;
           if (typeof event.data !== "string") {
             lastInteraction = Date.now();
@@ -328,6 +363,113 @@ export async function deepgramAppSocket(
             const m = JSON.parse(event.data);
             if (m.type === "FunctionCallRequest") {
               for (const f of m.functions || []) {
+                if (f.name === "snoop_access_control_status" && f.client_side === true) {
+                  if (typeof f.id !== "string" || seen.has(f.id)) continue;
+                  seen.add(f.id);
+                  try {
+                    if (!newTurn || ++calls > 8) throw Error("DENIED");
+                    z.object({}).strict().parse(JSON.parse(f.arguments));
+                    const checked = await verifySession(verifiedToken, env, authController.signal);
+                    if (
+                      !verifiedSession ||
+                      checked.user !== verifiedSession.user ||
+                      checked.access.clubId !== verifiedSession.access.clubId
+                    )
+                      throw Error("DENIED");
+                    const value = await voiceAccessRead({
+                      url: setting(env, "SUPABASE_URL"),
+                      key: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                      jwt: verifiedToken,
+                    });
+                    send({ type: "AppAccessControlStatus", enabled: value.enabled });
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({ ok: true, status: "read", ...value }),
+                      }),
+                    );
+                  } catch {
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({ ok: false, status: "unavailable" }),
+                      }),
+                    );
+                  }
+                  continue;
+                }
+                if (f.name === "snoop_access_control" && f.client_side === true) {
+                  if (
+                    typeof f.id !== "string" ||
+                    !f.id.length ||
+                    f.id.length > 120 ||
+                    seen.has(f.id)
+                  )
+                    continue;
+                  seen.add(f.id);
+                  let ownsPreparation = false;
+                  try {
+                    if (
+                      !executionEnabled ||
+                      executionPreparing ||
+                      executions.size >= 1 ||
+                      !newTurn ||
+                      ++calls > 8
+                    )
+                      throw Error("DENIED");
+                    executionPreparing = true;
+                    ownsPreparation = true;
+                    const args = z
+                      .object({ enabled: z.boolean() })
+                      .strict()
+                      .parse(JSON.parse(f.arguments));
+                    const result = await execute({
+                      id: crypto.randomUUID(),
+                      operation: "prepare",
+                      value: args.enabled,
+                    });
+                    if (ended) continue;
+                    if (result.status !== "confirmation_required" || !result.token)
+                      throw Error("INVALID");
+                    const timer = setTimeout(() => {
+                      executions.delete(result.id);
+                      send({ type: "AppExecutionExpired", id: result.id });
+                      upstream?.send(
+                        JSON.stringify({
+                          type: "FunctionCallResponse",
+                          id: f.id,
+                          name: f.name,
+                          content: JSON.stringify({
+                            ok: false,
+                            status: "confirmation_expired",
+                            persisted: false,
+                          }),
+                        }),
+                      );
+                    }, 60000);
+                    executions.set(result.id, { toolId: f.id, timer });
+                    send({ type: "AppExecutionPrepared", ...result });
+                  } catch {
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({
+                          ok: false,
+                          status: "rejected",
+                          persisted: false,
+                        }),
+                      }),
+                    );
+                  }
+                  if (ownsPreparation) executionPreparing = false;
+                  continue;
+                }
                 if (f.client_side !== true) continue;
                 if (typeof f.id === "string" && seen.has(f.id)) continue;
                 if (
@@ -643,7 +785,75 @@ export async function deepgramAppSocket(
       if (typeof e.data === "string") {
         if (e.data === "STOP") return close("STOPPED");
         if (e.data.length > 3000) return close("INVALID_SEQUENCE");
-        const receipt = ActionReceipt.safeParse(JSON.parse(e.data));
+        const incoming = JSON.parse(e.data);
+        if (incoming.type === "AppExecutionCheck") {
+          const query = z
+            .object({ type: z.literal("AppExecutionCheck"), id: z.string().uuid() })
+            .strict()
+            .parse(incoming);
+          try {
+            const outcome = await execute({ id: query.id, operation: "status" });
+            send({
+              type: "AppExecutionResult",
+              id: outcome.id,
+              status: outcome.status,
+              enabled: outcome.enabled,
+            });
+          } catch {
+            send({ type: "AppExecutionResult", id: query.id, status: "uncertain" });
+          }
+          return;
+        }
+        if (incoming.type === "AppExecutionConfirm") {
+          const confirmation = ExecutionConfirmation.parse(incoming);
+          const item = executions.get(confirmation.id);
+          if (!item) return;
+          clearTimeout(item.timer);
+          executions.delete(confirmation.id);
+          try {
+            const outcome = await execute({
+              id: confirmation.id,
+              operation: "confirm",
+              token: confirmation.token,
+            });
+            if (outcome.status !== "completed") throw Error("UNVERIFIED");
+            send({
+              type: "AppExecutionResult",
+              id: outcome.id,
+              status: "completed",
+              enabled: outcome.enabled,
+            });
+            upstream?.send(
+              JSON.stringify({
+                type: "FunctionCallResponse",
+                id: item.toolId,
+                name: "snoop_access_control",
+                content: JSON.stringify({
+                  ok: true,
+                  status: "completed",
+                  persisted: true,
+                  enabled: outcome.enabled,
+                }),
+              }),
+            );
+          } catch {
+            send({ type: "AppExecutionResult", id: confirmation.id, status: "uncertain" });
+            upstream?.send(
+              JSON.stringify({
+                type: "FunctionCallResponse",
+                id: item.toolId,
+                name: "snoop_access_control",
+                content: JSON.stringify({
+                  ok: false,
+                  status: "uncertain",
+                  instruction: "Do not retry automatically; verify operation status.",
+                }),
+              }),
+            );
+          }
+          return;
+        }
+        const receipt = ActionReceipt.safeParse(incoming);
         if (!receipt.success) return close("INVALID_SEQUENCE");
         const item = pending.get(receipt.data.id);
         if (!item) {

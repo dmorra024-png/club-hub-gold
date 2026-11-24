@@ -97,6 +97,7 @@ jobs:
           TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs
           TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs --pending-resume --startup-only
           TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs --native-audio --startup-only
+          TEST_BASE_URL=http://127.0.0.1:3001 node scripts/test-deepgram-app.mjs --execution-ui
       - name: Mounted JARVIS administrative drafts with synthetic Monedero
         shell: bash
         run: |

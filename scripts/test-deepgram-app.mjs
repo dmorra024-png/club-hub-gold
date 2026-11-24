@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 const pendingResume = process.argv.includes("--pending-resume");
+const executionUI = process.argv.includes("--execution-ui");
 const startupOnly = process.argv.includes("--startup-only");
 const nativeAudio = process.argv.includes("--native-audio");
 assert(
@@ -107,6 +108,8 @@ for (const [label, engine, device] of [
       actionReceipts = [],
       stops = 0;
     const unexpected = [];
+    let executionConfirms = 0,
+      executionChecks = 0;
     let capturedInputBytes = 0,
       capturedInputSignal = false;
     let firstReady;
@@ -457,6 +460,27 @@ for (const [label, engine, device] of [
           return;
         }
         const m = JSON.parse(message);
+        if (executionUI && m.type === "AppExecutionConfirm") {
+          executionConfirms++;
+          assert.equal(m.confirmed, true);
+          assert.equal(m.id, club);
+          assert.equal(m.token, uid);
+          peer.send(JSON.stringify({ type: "AppExecutionResult", id: club, status: "uncertain" }));
+          return;
+        }
+        if (executionUI && m.type === "AppExecutionCheck") {
+          executionChecks++;
+          assert.equal(m.id, club);
+          peer.send(
+            JSON.stringify({
+              type: "AppExecutionResult",
+              id: club,
+              status: "completed",
+              enabled: false,
+            }),
+          );
+          return;
+        }
         if (m.type === "AppActionResult") {
           assert.equal(typeof m.id, "string");
           assert.notEqual(m.status, "completed");
@@ -520,6 +544,38 @@ for (const [label, engine, device] of [
       ]);
     } finally {
       clearTimeout(readyDeadline);
+    }
+    if (executionUI) {
+      peer.send(
+        JSON.stringify({ type: "AppExecutionPrepared", id: club, token: uid, enabled: false }),
+      );
+      await panel.getByRole("button", { name: "Conferma modifica", exact: true }).click();
+      await panel.getByRole("button", { name: "Verifica esito", exact: true }).click();
+      await panel
+        .getByRole("status")
+        .filter({ hasText: "Impostazione salvata e verificata dal server." })
+        .waitFor();
+      assert.equal(writes, 0);
+      await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
+      assert.equal(executionConfirms, 1);
+      assert.equal(executionChecks, 1);
+      browserResults.push({
+        browser: label,
+        scenario: "execution-confirmation",
+        confirmationRequests: executionConfirms,
+        statusReads: executionChecks,
+        syntheticGateway: true,
+        persistenceTestedSeparately: true,
+        physicalDevice: false,
+        result: "PASS",
+      });
+      console.log(
+        "PASS " +
+          label +
+          ": explicit confirmation and uncertain-result reconciliation UI (synthetic gateway; persistence tested separately in PostgreSQL)",
+      );
+      await context.close();
+      continue;
     }
     if (startupOnly) {
       assert.equal(await page.evaluate(() => window.__audio.started), 1);
@@ -1127,8 +1183,10 @@ for (const [label, engine, device] of [
 }
 
 await writeFile(
-  startupOnly
-    ? `.sandbox/deepgram/${nativeAudio ? "native-duplex" : "pending-resume"}-results.json`
-    : ".sandbox/deepgram/administrative-results.json",
+  executionUI
+    ? ".sandbox/deepgram/execution-results.json"
+    : startupOnly
+      ? `.sandbox/deepgram/${nativeAudio ? "native-duplex" : "pending-resume"}-results.json`
+      : ".sandbox/deepgram/administrative-results.json",
   JSON.stringify(browserResults, null, 2),
 );

@@ -1,0 +1,44 @@
+{
+  "scope": "club entrance-control setting only",
+  "unitTests": 504,
+  "typecheck": "PASS",
+  "nodeBuild": "PASS",
+  "workerBuild": "PASS",
+  "workerDryRun": "PASS",
+  "postgresql": {
+    "engine": "PGlite/PostgreSQL isolated",
+    "syntheticUsersAndClubs": true,
+    "existingApplicationRPCs": true,
+    "cases": 6,
+    "result": "PASS"
+  },
+  "workerd": {
+    "source": "PASS",
+    "compiled": "PASS",
+    "providerAndHttpBackend": "synthetic",
+    "duplicateConfirmation": "PASS",
+    "statusReconciliation": "PASS"
+  },
+  "browser": {
+    "engines": [
+      "Chromium",
+      "WebKit"
+    ],
+    "profiles": [
+      "Samsung",
+      "iPhone",
+      "desktop",
+      "tablet"
+    ],
+    "confirmationUI": "PASS",
+    "existingMountedFlows": "PASS",
+    "nativePCMDuplex": "PASS",
+    "physicalDevice": false,
+    "provider": "synthetic"
+  },
+  "liveDeepgram": false,
+  "productionDatabaseTouched": false,
+  "migrationApplied": false,
+  "pilotFlagEnabled": false,
+  "githubCIOnThisBranch": "not run; local branch not published"
+}
