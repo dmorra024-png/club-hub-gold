@@ -101,6 +101,7 @@ try {
       records.indexOf("ALTER TABLE public.orders ADD"),
     ),
   );
+  await psql(await readFile("tests/fixtures/voice-current-membership-rpc.sql", "utf8"));
   const access = await readFile("docs/sql/SNOOP_CLUB_MERMA_POLICY_REVIEW.sql", "utf8");
   await psql(
     access.slice(
