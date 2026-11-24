@@ -6,7 +6,7 @@ DO $$ BEGIN
  to_regprocedure('public.snoop_set_club_access_control(boolean)') IS NULL OR
  to_regprocedure('public.manage_administrative_category(uuid,text,boolean)') IS NULL OR
  to_regprocedure('public.save_administrative_product_checked(uuid,jsonb,numeric)') IS NULL OR
- to_regprocedure('public.confirm_membership_with_receipt(jsonb,uuid,text,uuid,boolean,date,integer)') IS NULL THEN
+ to_regprocedure('public.confirm_membership_with_receipt(integer,date,jsonb,text,uuid,boolean,uuid)') IS NULL THEN
  RAISE EXCEPTION 'VOICE_EXECUTION_DEPENDENCY_MISSING'; END IF;
 END $$;
 -- Personal search text is a POST body argument, never a URL query parameter.
@@ -125,7 +125,7 @@ BEGIN
     IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
     IF mid IS DISTINCT FROM (r.arguments->>'id')::uuid OR res->>'description' IS DISTINCT FROM r.arguments->>'description' THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
    WHEN 'member.renew' THEN
-    mid:=public.confirm_membership_with_receipt(jsonb_build_object('id',r.arguments->>'member_id'),(r.arguments->>'plan_id')::uuid,r.arguments->>'method',r.id,true,(v->>'expires_at')::date,(v->>'amount_cents')::int);
+    mid:=public.confirm_membership_with_receipt((v->>'amount_cents')::int,(v->>'expires_at')::date,jsonb_build_object('id',r.arguments->>'member_id'),r.arguments->>'method',(r.arguments->>'plan_id')::uuid,true,r.id);
     SELECT jsonb_build_object('id',id,'expires_at',expires_at) INTO res FROM public.members WHERE id=mid AND club_id=c;
     IF mid IS DISTINCT FROM (r.arguments->>'member_id')::uuid OR res IS NULL THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
     PERFORM 1 FROM public.members m JOIN public.membership_operations o ON o.member_id=m.id AND o.club_id=c AND o.request_id=r.id AND o.actor_id=a WHERE m.id=mid AND m.club_id=c AND m.plan_id=(r.arguments->>'plan_id')::uuid AND m.expires_at>coalesce((v->>'expires_at')::date,'-infinity'::date);
