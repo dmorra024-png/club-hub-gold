@@ -1,0 +1,21 @@
+{
+  "name": "snoop-livekit-jarvis-experiment",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "node src/main.ts dev",
+    "console": "node src/main.ts console",
+    "start": "node src/main.ts start",
+    "verify": "node src/safety.test.mjs"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.9.3",
+    "@livekit/rtc-node": "^0.13.35",
+    "dotenv": "^17.4.2",
+    "zod": "^4.6.5"
+  }
+}
