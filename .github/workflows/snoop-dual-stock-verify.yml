@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           bun run build:worker
           bun run typecheck
+          bun run test
           bun run test:security:architecture
           bun run worker:dry-run
           bun run test:security:bundle
