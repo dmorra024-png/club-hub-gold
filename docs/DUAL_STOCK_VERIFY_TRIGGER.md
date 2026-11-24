@@ -33,3 +33,5 @@ Avalador v3: named endorsers must be found among existing same-club members and 
 Fix JSX condition in confirmed avalador search UI; rerun build checks before pilot publication.
 
 JARVIS integration: retain approved SNOOP Pilot stock, avalador, finance and membership interfaces; import Codex server action registry and audio fixes; run full tests and security before any release. 2026-11-24.
+
+Integration regression fix: include Codex review-only SQL fixture for isolated test run; do not apply this review-only SQL to the already-migrated shared Supabase database.
