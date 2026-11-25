@@ -68,7 +68,6 @@ export async function voiceExecutionDatabase(club = uid(101), other = uid(102)) 
   await db.exec(await readFile("docs/sql/SNOOP_LOCATED_PRODUCT_CREATION_PILOT.sql", "utf8"));
   await db.exec(await readFile("docs/sql/SNOOP_FINANZAS_V1_PILOT.sql", "utf8"));
   await db.exec(await readFile("tests/fixtures/snoop-club-themes.owner.sql", "utf8"));
-  await db.exec(await readFile("docs/sql/SNOOP_MEMBER_MAIL_PROPOSED.sql", "utf8"));
   await db.exec(await readFile("docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql", "utf8"));
 
   return db;

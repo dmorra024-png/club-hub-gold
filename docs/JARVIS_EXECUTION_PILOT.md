@@ -3,7 +3,7 @@
 ## Stato e base effettiva
 
 PR #27; applicazione pubblicata di riferimento `459303a` (PR #63), sorgenti
-`a410848`, con avalador, doppio stock e Finanzas. L'elenco effettivo dei 30 comandi
+`a410848`, con avalador, doppio stock e Finanzas. L'elenco effettivo dei 29 comandi
 è in `JARVIS_CAPABILITY_MATRIX.json`; non equivale a certificazione di parità totale.
 Nessun merge, deployment, attivazione REAL o scrittura su database reale da questo ramo.
 
@@ -107,10 +107,8 @@ existing policy as a fixture and verify two independent clubs; no production RLS
 changed. The member-requirements read returns current required/optional/disabled
 field keys before asking registration questions, without returning member data.
 
-The additional `member.mail.request` command reuses the original QR outbox RPC and
-its legacy-cutover/retry/deduplication guards. Both configured email bindings are
-required before advertising or confirming it. Only persisted queue status is
-reported to the model/app: pending, accepted and delivered remain distinct.
-No email address, provider identifier or confirmation token is in that receipt.
-Tests prove the original legacy-review fence, one message after repeated requests,
-no outbound mail, no false delivery claim and cross-club denial.
+
+L'invito App Socio corrente resta quello manuale autenticato a sei cifre. Il vecchio
+invio QR email è ritirato dall'interfaccia e non viene aggiunto a JARVIS.
+La fixture di registrazione ora verifica il contratto avalador attuale: nessun
+fallback a RPC ritirate, nessuna riduzione dei controlli su importo o doppio clic.

@@ -2,20 +2,6 @@
   "productionSource": "3e7487088396cbd21edc99d454d88d9418dad0bb",
   "actions": [
     {
-      "action": "member.mail.request",
-      "permission": "manage_members",
-      "publicRPC": "snoop_voice_command",
-      "downstream": "snoop_member_mail_request",
-      "referenceKinds": {
-        "member_id": "members"
-      },
-      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
-      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
-      "currentPilotStatus": "only with original email bindings; records outbox request, not delivery",
-      "productionEnabled": false,
-      "physicalMicrophoneVerified": false
-    },
-    {
       "action": "theme.set",
       "permission": "admin",
       "publicRPC": "snoop_voice_command",
@@ -474,5 +460,8 @@
     "459303a122ce5ae560712a234098deb20b43fae4",
     "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
   ],
-  "memberRequirements": "actual club field configuration; no personal data; human-input restrictions preserved"
+  "memberRequirements": "actual club field configuration; no personal data; human-input restrictions preserved",
+  "retiredFeaturesNotReintroduced": [
+    "staff QR email delivery; current App Socio uses authenticated six-digit invitation"
+  ]
 }

@@ -11,7 +11,6 @@ import {
   voiceCommandOperation,
   voiceExecutionFailure,
   voiceAccessRead,
-  voiceReceiptDetails,
   ExecutionConfirmation,
 } from "./voice/execution.server.ts";
 import { type ServerAudioHealthValue } from "./voice/audio-health.ts";
@@ -216,14 +215,11 @@ export async function deepgramAppSocket(
   >();
   const executionEnabled = setting(env, "SNOOP_VOICE_EXECUTION_PILOT_ENABLED") === "true";
   const walletEnabled = setting(env, "SNOOP_WALLET_OPERATIONS_ENABLED") === "true";
-  const mailEnabled = !!setting(env, "EMAIL_API_KEY") && !!setting(env, "EMAIL_FROM");
   const execute = async (
     request: Parameters<typeof voiceCommandOperation>[1] & { value?: boolean },
   ) => {
     if (request.action?.startsWith("wallet.") && !walletEnabled)
       throw Error("VOICE_WALLET_DISABLED");
-    if (request.action === "member.mail.request" && !mailEnabled)
-      throw Error("VOICE_MAIL_UNAVAILABLE");
     const checked = await verifySession(verifiedToken, env, authController.signal);
     if (
       !verifiedSession ||
@@ -240,12 +236,10 @@ export async function deepgramAppSocket(
     };
     // A restored confirmation has no action argument. Re-check its authoritative
     // action before a wallet write when the wallet rollout has been disabled.
-    if ((!walletEnabled || !mailEnabled) && ["confirm", "recover"].includes(request.operation)) {
+    if (!walletEnabled && ["confirm", "recover"].includes(request.operation)) {
       const prior = await voiceCommandOperation(transport, { id: request.id, operation: "status" });
       if (!walletEnabled && prior.action.startsWith("wallet."))
         throw Error("VOICE_WALLET_DISABLED");
-      if (!mailEnabled && prior.action === "member.mail.request")
-        throw Error("VOICE_MAIL_UNAVAILABLE");
     }
     return voiceCommandOperation(transport, {
       ...request,
@@ -406,7 +400,6 @@ export async function deepgramAppSocket(
           verified.catalog,
           executionEnabled,
           walletEnabled,
-          mailEnabled,
         );
         settings.tags = ["snoop-admin-pilot"];
         settings.agent.think.prompt +=
@@ -599,7 +592,6 @@ export async function deepgramAppSocket(
                     send({
                       type: "AppExecutionResult",
                       id: result.id,
-                      ...voiceReceiptDetails(result),
                       status: result.status,
                       action: result.action,
                     });
@@ -611,7 +603,6 @@ export async function deepgramAppSocket(
                         content: JSON.stringify({
                           ok: true,
                           status: result.status,
-                          ...voiceReceiptDetails(result),
                           persisted: result.status === "completed",
                           action: result.action,
                           readOnly: true,
@@ -1284,7 +1275,6 @@ export async function deepgramAppSocket(
               send({
                 type: "AppExecutionResult",
                 id: result.id,
-                ...voiceReceiptDetails(result),
                 status: result.status,
                 action: result.action,
               });
@@ -1339,7 +1329,6 @@ export async function deepgramAppSocket(
             send({
               type: "AppExecutionResult",
               id: outcome.id,
-              ...voiceReceiptDetails(outcome),
               status: outcome.status,
               action: outcome.action,
               enabled: outcome.enabled,
@@ -1368,17 +1357,12 @@ export async function deepgramAppSocket(
             });
             if (outcome.status !== "completed") throw Error("UNVERIFIED");
             const reference = outcomeReference(outcome);
-            const mailStatus =
-              outcome.action === "member.mail.request"
-                ? (outcome.result as { status: string }).status
-                : undefined;
             send({
               type: "AppExecutionResult",
               id: outcome.id,
               status: "completed",
               action: outcome.action,
               enabled: outcome.enabled,
-              mailStatus,
             });
             if (item.toolId)
               upstream?.send(
@@ -1392,7 +1376,6 @@ export async function deepgramAppSocket(
                     persisted: true,
                     action: outcome.action,
                     reference,
-                    mailStatus,
                   }),
                 }),
               );

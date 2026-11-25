@@ -140,9 +140,19 @@ try {
       );
     else if (
       url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
-      url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
+      url.pathname.endsWith("/rpc/confirm_membership_with_receipt") ||
+      url.pathname.endsWith("/rpc/snoop_register_member_with_avalador")
     ) {
       const payload = request.postDataJSON();
+      if(!payload.p_renew) {
+        assert.ok(url.pathname.endsWith("/rpc/snoop_register_member_with_avalador"),"Creation must use the current avalador RPC, never the retired registration contract");
+        assert.deepEqual(Object.keys(payload).sort(),["p_confirmed_cents","p_member","p_method","p_plan_id","p_request"]);
+        assert.equal(payload.p_confirmed_cents,plan.price_cents);
+        assert.equal(payload.p_request,payload.p_member.id);
+        assert.equal(payload.p_member.club_id,clubId);
+        assert.equal(payload.p_member.created_by,userId);
+        assert.equal(payload.p_member.avalador_member_number,"");
+      }
       if (rejectRegistration && !payload.p_renew) {
         return route.fulfill({ status: 400, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ code: "PGRST202", message: "Prueba: función de inscripción no disponible" }) });
       }

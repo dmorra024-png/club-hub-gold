@@ -1,6 +1,5 @@
 import { pendingExecution } from "@/lib/voice/pending-execution";
 import { getClubTheme } from "@/lib/club-theme-storage";
-import { memberMailLabel } from "@/lib/member-mail-state";
 import {
   CaptureHealth,
   ServerAudioHealth,
@@ -437,9 +436,7 @@ export function DeepgramPilotVoice({
               ).clear(message.id);
             setStatus(
               message.status === "completed"
-                ? message.action === "member.mail.request" && typeof message.mailStatus === "string"
-                  ? memberMailLabel(message.mailStatus)
-                  : "Operazione completata e verificata dal server."
+                ? "Operazione completata e verificata dal server."
                 : message.status === "cancelled"
                   ? "Proposta annullata. Nessuna operazione eseguita."
                   : message.status === "confirmation_required"

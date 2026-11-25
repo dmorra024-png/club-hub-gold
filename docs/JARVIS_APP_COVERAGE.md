@@ -13,7 +13,7 @@ idempotente con posizione esplicita. Non sostituisce il ramo pubblicato.
 
 ## Registro comune e persistenza
 
-`JARVIS_CAPABILITY_MATRIX.json` deriva dagli schemi e permessi effettivi: 30 comandi
+`JARVIS_CAPABILITY_MATRIX.json` deriva dagli schemi e permessi effettivi: 29 comandi
 amministrativi registrati, ricerche bounded e ispettori condivisi. Ogni capacità ha
 input/output Zod, autorizzazione, riferimenti emessi dal server, conferma manuale,
 chiave persistente, lock, verifica dello snapshot, audit e rilettura del risultato.
@@ -46,9 +46,8 @@ Il singolo helper privato non è concesso agli utenti e non espone SQL/RPC arbit
   ruoli admin né cancella utenti Auth.
 - Tema: selezione delle sette palette esistenti, conferma e rilettura del tema;
   policy del proprietario verificata su due club sintetici, senza modificare RLS reale.
-- QR email: richiesta/retry nella coda originale, solamente con entrambi i binding
-  email già configurati. Pending, accepted e delivered restano distinti; un messaggio
-  accodato non viene dichiarato consegnato. Nessun indirizzo o provider ID nel receipt AI.
+- App Socio: conservato l'invito autenticato a sei cifre del flusso manuale corrente.
+  Il vecchio invio QR email non viene reintrodotto come nuovo comando JARVIS.
 - Navigazione, ricerche, bozze, correzioni e consultazione botanica con fonti rimangono
   sulle porte autorizzate e sulle schermate esistenti, senza click DOM simulati.
 
@@ -79,3 +78,14 @@ resta da verificare. Non sono state estratte o sostituite credenziali.
 La proposta SQL unica NON è applicata; voice_usage_budget non viene riapplicata.
 REAL, merge e deployment restano disattivati/non eseguiti. Servono revisione dello
 schema reale e autorizzazione specifica prima del futuro rilascio del commit esatto.
+
+## Regressione CI individuata sul primo push
+
+Run `45572454853`, `test-member-administration.mjs:231`: mancata navigazione dopo
+la conferma. La schermata invocava correttamente `snoop_register_member_with_avalador`,
+ma la fixture riconosceva soltanto le precedenti RPC e restituiva un array vuoto.
+Il controllo applicativo di `savedId` rifiutava correttamente quell'esito non verificato.
+La fixture ora valida le cinque chiavi attuali, identità/club/importo/request ID e
+rifiuta il contratto di creazione ritirato; rinnovi e controllo del doppio clic restano.
+Anche i test di assenza di salvataggi vocali riconoscono la nuova RPC come scrittura.
+Nessun timeout allungato, controllo di sicurezza rimosso o falso successo introdotto.

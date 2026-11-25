@@ -129,7 +129,8 @@ try {
       else if (
         (url.pathname.endsWith("/members") && req.method() !== "GET") ||
         url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
-        url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
+        url.pathname.endsWith("/rpc/confirm_membership_with_receipt") ||
+        url.pathname.endsWith("/rpc/snoop_register_member_with_avalador")
       )
         writes++;
       if (req.headers().accept?.includes("vnd.pgrst.object+json") && Array.isArray(data))

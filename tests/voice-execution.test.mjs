@@ -1612,32 +1612,3 @@ test("theme execution reuses the existing seven palettes and the owner's RLS kee
   );
   assert.deepEqual(await command(1, uid(1131), "confirm", null, null, prepared.token), done);
 });
-
-test("QR email command reuses the original outbox and never labels queue acceptance as delivery", async () => {
-  const args = { member_id: uid(501), retry: false };
-  const legacy = await command(1, uid(1140), "prepare", "member.mail.request", args);
-  await assert.rejects(
-    () => command(1, uid(1140), "confirm", null, null, legacy.token),
-    /Reconciliar/,
-  );
-  assert.equal((await db.query("select id from public.snoop_member_mail")).rows.length, 0);
-  await db.query(
-    "insert into public.snoop_member_mail_legacy_review(member_id,club_id)values($1,$2)",
-    [uid(501), club],
-  );
-  const prepared = await command(1, uid(1141), "prepare", "member.mail.request", args);
-  assert.equal((await db.query("select id from public.snoop_member_mail")).rows.length, 0);
-  const done = await command(1, uid(1141), "confirm", null, null, prepared.token);
-  assert.equal(done.result.status, "pending");
-  assert.equal(done.result.attempts, 0);
-  assert.deepEqual(await command(1, uid(1141), "confirm", null, null, prepared.token), done);
-  const again = await confirmCommand(1, uid(1142), "member.mail.request", args);
-  assert.equal(again.result.id, done.result.id);
-  assert.equal(again.result.status, "pending");
-  assert.equal((await db.query("select id from public.snoop_member_mail")).rows.length, 1);
-  assert(!(await db.query("select provider_id from public.snoop_member_mail")).rows[0].provider_id);
-  await assert.rejects(
-    () => command(2, uid(1143), "prepare", "member.mail.request", args),
-    /REFERENCE_NOT_FOUND/,
-  );
-});

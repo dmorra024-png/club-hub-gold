@@ -172,7 +172,6 @@ export function agentSettings(
   vocabulary: CatalogVocabulary = EMPTY_CATALOG,
   executionEnabled = false,
   walletEnabled = false,
-  mailEnabled = false,
 ) {
   const settings = {
     type: "Settings",
@@ -304,10 +303,7 @@ export function agentSettings(
                   name: "snoop_execute",
                   description:
                     "Prepare one registered administrative operation using opaque record references returned by snoop_records_search. The app displays the exact target and changes and requires a manual confirmation. Never invent identifiers; ask the user to select the record when unavailable. Registered administrative actions only. Finance expense/supplier/purchase tools record administrative information only: they never initiate bank payments, adjust Caja or move inventory. Report a recorded expense or planned purchase, never claim that money was transferred or goods ordered. For cash open/close require an explicitly dictated opening/count amount; never infer it. Fee prices are integer cents, discounts integer basis points (10%=1000); display the exact monetary/percentage values for confirmation. Member changes require an unambiguous authorized reference. The stock read is products.stock TOTAL inventory, not Almacén or Dispensario separately. Do not answer a location balance using that total; open the current product screen if location data were not verified. Required/optional arguments by registered action: " +
-                    (mailEnabled
-                      ? "member.mail.request only requests the existing QR outbox: pending or accepted is not delivered; report the actual mailStatus, never promise delivery. "
-                      : "") +
-                    JSON.stringify(executionGuide(walletEnabled, mailEnabled)) +
+                    JSON.stringify(executionGuide(walletEnabled)) +
                     ". Ask a specific short question for missing required values; never invent defaults, amounts, units, payment methods, identity data or receipt confirmation. Wallet.topup.reverse only records a refund that the operator separately certifies was already made: never initiate a refund, assume money was returned, or cancel a product order using it. Respect declined optional fields. Stock.adjust is an administrative physical-count correction only: require the explicitly stated decimal delta and reason, never infer quantities or use it for order fulfillment. Product.create starts at zero stock; an initial inventory count needs its own confirmed correction. Product buy_price and sell_price are integer cents. Never execute regulated-product distribution or order fulfillment through this tool.",
                   parameters: {
                     type: "object",
@@ -316,15 +312,14 @@ export function agentSettings(
                     properties: {
                       action: {
                         type: "string",
-                        enum: executionNames
-                          .filter((name) => walletEnabled || !name.startsWith("wallet."))
-                          .filter((name) => mailEnabled || name !== "member.mail.request"),
+                        enum: executionNames.filter(
+                          (name) => walletEnabled || !name.startsWith("wallet."),
+                        ),
                       },
                       arguments: {
                         type: "object",
                         properties: {
                           id: { type: "string" },
-                          retry: { type: "boolean" },
                           theme_id: {
                             type: "string",
                             enum: [

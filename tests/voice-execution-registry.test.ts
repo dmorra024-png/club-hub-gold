@@ -24,7 +24,7 @@ test("one bounded registry and advertised provider tool agree; unapproved writes
   );
   const disabled = agentSettings("it", 48000);
   assert(!disabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
-  const enabled = agentSettings("it", 48000, undefined, true, true, true);
+  const enabled = agentSettings("it", 48000, undefined, true, true);
   const tool = enabled.agent.think.functions.find((f) => f.name === "snoop_execute");
   assert(tool);
   const schema = JSON.parse(JSON.stringify(tool)).parameters;

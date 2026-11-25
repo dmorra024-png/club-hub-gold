@@ -743,7 +743,7 @@ for (const [label, engine, device] of [
       );
       await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
       assert.equal(executionChecks, 1);
-      // An actual committed outbox request is not an email-delivery receipt.
+      // A third consecutive session can prepare a request before a complete reload.
       await voiceEntry.click();
       await panel.waitFor();
       let subsequentDeadline;
@@ -761,16 +761,6 @@ for (const [label, engine, device] of [
         clearTimeout(subsequentDeadline);
       }
       assert.equal(await page.evaluate(() => window.__audio.started), 3);
-      peer.send(
-        JSON.stringify({
-          type: "AppExecutionResult",
-          id: crypto.randomUUID(),
-          status: "completed",
-          action: "member.mail.request",
-          mailStatus: "pending",
-        }),
-      );
-      await panel.getByRole("status").filter({ hasText: "Pendiente de envío" }).waitFor();
       peer.send(
         JSON.stringify({
           type: "AppExecutionPrepared",

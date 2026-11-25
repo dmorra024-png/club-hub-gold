@@ -1,12 +1,12 @@
 {
-  "scope": "30 bounded registered administrative commands; actual published-source reconciliation; no full manual/voice parity claim",
+  "scope": "29 bounded registered administrative commands; actual published-source reconciliation; no full manual/voice parity claim",
   "date": "2026-11-25",
   "productionSource": "3e7487088396cbd21edc99d454d88d9418dad0bb",
   "preservedIntegratedSources": [
     "459303a122ce5ae560712a234098deb20b43fae4",
     "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
   ],
-  "unitTests": 557,
+  "unitTests": 556,
   "unitFailures": 0,
   "typecheck": "PASS",
   "nodeBuild": "PASS",
@@ -16,7 +16,7 @@
   "postgresql": {
     "engine": "isolated PGlite/PostgreSQL",
     "syntheticUsersAndClubs": true,
-    "contractCases": 37,
+    "contractCases": 36,
     "originalApplicationRPCs": true,
     "result": "PASS",
     "checks": [
@@ -29,7 +29,6 @@
       "original wallet recharge/reversal with receipt attestation",
       "unchanged Auth identities/admin roles",
       "original theme policy two-club isolation",
-      "original QR outbox legacy review/deduplication/no delivery claim",
       "original warehouse schema loaded only in local tests",
       "rollback/stale-state/cancel/idempotence/recovery"
     ]
@@ -79,7 +78,6 @@
     "sessionRestartAndFullDocumentReload": "PASS",
     "recoveredProposalsPerProfile": 2,
     "explicitConfirmationRequestsPerProfile": 9,
-    "emailPendingNotDelivered": "PASS",
     "existingMountedAdministrativeFlows": "PASS",
     "realWebAudioPCMDSP": "PASS with synthetic audio/provider",
     "realAudioWorkletGraph": "PASS with synthetic stream",
@@ -90,7 +88,8 @@
       "iPhone WebKit",
       "iPhone PWA simulation"
     ],
-    "physicalDevice": false
+    "physicalDevice": false,
+    "currentAvaladorRegistrationContract": "PASS on Chromium/WebKit with synthetic API, duplicate guard, payment review, renewal and original authenticated App Socio invitation"
   },
   "supabaseManagementReadOnlyMetadata": {
     "httpStatus": 401,
@@ -107,7 +106,14 @@
   "deployment": false,
   "githubCI": {
     "url": "https://github.com/dmorra024-png/club-hub-gold/pull/27/checks",
-    "scope": "Check the exact PR head; local evidence is not a substitute for GitHub CI."
+    "scope": "Check the exact PR head; local evidence is not a substitute for GitHub CI.",
+    "firstHeadFailure": {
+      "commit": "672d78b",
+      "run": 45572454853,
+      "reason": "registration fixture omitted current avalador RPC; app correctly rejected unverified returned ID",
+      "fixedWithoutWeakeningAssertions": true
+    }
   },
-  "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed."
+  "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed.",
+  "liveDeepgramBlock": "No existing LAB_PROBE_TOKEN/VOICE_LAB_ACCESS_TOKEN, Deepgram key or authenticated Pilot session available to this workspace. Existing lab static page responds HTTP 200; that is not a voice-service verification."
 }

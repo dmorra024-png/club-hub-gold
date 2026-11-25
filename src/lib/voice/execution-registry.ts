@@ -38,7 +38,6 @@ const productFields = {
   active: z.boolean().optional(),
 };
 export const executionSchemas = {
-  "member.mail.request": z.object({ member_id: id, retry: z.boolean() }).strict(),
   "theme.set": z.object({ theme_id: theme }).strict(),
   "collaborator.permissions.set": z
     .object({
@@ -232,7 +231,6 @@ export const ExecutionRequest = z
   }));
 // References originate only from a scoped server read, never from model-invented IDs.
 export const executionReferences: Record<string, Record<string, string>> = {
-  "member.mail.request": { member_id: "members" },
   "collaborator.permissions.set": { id: "collaborators" },
   "collaborator.revoke": { id: "collaborators" },
   "wallet.topup.reverse": { topup_id: "wallet_topups", cash_session_id: "cash_sessions" },
@@ -255,11 +253,6 @@ export const executionReferences: Record<string, Record<string, string>> = {
   "cash.close": { id: "cash_sessions" },
 };
 export const executionCapabilities = {
-  "member.mail.request": {
-    permission: "manage_members",
-    rpc: "snoop_member_mail_request",
-    confirmation: true,
-  },
   "theme.set": { permission: "admin", rpc: "snoop_voice_entity", confirmation: true },
   "collaborator.permissions.set": {
     permission: "admin",
@@ -370,13 +363,6 @@ const cashResult = z
   })
   .strict();
 export const executionResults: Record<keyof typeof executionSchemas, z.ZodTypeAny> = {
-  "member.mail.request": z
-    .object({
-      id,
-      status: z.enum(["pending", "sending", "accepted", "delivered", "error", "unknown"]),
-      attempts: z.number().int().nonnegative(),
-    })
-    .strict(),
   "theme.set": z.object({ id, theme_id: theme }).strict(),
   "collaborator.permissions.set": z.object({ id, permissions: z.array(z.string()) }).strict(),
   "collaborator.revoke": z.object({ id, revoked: z.literal(true) }).strict(),
@@ -471,10 +457,9 @@ function objectSchema(schema: z.ZodTypeAny): z.AnyZodObject {
     ? objectSchema(schema.innerType())
     : (schema as z.AnyZodObject);
 }
-export function executionGuide(walletEnabled: boolean, mailEnabled = false) {
+export function executionGuide(walletEnabled: boolean) {
   return executionNames
     .filter((name) => walletEnabled || !name.startsWith("wallet."))
-    .filter((name) => mailEnabled || name !== "member.mail.request")
     .map((action) => {
       const shape = objectSchema(executionSchemas[action]).shape;
       return {

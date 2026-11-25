@@ -12,7 +12,6 @@ const safeExecutionCodes = new Set([
   "VOICE_FIELD_DISABLED",
   "VOICE_WALLET_UNAVAILABLE",
   "VOICE_THEME_UNAVAILABLE",
-  "VOICE_MAIL_UNAVAILABLE",
   "VOICE_WALLET_CREDITS_USED",
   "VOICE_REFERENCE_NOT_FOUND",
   "VOICE_DUPLICATE_NAME",
@@ -46,12 +45,6 @@ export const ExecutionConfirmation = z
     receiptConfirmed: z.literal(true).optional(),
   })
   .strict();
-/** Public receipt metadata only: never an email address, provider ID or token. */
-export function voiceReceiptDetails(value: { action: string; status: string; result?: unknown }) {
-  if (value.action !== "member.mail.request" || value.status !== "completed") return {};
-  const mail = executionResults["member.mail.request"].parse(value.result) as { status: string };
-  return { mailStatus: mail.status };
-}
 const Result = z
   .object({
     id: z.string().uuid(),
