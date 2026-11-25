@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { uid } from "./helpers/separation-db.mjs";
 import { voiceExecutionDatabase } from "./helpers/voice-execution-db.mjs";
+import { InventoryCostReportData } from "../src/lib/inventory-report.ts";
 import {
   voiceAccessOperation,
   voiceCommandOperation,
@@ -444,16 +445,36 @@ test("authorized records adapter reads real synthetic SQL rows and RLS hides ano
     }
   }
 });
-test("fractional legacy prices block metadata writes without rounding or changing stored amounts", async () => {
+test("decimal-EUR catalog metadata preserves exact prices and refuses obsolete integer-only RPCs", async () => {
   await db.query("update public.products set buy_price=4.20 where id=$1", [uid(301)]);
-  await assert.rejects(
-    () =>
-      command(1, uid(820), "prepare", "product.description", {
-        id: uid(301),
-        description: "No mutation",
-      }),
-    /LEGACY_PRICE_UNSUPPORTED/,
+  const oldSource = await readFile(
+    "supabase/migrations/20261105200000_administrative_catalog_scope.sql",
+    "utf8",
   );
+  const begin = oldSource.indexOf("CREATE FUNCTION public.save_administrative_product(");
+  const end = oldSource.indexOf("REVOKE ALL ON FUNCTION public.save_administrative_product", begin);
+  await db.exec(
+    oldSource.slice(begin, end).replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION"),
+  );
+  try {
+    await assert.rejects(
+      () =>
+        command(1, uid(820), "prepare", "product.description", {
+          id: uid(301),
+          description: "No mutation",
+        }),
+      /LEGACY_PRICE_UNSUPPORTED/,
+    );
+  } finally {
+    await db.exec(
+      await readFile("supabase/migrations/20261107180000_catalog_decimal_prices.sql", "utf8"),
+    );
+  }
+  const prepared = await command(1, uid(820), "prepare", "product.description", {
+    id: uid(301),
+    description: "Decimal price preserved",
+  });
+  await command(1, uid(820), "confirm", null, null, prepared.token);
   assert.equal(
     Number(
       (await db.query("select buy_price from public.products where id=$1", [uid(301)])).rows[0]
@@ -1088,8 +1109,8 @@ test("product card creation and edits use original catalog RPCs without an impli
     name: "Synthetic Binder",
     destination: "almacen",
     category_id: uid(1001),
-    buy_price: 420,
-    sell_price: 1250,
+    buy_price_cents: 420,
+    sell_price_cents: 1250,
     strain: null,
     notes: "Synthetic office inventory",
     description: "Informational description",
@@ -1099,12 +1120,18 @@ test("product card creation and edits use original catalog RPCs without an impli
   assert.deepEqual(await db.query("select * from public.stock_movements order by id"), history);
   const updated = await confirmCommand(1, uid(1071), "product.update", {
     id: product,
-    sell_price: 1350,
+    sell_price_cents: 1350,
     description: "Corrected only",
     active: false,
   });
-  assert.equal(updated.result.sell_price, 1350);
-  assert.equal(updated.result.buy_price, 420);
+  assert.equal(updated.result.sell_price, 13.5);
+  assert.equal(updated.result.buy_price, 4.2);
+  assert.equal(updated.result.price_unit, "EUR");
+  const stored = (
+    await db.query("select buy_price,sell_price from public.products where id=$1", [product])
+  ).rows[0];
+  assert.equal(Number(stored.buy_price), 4.2);
+  assert.equal(Number(stored.sell_price), 13.5);
   assert.equal(updated.result.name, "Synthetic Binder");
   assert.equal(updated.result.stock, 0);
   assert.equal(updated.result.active, false);
@@ -1611,4 +1638,16 @@ test("theme execution reuses the existing seven palettes and the owner's RLS kee
     /INVALID_ARGUMENTS/,
   );
   assert.deepEqual(await command(1, uid(1131), "confirm", null, null, prepared.token), done);
+});
+
+test("the original inventory report RPC satisfies the defensive UI contract without recalculating amounts", async () => {
+  await db.exec(await readFile("docs/sql/SNOOP_INVENTORY_COST_REPORT_PILOT.sql", "utf8"));
+  const actual = (
+    await actor(
+      1,
+      "select public.snoop_inventory_cost_report((now() at time zone 'Europe/Madrid')::date) value",
+    )
+  ).rows[0].value;
+  assert.deepEqual(InventoryCostReportData.parse(actual), actual);
+  assert(actual.lines.length > 0);
 });

@@ -311,13 +311,25 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.snoop_voice_entity(text,jsonb,boolean,uuid) FROM PUBLIC,anon,authenticated;
 
+-- Voice money arguments use explicit cents. The original catalog stores decimal EUR.
+CREATE FUNCTION public.snoop_voice_catalog_values(p_args jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE SET search_path='' AS $$
+ SELECT p_args-ARRAY['buy_price_cents','sell_price_cents']
+ ||CASE WHEN p_args?'buy_price_cents' THEN jsonb_build_object('buy_price',(p_args->>'buy_price_cents')::numeric/100) ELSE '{}'::jsonb END
+ ||CASE WHEN p_args?'sell_price_cents' THEN jsonb_build_object('sell_price',(p_args->>'sell_price_cents')::numeric/100) ELSE '{}'::jsonb END;
+$$;
+REVOKE ALL ON FUNCTION public.snoop_voice_catalog_values(jsonb) FROM PUBLIC,anon,authenticated;
+
 CREATE FUNCTION public.snoop_voice_snapshot(p_action text,p_args jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE c uuid:=public.current_club_id();v jsonb;
 BEGIN
  IF public.snoop_voice_authorized(p_action,c) IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED' USING ERRCODE='42501'; END IF;
+ IF p_action IN ('product.create','product.update','product.description') THEN
+  IF coalesce(position('buy numeric' in lower(pg_get_functiondef(to_regprocedure('public.save_administrative_product(uuid,jsonb)')))),0)=0 OR coalesce(position('sell numeric' in lower(pg_get_functiondef(to_regprocedure('public.save_administrative_product(uuid,jsonb)')))),0)=0 THEN RAISE EXCEPTION 'VOICE_LEGACY_PRICE_UNSUPPORTED';END IF;
+ END IF;
  IF p_action IN ('product.create','product.update') THEN
-  IF EXISTS(SELECT 1 FROM jsonb_each(p_args) e WHERE e.key IN ('buy_price','sell_price') AND (jsonb_typeof(e.value) IS DISTINCT FROM 'number' OR (e.value::text)::numeric<>trunc((e.value::text)::numeric) OR (e.value::text)::numeric NOT BETWEEN 0 AND 10000000)) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF EXISTS(SELECT 1 FROM jsonb_each(p_args) e WHERE e.key IN ('buy_price_cents','sell_price_cents') AND (jsonb_typeof(e.value) IS DISTINCT FROM 'number' OR (e.value::text)::numeric<>trunc((e.value::text)::numeric) OR (e.value::text)::numeric NOT BETWEEN 0 AND 10000000)) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF p_args?'name' AND (jsonb_typeof(p_args->'name') IS DISTINCT FROM 'string' OR length(trim(p_args->>'name')) NOT BETWEEN 1 AND 120) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF p_args?'description' AND (jsonb_typeof(p_args->'description') IS DISTINCT FROM 'string' OR length(p_args->>'description')>4000) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF p_args?'notes' AND (jsonb_typeof(p_args->'notes') IS DISTINCT FROM 'string' OR length(p_args->>'notes')>1000) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
@@ -336,22 +348,20 @@ BEGIN
   IF p_args-ARRAY['id','description']<>'{}'::jsonb OR jsonb_typeof(p_args->'description') IS DISTINCT FROM 'string' OR length(trim(p_args->>'description')) NOT BETWEEN 1 AND 4000 OR NOT(p_args?'description') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF public.can_manage_snoop_catalog(c) IS DISTINCT FROM true THEN RAISE EXCEPTION 'VOICE_ACCESS_DENIED';END IF;
   SELECT jsonb_build_object('id',id,'name',name,'category_id',category_id,'stock',stock,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'updated_at',updated_at) INTO v FROM public.products WHERE id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
-  IF (v->>'buy_price')::numeric<>trunc((v->>'buy_price')::numeric) OR (v->>'sell_price')::numeric<>trunc((v->>'sell_price')::numeric) THEN RAISE EXCEPTION 'VOICE_LEGACY_PRICE_UNSUPPORTED';END IF;
  WHEN 'product.create' THEN
   IF jsonb_typeof(p_args->'destination') IS DISTINCT FROM 'string' OR (p_args->>'destination') NOT IN ('almacen','dispensario') OR to_regprocedure('public.snoop_create_product_located(jsonb,text,uuid)') IS NULL THEN RAISE EXCEPTION 'VOICE_LOCATION_CONFIRMATION_REQUIRED';END IF;
-  IF p_args-ARRAY['name','category_id','buy_price','sell_price','strain','notes','description','destination']<>'{}'::jsonb OR NOT(p_args?&ARRAY['name','category_id','buy_price','sell_price','strain','notes','description','destination']) OR jsonb_typeof(p_args->'name') IS DISTINCT FROM 'string' OR length(trim(p_args->>'name')) NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args-ARRAY['name','category_id','buy_price_cents','sell_price_cents','strain','notes','description','destination']<>'{}'::jsonb OR NOT(p_args?&ARRAY['name','category_id','buy_price_cents','sell_price_cents','strain','notes','description','destination']) OR jsonb_typeof(p_args->'name') IS DISTINCT FROM 'string' OR length(trim(p_args->>'name')) NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   SELECT to_jsonb(t) INTO v FROM public.product_categories t WHERE id=(p_args->>'category_id')::uuid AND club_id=c AND coalesce(archived,false)=false FOR SHARE;
   IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
   IF EXISTS(SELECT 1 FROM public.products WHERE club_id=c AND lower(trim(name))=lower(trim(p_args->>'name'))) THEN RAISE EXCEPTION 'VOICE_DUPLICATE_NAME';END IF;
  WHEN 'product.update' THEN
-  IF p_args-ARRAY['id','name','category_id','buy_price','sell_price','strain','notes','description','active']<>'{}'::jsonb OR p_args-'id'='{}'::jsonb THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args-ARRAY['id','name','category_id','buy_price_cents','sell_price_cents','strain','notes','description','active']<>'{}'::jsonb OR p_args-'id'='{}'::jsonb THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   SELECT jsonb_build_object('id',id,'name',name,'category_id',category_id,'stock',stock,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'active',active,'updated_at',updated_at) INTO v FROM public.products WHERE id=(p_args->>'id')::uuid AND club_id=c FOR UPDATE;
   IF v IS NULL THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
   IF p_args?'category_id' THEN
    PERFORM 1 FROM public.product_categories WHERE id=(p_args->>'category_id')::uuid AND club_id=c AND coalesce(archived,false)=false FOR SHARE;
    IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_REFERENCE_NOT_FOUND';END IF;
   END IF;
-  IF (coalesce(p_args->>'buy_price',v->>'buy_price'))::numeric<>trunc((coalesce(p_args->>'buy_price',v->>'buy_price'))::numeric) OR (coalesce(p_args->>'sell_price',v->>'sell_price'))::numeric<>trunc((coalesce(p_args->>'sell_price',v->>'sell_price'))::numeric) THEN RAISE EXCEPTION 'VOICE_LEGACY_PRICE_UNSUPPORTED';END IF;
  WHEN 'stock.adjust' THEN
   IF to_regclass('public.snoop_stock_locations') IS NOT NULL THEN RAISE EXCEPTION 'VOICE_DUAL_STOCK_REVIEW_REQUIRED';END IF;
   IF p_args-ARRAY['id','delta','notes']<>'{}'::jsonb OR NOT(p_args?&ARRAY['id','delta','notes']) OR jsonb_typeof(p_args->'delta') IS DISTINCT FROM 'string' OR (p_args->>'delta')!~'^-?\d{1,7}(\.\d{1,2})?$' OR (p_args->>'delta')::numeric=0 OR abs((p_args->>'delta')::numeric)>1000000 OR jsonb_typeof(p_args->'notes') IS DISTINCT FROM 'string' OR length(trim(p_args->>'notes')) NOT BETWEEN 5 AND 1000 THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
@@ -476,22 +486,21 @@ BEGIN
     SELECT jsonb_build_object('id',id,'name',name,'archived',archived) INTO res FROM public.product_categories WHERE id=(r.arguments->>'id')::uuid AND club_id=c;
     IF res->>'name' IS DISTINCT FROM trim(r.arguments->>'name') OR (res->>'archived')::boolean IS DISTINCT FROM (r.arguments->>'archived')::boolean THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
    WHEN 'product.description' THEN
-    IF (v->>'buy_price')::numeric<>trunc((v->>'buy_price')::numeric) OR (v->>'sell_price')::numeric<>trunc((v->>'sell_price')::numeric) THEN RAISE EXCEPTION 'VOICE_LEGACY_PRICE_UNSUPPORTED';END IF;
-    mid:=public.save_administrative_product_checked((r.arguments->>'id')::uuid,v||jsonb_build_object('description',r.arguments->>'description','buy_price',(v->>'buy_price')::numeric::integer,'sell_price',(v->>'sell_price')::numeric::integer),(v->>'stock')::numeric);
+    mid:=public.save_administrative_product_checked((r.arguments->>'id')::uuid,v||jsonb_build_object('description',r.arguments->>'description'),(v->>'stock')::numeric);
     SELECT jsonb_build_object('id',id,'description',description) INTO res FROM public.products WHERE id=mid AND club_id=c;
     PERFORM 1 FROM public.products WHERE id=mid AND club_id=c AND stock=(v->>'stock')::numeric AND buy_price=(v->>'buy_price')::numeric AND sell_price=(v->>'sell_price')::numeric;
     IF NOT FOUND THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
     IF mid IS DISTINCT FROM (r.arguments->>'id')::uuid OR res->>'description' IS DISTINCT FROM r.arguments->>'description' THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
    WHEN 'product.create' THEN
-    mid:=public.snoop_create_product_located((r.arguments-'destination')||jsonb_build_object('stock',0),r.arguments->>'destination',r.id);
+    mid:=public.snoop_create_product_located(public.snoop_voice_catalog_values(r.arguments-'destination')||jsonb_build_object('stock',0),r.arguments->>'destination',r.id);
     UPDATE public.products SET description=r.arguments->>'description' WHERE id=mid AND club_id=c;
-    SELECT jsonb_build_object('id',id,'name',name,'stock',stock,'category_id',category_id,'buy_price',buy_price,'sell_price',sell_price,'description',description,'strain',strain,'notes',notes) INTO res FROM public.products WHERE id=mid AND club_id=c;
-    IF res IS NULL OR NOT(res@>(r.arguments-'destination')) OR (res->>'stock')::numeric<>0 THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+    SELECT jsonb_build_object('id',id,'name',name,'stock',stock,'category_id',category_id,'buy_price',buy_price,'sell_price',sell_price,'price_unit','EUR','description',description,'strain',strain,'notes',notes) INTO res FROM public.products WHERE id=mid AND club_id=c;
+    IF res IS NULL OR NOT(res@>public.snoop_voice_catalog_values(r.arguments-'destination')) OR (res->>'stock')::numeric<>0 THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
    WHEN 'product.update' THEN
-    mid:=public.save_administrative_product_checked((r.arguments->>'id')::uuid,v||r.arguments||jsonb_build_object('buy_price',(coalesce(r.arguments->>'buy_price',v->>'buy_price'))::numeric::int,'sell_price',(coalesce(r.arguments->>'sell_price',v->>'sell_price'))::numeric::int),(v->>'stock')::numeric);
+    mid:=public.save_administrative_product_checked((r.arguments->>'id')::uuid,v||public.snoop_voice_catalog_values(r.arguments),(v->>'stock')::numeric);
     IF r.arguments?'active' THEN UPDATE public.products SET active=(r.arguments->>'active')::boolean WHERE id=mid AND club_id=c;END IF;
-    SELECT jsonb_build_object('id',id,'name',name,'stock',stock,'category_id',category_id,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'active',active) INTO res FROM public.products WHERE id=mid AND club_id=c;
-    IF res IS NULL OR mid IS DISTINCT FROM (r.arguments->>'id')::uuid OR NOT(res@>r.arguments) OR (res->>'stock')::numeric IS DISTINCT FROM (v->>'stock')::numeric THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
+    SELECT jsonb_build_object('id',id,'name',name,'stock',stock,'category_id',category_id,'buy_price',buy_price,'sell_price',sell_price,'strain',strain,'notes',notes,'description',description,'active',active,'price_unit','EUR') INTO res FROM public.products WHERE id=mid AND club_id=c;
+    IF res IS NULL OR mid IS DISTINCT FROM (r.arguments->>'id')::uuid OR NOT(res@>public.snoop_voice_catalog_values(r.arguments)) OR (res->>'stock')::numeric IS DISTINCT FROM (v->>'stock')::numeric THEN RAISE EXCEPTION 'VOICE_RESULT_UNVERIFIED';END IF;
    WHEN 'stock.adjust' THEN
     PERFORM public.adjust_administrative_stock((r.arguments->>'id')::uuid,(r.arguments->>'delta')::numeric,(v->>'stock')::numeric,r.arguments->>'notes');
     SELECT jsonb_build_object('id',id,'stock',stock) INTO res FROM public.products WHERE id=(r.arguments->>'id')::uuid AND club_id=c;

@@ -16,6 +16,7 @@ export async function voiceExecutionDatabase(club = uid(101), other = uid(102)) 
   for (const name of [
     "20261107120000_catalog_lifecycle.sql",
     "20261107123000_membership_payment_flow.sql",
+    "20261107180000_catalog_decimal_prices.sql",
   ])
     await db.exec(await readFile("supabase/migrations/" + name, "utf8"));
   const membership = await readFile("docs/sql/SNOOP_ADMINISTRATIVE_RECORDS_PROPOSED.sql", "utf8");

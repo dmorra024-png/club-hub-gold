@@ -89,3 +89,22 @@ La fixture ora valida le cinque chiavi attuali, identità/club/importo/request I
 rifiuta il contratto di creazione ritirato; rinnovi e controllo del doppio clic restano.
 Anche i test di assenza di salvataggi vocali riconoscono la nuova RPC come scrittura.
 Nessun timeout allungato, controllo di sicurezza rimosso o falso successo introdotto.
+
+## Correzioni verificate dopo il secondo push
+
+La CI `45573995837` falliva in `test-financial-annulment.mjs:423`: una risposta
+inventario malformata (`[]`) causava un errore di rendering e nascondeva anche
+Ingresos. Il componente valida ora il DTO originale con Zod e mostra il proprio
+errore senza interrompere gli altri report. Il test browser verifica entrambi i
+comportamenti; un test PostgreSQL usa la RPC originale e ne verifica il contratto
+senza ricalcolare o modificare importi.
+
+Corretto anche il contratto prezzi del nuovo adapter: gli argomenti vocali
+`buy_price_cents` e `sell_price_cents` sono esplicitamente centesimi interi. Solo
+sul server vengono convertiti esattamente in euro decimali per la RPC originale
+(420 → 4,20 EUR). La risposta persistita dichiara `price_unit: EUR`. Il test legge
+il database dopo creazione/modifica (4,20 / 12,50 → 13,50) e verifica conservazione
+di stock, movimenti e prezzi non modificati. Le vecchie RPC che troncherebbero i
+prezzi vengono rifiutate prima della scrittura. La fixture carica la migrazione
+prezzi decimali già esistente, mai applicata a produzione da questo intervento.
+Nessun prezzo reale è stato toccato.

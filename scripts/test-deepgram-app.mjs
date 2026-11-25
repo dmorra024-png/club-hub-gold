@@ -652,7 +652,7 @@ for (const [label, engine, device] of [
         [
           "product.create",
           "Crear ficha",
-          { name: "Synthetic Binder", buy_price: 420, sell_price: 1350 },
+          { name: "Synthetic Binder", buy_price_cents: 420, sell_price_cents: 1350 },
           ["4,20", "13,50"],
         ],
         ["cash.open", "Abrir caja", { opening_cash_cents: 5000 }, ["50,00"]],

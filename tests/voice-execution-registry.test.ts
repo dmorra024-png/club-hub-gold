@@ -56,6 +56,7 @@ test("typed actions normalize fields and reject arbitrary RPCs, invented stock/p
     { action: "arbitrary_sql", arguments: {} },
     { action: "category.update", arguments: { id: "record-1", name: "X", archived: false } },
     { action: "product.description", arguments: { id, description: "X", stock: 25 } },
+    { action: "product.update", arguments: { id, buy_price: 420 } },
     {
       action: "member.renew",
       arguments: { member_id: id, plan_id: id, method: "cash", amount_cents: 1 },

@@ -388,6 +388,8 @@ export function DeepgramPilotVoice({
                     "La rectificación por ubicación requiere el flujo actual Almacén/Dispensario. No se ha modificado stock.",
                   VOICE_LOCATION_CONFIRMATION_REQUIRED:
                     "Indica Almacén o Dispensario para la ficha del producto.",
+                  VOICE_LEGACY_PRICE_UNSUPPORTED:
+                    "La función de catálogo necesita verificación de precios decimales. No se ha cambiado ningún precio.",
                   VOICE_REQUIRED_FIELD: "Faltan campos obligatorios del club.",
                   VOICE_STATE_CHANGED: "Los datos han cambiado. Revisa una nueva propuesta.",
                   VOICE_REFERENCE_NOT_FOUND: "El registro no está disponible en este club.",
@@ -934,8 +936,8 @@ export function DeepgramPilotVoice({
                           {(
                             {
                               name: "Nombre",
-                              buy_price: "Importe adquisición",
-                              sell_price: "Importe catálogo",
+                              buy_price_cents: "Importe adquisición",
+                              sell_price_cents: "Importe catálogo",
                               delta: "Variación de inventario verificada",
                               description: "Descripción",
                               archived: "Archivado",
@@ -960,10 +962,7 @@ export function DeepgramPilotVoice({
                           )[key] ?? key}
                         </dt>
                         <dd>
-                          {(key.endsWith("_cents") ||
-                            key === "buy_price" ||
-                            key === "sell_price") &&
-                          typeof value === "number"
+                          {key.endsWith("_cents") && typeof value === "number"
                             ? new Intl.NumberFormat("es-ES", {
                                 style: "currency",
                                 currency: "EUR",

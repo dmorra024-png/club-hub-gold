@@ -20,9 +20,10 @@
       "file": "src/components/InventoryCostReport.tsx",
       "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
       "sourceSha256": "7521e5c0c1fffbfb04a10731d856e1cec7f637f73ac2fbacc70c52090dc871ec",
-      "workingSha256": "7521e5c0c1fffbfb04a10731d856e1cec7f637f73ac2fbacc70c52090dc871ec",
-      "unchangedOwnerSource": true,
-      "sqlExecutedInProduction": null
+      "workingSha256": "6dcebef7ef40b47556ac0a8154c3a1e223ef145134a7424277ba06b7a74dd363",
+      "unchangedOwnerSource": false,
+      "sqlExecutedInProduction": null,
+      "reason": "Validate the original RPC DTO before rendering; malformed data shows the existing error and cannot crash the parent financial report. No formula or SQL changed."
     },
     {
       "file": "src/components/ProductEconomicsReport.tsx",

@@ -420,6 +420,9 @@ for (const [label, engine, device] of [
         assert.equal(refundWrites, 1);
         assert.equal(writes, 2);
         await page.goto(base + "/ajustes/informes");
+        // This fixture deliberately returns an invalid inventory RPC array.
+        // It must show an isolated error, never crash the unrelated cash report.
+        await page.getByText("No se ha podido verificar el valor del inventario. Vuelve a intentarlo.",{exact:true}).waitFor();
         await page.getByText("Ingresos", { exact: true }).waitFor();
         await page.waitForLoadState("networkidle");
         await page

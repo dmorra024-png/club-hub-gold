@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarDays, RefreshCw, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { madridToday } from "@/lib/member-administration";
+import {InventoryCostReportData} from "@/lib/inventory-report";
 
 type CostLine = {
  id:string;name:string;opening_qty:number;incoming_qty:number;outgoing_qty:number;
@@ -29,8 +30,9 @@ export function InventoryCostReport({clubId}:{clubId:string}){
   void (async()=>{
     const {data,error}=await (supabase as any).rpc("snoop_inventory_cost_report",{p_day:day});
     if(!active)return;
-    if(error||!data){setError("No se ha podido calcular el valor del inventario. Vuelve a intentarlo.");}
-    else setReport(data as Report);
+    const checked=InventoryCostReportData.safeParse(data);
+    if(error||!checked.success){setError("No se ha podido verificar el valor del inventario. Vuelve a intentarlo.");}
+    else setReport(checked.data);
     setLoading(false);
   })();
   return ()=>{active=false};

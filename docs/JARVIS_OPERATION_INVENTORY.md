@@ -5,7 +5,7 @@ This is a source inventory, not a claim that listed actions execute by voice.
 File-level permission references are evidence to inspect, not per-action authorization proof.
 SNOOP Socio is excluded. Full JSON: `.sandbox/jarvis-inventory/operations.json`.
 
-Scanned files: 229; routes: 29; UI/API entries: 338; route-owned ports: 15.
+Scanned files: 230; routes: 29; UI/API entries: 338; route-owned ports: 15.
 
 | Source | Kind | Operation / handler | Voice persistence verified |
 | --- | --- | --- | --- |
@@ -20,20 +20,20 @@ Scanned files: 229; routes: 29; UI/API entries: 338; route-owned ports: 15.
 | src/components/ClubThemeSettingsPanel.tsx:53 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/ClubThemeSettingsPanel.tsx:70 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/ClubWalletSettingsPanel.tsx:62 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:825 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:832 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1010 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1031 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1103 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1123 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1127 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1130 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/DeepgramPilotVoice.tsx:1139 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:827 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:834 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1009 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1030 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1102 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1122 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1126 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1129 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/DeepgramPilotVoice.tsx:1138 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/FinancialRecordDialog.tsx:336 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/FinancialRecordDialog.tsx:377 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/FinancialRecordDialog.tsx:389 | ui_action | onClick | No automatic claim; see runtime matrix |
-| src/components/InventoryCostReport.tsx:30 | api_rpc | snoop_inventory_cost_report | No automatic claim; see runtime matrix |
-| src/components/InventoryCostReport.tsx:52 | ui_action | onClick | No automatic claim; see runtime matrix |
+| src/components/InventoryCostReport.tsx:31 | api_rpc | snoop_inventory_cost_report | No automatic claim; see runtime matrix |
+| src/components/InventoryCostReport.tsx:54 | ui_action | onClick | No automatic claim; see runtime matrix |
 | src/components/MemberDiscounts.tsx:187 | api_upsert | upsert | No automatic claim; see runtime matrix |
 | src/components/MemberDiscounts.tsx:207 | api_upsert | upsert | No automatic claim; see runtime matrix |
 | src/components/MemberDiscounts.tsx:215 | api_delete | delete | No automatic claim; see runtime matrix |

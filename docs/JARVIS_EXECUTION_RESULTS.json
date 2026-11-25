@@ -6,7 +6,7 @@
     "459303a122ce5ae560712a234098deb20b43fae4",
     "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
   ],
-  "unitTests": 556,
+  "unitTests": 558,
   "unitFailures": 0,
   "typecheck": "PASS",
   "nodeBuild": "PASS",
@@ -16,7 +16,7 @@
   "postgresql": {
     "engine": "isolated PGlite/PostgreSQL",
     "syntheticUsersAndClubs": true,
-    "contractCases": 36,
+    "contractCases": 37,
     "originalApplicationRPCs": true,
     "result": "PASS",
     "checks": [
@@ -30,7 +30,10 @@
       "unchanged Auth identities/admin roles",
       "original theme policy two-club isolation",
       "original warehouse schema loaded only in local tests",
-      "rollback/stale-state/cancel/idempotence/recovery"
+      "rollback/stale-state/cancel/idempotence/recovery",
+      "explicit cents voice arguments converted exactly to original decimal-EUR catalog",
+      "legacy integer-only catalog rejects edits before mutation",
+      "original inventory-report RPC validated without changing accounting values"
     ]
   },
   "concurrency": {
@@ -89,7 +92,8 @@
       "iPhone PWA simulation"
     ],
     "physicalDevice": false,
-    "currentAvaladorRegistrationContract": "PASS on Chromium/WebKit with synthetic API, duplicate guard, payment review, renewal and original authenticated App Socio invitation"
+    "currentAvaladorRegistrationContract": "PASS on Chromium/WebKit with synthetic API, duplicate guard, payment review, renewal and original authenticated App Socio invitation",
+    "inventoryErrorIsolation": "PASS on Chromium/WebKit: malformed inventory response does not crash cash report"
   },
   "supabaseManagementReadOnlyMetadata": {
     "httpStatus": 401,
