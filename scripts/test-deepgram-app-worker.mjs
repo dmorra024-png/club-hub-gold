@@ -53,7 +53,7 @@ const bindings = {
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_synthetic-meter",
   SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
 };
-const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];let executionWrites=0,lastExpenseReference;const executionRecords=new Map();export default{async fetch(req,env){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
+const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];let executionWrites=0,lastExpenseReference,lastCategoryReference,lastProductReference;const executionRecords=new Map();export default{async fetch(req,env){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
  if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools,closeAttempts,closeDurations,cashResponses,tables,executionWrites});
  if(u.hostname==='bnwanxbmprbymbutoths.supabase.co'){
   if(u.pathname==='/rest/v1/rpc/snoop_voice_usage'){
@@ -111,11 +111,14 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
     if(m.name==='snoop_execute'&&r.status==='cancelled'){if(r.persisted!==false)throw Error('Cancelled operation was applied');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));return;}
     if(m.name==='snoop_records_search'){if(!r.ok||r.references.length!==1||m.content.includes('FORBIDDEN_MEMBER'))throw Error('Registry privacy');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'registry-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify({action:'category.update',arguments:{id:r.references[0].ref,name:'Updated category',archived:true}})}]}));return;}
     if(m.name==='snoop_execute'&&r.action==='finance.expense.create')lastExpenseReference=r.reference;
+    if(m.name==='snoop_execute'&&r.action==='category.create')lastCategoryReference=r.reference;
+    if(m.name==='snoop_execute'&&r.action==='product.create')lastProductReference=r.reference;
     if(m.name==='snoop_access_control'||m.name==='snoop_execute'){if(!r.ok||r.status!=='completed'||r.persisted!==true||m.content.includes('${uid}'))throw Error('Unverified execution outcome');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));return;}
     if(m.name==='snoop_catalog_search'){if(!r.ok||r.persisted!==false||r.matches.length!==1||r.matches[0]!=='Flores Especial')throw Error('Catalog lookup result');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'product',target:'product_create',member:{},product:{name:'Synthetic',category:'Flores Especial'},query:null,declined:[],question:'',asking:null})}]}));return;}
 if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
   }else{
    if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
+   if([11,12,13].includes(new Uint8Array(e.data)[0])){const code=new Uint8Array(e.data)[0];const proposal=code===11?{action:'category.create',arguments:{name:'Synthetic office supplies',unit_type:'unit',is_smokeable:false}}:code===12?{action:'product.create',arguments:{name:'Synthetic Binder',category_id:lastCategoryReference,destination:'almacen',buy_price_cents:420,sell_price_cents:1250,strain:null,notes:'Synthetic test fixture',description:'Office supplies'}}:{action:'product.update',arguments:{id:lastProductReference,sell_price_cents:1350}};p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-execution-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify(proposal)}]}));return;}
    if(new Uint8Array(e.data)[0]===9||new Uint8Array(e.data)[0]===10){const cancel=new Uint8Array(e.data)[0]===10;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'finance-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify(cancel?{action:'finance.expense.cancel',arguments:{id:lastExpenseReference,reason:'Synthetic duplicate expense correction'}}:{action:'finance.expense.create',arguments:{supplier_id:null,category:'suministros',description:'Synthetic electricity accrual',amount_cents:12500,payment_method:'pendiente'}})}]}));return;}
    if(new Uint8Array(e.data)[0]===8){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'status-'+count,name:'snoop_execution_status',client_side:true,arguments:'{}'}]}));return;}
    if(new Uint8Array(e.data)[0]===7){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cancel-'+count,name:'snoop_cancel_pending',client_side:true,arguments:'{}'}]}));return;}
@@ -492,6 +495,9 @@ try {
     for (const [code, action] of [
       [9, "finance.expense.create"],
       [10, "finance.expense.cancel"],
+      [11, "category.create"],
+      [12, "product.create"],
+      [13, "product.update"],
     ]) {
       const bytes = new Uint8Array(4800);
       bytes[0] = code;
@@ -500,7 +506,7 @@ try {
         s.events.some((e) => e.type === "AppExecutionPrepared" && e.action === action),
       );
       const p = s.events.find((e) => e.type === "AppExecutionPrepared" && e.action === action);
-      const before = code === 9 ? 2 : 3;
+      const before = code - 7;
       assert.equal((await stats()).executionWrites, before);
       const confirmation = JSON.stringify({
         type: "AppExecutionConfirm",
@@ -525,6 +531,13 @@ try {
     assert.equal(expenses.length, 1);
     assert.equal(expenses[0].amount_cents, 12500);
     assert.equal(expenses[0].cancelled_by, uid);
+    const products = (await sqlDb.query("select name,buy_price,sell_price,stock from public.products where name='Synthetic Binder' and club_id=$1",[club])).rows;
+    assert.equal(products.length,1);
+    assert.equal(Number(products[0].buy_price),4.2);
+    assert.equal(Number(products[0].sell_price),13.5);
+    assert.equal(Number(products[0].stock),0);
+    assert.equal((await sqlDb.query("select count(*)::int n from public.stock_movements where product_id in (select id from public.products where name='Synthetic Binder' and club_id=$1)",[club])).rows[0].n,0);
+
     assert(expenses[0].cancelled_at);
     assert.equal(
       (await sqlDb.query("select count(*)::int n from public.cash_sessions")).rows[0].n,
@@ -578,7 +591,7 @@ try {
       5 +
       (executionMode ? 1 : 0) +
       (registryMode ? 6 : 0) +
-      (databaseMode ? 2 : 0),
+      (databaseMode ? 5 : 0),
   );
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
@@ -599,7 +612,7 @@ try {
           "select count(*)::int n from public.snoop_voice_executions where completed_at is not null",
         )
       ).rows[0].n,
-      4,
+      7,
     );
   }
   console.log(

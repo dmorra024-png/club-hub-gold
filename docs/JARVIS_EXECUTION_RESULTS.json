@@ -61,10 +61,14 @@
       "access_control.set",
       "category.update",
       "finance.expense.create",
-      "finance.expense.cancel"
+      "finance.expense.cancel",
+      "category.create",
+      "product.create",
+      "product.update"
     ],
     "twentyConsecutiveTurnsWithoutOptionalThinkingEvents": "PASS",
-    "meteringCloseRetry": "PASS"
+    "meteringCloseRetry": "PASS",
+    "catalogPriceReadback": "PASS: synthetic office item 420/1250 cents -> original SQL 4.20/12.50 EUR; confirmed correction -> 13.50 EUR; duplicate confirmations, zero stock and no stock movements"
   },
   "browser": {
     "engines": [
