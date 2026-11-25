@@ -1,0 +1,46 @@
+[
+  {
+    "browser": "samsung",
+    "scenario": "execution-confirmation",
+    "confirmationRequests": 9,
+    "recoveredProposals": 2,
+    "statusReads": 1,
+    "syntheticGateway": true,
+    "persistenceTestedSeparately": true,
+    "physicalDevice": false,
+    "result": "PASS"
+  },
+  {
+    "browser": "iphone-webkit",
+    "scenario": "execution-confirmation",
+    "confirmationRequests": 9,
+    "recoveredProposals": 2,
+    "statusReads": 1,
+    "syntheticGateway": true,
+    "persistenceTestedSeparately": true,
+    "physicalDevice": false,
+    "result": "PASS"
+  },
+  {
+    "browser": "desktop-chromium",
+    "scenario": "execution-confirmation",
+    "confirmationRequests": 9,
+    "recoveredProposals": 2,
+    "statusReads": 1,
+    "syntheticGateway": true,
+    "persistenceTestedSeparately": true,
+    "physicalDevice": false,
+    "result": "PASS"
+  },
+  {
+    "browser": "tablet-webkit",
+    "scenario": "execution-confirmation",
+    "confirmationRequests": 9,
+    "recoveredProposals": 2,
+    "statusReads": 1,
+    "syntheticGateway": true,
+    "persistenceTestedSeparately": true,
+    "physicalDevice": false,
+    "result": "PASS"
+  }
+]

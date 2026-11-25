@@ -90,7 +90,27 @@ function PedidoPage() {
   } | null>(null);
   const [catalogRetry, setCatalogRetry] = useState(0);
   const catalog = catalogState?.scope === catalogScope ? catalogState : null;
-  const products: Product[] = !accessError && catalogAllowed ? (catalog?.data?.products ?? []) : [];
+  const [dispenserStock,setDispenserStock] = useState<Record<string,number>>({});
+  const [dispenserReady,setDispenserReady] = useState(false);
+  const [dispenserError,setDispenserError] = useState(false);
+  // Do not use the global product total for checkout: only dispensary stock is sellable.
+  useEffect(()=>{
+    if(!access.clubId||!catalog?.data||!catalogAllowed)return;
+    let active=true;
+    setDispenserReady(false);setDispenserError(false);
+    void (async()=>{
+      const {data,error}=await (supabase as any).from("snoop_stock_locations")
+        .select("product_id,quantity").eq("club_id",access.clubId).eq("location","dispensario").limit(1000);
+      if(!active)return;
+      if(error){setDispenserStock({});setDispenserError(true);}
+      else setDispenserStock(Object.fromEntries((data??[]).map((x:any)=>[x.product_id,Number(x.quantity)])));
+      setDispenserReady(true);
+    })();
+    return ()=>{active=false;};
+  },[access.clubId,catalog?.data,catalogAllowed]);
+  const products: Product[] = !accessError && catalogAllowed ? (catalog?.data?.products ?? []).map(p=>({
+    ...p,stock:dispenserReady && !dispenserError ? (dispenserStock[p.id]??0) : 0
+  })) : [];
   const [cart, setCart] = useState<Cart[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -118,7 +138,7 @@ function PedidoPage() {
   const [search, setSearch] = useState("");
   const [activeCat, setActiveCat] = useState<string>("all");
   // per-product input state for gr items: { [productId]: { qty, eur } }
-  const [grInput, setGrInput] = useState<Record<string, { qty: string; eur: string }>>({});
+  const [grInput, setGrInput] = useState<Record<string, { qty: string; eur: string; source?: "qty" | "eur" }>>({});
   // raw text for merma input keyed by product_id (so user can type "0", "0.", "0,05")
   const [mermaText, setMermaText] = useState<Record<string, string>>({});
   const [mermaLimit,setMermaLimit]=useState<number|null>(null);
@@ -231,7 +251,7 @@ function PedidoPage() {
     return { billed: Math.round(billed * 1000) / 1000, merma };
   }
 
-  function addToCart(productId: string, quantity: number, opts?: { autoTolerance?: boolean }) {
+  function addToCart(productId: string, quantity: number, opts?: { autoTolerance?: boolean; exactAmountCents?: number }) {
     const p = products.find((x) => x.id === productId);
     if (!p) return;
     if (quantity <= 0) return;
@@ -249,7 +269,7 @@ function PedidoPage() {
       return;
     }
     const unitC = priceCents(p);
-    const line_total_cents = Math.round(unitC * billed);
+    const line_total_cents = opts?.exactAmountCents ?? Math.round(unitC * billed);
     setCart((prev) => {
       const i = prev.findIndex((c) => c.product_id === productId);
       if (i >= 0) {
@@ -265,7 +285,7 @@ function PedidoPage() {
           ...merged[i],
           quantity: newQty,
           merma: newMerma,
-          line_total_cents: Math.round(unitC * newQty),
+          line_total_cents: merged[i].line_total_cents + line_total_cents,
         };
         if (autoMerma > 0) setMermaText((s) => ({ ...s, [productId]: String(newMerma) }));
         return merged;
@@ -299,7 +319,9 @@ function PedidoPage() {
         toast.error(`Stock insuficiente de ${p.name}`);
         return prev;
       }
-      cur.line_total_cents = Math.round(cur.unit_price_cents * cur.quantity);
+      if (patch.quantity !== undefined || patch.unit_price_cents !== undefined) {
+        cur.line_total_cents = Math.round(cur.unit_price_cents * cur.quantity);
+      }
       next[idx] = cur;
       return next;
     });
@@ -505,13 +527,20 @@ function PedidoPage() {
     const qty = parseFloat(st.qty.replace(",", "."));
     const eur = parseFloat(st.eur.replace(",", "."));
     let q = 0;
-    if (!isNaN(qty) && qty > 0) q = qty;
+    const enteredEuros = st.source === "eur" && Number.isFinite(eur) && eur > 0;
+    if (enteredEuros && p.sell_price_eur > 0) q = eur / p.sell_price_eur;
+    else if (!isNaN(qty) && qty > 0) q = qty;
     else if (!isNaN(eur) && eur > 0 && p.sell_price_eur > 0) q = eur / p.sell_price_eur;
     if (q <= 0) {
       toast.error("Indica gramos o euros");
       return;
     }
-    addToCart(p.id, q, { autoTolerance: true });
+    addToCart(p.id, q, {
+      autoTolerance: true,
+      // The euro amount entered by the operator is authoritative; display rounding
+      // of the derived grams must not alter the sale price.
+      ...(enteredEuros ? { exactAmountCents: Math.round(eur * 100) } : {}),
+    });
     setGrInput((s) => ({ ...s, [p.id]: { qty: "", eur: "" } }));
   }
 
@@ -519,12 +548,12 @@ function PedidoPage() {
   function setGrQty(pid: string, qty: string, price: number) {
     const v = parseFloat(qty.replace(",", "."));
     const eur = !isNaN(v) && v > 0 ? (v * price).toFixed(2) : "";
-    setGrInput((s) => ({ ...s, [pid]: { qty, eur } }));
+    setGrInput((s) => ({ ...s, [pid]: { qty, eur, source: "qty" } }));
   }
   function setGrEur(pid: string, eur: string, price: number) {
     const v = parseFloat(eur.replace(",", "."));
     const qty = !isNaN(v) && v > 0 && price > 0 ? (v / price).toFixed(2) : "";
-    setGrInput((s) => ({ ...s, [pid]: { qty, eur } }));
+    setGrInput((s) => ({ ...s, [pid]: { qty, eur, source: "eur" } }));
   }
 
   async function confirmar() {
@@ -772,6 +801,10 @@ function PedidoPage() {
                   Reintentar catálogo
                 </button>
               </div>
+            ) : !dispenserReady ? (
+              <p role="status" className="text-sm text-muted-foreground">Cargando stock disponible en dispensario…</p>
+            ) : dispenserError ? (
+              <p role="alert" className="text-sm text-destructive">No se pudo verificar el stock del dispensario. Recarga antes de registrar pedidos.</p>
             ) : products.length === 0 ? (
               <p role="status" className="text-sm text-muted-foreground">
                 {catalog.data!.hiddenRowCount > 0
@@ -811,7 +844,7 @@ function PedidoPage() {
                               <div className="min-w-0">
                                 <div className="text-sm text-foreground truncate">{p.name}</div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">
-                                  {p.sell_price_eur.toFixed(2)} {walletMode?"créditos":"€"}/{p.unit_type} · stock {p.stock}
+                                  {p.sell_price_eur.toFixed(2)} {walletMode?"créditos":"€"}/{p.unit_type} · dispensario {p.stock}
                                 </div>
                               </div>
                             </div>

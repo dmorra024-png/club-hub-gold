@@ -7,6 +7,8 @@ export const voiceDestinations = {
   product_create: "/productos",
   categories: "/productos",
   stock: "/productos",
+  warehouse: "/productos",
+  finances: "/ajustes/finanzas",
   cash: "/caja",
   cash_report: "/caja",
   reports: "/ajustes/informes",

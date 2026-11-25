@@ -53,7 +53,7 @@ const bindings = {
   SUPABASE_SERVICE_ROLE_KEY: "sb_secret_synthetic-meter",
   SNOOP_RESOURCE_NAMESPACE: "snoop-pilot",
 };
-const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];let executionWrites=0;const executionRecords=new Map();export default{async fetch(req,env){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
+const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAttempts=0;const closeDurations=[],cashResponses=[],tables=[];let executionWrites=0,lastExpenseReference;const executionRecords=new Map();export default{async fetch(req,env){const u=new URL(req.url),token=req.headers.get('Authorization')||'';
  if(u.hostname==='metrics.invalid')return Response.json({providerCalls,authCalls,forbiddenCalls,tools,closeAttempts,closeDurations,cashResponses,tables,executionWrites});
  if(u.hostname==='bnwanxbmprbymbutoths.supabase.co'){
   if(u.pathname==='/rest/v1/rpc/snoop_voice_usage'){
@@ -110,11 +110,13 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
     if(m.name==='snoop_cancel_pending'){if(r.status!=='cancel_confirmation_requested')throw Error('Cancel preparation');tools++;return;}
     if(m.name==='snoop_execute'&&r.status==='cancelled'){if(r.persisted!==false)throw Error('Cancelled operation was applied');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));return;}
     if(m.name==='snoop_records_search'){if(!r.ok||r.references.length!==1||m.content.includes('FORBIDDEN_MEMBER'))throw Error('Registry privacy');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'registry-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify({action:'category.update',arguments:{id:r.references[0].ref,name:'Updated category',archived:true}})}]}));return;}
+    if(m.name==='snoop_execute'&&r.action==='finance.expense.create')lastExpenseReference=r.reference;
     if(m.name==='snoop_access_control'||m.name==='snoop_execute'){if(!r.ok||r.status!=='completed'||r.persisted!==true||m.content.includes('${uid}'))throw Error('Unverified execution outcome');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));return;}
     if(m.name==='snoop_catalog_search'){if(!r.ok||r.persisted!==false||r.matches.length!==1||r.matches[0]!=='Flores Especial')throw Error('Catalog lookup result');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'product',target:'product_create',member:{},product:{name:'Synthetic',category:'Flores Especial'},query:null,declined:[],question:'',asking:null})}]}));return;}
 if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
   }else{
    if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
+   if(new Uint8Array(e.data)[0]===9||new Uint8Array(e.data)[0]===10){const cancel=new Uint8Array(e.data)[0]===10;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'finance-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify(cancel?{action:'finance.expense.cancel',arguments:{id:lastExpenseReference,reason:'Synthetic duplicate expense correction'}}:{action:'finance.expense.create',arguments:{supplier_id:null,category:'suministros',description:'Synthetic electricity accrual',amount_cents:12500,payment_method:'pendiente'}})}]}));return;}
    if(new Uint8Array(e.data)[0]===8){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'status-'+count,name:'snoop_execution_status',client_side:true,arguments:'{}'}]}));return;}
    if(new Uint8Array(e.data)[0]===7){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cancel-'+count,name:'snoop_cancel_pending',client_side:true,arguments:'{}'}]}));return;}
    if(new Uint8Array(e.data)[0]===6){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'records-'+count,name:'snoop_records_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'${databaseMode ? "" : "Synthetic"}'})}]}));return;}
@@ -391,6 +393,13 @@ try {
     await until(() => s.events.some((e) => e.type === "AppExecutionPrepared"));
     const prepared = s.events.find((e) => e.type === "AppExecutionPrepared");
     assert.equal((await stats()).executionWrites, 0);
+    s.ws.send(JSON.stringify({ type: "AppExecutionRecover", id: prepared.id }));
+    await until(
+      () =>
+        s.events.filter((e) => e.type === "AppExecutionPrepared" && e.id === prepared.id).length ===
+        2,
+    );
+    assert.equal((await stats()).executionWrites, 0);
     const confirm = JSON.stringify({
       type: "AppExecutionConfirm",
       id: prepared.id,
@@ -403,11 +412,18 @@ try {
       s.events.some((e) => e.type === "AppExecutionResult" && e.status === "completed"),
     );
     assert.equal((await stats()).executionWrites, 1);
-    s.ws.send(JSON.stringify({ type: "AppExecutionCheck", id: prepared.id }));
+    s.ws.send(JSON.stringify({ type: "AppExecutionRecover", id: prepared.id }));
     await until(
       () =>
         s.events.filter((e) => e.type === "AppExecutionResult" && e.status === "completed")
           .length === 2,
+    );
+    assert.equal((await stats()).executionWrites, 1);
+    s.ws.send(JSON.stringify({ type: "AppExecutionCheck", id: prepared.id }));
+    await until(
+      () =>
+        s.events.filter((e) => e.type === "AppExecutionResult" && e.status === "completed")
+          .length === 3,
     );
     assert.equal((await stats()).executionWrites, 1);
   }
@@ -472,6 +488,49 @@ try {
       await new Promise((r) => setTimeout(r, 20));
     assert.equal((await stats()).tools, beforeStatus + 1);
   }
+  if (databaseMode) {
+    for (const [code, action] of [
+      [9, "finance.expense.create"],
+      [10, "finance.expense.cancel"],
+    ]) {
+      const bytes = new Uint8Array(4800);
+      bytes[0] = code;
+      s.ws.send(bytes.buffer);
+      await until(() =>
+        s.events.some((e) => e.type === "AppExecutionPrepared" && e.action === action),
+      );
+      const p = s.events.find((e) => e.type === "AppExecutionPrepared" && e.action === action);
+      const before = code === 9 ? 2 : 3;
+      assert.equal((await stats()).executionWrites, before);
+      const confirmation = JSON.stringify({
+        type: "AppExecutionConfirm",
+        id: p.id,
+        token: p.token,
+        confirmed: true,
+      });
+      s.ws.send(confirmation);
+      s.ws.send(confirmation);
+      await until(() =>
+        s.events.some(
+          (e) => e.type === "AppExecutionResult" && e.id === p.id && e.status === "completed",
+        ),
+      );
+      assert.equal((await stats()).executionWrites, before + 1);
+    }
+    const expenses = (
+      await sqlDb.query(
+        "select description,amount_cents,cancelled_by,cancelled_at from public.snoop_expenses",
+      )
+    ).rows;
+    assert.equal(expenses.length, 1);
+    assert.equal(expenses[0].amount_cents, 12500);
+    assert.equal(expenses[0].cancelled_by, uid);
+    assert(expenses[0].cancelled_at);
+    assert.equal(
+      (await sqlDb.query("select count(*)::int n from public.cash_sessions")).rows[0].n,
+      0,
+    );
+  }
   await until(
     () =>
       s.events.some((e) => e.type === "AppAudioHealth" && e.inputBytes > 0 && e.outputBytes > 0),
@@ -515,7 +574,11 @@ try {
   assert.equal(final.forbiddenCalls, 0);
   assert.equal(
     final.tools,
-    conversationTurns + 5 + (executionMode ? 1 : 0) + (registryMode ? 6 : 0),
+    conversationTurns +
+      5 +
+      (executionMode ? 1 : 0) +
+      (registryMode ? 6 : 0) +
+      (databaseMode ? 2 : 0),
   );
   assert.equal(final.providerCalls, 1);
   assert(!JSON.stringify(s.events).includes("test-provider-only"));
@@ -536,7 +599,7 @@ try {
           "select count(*)::int n from public.snoop_voice_executions where completed_at is not null",
         )
       ).rows[0].n,
-      2,
+      4,
     );
   }
   console.log(

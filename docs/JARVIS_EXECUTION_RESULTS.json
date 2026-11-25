@@ -1,33 +1,43 @@
 {
-  "scope": "Shared server execution registry: access control, category lifecycle, informational product description, association membership renewal; five authorized record read kinds",
-  "unitTests": 519,
+  "scope": "30 bounded registered administrative commands; actual published-source reconciliation; no full manual/voice parity claim",
+  "date": "2026-11-25",
+  "productionSource": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+  "preservedIntegratedSources": [
+    "459303a122ce5ae560712a234098deb20b43fae4",
+    "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
+  ],
+  "unitTests": 557,
+  "unitFailures": 0,
   "typecheck": "PASS",
   "nodeBuild": "PASS",
   "workerBuild": "PASS",
   "workerDryRun": "PASS",
   "bundleCredentialScan": "PASS",
   "postgresql": {
-    "engine": "PGlite/PostgreSQL isolated",
+    "engine": "isolated PGlite/PostgreSQL",
     "syntheticUsersAndClubs": true,
-    "existingApplicationRPCs": true,
-    "cases": 17,
+    "contractCases": 37,
+    "originalApplicationRPCs": true,
     "result": "PASS",
-    "verification": [
-      "actual read-back persistence",
-      "receipt and membership audit",
-      "cross-club denial",
-      "staff permissions",
-      "stale price and plan duration rejection",
-      "rollback",
-      "cancel without business reversal",
-      "durable idempotency",
-      "lost-response reconciliation"
+    "checks": [
+      "persisted read-back",
+      "current/historical membership RPC compatibility",
+      "avalador and human-input requirements",
+      "exact money and original accounting",
+      "fees/discounts and cross-club RLS",
+      "cash session owner/audit",
+      "original wallet recharge/reversal with receipt attestation",
+      "unchanged Auth identities/admin roles",
+      "original theme policy two-club isolation",
+      "original QR outbox legacy review/deduplication/no delivery claim",
+      "original warehouse schema loaded only in local tests",
+      "rollback/stale-state/cancel/idempotence/recovery"
     ]
   },
   "concurrency": {
     "engine": "PostgreSQL 17.11",
     "sessions": 7,
-    "lockWaitersObserved": 1,
+    "lockWaitersObserved": 3,
     "synthetic": true,
     "network": "none",
     "productionDatabase": false,
@@ -42,12 +52,17 @@
   "workerd": {
     "source": "PASS",
     "compiled": "PASS",
-    "withoutOptionalThinkingEvents": "PASS",
-    "providerAndHttpBackend": "synthetic",
-    "typedRecordReferences": "PASS",
-    "duplicateConfirmation": "PASS",
-    "statusReconciliation": "PASS",
-    "cancelProposal": "PASS"
+    "databaseIntegration": "actual gateway -> user-JWT transport -> original isolated SQL RPC -> persisted result",
+    "authentication": "synthetic",
+    "provider": "synthetic",
+    "fullPathActions": [
+      "access_control.set",
+      "category.update",
+      "finance.expense.create",
+      "finance.expense.cancel"
+    ],
+    "twentyConsecutiveTurnsWithoutOptionalThinkingEvents": "PASS",
+    "meteringCloseRetry": "PASS"
   },
   "browser": {
     "engines": [
@@ -60,27 +75,39 @@
       "desktop",
       "tablet"
     ],
-    "confirmationUI": "PASS",
-    "existingMountedFlows": "PASS",
-    "nativePCMDuplex": "PASS",
-    "physicalDevice": false,
-    "provider": "synthetic"
+    "confirmationAndUncertainResult": "PASS",
+    "sessionRestartAndFullDocumentReload": "PASS",
+    "recoveredProposalsPerProfile": 2,
+    "explicitConfirmationRequestsPerProfile": 9,
+    "emailPendingNotDelivered": "PASS",
+    "existingMountedAdministrativeFlows": "PASS",
+    "realWebAudioPCMDSP": "PASS with synthetic audio/provider",
+    "realAudioWorkletGraph": "PASS with synthetic stream",
+    "nativeDuplex": "PASS with synthetic stream/provider",
+    "orderCatalog": "PASS with synthetic location rows",
+    "orderKeyboard": [
+      "Samsung Chromium",
+      "iPhone WebKit",
+      "iPhone PWA simulation"
+    ],
+    "physicalDevice": false
+  },
+  "supabaseManagementReadOnlyMetadata": {
+    "httpStatus": 401,
+    "configurationChanged": false
   },
   "liveDeepgram": false,
-  "liveDeepgramBlock": "No usable Deepgram/Cloudflare credential or authenticated Ddr session available in this workspace; no credentials extracted or created",
+  "physicalMicrophoneOrSpeaker": false,
+  "credentialsCreatedOrExtracted": false,
   "productionDatabaseTouched": false,
   "migrationApplied": false,
   "pilotFlagEnabled": false,
+  "REALActivated": false,
   "merge": false,
   "deployment": false,
-  "githubCIOnThisBranch": "Pending development push; local checks above only",
-  "notImplemented": [
-    "persistent member registration and demographic edits",
-    "complete product creation",
-    "stock writes",
-    "order transactions",
-    "cash writes",
-    "wallet writes",
-    "pending-request recovery after full page reload"
-  ]
+  "githubCI": {
+    "url": "https://github.com/dmorra024-png/club-hub-gold/pull/27/checks",
+    "scope": "Check the exact PR head; local evidence is not a substitute for GitHub CI."
+  },
+  "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed."
 }

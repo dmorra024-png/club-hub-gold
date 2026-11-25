@@ -36,7 +36,11 @@ test("provider schema and application share one real navigation registry, no sav
   for (const [target, path] of Object.entries(voiceDestinations)) {
     const p = ConversationProposal.parse(proposal(target as keyof typeof voiceDestinations));
     assert(conversationAllowed(admin, p), target);
-    if (!["products", "product_create", "categories", "stock", "cash_report"].includes(target)) {
+    if (
+      !["products", "product_create", "categories", "stock", "warehouse", "cash_report"].includes(
+        target,
+      )
+    ) {
       let current = "/synthetic";
       await applyDeepgramDraft(p, {
         access: admin,
@@ -62,6 +66,7 @@ test("admin destinations reject collaborators and suspended or cross-scope sessi
     "general_settings",
     "wallet_settings",
     "theme_settings",
+    "finances",
   ] as const) {
     assert.equal(conversationAllowed({ ...admin, role: "collaborator" }, proposal(target)), false);
     assert.equal(authorizeProposal(proposal(target), { ...admin, status: "suspended" }).ok, false);
@@ -252,4 +257,32 @@ test("realistic catalog punctuation survives both server and speech vocabulary f
   });
   assert.deepEqual(vocabulary.products, labels);
   assert.deepEqual(vocabulary.categories, labels);
+});
+
+test("warehouse navigation opens the existing scoped products capability rather than a new page", async () => {
+  const owner = voiceOwner("synthetic-user", "synthetic-club");
+  let path = "/",
+    opened = "";
+  const remove = applicationPorts.register(owner, "products.page", {
+    ready: () => true,
+    open: (target) => {
+      opened = target;
+    },
+  });
+  try {
+    await applyDeepgramDraft(ConversationProposal.parse(proposal("warehouse")), {
+      owner,
+      access: admin,
+      path: () => path,
+      current: () => true,
+      last: {},
+      navigate: (next) => {
+        path = next;
+      },
+    });
+    assert.equal(path, "/productos");
+    assert.equal(opened, "warehouse");
+  } finally {
+    remove();
+  }
 });

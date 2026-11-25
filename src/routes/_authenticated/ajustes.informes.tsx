@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { addCalendarDays, madridToday } from "@/lib/member-administration";
 import { clubDayRange } from "@/lib/cash-summary";
+import { InventoryCostReport } from "@/components/InventoryCostReport";
 import {
   ResponsiveContainer,
   BarChart,
@@ -405,6 +406,7 @@ function InformesPage() {
         <div className="text-muted-foreground">Calculando…</div>
       ) : (
         <div className="space-y-6">
+          {access.clubId&&<InventoryCostReport clubId={access.clubId} />}
           <section className="snoop-informes-insights" aria-label="Indicadores útiles">
             <div className="snoop-informes-section-heading"><span>ANÁLISIS DEL PERIODO</span><h2>Lo importante, de un vistazo</h2></div>
             <div className="snoop-informes-quick-grid">

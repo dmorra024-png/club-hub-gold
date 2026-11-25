@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
-import { SlidersHorizontal, ShieldCheck, BarChart3, UserRound } from "lucide-react";
+import { SlidersHorizontal, ShieldCheck, BarChart3, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/_authenticated/ajustes/")({
@@ -31,6 +31,7 @@ function AjustesIndex() {
       <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
         {isAdmin && <>
           <Tile to="/ajustes/personalizaciones" icon={SlidersHorizontal} title="Personalizaciones club" text="Cuotas, Monedero, Socios, Dispositivos, Tema visual y Generales." />
+          <Tile to="/ajustes/finanzas" icon={Wallet} title="Finanzas" text="Gastos, proveedores, compras y resumen contable." />
           <Tile to="/ajustes/colaboradores" icon={ShieldCheck} title="Colaboradores" text="Crea cuentas con permisos específicos para tu equipo." />
         </>}
         {can("view_reports") && <Tile to="/ajustes/informes" icon={BarChart3} title="Informes" text="Informes y estadísticas autorizados para tu rol." />}

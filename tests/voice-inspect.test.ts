@@ -104,7 +104,7 @@ test("stock inspection is paginated and excludes private notes, actors and ident
   assert(!JSON.stringify(result).includes(id));
 });
 
-test("cash session inspector preserves the existing overnight reconciliation across the Madrid DST change", async () => {
+test("cash session inspector keeps one opening/closing session across midnight and the Madrid DST change", async () => {
   const sessionId = "00000000-0000-4000-8000-000000001001";
   const session = {
     id: sessionId,
@@ -212,4 +212,48 @@ test("member-history inspector calls the existing authorized history source and 
   assert.equal(summary.records[0].cents, 1200);
   assert(!JSON.stringify(result.summary).includes("PRIVATE"));
   assert(!JSON.stringify(result.summary).includes(actor));
+});
+
+test("current Almacén/Dispensario reads are separate, exactly reconciled, and never replaced by the total or invented zeros", async () => {
+  let quantities = [
+    { location: "almacen", quantity: "7.500" },
+    { location: "dispensario", quantity: "2.500" },
+  ];
+  const fetcher: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.searchParams.get("club_id"), "eq." + club);
+    if (url.pathname.endsWith("/products"))
+      return Response.json([{ id, stock: "10.000", category_id: id }]);
+    if (url.pathname.endsWith("/product_categories")) return Response.json([{ unit_type: "gr" }]);
+    assert.equal(url.pathname, "/rest/v1/snoop_stock_locations");
+    assert.equal(url.searchParams.get("product_id"), "eq." + id);
+    return Response.json(quantities);
+  };
+  const result = await voiceInspect({ ...base, fetch: fetcher }, { kind: "stock_locations", id });
+  assert.deepEqual(result.summary, {
+    total: "10.000",
+    almacen: "7.500",
+    dispensario: "2.500",
+    unit_type: "gr",
+    measurement: "verified_location_balances",
+  });
+  quantities = [{ location: "almacen", quantity: "7.500" }];
+  await assert.rejects(
+    () => voiceInspect({ ...base, fetch: fetcher }, { kind: "stock_locations", id }),
+    /LOCATION_UNVERIFIED/,
+  );
+  quantities = [
+    { location: "almacen", quantity: "7.500" },
+    { location: "dispensario", quantity: "3.500" },
+  ];
+  await assert.rejects(
+    () => voiceInspect({ ...base, fetch: fetcher }, { kind: "stock_locations", id }),
+    /LOCATION_UNVERIFIED/,
+  );
+  quantities = [{ location: "dispensario", quantity: "10.000" }];
+  const initial = await voiceInspect({ ...base, fetch: fetcher }, { kind: "stock_locations", id });
+  assert("almacen" in initial.summary && "dispensario" in initial.summary && "inferredZeroLocations" in initial.summary);
+  assert.equal(initial.summary.almacen, 0);
+  assert.equal(initial.summary.dispensario, "10.000");
+  assert.deepEqual(initial.summary.inferredZeroLocations, ["almacen"]);
 });

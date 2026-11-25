@@ -54,6 +54,21 @@ export async function voiceExecutionDatabase(club = uid(101), other = uid(102)) 
       walletMethods.indexOf("CREATE OR REPLACE FUNCTION public.socio_wallet_cash_evidence"),
     ) + "COMMIT;",
   );
+  const walletVoid = await readFile("docs/sql/SNOOP_WALLET_TOPUP_VOID_REVIEW.sql", "utf8");
+  await db.exec(
+    walletVoid.slice(0, walletVoid.indexOf("-- Extend the original authorized Caja evidence")) +
+      "COMMIT;",
+  );
+  // Isolated compatibility fixture: current Pilot positional signature delegates
+  // to the unchanged original receipt implementation already loaded above.
+  await db.exec(
+    `CREATE FUNCTION public.confirm_membership_with_receipt(p_confirmed_cents integer,p_expected date,p_member jsonb,p_method text,p_plan_id uuid,p_renew boolean,p_request uuid) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$ BEGIN RETURN public.confirm_membership_with_receipt(p_member,p_plan_id,p_method,p_request,p_renew,p_expected,p_confirmed_cents); END $$;`,
+  );
+  await db.exec(await readFile("docs/sql/SNOOP_AVALADOR_PILOT.sql", "utf8"));
+  await db.exec(await readFile("docs/sql/SNOOP_LOCATED_PRODUCT_CREATION_PILOT.sql", "utf8"));
+  await db.exec(await readFile("docs/sql/SNOOP_FINANZAS_V1_PILOT.sql", "utf8"));
+  await db.exec(await readFile("tests/fixtures/snoop-club-themes.owner.sql", "utf8"));
+  await db.exec(await readFile("docs/sql/SNOOP_MEMBER_MAIL_PROPOSED.sql", "utf8"));
   await db.exec(await readFile("docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql", "utf8"));
 
   return db;

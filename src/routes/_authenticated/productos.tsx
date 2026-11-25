@@ -23,6 +23,8 @@ import {
   Loader2,
   Sparkles,
   ImageIcon,
+  Warehouse,
+  Store,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { parseProductCommand } from "@/lib/products-voice.functions";
@@ -30,6 +32,7 @@ import { getAdministrativeAiStatus } from "@/lib/voice-agent.functions";
 import { readCatalogImage } from "@/lib/catalog-image";
 import type { CatalogImage } from "@/lib/catalog-enrichment.server";
 import { enrichProduct } from "@/lib/products-enrich.functions";
+import { WarehousePanel } from "@/components/WarehousePanel";
 
 export const Route = createFileRoute("/_authenticated/productos")({
   component: ProductosPage,
@@ -182,6 +185,7 @@ type StockCommand = { text: string; at: number };
 
 const TABS = [
   { id: "stock", label: "Stock" },
+  { id: "almacen", label: "Almacén" },
   { id: "nuevo", label: "Crear producto" },
   { id: "categoria", label: "Crear categoría" },
 ] as const;
@@ -485,6 +489,7 @@ function ProductosPage() {
     open: (target, query) => {
       if (target === "product_create") setTab("nuevo");
       else if (target === "categories") setTab("categoria");
+      else if (target === "warehouse") setTab("almacen");
       else if (target === "products" || target === "stock") {
         setTab("stock");
         if (typeof query === "string") setStockSearch(query);
@@ -565,6 +570,8 @@ function ProductosPage() {
           stockCommand={stockCommand}
           clearStockCommand={() => setStockCommand(null)}
         />
+      ) : tab === "almacen" ? (
+        <WarehousePanel products={prods.filter(p=>p.active!==false)} onChange={load}/>
       ) : tab === "nuevo" ? (
         <NuevoProducto
           cats={cats.filter((c) => !c.archived)}
@@ -1556,9 +1563,12 @@ function NuevoProducto({
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
   const [stock, setStock] = useState(0);
+  const [initialLocation, setInitialLocation] = useState<"almacen"|"dispensario">("dispensario");
+  const creationRequest = useRef<string | null>(null);
   const [buy, setBuy] = useState(0);
   const [sell, setSell] = useState(0);
   const [strain, setStrain] = useState<Strain | "">("");
+  useEffect(() => {creationRequest.current=null;},[categoryId,name,stock,buy,sell,strain,initialLocation]);
   const [saving, setSaving] = useState(false);
   const cat = cats.find((c) => c.id === categoryId);
 
@@ -1633,8 +1643,11 @@ function NuevoProducto({
       return toast.error("No tienes un club asignado");
     }
     const productName = name.trim();
-    const { error } = await (supabase as any).rpc("save_administrative_product", {
-      p_id: null,
+    const requestId=creationRequest.current??crypto.randomUUID();
+    creationRequest.current=requestId;
+    const { error } = await (supabase as any).rpc("snoop_create_product_located", {
+      p_destination: initialLocation,
+      p_request_id: requestId,
       p_values: {
         category_id: categoryId,
         name: productName,
@@ -1648,9 +1661,11 @@ function NuevoProducto({
       setSaving(false);
       return toast.error(error.message);
     }
-    toast.success("Producto creado. Puedes solicitar una propuesta de IA desde la ficha.");
+    creationRequest.current=null;
+    toast.success(initialLocation==="almacen"?"Producto guardado en Almacén":"Producto disponible en Dispensario");
     setName("");
     setStock(0);
+    setInitialLocation("dispensario");
     setBuy(0);
     setSell(0);
     setStrain("");
@@ -1696,9 +1711,43 @@ function NuevoProducto({
         </div>
       </Field>
 
+      <div className="rounded-2xl border border-neon/25 bg-card/50 p-4 space-y-3">
+        <p className="text-sm font-display text-neon">¿Dónde quieres guardar el stock inicial?</p>
+        <fieldset className="space-y-2">
+          <legend className="sr-only">Destino del stock inicial</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              {value:"almacen",label:"Almacén",detail:"Reserva del club",Icon:Warehouse},
+              {value:"dispensario",label:"Dispensario",detail:"Disponible al banco",Icon:Store},
+            ] as const).map(({value,label,detail,Icon})=>(
+              <label
+                key={value}
+                className={`relative flex min-h-[112px] cursor-pointer select-none flex-col justify-center gap-1 rounded-2xl border-2 p-3 transition-colors touch-manipulation ${initialLocation===value?"border-neon bg-neon/15 shadow-[0_0_16px_var(--snoop-surface-glow)]":"border-border bg-input/30"}`}
+              >
+                <input
+                  type="radio"
+                  name="product-initial-location"
+                  value={value}
+                  checked={initialLocation===value}
+                  onChange={()=>setInitialLocation(value)}
+                  className="absolute right-3 top-3 h-5 w-5 accent-[var(--snoop-accent)]"
+                  aria-label={label}
+                />
+                <Icon size={22} className="mb-1 text-neon" aria-hidden="true"/>
+                <span className="font-display text-sm">{label}</span>
+                <span className="text-xs text-muted-foreground">{detail}</span>
+              </label>
+            ))}
+          </div>
+          <p role="status" data-stock-destination={initialLocation} className="text-sm font-semibold text-neon">
+            Destino seleccionado: {initialLocation==="almacen"?"Almacén":"Dispensario"}
+          </p>
+        </fieldset>
+        <p className="text-xs text-muted-foreground">Puedes mover cantidades entre ambos más tarde, sin cambiar el total.</p>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <MoneyField
-          label={`Stock${cat ? ` (${cat.unit_type})` : ""}`}
+          label={`Cantidad inicial${cat ? ` (${cat.unit_type})` : ""}`}
           value={stock}
           onChange={setStock}
         />

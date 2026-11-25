@@ -7,7 +7,13 @@ import { sessionRevenue, reconcileCash } from "../cash-sessions.ts";
 import { madridToday } from "../member-administration.ts";
 export const VoiceInspection = z
   .object({
-    kind: z.enum(["member_history", "cash_session", "stock_history", "wallet_balance"]),
+    kind: z.enum([
+      "member_history",
+      "cash_session",
+      "stock_history",
+      "stock_locations",
+      "wallet_balance",
+    ]),
     id: z.string().uuid(),
     page: z.number().int().min(0).max(100).default(0),
   })
@@ -34,7 +40,7 @@ export async function voiceInspect(
   )
     throw Error("VOICE_READ_FORBIDDEN");
   const permission =
-    args.kind === "stock_history"
+    args.kind === "stock_history" || args.kind === "stock_locations"
       ? "manage_products"
       : args.kind === "cash_session" || args.kind === "wallet_balance"
         ? "use_cash"
@@ -148,11 +154,80 @@ export async function voiceInspect(
   }
   const { data: product, error: productError } = await client
     .from("products")
-    .select("id")
+    .select("id,stock,category_id")
     .eq("club_id", a.clubId)
     .eq("id", args.id)
     .maybeSingle();
   if (productError || !product) throw Error("VOICE_READ_FORBIDDEN");
+  if (args.kind === "stock_locations") {
+    const { data, error } = await client
+      .from("snoop_stock_locations")
+      .select("location,quantity")
+      .eq("club_id", a.clubId)
+      .eq("product_id", args.id)
+      .order("location")
+      .limit(3);
+    const parsed = z
+      .array(
+        z
+          .object({
+            location: z.enum(["almacen", "dispensario"]),
+            quantity: z.union([z.string(), z.number().finite().nonnegative()]),
+          })
+          .strict(),
+      )
+      .max(2)
+      .safeParse(data);
+    if (
+      error ||
+      !parsed.success ||
+      new Set(parsed.data.map((row) => row.location)).size !== parsed.data.length
+    )
+      throw Error("VOICE_LOCATION_UNVERIFIED");
+    const scale = (value: unknown) => {
+      const text = String(value);
+      if (!/^\d+(?:\.\d+)?$/.test(text)) throw Error("VOICE_LOCATION_UNVERIFIED");
+      const [whole, raw = ""] = text.split(".");
+      const fraction = raw.replace(/0+$/, "");
+      if (fraction.length > 3) throw Error("VOICE_LOCATION_UNVERIFIED");
+      return BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, "0"));
+    };
+    // The installed owner schema initially creates only a dispensary row.
+    // A missing location is zero ONLY when all nonnegative balances reconcile
+    // exactly to products.stock; failed reads or mismatches never become zero.
+    const amounts = {
+      almacen: 0 as number | string,
+      dispensario: 0 as number | string,
+      ...Object.fromEntries(parsed.data.map((row) => [row.location, row.quantity])),
+    };
+    if (scale(amounts.almacen) + scale(amounts.dispensario) !== scale(product.stock))
+      throw Error("VOICE_LOCATION_UNVERIFIED");
+    const { data: category, error: categoryError } = await client
+      .from("product_categories")
+      .select("unit_type")
+      .eq("club_id", a.clubId)
+      .eq("id", product.category_id)
+      .maybeSingle();
+    if (categoryError || !category || !["gr", "unit"].includes(category.unit_type))
+      throw Error("VOICE_LOCATION_UNVERIFIED");
+    return {
+      kind: args.kind,
+      summary: {
+        total: product.stock,
+        almacen: amounts.almacen,
+        dispensario: amounts.dispensario,
+        unit_type: category.unit_type,
+        measurement: "verified_location_balances",
+        ...(parsed.data.length < 2
+          ? {
+              inferredZeroLocations: ["almacen", "dispensario"].filter(
+                (location) => !parsed.data.some((row) => row.location === location),
+              ),
+            }
+          : {}),
+      },
+    };
+  }
   const { data, error } = await client
     .from("stock_movements")
     .select("id,delta,reason,created_at")
@@ -166,21 +241,19 @@ export async function voiceInspect(
     kind: args.kind,
     summary: {
       hasMore: data.length > 20,
-      records: data
-        .slice(0, 20)
-        .map((r) => ({
-          delta: r.delta,
-          reason: [
-            "initial_stock",
-            "administrative_adjustment",
-            "administrative_edit",
-            "order",
-            "order_cancelled",
-          ].includes(r.reason)
-            ? r.reason
-            : "other",
-          at: r.created_at,
-        })),
+      records: data.slice(0, 20).map((r) => ({
+        delta: r.delta,
+        reason: [
+          "initial_stock",
+          "administrative_adjustment",
+          "administrative_edit",
+          "order",
+          "order_cancelled",
+        ].includes(r.reason)
+          ? r.reason
+          : "other",
+        at: r.created_at,
+      })),
     },
   };
 }

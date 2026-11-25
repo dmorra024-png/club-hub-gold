@@ -17,7 +17,11 @@ export const VoiceCashDay = z
   })
   .strict();
 export const VoiceCashPeriod = z
-  .object({ from: VoiceCashDay.shape.day, to: VoiceCashDay.shape.day })
+  .object({
+    from: VoiceCashDay.shape.day,
+    to: VoiceCashDay.shape.day,
+    collaborator_id: z.string().uuid().optional(),
+  })
   .strict()
   .refine(
     (v) =>
@@ -102,11 +106,24 @@ export async function voiceCashPeriod(
     _club_id: access.clubId,
   });
   if (error || typeof admin !== "boolean") throw Error("CASH_UNAVAILABLE");
+  if (period.collaborator_id) {
+    if (!admin) throw Error("AUTH_FORBIDDEN");
+    const { data: roles, error: roleError } = await client
+      .from("user_roles")
+      .select("user_id")
+      .eq("club_id", access.clubId)
+      .eq("user_id", period.collaborator_id)
+      .in("role", ["admin", "collaborator"])
+      .limit(2);
+    if (roleError || !roles?.length) throw Error("AUTH_FORBIDDEN");
+  }
+  const effectiveUser = period.collaborator_id ?? userId;
+  const wholeClub = admin && !period.collaborator_id;
   const start = clubDayRange(period.from).start,
     end = clubDayRange(period.to).end;
   const { orders, fees } = await readCashLedger(
     client,
-    { userId, clubId: access.clubId, admin },
+    { userId: effectiveUser, clubId: access.clubId, admin: wholeClub },
     start,
     end,
     true,
@@ -114,12 +131,14 @@ export async function voiceCashPeriod(
   // Keep parity with the released manual report: topups are cash receipts;
   // wallet-funded orders must not count those same funds a second time.
   const evidence = await readWalletCashEvidence(client, start, end);
-  const scopedTopups = admin
+  const scopedTopups = wholeClub
     ? evidence.topups
-    : evidence.topups.filter((row) => row.actorId === userId);
+    : evidence.topups.filter((row) => row.actorId === effectiveUser);
   const verifiedOrders = orders.map((order: any) => ({
     ...order,
-    payment_method: evidence.walletOrderIds.has(order.id) ? "wallet" : (order.payment_method ?? null),
+    payment_method: evidence.walletOrderIds.has(order.id)
+      ? "wallet"
+      : (order.payment_method ?? null),
   }));
   const summary = cashDaySummary(
     cashMovements(verifiedOrders, fees, [], scopedTopups),
@@ -128,12 +147,13 @@ export async function voiceCashPeriod(
     end,
   );
   return {
-    ...period,
+    from: period.from,
+    to: period.to,
     cents: summary.totalCents,
     orderCents: summary.orderCents,
     feeCents: summary.feeCents,
     currency: "EUR",
-    scope: admin ? "club" : "own",
+    scope: period.collaborator_id ? "selected_collaborator" : admin ? "club" : "own",
     measurement: "recorded_receipts",
     persisted: false,
   };

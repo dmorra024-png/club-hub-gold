@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { SNOOP_THEMES, type SnoopThemeId } from "../snoop-themes.ts";
+const theme = z.enum(Object.keys(SNOOP_THEMES) as [SnoopThemeId, ...SnoopThemeId[]]);
 const id = z.string().uuid();
 const name = z.string().trim().min(1).max(120);
 const cents = z.number().int().min(0).max(10_000_000);
@@ -36,6 +38,67 @@ const productFields = {
   active: z.boolean().optional(),
 };
 export const executionSchemas = {
+  "member.mail.request": z.object({ member_id: id, retry: z.boolean() }).strict(),
+  "theme.set": z.object({ theme_id: theme }).strict(),
+  "collaborator.permissions.set": z
+    .object({
+      id,
+      permissions: z
+        .array(
+          z.enum([
+            "manage_members",
+            "manage_products",
+            "view_reports",
+            "use_cash",
+            "manage_collaborators",
+          ]),
+        )
+        .min(1)
+        .max(5)
+        .refine((v) => new Set(v).size === v.length),
+    })
+    .strict(),
+  "collaborator.revoke": z.object({ id }).strict(),
+  "wallet.topup.reverse": z
+    .object({
+      topup_id: id,
+      cash_session_id: id,
+      reason: z.string().trim().min(5).max(2000),
+      method: z.enum(["cash", "card", "transfer"]),
+    })
+    .strict(),
+  "finance.supplier.create": z
+    .object({
+      name: z.string().trim().min(2).max(160),
+      contact: z.string().max(300),
+      notes: z.string().max(1000),
+    })
+    .strict(),
+  "finance.expense.create": z
+    .object({
+      supplier_id: id.nullable(),
+      category: z.enum([
+        "alquiler",
+        "suministros",
+        "personal",
+        "mantenimiento",
+        "compras",
+        "otros",
+      ]),
+      description: z.string().trim().min(3).max(500),
+      amount_cents: z.number().int().positive().max(100000000),
+      payment_method: z.enum(["efectivo", "banco", "pendiente"]),
+    })
+    .strict(),
+  "finance.expense.cancel": z.object({ id, reason: z.string().trim().min(5).max(500) }).strict(),
+  "finance.purchase.record": z
+    .object({
+      supplier_id: id,
+      reference: z.string().trim().max(120),
+      description: z.string().trim().min(3).max(500),
+      amount_cents: z.number().int().positive().max(100000000),
+    })
+    .strict(),
   "product.create": z
     .object({
       name,
@@ -45,6 +108,7 @@ export const executionSchemas = {
       strain: z.enum(["sativa", "indica", "hybrid"]).nullable(),
       notes: z.string().max(1000),
       description: z.string().max(4000),
+      destination: z.enum(["almacen", "dispensario"]),
     })
     .strict(),
   "product.update": z
@@ -83,6 +147,7 @@ export const executionSchemas = {
       email: z.union([z.literal(""), z.string().email().max(254)]),
       address: z.string().trim().max(200),
       postal_code: z.string().trim().max(20),
+      avalador_id: id.nullable().optional().default(null),
       plan_id: id.nullable(),
       method: z.enum(["cash", "card", "transfer", "other"]),
     })
@@ -100,6 +165,7 @@ export const executionSchemas = {
         "email",
         "plan",
         "signature",
+        "avalador",
       ]),
       visible: z.boolean(),
       required: z.boolean(),
@@ -166,11 +232,18 @@ export const ExecutionRequest = z
   }));
 // References originate only from a scoped server read, never from model-invented IDs.
 export const executionReferences: Record<string, Record<string, string>> = {
+  "member.mail.request": { member_id: "members" },
+  "collaborator.permissions.set": { id: "collaborators" },
+  "collaborator.revoke": { id: "collaborators" },
+  "wallet.topup.reverse": { topup_id: "wallet_topups", cash_session_id: "cash_sessions" },
+  "finance.expense.create": { supplier_id: "suppliers" },
+  "finance.expense.cancel": { id: "expenses" },
+  "finance.purchase.record": { supplier_id: "suppliers" },
   "product.create": { category_id: "categories" },
   "product.update": { id: "products", category_id: "categories" },
   "stock.adjust": { id: "products" },
   "wallet.topup": { member_id: "members", cash_session_id: "cash_sessions" },
-  "member.create": { plan_id: "membership_plans" },
+  "member.create": { plan_id: "membership_plans", avalador_id: "members" },
   "member.renew": { member_id: "members", plan_id: "membership_plans" },
   "member.update": { id: "members" },
   "category.update": { id: "categories" },
@@ -182,9 +255,34 @@ export const executionReferences: Record<string, Record<string, string>> = {
   "cash.close": { id: "cash_sessions" },
 };
 export const executionCapabilities = {
+  "member.mail.request": {
+    permission: "manage_members",
+    rpc: "snoop_member_mail_request",
+    confirmation: true,
+  },
+  "theme.set": { permission: "admin", rpc: "snoop_voice_entity", confirmation: true },
+  "collaborator.permissions.set": {
+    permission: "admin",
+    rpc: "snoop_voice_entity",
+    confirmation: true,
+  },
+  "collaborator.revoke": { permission: "admin", rpc: "snoop_voice_entity", confirmation: true },
+  "wallet.topup.reverse": {
+    permission: "use_cash+manage_members+original_owner_or_admin",
+    rpc: "socio_wallet_void_topup",
+    confirmation: true,
+  },
+  "finance.supplier.create": { permission: "admin", rpc: "snoop_voice_entity", confirmation: true },
+  "finance.expense.create": { permission: "admin", rpc: "snoop_voice_entity", confirmation: true },
+  "finance.expense.cancel": {
+    permission: "admin",
+    rpc: "snoop_cancel_expense",
+    confirmation: true,
+  },
+  "finance.purchase.record": { permission: "admin", rpc: "snoop_voice_entity", confirmation: true },
   "product.create": {
     permission: "manage_products",
-    rpc: "save_administrative_product",
+    rpc: "snoop_create_product_located",
     confirmation: true,
   },
   "product.update": {
@@ -272,6 +370,46 @@ const cashResult = z
   })
   .strict();
 export const executionResults: Record<keyof typeof executionSchemas, z.ZodTypeAny> = {
+  "member.mail.request": z
+    .object({
+      id,
+      status: z.enum(["pending", "sending", "accepted", "delivered", "error", "unknown"]),
+      attempts: z.number().int().nonnegative(),
+    })
+    .strict(),
+  "theme.set": z.object({ id, theme_id: theme }).strict(),
+  "collaborator.permissions.set": z.object({ id, permissions: z.array(z.string()) }).strict(),
+  "collaborator.revoke": z.object({ id, revoked: z.literal(true) }).strict(),
+  "wallet.topup.reverse": z
+    .object({
+      id,
+      topupId: id,
+      balanceCents: z.number().int().nonnegative().safe(),
+      refundCents: z.number().int().positive().safe(),
+    })
+    .strict(),
+  "finance.supplier.create": z
+    .object({ id, name: z.string(), contact: z.string(), notes: z.string() })
+    .strict(),
+  "finance.expense.create": z
+    .object({
+      id,
+      amount_cents: z.number().int().positive(),
+      payment_method: z.string(),
+      description: z.string(),
+    })
+    .strict(),
+  "finance.expense.cancel": z
+    .object({ id, cancelled_by: id, cancelled_at: z.string(), cancel_reason: z.string() })
+    .strict(),
+  "finance.purchase.record": z
+    .object({
+      id,
+      status: z.literal("pendiente"),
+      amount_cents: z.number().int().positive(),
+      reference: z.string(),
+    })
+    .strict(),
   "access_control.set": z.object({ enabled: z.boolean() }).strict(),
   "category.update": z.object({ ...recordId, name: z.string(), archived: z.boolean() }).strict(),
   "category.create": z
@@ -333,9 +471,10 @@ function objectSchema(schema: z.ZodTypeAny): z.AnyZodObject {
     ? objectSchema(schema.innerType())
     : (schema as z.AnyZodObject);
 }
-export function executionGuide(walletEnabled: boolean) {
+export function executionGuide(walletEnabled: boolean, mailEnabled = false) {
   return executionNames
     .filter((name) => walletEnabled || !name.startsWith("wallet."))
+    .filter((name) => mailEnabled || name !== "member.mail.request")
     .map((action) => {
       const shape = objectSchema(executionSchemas[action]).shape;
       return {

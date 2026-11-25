@@ -12,6 +12,57 @@ const access: AccountAccess = {
   status: "active",
   permissions: ["use_cash", "view_reports"],
 };
+test("admin collaborator period validates club membership and applies the selected actor filter without disclosing the identity", async () => {
+  const selected = "00000000-0000-4000-8000-000000000003";
+  for (const mode of ["valid", "foreign", "staff"]) {
+    let ledger = 0;
+    const request: typeof fetch = async (input) => {
+      const u = new URL(String(input));
+      if (u.pathname.endsWith("/is_current_user_club_admin"))
+        return Response.json(mode !== "staff");
+      if (u.pathname.endsWith("/user_roles")) {
+        assert.equal(u.searchParams.get("club_id"), "eq.synthetic-club");
+        assert.equal(u.searchParams.get("user_id"), "eq." + selected);
+        return Response.json(mode === "foreign" ? [] : [{ user_id: selected }]);
+      }
+      ledger++;
+      if (u.pathname.endsWith("/orders")) {
+        assert.equal(u.searchParams.get("created_by"), "eq." + selected);
+        return Response.json([
+          {
+            id: "synthetic",
+            created_by: selected,
+            total_cents: 1250,
+            status: "completed",
+            created_at: "2026-11-24T12:00:00Z",
+            cash_session_id: null,
+          },
+        ]);
+      }
+      assert.equal(u.searchParams.get("recorded_by"), "eq." + selected);
+      return Response.json([]);
+    };
+    const call = () =>
+      voiceCashPeriod(
+        "https://bnwanxbmprbymbutoths.supabase.co",
+        "synthetic",
+        "synthetic",
+        "admin",
+        access,
+        { from: "2026-11-24", to: "2026-11-24", collaborator_id: selected },
+        request,
+      );
+    if (mode !== "valid") {
+      await assert.rejects(call, /FORBIDDEN/);
+      assert.equal(ledger, 0);
+    } else {
+      const r = await call();
+      assert.equal(r.cents, 1250);
+      assert.equal(r.scope, "selected_collaborator");
+      assert(!JSON.stringify(r).includes(selected));
+    }
+  }
+});
 test("period receipts reuse ledger, exclude cancelled orders, deduplicate and honor Madrid DST and own scope", async () => {
   for (const admin of [true, false]) {
     const queries: URL[] = [];
@@ -187,7 +238,10 @@ test("voice period matches released wallet accounting and never converts evidenc
           {
             id: topup,
             amountCents: 3000,
-            paymentMethod:"cash",kind:"topup",memberId:session,voided:false,
+            paymentMethod: "cash",
+            kind: "topup",
+            memberId: session,
+            voided: false,
             cashSessionId: session,
             actorId: actor,
             at: "2026-11-18T12:00:00Z",
@@ -195,7 +249,10 @@ test("voice period matches released wallet accounting and never converts evidenc
           {
             id: session,
             amountCents: 9900,
-            paymentMethod:"cash",kind:"topup",memberId:session,voided:false,
+            paymentMethod: "cash",
+            kind: "topup",
+            memberId: session,
+            voided: false,
             cashSessionId: session,
             actorId: order,
             at: "2026-11-18T12:00:00Z",

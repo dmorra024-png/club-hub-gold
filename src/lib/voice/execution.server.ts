@@ -2,10 +2,18 @@ import { ExecutionRequest, executionNames, executionResults } from "./execution-
 import { z } from "zod";
 const safeExecutionCodes = new Set([
   "VOICE_RECEIPT_CONFIRMATION_REQUIRED",
+  "VOICE_LOCATION_CONFIRMATION_REQUIRED",
+  "VOICE_DUAL_STOCK_REVIEW_REQUIRED",
+  "VOICE_AVALADOR_REVIEW_REQUIRED",
+  "VOICE_AVALADOR_REQUIRED",
+  "VOICE_UNSUPPORTED_MEMBER_FIELD",
   "VOICE_HUMAN_DOCUMENTS_REQUIRED",
   "VOICE_REQUIRED_FIELD",
   "VOICE_FIELD_DISABLED",
   "VOICE_WALLET_UNAVAILABLE",
+  "VOICE_THEME_UNAVAILABLE",
+  "VOICE_MAIL_UNAVAILABLE",
+  "VOICE_WALLET_CREDITS_USED",
   "VOICE_REFERENCE_NOT_FOUND",
   "VOICE_DUPLICATE_NAME",
   "VOICE_INSUFFICIENT_STOCK",
@@ -38,6 +46,12 @@ export const ExecutionConfirmation = z
     receiptConfirmed: z.literal(true).optional(),
   })
   .strict();
+/** Public receipt metadata only: never an email address, provider ID or token. */
+export function voiceReceiptDetails(value: { action: string; status: string; result?: unknown }) {
+  if (value.action !== "member.mail.request" || value.status !== "completed") return {};
+  const mail = executionResults["member.mail.request"].parse(value.result) as { status: string };
+  return { mailStatus: mail.status };
+}
 const Result = z
   .object({
     id: z.string().uuid(),
@@ -52,7 +66,7 @@ export async function voiceAccessOperation(
   options: { url: string; key: string; jwt: string; enabled: boolean; fetch?: typeof fetch },
   request: {
     id: string;
-    operation: "prepare" | "confirm" | "status" | "cancel";
+    operation: "prepare" | "confirm" | "status" | "cancel" | "recover";
     value?: boolean;
     token?: string;
   },
@@ -124,14 +138,14 @@ export async function voiceCommandOperation(
   options: { url: string; key: string; jwt: string; enabled: boolean; fetch?: typeof fetch },
   request: {
     id: string;
-    operation: "prepare" | "confirm" | "status" | "cancel";
+    operation: "prepare" | "confirm" | "status" | "cancel" | "recover";
     action?: string;
     arguments?: Record<string, unknown>;
     token?: string;
     receiptConfirmed?: boolean;
   },
 ) {
-  if (!options.enabled) throw Error("VOICE_EXECUTION_DISABLED");
+  if (!options.enabled && request.operation !== "status") throw Error("VOICE_EXECUTION_DISABLED");
   if (options.url !== "https://bnwanxbmprbymbutoths.supabase.co")
     throw Error("VOICE_EXECUTION_CONFIG");
   const id = z.string().uuid().parse(request.id);

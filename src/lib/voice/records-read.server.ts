@@ -10,6 +10,11 @@ export const RecordsQuery = z
       "membership_plans",
       "discounts",
       "cash_sessions",
+      "suppliers",
+      "expenses",
+      "purchases",
+      "wallet_topups",
+      "collaborators",
     ]),
     query: z
       .string()
@@ -26,6 +31,11 @@ const projections = {
   stock: "id,name,stock,category_id",
   membership_plans: "id,name,price_cents,duration_days,active",
   discounts: "id,name,percentage_basis_points,active,valid_from,valid_until",
+  suppliers: "id,name",
+  expenses: "id,description,amount_cents,payment_method,occurred_on,cancelled_at",
+  purchases: "id,reference,description,amount_cents,status",
+  wallet_topups: "id,description,amount_cents,payment_method,created_at,voided",
+  collaborators: "id,name",
   cash_sessions: "id,status,opened_at,closed_at,opening_cash_cents,closing_cash_cents,notes",
 } as const;
 export async function voiceRecordsRead(
@@ -35,21 +45,86 @@ export async function voiceRecordsRead(
     jwt: string;
     access: AccountAccess;
     actor?: string;
+    walletEnabled?: boolean;
     fetch?: typeof fetch;
   },
   input: unknown,
 ) {
   const query = RecordsQuery.parse(input),
     access = options.access;
+  const finance = ["suppliers", "expenses", "purchases"].includes(query.kind);
+  const collaborators = query.kind === "collaborators";
   const permission =
     query.kind === "members" || query.kind === "membership_plans" || query.kind === "discounts"
       ? "manage_members"
       : query.kind === "cash_sessions"
         ? "use_cash"
         : "manage_products";
-  if (access.status !== "active" || !access.clubId || !access.permissions.includes(permission))
+  if (
+    access.status !== "active" ||
+    !access.clubId ||
+    (!finance && !collaborators && !access.permissions.includes(permission)) ||
+    ((finance || collaborators) && access.role !== "admin")
+  )
     throw Error("VOICE_READ_FORBIDDEN");
   if (options.url !== "https://bnwanxbmprbymbutoths.supabase.co") throw Error("VOICE_READ_CONFIG");
+  if (query.kind === "wallet_topups") {
+    if (
+      !options.walletEnabled ||
+      query.query ||
+      !access.permissions.includes("use_cash") ||
+      !access.permissions.includes("manage_members")
+    )
+      throw Error("VOICE_READ_FORBIDDEN");
+    const end = new Date(),
+      start = new Date(end.getTime() - 365 * 86400000);
+    const response = await (options.fetch ?? fetch)(
+      options.url + "/rest/v1/rpc/socio_wallet_cash_evidence",
+      {
+        method: "POST",
+        headers: {
+          apikey: options.key,
+          Authorization: "Bearer " + options.jwt,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ p_start: start.toISOString(), p_end: end.toISOString() }),
+        redirect: "manual",
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (!response.ok) throw Error("VOICE_READ_UNAVAILABLE");
+    const data = z
+      .object({
+        topups: z
+          .array(
+            z.object({
+              id: z.string().uuid(),
+              kind: z.enum(["topup", "topup_reversal"]),
+              amountCents: z.number().int().safe(),
+              paymentMethod: z.enum(["cash", "card", "transfer"]),
+              at: z.string().datetime(),
+              voided: z.boolean(),
+            }),
+          )
+          .max(10000),
+      })
+      .parse(await response.json());
+    const rows = data.topups
+      .filter((r) => r.kind === "topup")
+      .sort((a, b) => b.at.localeCompare(a.at));
+    return {
+      kind: query.kind,
+      truncated: rows.length > 6,
+      rows: rows.slice(0, 6).map((r) => ({
+        id: r.id,
+        description: r.voided ? "Recarga ANULADA" : "Recarga",
+        amount_cents: r.amountCents,
+        payment_method: r.paymentMethod,
+        created_at: r.at,
+        voided: r.voided,
+      })),
+    };
+  }
   const table =
     query.kind === "categories"
       ? "product_categories"
@@ -72,10 +147,16 @@ export async function voiceRecordsRead(
   }
   if (query.query && query.kind !== "members" && query.kind !== "cash_sessions")
     params.set("name", "ilike.%" + query.query.replace(/[\\%_]/g, "\\$&") + "%");
-  const personal = query.kind === "members";
+  const personal = query.kind === "members" || finance || collaborators;
   const response = await (options.fetch ?? fetch)(
     options.url +
-      (personal ? "/rest/v1/rpc/snoop_voice_find_members" : "/rest/v1/" + table + "?" + params),
+      (personal
+        ? collaborators
+          ? "/rest/v1/rpc/snoop_voice_collaborators"
+          : finance
+            ? "/rest/v1/rpc/snoop_voice_finance_search"
+            : "/rest/v1/rpc/snoop_voice_find_members"
+        : "/rest/v1/" + table + "?" + params),
     {
       method: personal ? "POST" : "GET",
       headers: {
@@ -84,7 +165,14 @@ export async function voiceRecordsRead(
         ...(personal ? { "Content-Type": "application/json" } : {}),
       },
       ...(personal
-        ? { body: JSON.stringify({ p_query: query.query, p_club: access.clubId, p_limit: 7 }) }
+        ? {
+            body: JSON.stringify({
+              p_query: query.query,
+              p_club: access.clubId,
+              p_limit: 7,
+              ...(finance ? { p_kind: query.kind } : {}),
+            }),
+          }
         : {}),
       redirect: "manual",
       signal: AbortSignal.timeout(5000),
@@ -141,6 +229,7 @@ export async function voiceRecordsRead(
           .safeParse(row.stock).success
       )
         throw Error("VOICE_READ_INVALID_STOCK");
+      row.stock_scope = "total";
       row.unit_type = units.get(String(row.category_id)) ?? null;
     }
   }

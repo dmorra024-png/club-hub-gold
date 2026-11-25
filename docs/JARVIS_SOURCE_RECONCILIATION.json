@@ -1,0 +1,122 @@
+{
+  "imports": [
+    {
+      "file": "src/lib/member-fields.ts",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "a8de097720f20b201c6f0cd55e7c7b9050724ab49c83c42e63e66301c1f4d5bb",
+      "workingSha256": "a8de097720f20b201c6f0cd55e7c7b9050724ab49c83c42e63e66301c1f4d5bb",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "src/routes/_authenticated/soci.nuovo.tsx",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "5bb1670ceb1ba07dfdfbca396120dbacfdd70fc88532ad024a438408fda5e34f",
+      "workingSha256": "5bb1670ceb1ba07dfdfbca396120dbacfdd70fc88532ad024a438408fda5e34f",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "src/components/InventoryCostReport.tsx",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "7521e5c0c1fffbfb04a10731d856e1cec7f637f73ac2fbacc70c52090dc871ec",
+      "workingSha256": "7521e5c0c1fffbfb04a10731d856e1cec7f637f73ac2fbacc70c52090dc871ec",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "src/components/ProductEconomicsReport.tsx",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "57b8d3c4c14a52f0bad4fc8abffb67a882016434fdb6e82aceee20ff1da8069f",
+      "workingSha256": "57b8d3c4c14a52f0bad4fc8abffb67a882016434fdb6e82aceee20ff1da8069f",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "src/components/WarehouseManager.tsx",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "678c7ebd2b041cfdccce41df8b3efc04a0b35427f5fc2d0b16e54034367e8130",
+      "workingSha256": "678c7ebd2b041cfdccce41df8b3efc04a0b35427f5fc2d0b16e54034367e8130",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "docs/sql/SNOOP_AVALADOR_PILOT.sql",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "2848b4502f874774932a9d94735970bfc54936957e22c107368336d516701b82",
+      "workingSha256": "2848b4502f874774932a9d94735970bfc54936957e22c107368336d516701b82",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    },
+    {
+      "file": "docs/sql/SNOOP_LOCATED_PRODUCT_CREATION_PILOT.sql",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "7a3ce1c3ed44cc086d0365dfda2392cad12583a58091c65f9cfc2ef33cd2f982",
+      "workingSha256": "7a3ce1c3ed44cc086d0365dfda2392cad12583a58091c65f9cfc2ef33cd2f982",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    },
+    {
+      "file": "docs/sql/SNOOP_FINANZAS_V1_PILOT.sql",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "e9f1cbb18f622830a342a9050e2af539d892e7d28a05c49f62b255b66607a419",
+      "workingSha256": "e9f1cbb18f622830a342a9050e2af539d892e7d28a05c49f62b255b66607a419",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    },
+    {
+      "file": "docs/sql/SNOOP_INVENTORY_COST_REPORT_PILOT.sql",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "fd6980381f2b1de596949f2ce556ce7ac421de95c5e57171364dbe958ee1eefc",
+      "workingSha256": "fd6980381f2b1de596949f2ce556ce7ac421de95c5e57171364dbe958ee1eefc",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    },
+    {
+      "file": "docs/sql/SNOOP_PRODUCT_ECONOMICS_REPORT_PILOT.sql",
+      "ownerSourceCommit": "459303a122ce5ae560712a234098deb20b43fae4",
+      "sourceSha256": "4d344c1c71a286745ddfedb42efddaf7ef513192cfdd44995d1cc48e1db84ab2",
+      "workingSha256": "4d344c1c71a286745ddfedb42efddaf7ef513192cfdd44995d1cc48e1db84ab2",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    },
+    {
+      "file": "src/components/WarehousePanel.tsx",
+      "ownerSourceCommit": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+      "sourceSha256": "e398cf0b42e09870fc5c2cd11c9c155cde32feaa651406dfc4ac1588d69064e8",
+      "workingSha256": "e398cf0b42e09870fc5c2cd11c9c155cde32feaa651406dfc4ac1588d69064e8",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "src/routes/_authenticated/soci.$id.pedido.tsx",
+      "ownerSourceCommit": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+      "sourceSha256": "820bb54c32babb45f504e5f3dd7078992282bfcf89d3b2bc32e77c25b28c668b",
+      "workingSha256": "820bb54c32babb45f504e5f3dd7078992282bfcf89d3b2bc32e77c25b28c668b",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": null
+    },
+    {
+      "file": "docs/sql/SNOOP_ALMACEN_DISPENSARIO_REVIEW_ONLY.sql",
+      "ownerSourceCommit": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+      "sourceSha256": "5c0836476817573d58f3ca9b3d4f69aae1301fcbcbb9ce28bd7065db57f645eb",
+      "workingSha256": "5c0836476817573d58f3ca9b3d4f69aae1301fcbcbb9ce28bd7065db57f645eb",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    },
+    {
+      "file": "docs/sql/SNOOP_ALMACEN_PRECISION_FIX.sql",
+      "ownerSourceCommit": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+      "sourceSha256": "6f6a40f9b87b138d66d1782419b8fbe660b0a11d8af4381715b063bc9cd9758f",
+      "workingSha256": "6f6a40f9b87b138d66d1782419b8fbe660b0a11d8af4381715b063bc9cd9758f",
+      "unchangedOwnerSource": true,
+      "sqlExecutedInProduction": false
+    }
+  ],
+  "combinedProductsPage": "Latest connected WarehousePanel with prior verified idempotent located creation and scoped voice ports; no duplicate warehouse tab created",
+  "protectedModulesChanged": false,
+  "independentSocioChanged": false,
+  "deploymentWorkflowsChanged": false,
+  "newMigrationToReview": "docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql",
+  "ownerSQLCopies": "Source/fixture provenance only. Do not reapply or automatically run them."
+}

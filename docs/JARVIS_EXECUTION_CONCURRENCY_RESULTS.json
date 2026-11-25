@@ -1,7 +1,7 @@
 {
   "engine": "PostgreSQL 17.11",
   "sessions": 7,
-  "lockWaitersObserved": 1,
+  "lockWaitersObserved": 3,
   "synthetic": true,
   "network": "none",
   "productionDatabase": false,

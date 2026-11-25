@@ -894,6 +894,7 @@ test("registration refuses missing human evidence and server field configuration
   const args = {
     first_name: "Synthetic",
     last_name: "New Member",
+    avalador_id: null,
     birth_date: "1995-03-12",
     city: "Palma",
     phone: "666123456",
@@ -1085,6 +1086,7 @@ test("product card creation and edits use original catalog RPCs without an impli
   const history = await db.query("select * from public.stock_movements order by id");
   const created = await confirmCommand(1, uid(1070), "product.create", {
     name: "Synthetic Binder",
+    destination: "almacen",
     category_id: uid(1001),
     buy_price: 420,
     sell_price: 1250,
@@ -1183,6 +1185,459 @@ test("physical inventory correction persists exactly once with original expected
         delta: "1",
         notes: "Foreign product",
       }),
+    /REFERENCE_NOT_FOUND/,
+  );
+});
+
+test("current avalador registration RPC is preserved and a required endorser must be a verified member of the same club", async () => {
+  await confirmCommand(1, uid(1080), "member_field.set", {
+    field_key: "avalador",
+    visible: true,
+    required: true,
+  });
+  const args = {
+    first_name: "Synthetic",
+    last_name: "Endorsed",
+    birth_date: "1995-03-12",
+    city: "Palma",
+    phone: "666123456",
+    email: "",
+    address: "",
+    postal_code: "",
+    plan_id: uid(401),
+    method: "cash",
+    avalador_id: null,
+  };
+  await assert.rejects(
+    () => command(1, uid(1081), "prepare", "member.create", args),
+    /AVALADOR_REQUIRED/,
+  );
+  await assert.rejects(
+    () => command(1, uid(1081), "prepare", "member.create", { ...args, avalador_id: uid(9999) }),
+    /REFERENCE_NOT_FOUND/,
+  );
+  await confirmCommand(1, uid(1082), "member.create", { ...args, avalador_id: uid(501) });
+  const m = (
+    await db.query(
+      "select avalador_member_id,avalador_member_number from public.members where id=$1",
+      [uid(1082)],
+    )
+  ).rows[0];
+  assert.equal(m.avalador_member_id, uid(501));
+  assert.equal(
+    m.avalador_member_number,
+    (await db.query("select member_number from public.members where id=$1", [uid(501)])).rows[0]
+      .member_number,
+  );
+  await confirmCommand(1, uid(1083), "member_field.set", {
+    field_key: "avalador",
+    visible: true,
+    required: false,
+  });
+});
+test("current located-product creation records the requested destination while dual-stock legacy corrections fail closed", async () => {
+  assert.deepEqual(
+    (
+      await db.query(
+        "select destination,product_id from public.snoop_located_product_requests where request_id=$1",
+        [uid(1070)],
+      )
+    ).rows[0],
+    {
+      destination: "almacen",
+      product_id: (await db.query("select id from public.products where name='Synthetic Binder'"))
+        .rows[0].id,
+    },
+  );
+  // Use the owner's actual published location schema and triggers, only locally.
+  await db.exec(await readFile("docs/sql/SNOOP_ALMACEN_DISPENSARIO_REVIEW_ONLY.sql", "utf8"));
+  await db.exec(await readFile("docs/sql/SNOOP_ALMACEN_PRECISION_FIX.sql", "utf8"));
+  await assert.rejects(
+    () =>
+      command(1, uid(1084), "prepare", "stock.adjust", {
+        id: uid(301),
+        delta: "1",
+        notes: "Do not bypass current dual-stock flow",
+      }),
+    /DUAL_STOCK_REVIEW_REQUIRED/,
+  );
+  assert.equal(
+    (
+      await db.query("select count(*)::int n from public.snoop_voice_executions where id=$1", [
+        uid(1084),
+      ])
+    ).rows[0].n,
+    0,
+  );
+});
+
+test("current Finanzas supplier, expense, planned-purchase and cancellation actions preserve Caja, inventory and original amounts", async () => {
+  const cash = await db.query(
+    "select id,opening_cash_cents,closing_cash_cents from public.cash_sessions order by id",
+  );
+  const stock = await db.query("select id,stock from public.products order by id");
+  await confirmCommand(1, uid(1090), "finance.supplier.create", {
+    name: "Synthetic Office Supplier",
+    contact: "synthetic@example.test",
+    notes: "Synthetic test only",
+  });
+  await confirmCommand(1, uid(1091), "finance.expense.create", {
+    supplier_id: uid(1090),
+    category: "alquiler",
+    description: "Synthetic office rent",
+    amount_cents: 50000,
+    payment_method: "banco",
+  });
+  await confirmCommand(1, uid(1092), "finance.purchase.record", {
+    supplier_id: uid(1090),
+    reference: "SYNTHETIC-2026",
+    description: "Planned office chairs",
+    amount_cents: 12500,
+  });
+  const old = (await db.query("select * from public.snoop_expenses where id=$1", [uid(1091)]))
+    .rows[0];
+  await confirmCommand(1, uid(1093), "finance.expense.cancel", {
+    id: uid(1091),
+    reason: "Synthetic entry duplicated in source document",
+  });
+  const cancelled = (await db.query("select * from public.snoop_expenses where id=$1", [uid(1091)]))
+    .rows[0];
+  for (const key of [
+    "amount_cents",
+    "description",
+    "created_by",
+    "created_at",
+    "request_id",
+    "payment_method",
+  ])
+    assert.deepEqual(cancelled[key], old[key]);
+  assert.equal(cancelled.cancelled_by, uid(1));
+  assert(cancelled.cancelled_at);
+  assert.equal(
+    (await db.query("select count(*)::int n from public.snoop_expenses where id=$1", [uid(1091)]))
+      .rows[0].n,
+    1,
+  );
+  assert.equal(
+    (await db.query("select status from public.snoop_purchases where id=$1", [uid(1092)])).rows[0]
+      .status,
+    "pendiente",
+  );
+  assert.deepEqual(
+    await db.query(
+      "select id,opening_cash_cents,closing_cash_cents from public.cash_sessions order by id",
+    ),
+    cash,
+  );
+  assert.deepEqual(await db.query("select id,stock from public.products order by id"), stock);
+  await assert.rejects(
+    () =>
+      command(1, uid(1094), "prepare", "finance.expense.cancel", {
+        id: uid(1091),
+        reason: "Another cancellation",
+      }),
+    /REFERENCE_NOT_FOUND/,
+  );
+  await assert.rejects(
+    () =>
+      command(3, uid(1094), "prepare", "finance.supplier.create", {
+        name: "Foreign",
+        contact: "",
+        notes: "",
+      }),
+    /ACCESS_DENIED/,
+  );
+  await assert.rejects(
+    () =>
+      command(2, uid(1094), "prepare", "finance.expense.create", {
+        supplier_id: uid(1090),
+        category: "otros",
+        description: "Foreign supplier",
+        amount_cents: 100,
+        payment_method: "pendiente",
+      }),
+    /REFERENCE_NOT_FOUND/,
+  );
+});
+test("finance lookup is POST-only in the adapter and the real invoker RPC preserves admin and club RLS", async () => {
+  const rows = (
+    await actor(1, "select public.snoop_voice_finance_search('expenses','Synthetic',$1,7) rows", [
+      club,
+    ])
+  ).rows[0].rows;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].amount_cents, 50000);
+  await assert.rejects(
+    () => actor(2, "select public.snoop_voice_finance_search('expenses','Synthetic',$1,7)", [club]),
+    /ACCESS_DENIED/,
+  );
+  await assert.rejects(
+    () => actor(3, "select public.snoop_voice_finance_search('expenses','Synthetic',$1,7)", [club]),
+    /ACCESS_DENIED/,
+  );
+});
+
+test("pending recovery needs the original authenticated actor and a new explicit confirmation; completed recovery cannot write again", async () => {
+  const id = uid(1101);
+  const p = await command(1, id, "prepare", "category.create", {
+    name: "Recovered synthetic category",
+    unit_type: "unit",
+    is_smokeable: false,
+  });
+  const before = await db.query("select id,name from public.product_categories order by id");
+  const recovered = await command(1, id, "recover");
+  assert.equal(recovered.status, "confirmation_required");
+  assert.equal(recovered.token, p.token);
+  assert.deepEqual(
+    await db.query("select id,name from public.product_categories order by id"),
+    before,
+  );
+  for (const user of [2, 3])
+    await assert.rejects(() => command(user, id, "recover"), /ACCESS_DENIED/);
+  await assert.rejects(
+    () => command(1, id, "confirm", null, null, uid(1199)),
+    /CONFIRMATION_REQUIRED/,
+  );
+  const complete = await command(1, id, "confirm", null, null, recovered.token);
+  assert.equal(complete.status, "completed");
+  const after = await db.query("select id,name from public.product_categories order by id");
+  assert.equal(after.rows.length, before.rows.length + 1);
+  assert.equal((await command(1, id, "recover")).token, null);
+  assert.equal((await command(1, id, "recover")).status, "completed");
+  assert.deepEqual(
+    await db.query("select id,name from public.product_categories order by id"),
+    after,
+  );
+});
+
+test("expired recovery cancels only the unexecuted proposal and a rollback may still read verified status with writes disabled", async () => {
+  const id = uid(1102);
+  await command(1, id, "prepare", "category.create", {
+    name: "Expired synthetic",
+    unit_type: "unit",
+    is_smokeable: false,
+  });
+  await db.query(
+    "update public.snoop_voice_executions set prepared_at=now()-interval '11 minutes' where id=$1",
+    [id],
+  );
+  const recovered = await command(1, id, "recover");
+  assert.equal(recovered.status, "cancelled");
+  assert.equal(recovered.token, null);
+  assert.equal(
+    (await db.query("select id from public.product_categories where id=$1", [id])).rows.length,
+    0,
+  );
+  const options = {
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "synthetic",
+    jwt: "synthetic",
+    enabled: false,
+    fetch: async (_url, req) => {
+      const p = JSON.parse(req.body);
+      return Response.json(await command(1, p.p_request, p.p_operation));
+    },
+  };
+  assert.equal(
+    (await voiceCommandOperation(options, { id, operation: "status" })).status,
+    "cancelled",
+  );
+  for (const operation of ["prepare", "confirm", "recover"])
+    await assert.rejects(() => voiceCommandOperation(options, { id, operation }), /DISABLED/);
+});
+
+test("wallet recharge reversal uses the unchanged refund RPC, requires actual-refund attestation and preserves the original receipt", async () => {
+  await confirmCommand(1, uid(1110), "wallet.configure", { enabled: true });
+  await confirmCommand(1, uid(1111), "cash.open", { opening_cash_cents: 0 });
+  const original = (
+    await db.query("select * from public.socio_wallet_ledger where operation_id=$1", [uid(1062)])
+  ).rows[0];
+  const args = {
+    topup_id: original.id,
+    cash_session_id: uid(1111),
+    reason: "Synthetic refund already made",
+    method: "card",
+  };
+  const prepared = await command(1, uid(1112), "prepare", "wallet.topup.reverse", args);
+  assert.equal(prepared.summary.amount_cents, 1250);
+  assert.match(prepared.summary.attestation, /ya he devuelto/);
+  await assert.rejects(
+    () => command(1, uid(1112), "confirm", null, null, prepared.token),
+    /RECEIPT_CONFIRMATION_REQUIRED/,
+  );
+  await assert.rejects(
+    () => command(2, uid(1113), "prepare", "wallet.topup.reverse", args),
+    /ACCESS_DENIED|REFERENCE_NOT_FOUND/,
+  );
+  await assert.rejects(
+    () => command(3, uid(1113), "prepare", "wallet.topup.reverse", args),
+    /ACCESS_DENIED|REFERENCE_NOT_FOUND/,
+  );
+  const done = await command(1, uid(1112), "confirm", null, null, prepared.token, true);
+  assert.equal(done.result.refundCents, 1250);
+  assert.equal(done.result.balanceCents, 0);
+  assert.deepEqual(await command(1, uid(1112), "confirm", null, null, prepared.token, true), done);
+  assert.deepEqual(
+    (await db.query("select * from public.socio_wallet_ledger where id=$1", [original.id])).rows[0],
+    original,
+  );
+  const reversals = (
+    await db.query(
+      "select delta_cents,payment_method,reversal_of from public.socio_wallet_ledger where kind='topup_reversal' and reversal_of=$1",
+      [original.operation_id],
+    )
+  ).rows;
+  assert.deepEqual(reversals, [
+    { delta_cents: -1250, payment_method: "card", reversal_of: original.operation_id },
+  ]);
+  assert.equal(Number(original.delta_cents) + Number(reversals[0].delta_cents), 0);
+  assert(
+    (
+      await db.query("select receipt_confirmed_at from public.snoop_voice_executions where id=$1", [
+        uid(1112),
+      ])
+    ).rows[0].receipt_confirmed_at,
+  );
+  await assert.rejects(
+    () => command(1, uid(1114), "prepare", "wallet.topup.reverse", args),
+    /REFERENCE_NOT_FOUND/,
+  );
+});
+
+test("collaborator lookup preserves existing row policies and rejects staff or foreign club requests", async () => {
+  await db.query("update public.profiles set full_name='Synthetic operator' where id=$1", [uid(3)]);
+  const query = "select * from public.snoop_voice_collaborators('Synthetic operator',$1,7)";
+  assert.deepEqual((await actor(1, query, [club])).rows, [
+    { id: uid(3), name: "Synthetic operator" },
+  ]);
+  await assert.rejects(() => actor(2, query, [club]), /ACCESS_DENIED/);
+  await assert.rejects(() => actor(3, query, [club]), /ACCESS_DENIED/);
+});
+
+test("shared collaborator commands change only the existing club role with explicit confirmation, never Auth identities or admin roles", async () => {
+  await db.query(
+    "insert into auth.users(id,email)values($1,'synthetic-collaborator@example.test')",
+    [uid(6)],
+  );
+  await db.query(
+    "insert into public.user_roles(user_id,role,club_id,permissions)values($1,'collaborator',$2,'{manage_members,use_cash}')",
+    [uid(6), club],
+  );
+  const changed = await command(1, uid(1120), "prepare", "collaborator.permissions.set", {
+    id: uid(6),
+    permissions: ["manage_members", "view_reports"],
+  });
+  assert.deepEqual(
+    (
+      await db.query(
+        "select to_jsonb(permissions) permissions from public.user_roles where user_id=$1",
+        [uid(6)],
+      )
+    ).rows[0].permissions,
+    ["manage_members", "use_cash"],
+  );
+  for (const user of [2, 3])
+    await assert.rejects(
+      () =>
+        command(user, uid(1121), "prepare", "collaborator.permissions.set", {
+          id: uid(6),
+          permissions: ["use_cash"],
+        }),
+      /ACCESS_DENIED|REFERENCE_NOT_FOUND/,
+    );
+  for (const id of [uid(1), uid(2)])
+    await assert.rejects(
+      () => command(1, uid(1121), "prepare", "collaborator.revoke", { id }),
+      /REFERENCE_NOT_FOUND/,
+    );
+  await assert.rejects(
+    () =>
+      command(1, uid(1121), "prepare", "collaborator.permissions.set", {
+        id: uid(6),
+        permissions: ["super_admin"],
+      }),
+    /INVALID_ARGUMENTS/,
+  );
+  const done = await command(1, uid(1120), "confirm", null, null, changed.token);
+  assert.deepEqual(done.result.permissions, ["manage_members", "view_reports"]);
+  assert.deepEqual(await command(1, uid(1120), "confirm", null, null, changed.token), done);
+  const pending = await command(1, uid(1122), "prepare", "collaborator.revoke", { id: uid(6) });
+  await db.query("update public.user_roles set permissions='{use_cash}' where user_id=$1", [
+    uid(6),
+  ]);
+  await assert.rejects(
+    () => command(1, uid(1122), "confirm", null, null, pending.token),
+    /STATE_CHANGED/,
+  );
+  const rev = await confirmCommand(1, uid(1123), "collaborator.revoke", { id: uid(6) });
+  assert.equal(rev.result.revoked, true);
+  assert.equal(
+    (await db.query("select id from public.user_roles where user_id=$1", [uid(6)])).rows.length,
+    0,
+  );
+  assert.equal((await db.query("select id from auth.users where id=$1", [uid(6)])).rows.length, 1);
+  assert.deepEqual(await command(1, uid(1123), "recover"), JSON.parse(JSON.stringify(rev)));
+});
+
+test("theme execution reuses the existing seven palettes and the owner's RLS keeps two clubs independent", async () => {
+  await confirmCommand(2, uid(1130), "theme.set", { theme_id: "ruby-gold" });
+  const prepared = await command(1, uid(1131), "prepare", "theme.set", {
+    theme_id: "emerald-gold",
+  });
+  assert.equal((await actor(1, "select theme_id from public.snoop_club_themes")).rows.length, 0);
+  const done = await command(1, uid(1131), "confirm", null, null, prepared.token);
+  assert.equal(done.result.theme_id, "emerald-gold");
+  assert.deepEqual((await actor(1, "select club_id,theme_id from public.snoop_club_themes")).rows, [
+    { club_id: club, theme_id: "emerald-gold" },
+  ]);
+  assert.deepEqual((await actor(2, "select club_id,theme_id from public.snoop_club_themes")).rows, [
+    { club_id: other, theme_id: "ruby-gold" },
+  ]);
+  await assert.rejects(
+    () =>
+      actor(
+        1,
+        "insert into public.snoop_club_themes(club_id,theme_id) values($1,'navy-gold') on conflict(club_id) do update set theme_id=excluded.theme_id",
+        [other],
+      ),
+    /row-level security/,
+  );
+  await assert.rejects(
+    () => command(3, uid(1132), "prepare", "theme.set", { theme_id: "navy-gold" }),
+    /ACCESS_DENIED/,
+  );
+  await assert.rejects(
+    () => command(1, uid(1132), "prepare", "theme.set", { theme_id: "url(javascript:invalid)" }),
+    /INVALID_ARGUMENTS/,
+  );
+  assert.deepEqual(await command(1, uid(1131), "confirm", null, null, prepared.token), done);
+});
+
+test("QR email command reuses the original outbox and never labels queue acceptance as delivery", async () => {
+  const args = { member_id: uid(501), retry: false };
+  const legacy = await command(1, uid(1140), "prepare", "member.mail.request", args);
+  await assert.rejects(
+    () => command(1, uid(1140), "confirm", null, null, legacy.token),
+    /Reconciliar/,
+  );
+  assert.equal((await db.query("select id from public.snoop_member_mail")).rows.length, 0);
+  await db.query(
+    "insert into public.snoop_member_mail_legacy_review(member_id,club_id)values($1,$2)",
+    [uid(501), club],
+  );
+  const prepared = await command(1, uid(1141), "prepare", "member.mail.request", args);
+  assert.equal((await db.query("select id from public.snoop_member_mail")).rows.length, 0);
+  const done = await command(1, uid(1141), "confirm", null, null, prepared.token);
+  assert.equal(done.result.status, "pending");
+  assert.equal(done.result.attempts, 0);
+  assert.deepEqual(await command(1, uid(1141), "confirm", null, null, prepared.token), done);
+  const again = await confirmCommand(1, uid(1142), "member.mail.request", args);
+  assert.equal(again.result.id, done.result.id);
+  assert.equal(again.result.status, "pending");
+  assert.equal((await db.query("select id from public.snoop_member_mail")).rows.length, 1);
+  assert(!(await db.query("select provider_id from public.snoop_member_mail")).rows[0].provider_id);
+  await assert.rejects(
+    () => command(2, uid(1143), "prepare", "member.mail.request", args),
     /REFERENCE_NOT_FOUND/,
   );
 });

@@ -1,130 +1,116 @@
-# JARVIS — registro condiviso di lettura ed esecuzione
+# JARVIS — esecuzione autorizzata e collaudo
 
-Ramo di sviluppo isolato. Nessuna migrazione applicata da Codex, nessun flag attivato,
-nessun merge o deployment. Non è certificazione di parità completa con l'app manuale.
+## Stato e base effettiva
 
-## Meccanismo comune implementato
-`execution-registry.ts` definisce nomi, schemi, permessi e RPC delle capacità.
-`snoop_execute` accetta solo una capacità registrata: niente URL, SQL o nomi RPC liberi.
-Il gateway risolve riferimenti temporanei ottenuti da letture autorizzate, ricontrolla
-identità/club e prepara il comando. Il modello non riceve token di conferma.
+PR #27; applicazione pubblicata di riferimento `459303a` (PR #63), sorgenti
+`a410848`, con avalador, doppio stock e Finanzas. L'elenco effettivo dei 30 comandi
+è in `JARVIS_CAPABILITY_MATRIX.json`; non equivale a certificazione di parità totale.
+Nessun merge, deployment, attivazione REAL o scrittura su database reale da questo ramo.
 
-Una sola tabella e una sola RPC transazionale (`snoop_voice_command`) gestiscono:
-preparazione, token, scadenza, conferma, annullamento della proposta, idempotenza,
-lock, audit, lettura dell'esito e verifica della persistenza. `snoop_voice_access`
-rimane un wrapper compatibile, non un secondo motore. Dopo errori di rete l'esito
-è incerto: si legge il registro, senza retry automatici della scrittura. Annullare
-una proposta non annulla né rimborsa un'operazione già completata.
+## Unico meccanismo
 
-Il tool può confermare al modello solo l'esito verificato dal server. Il browser
-non può promuovere il vecchio `AppActionResult` a `completed`.
+`execution-registry.ts` definisce input/output Zod, permessi, riferimenti e RPC.
+Il gateway verifica JWT, club e allowlist Pilot; risolve riferimenti anonimi emessi
+solo dal server. Nessun URL/SQL/RPC libero, nessuna conferma generata dal modello.
+`snoop_voice_command` prepara, conferma, cancella la proposta, recupera e riconcilia
+l'esito con lock, snapshot, scadenza, audit e chiave persistente. Un esito incerto
+si risolve leggendo lo stato, mai ripetendo automaticamente la scrittura.
+`completed` richiede la rilettura effettiva del risultato; il browser non può
+fabbricarlo con `AppActionResult`. Le funzioni e i controlli manuali restano intatti.
 
-## Operazioni persistenti collegate e provate su SQL isolato
+## Operazioni collegate
 
-| Capacità | API/RPC riutilizzata | Verifica |
-|---|---|---|
-| Controllo entrate attivo/disattivo | snoop_set_club_access_control | Rilettura del valore, audit e replay |
-| Categoria: rinomina, archivio, ripristino | manage_administrative_category | Nome/stato riletti; prodotti e stock conservati |
-| Descrizione informativa prodotto | save_administrative_product_checked | Descrizione riletta; stock, prezzi e movimenti invariati |
-| Rinnovo quota socio | confirm_membership_with_receipt | Socio/piano/scadenza, membership_operations e ricevuta effettiva; importo ricavato dal piano |
+- Soci: ricerca privata POST, scheda/storico, modifiche anagrafiche consentite,
+  registrazione compatibile con avalador e campi del club, rinnovi e ricevute.
+- Quote e sconti: creazione/modifica, attivazione, validità e assegnazione/rimozione.
+- Catalogo: categorie, archiviazione/ripristino, schede prodotto, descrizioni e prezzi
+  in centesimi; nuovo prodotto con posizione esplicita e zero stock.
+- Stock: consultazione totale, ubicazioni riconciliate e storico. Rettifica legacy
+  provata solo sullo schema legacy; sul doppio stock si ferma prima della modifica.
+- Caja: apertura/chiusura sessioni, fondo/conteggio/note e audit originale; report
+  Madrid per giorno, periodo, sessione e collaboratore autorizzato. Nessun turno fisso
+  o cassa notturna. Fondo iniziale distinto dagli incassi e dai conteggi.
+- Monedero: configurazione club, saldo, storico ricariche, ricarica e storno attraverso
+  le RPC originali. Il rimborso richiede l'attestazione che sia già avvenuto; SNOOP
+  registra la prova, non esegue un pagamento bancario/POS.
+- Finanzas: fornitori, spese, annullamento spesa e registrazioni di acquisti previsti;
+  non genera pagamenti, ordini prodotto, movimenti inventario o movimenti Caja.
+- Collaboratori: consultazione privata; modifica permessi/revoca del ruolo del club
+  solo da admin, senza modificare admin, Auth, email, password o altri club.
+- Navigazione, bozze, correzioni, ricerca del catalogo e informazioni botaniche con
+  fonti restano sulle porte autorizzate delle schermate esistenti.
 
-Per i prezzi legacy frazionari, la vecchia RPC catalogo non accetta la rappresentazione
-esistente: l'adapter si ferma prima della conferma; non arrotonda e non corregge prezzi.
-Normalizza solo valori matematicamente interi e ne verifica l'invarianza dopo il salvataggio.
-Non vengono inventati importi, metodi di pagamento o quantità.
+## Recupero e interfaccia
 
-I controlli SQL rispettano i permessi specifici; è verificato anche un collaboratore
-catalogo autorizzato, e il rifiuto senza permessi. L'amministratore può consultare
-l'audit di altri operatori dello stesso club senza confermarne le richieste.
-L'allowlist vocale del Pilot resta amministratore Ddr: nessuna apertura globale.
+Solo UUID dell'operazione in sessionStorage, isolato per utente/club: niente token,
+trascrizioni o dati del modulo. Dopo riavvio/riconnessione il server restituisce
+stato e nuova revisione. Una proposta scaduta non viene eseguita; un completamento
+non viene ripetuto. Nuova conferma manuale richiesta per le proposte ancora valide.
+Disabilitare il flag blocca le scritture ma consente di riconciliare uno stato già
+registrato. Il gateway ricontrolla il gate Monedero anche sulle conferme recuperate.
+Gli esiti verificati aggiornano soltanto la vista corrente attraverso letture scoped.
 
-## Letture collegate
-`snoop_records_search`: soci, prodotti, categorie, stock e quote. JWT utente,
-club esplicito, proiezioni limitate, massimo sei risultati più indicazione di troncamento.
-La ricerca soci usa la nuova RPC read-only POST: nomi nel corpo, mai nell'URL.
-La RPC è SECURITY INVOKER e usa RLS oltre al controllo del club e di manage_members.
-I nomi e i dati personali dei soci sono mostrati solo nell'app autenticata; al modello
-vanno riferimenti anonimi. Catalogo, stock e quote restituiscono solo i campi non
-personali richiesti. Le unità stock provengono dalla categoria; se mancanti non vengono
-inventate. La memoria dei riferimenti è limitata alla connessione e pulita alla chiusura.
+## SQL: proposta unica, NON applicata
 
-Sono mantenuti i servizi vocali preesistenti di cassa giornaliera/intervallo, navigazione,
-bozze, vocabolario e fonti botaniche. Nessuna seconda logica contabile o wallet.
+`docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql` è la proposta coordinata, non un
+upgrade da eseguire alla cieca. Il preflight rifiuta un registro già esistente;
+non cancellare tabelle né rieseguire vecchie migrazioni. Le copie SQL avalador,
+located product e Finanzas sono sorgenti già presenti nel ramo del proprietario,
+usate come fixture: NON sono nuove migrazioni da applicare nuovamente.
+La migrazione voice_usage_budget già applicata non viene riapplicata.
+La verifica readonly dei metadati reali ha restituito HTTP 401: compatibilità dello
+schema installato non attestata e nessuna sostituzione di credenziali.
 
-## Evidenze e limiti della verifica
-- Suite unit/integration e TypeScript; build Node e Worker, dry-run.
-- PostgreSQL/PGlite isolato: RPC originali applicate dal repository, persistenza reale,
-  RLS, privilegi, conferma, prezzo cambiato, token errato, cancellazione, replay,
-  rollback, risposta persa dopo commit, cross-club per ogni nuova operazione.
-- PostgreSQL 17 in Docker con rete none: sette sessioni concorrenti, attese su lock
-  osservate, un solo rinnovo/ricevuta/audit e importo 1000 centesimi una sola volta.
-- Workerd sorgente/compilato: lettura, riferimenti tipizzati, conferma ed esito server,
-  doppio clic, controllo stato e cancellazione; upstream HTTP/provider sintetici.
-- Chromium/WebKit: quattro profili Samsung, iPhone, desktop e tablet; riepilogo socio,
-  piano, importo e metodo, conferma, cancellazione e stato incerto. Provider sintetico.
-- Percorso PCM nativo e regressioni dei moduli preesistenti verificati separatamente.
+## Limiti che non vanno nascosti
 
-Non è stata misurata l'accuratezza STT reale, la latenza Deepgram o l'udibilità fisica.
-Nel workspace e nei file di configurazione previsti non sono presenti DEEPGRAM_API_KEY,
-credenziali Cloudflare utilizzabili o una sessione autenticata Ddr. Nessuna chiave
-nuova creata o estratta. Non creare endpoint pubblici di diagnostica per aggirare il blocco.
+Non sono introdotte automazioni di distribuzione di prodotti regolamentati o checkout
+vocale di tali prodotti. I flussi manuali restano disponibili.
+Documenti, firma, foto, scelta file e credenziali richiedono gli input umani originali.
+Inviti Auth/email non hanno un contratto di replay duraturo verificabile nei servizi
+esistenti: la bozza resta disponibile, l'invio non viene dichiarato eseguito da JARVIS.
+Le rettifiche localizzate richiedono la definizione verificata delle RPC attualmente
+installate, non accessibile con la connessione Supabase che risponde 401.
+Le impostazioni non registrate non sono esposte tramite un esecutore arbitrario.
 
-## Parti ancora non collegate a scrittura
-Creazione/modifica persistente anagrafica socio, creazione completa prodotto, rettifiche
-stock, transazioni ordini, scritture Caja e Monedero non sono implementate nel registro.
-I flussi manuali restano quelli esistenti, con controlli e conferme originali.
-La registrazione manuale controlla documenti, firma e campi obbligatori del club che
-la vecchia RPC da sola non verifica completamente: esporla direttamente aggirerebbe
-quelle protezioni. Occorre prima un validatore server condiviso e integrazione con gli
-input umani esistenti. Non vengono fabricate firme, documenti o accettazioni.
-Non è aggiunta automazione di distribuzione di sostanze regolamentate.
+## Collaudo e rilascio successivo
 
-La risoluzione dopo un completo ricaricamento dell'app richiede ancora una vista delle
-richieste pendenti: il controllo esito nella sessione attiva è implementato. Non
-presentare una richiesta preparata/cancellata come operazione completata.
+`JARVIS_EXECUTION_RESULTS.json` distingue SQL reale isolato, browser e provider
+sintetici da Deepgram e dispositivi fisici. I test PCM misurano segnale e frequenza
+nel vero Web Audio di Chromium/WebKit; non certificano altoparlanti o microfoni fisici.
+La prova reale richiede sessione Pilot autenticata autorizzata e Deepgram esistente;
+non si estraggono chiavi dal Worker e non si creano endpoint pubblici di diagnostica.
 
-## Attivazione e rollback
-`snoop_execute` resta disabilitato senza SNOOP_VOICE_EXECUTION_PILOT_ENABLED=true.
-Il flag non è stato configurato. La proposta SQL unica
-`docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql` sostituisce quella precedente NON
-applicata da Codex. Se è stata applicata da altri, il controllo iniziale si ferma:
-serve un upgrade revisionato, non eliminare il registro né rieseguire la proposta.
-Verificare prima schema reale, dipendenze RPC e conflitti. Nessuna migrazione automatica.
+Dopo approvazione dello schema e dei test sul commit esatto, il futuro rilascio richiede
+un'autorizzazione specifica e il preflight dei binding protetto. REAL resta disattivato.
+Rollback: disabilitare il flag di esecuzione e ripristinare il bundle verificato;
+conservare registro e risultati per audit, senza invertire operazioni automaticamente.
 
-Il futuro rilascio richiede autorizzazione specifica, CI sul commit esatto, preflight
-binding/secret protetto e allowlist Pilot invariata. REAL rimane disattivato.
-Rollback: disabilitare il solo flag e ripristinare il codice verificato; mantenere
-registro/RPC per audit e riconciliazione. Non invertire dati o movimenti automaticamente.
+## Latest published-source reconciliation
 
-## Extension after cfe78658
+The last actual upload is `3e7487088396cbd21edc99d454d88d9418dad0bb`, workflow
+`45459564392` (Almacén). The earlier integrated upload was `ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae`,
+workflow `45381805328`, following `459303a` / `45381047028`. The warehouse branch
+used an older voice/member base. This development reconciliation preserves its
+connected WarehousePanel and order euro-input fix while retaining integrated
+avalador, audio/execution, Finanzas and the idempotent located-product creation RPC.
+No release branch was merged and no Worker was uploaded by this work.
 
-The authoritative action list is now `JARVIS_CAPABILITY_MATRIX.json`: 21 persistent
-commands, seven bounded record search kinds and a shared detail inspector. The earlier
-"not connected" section is superseded for member card edits, human-input-free eligible
-registrations, product creation/metadata, audited physical inventory correction and
-cash/wallet operations listed in that matrix. Remaining operations are explicit there.
+The owner location SQL is now available as source and is tested only locally. Its
+stock movement trigger always affects Dispensario; it does not provide an explicit
+warehouse physical-count correction. The legacy voice correction remains blocked
+on this schema. Missing location rows become zero only when the installed-schema
+conservation rule and exact nonnegative sum uniquely reconcile to the product total.
+HTTP errors and mismatches never become zero. No transfer automation is introduced.
 
-For basic CRUD, the private `snoop_voice_entity` helper performs the same table
-operations as the existing manual PostgREST APIs and retains their constraints/audit.
-It is not granted to users. The single public command RPC still owns authorization,
-confirmation, idempotency, stale-state locking, atomic execution and durable results.
-Original catalog/membership/stock/wallet RPCs remain authoritative for their operations.
+The theme command uses only the seven current curated themes. Tests load the owner's
+existing policy as a fixture and verify two independent clubs; no production RLS is
+changed. The member-requirements read returns current required/optional/disabled
+field keys before asking registration questions, without returning member data.
 
-The review-only proposal has additional schema prerequisites: discounts, assignments
-and member field configuration. Missing prerequisites fail before installation. Cash
-writes additionally fail without the existing session audit trigger. Wallet commands
-are hidden and refused when the original wallet feature gate is disabled. No previous
-migration is rerun and no dependency is silently installed on production.
-
-Wallet recharges require a separately checked receipt acknowledgment, validated by
-both the gateway and the command RPC and timestamped server-side. A model cannot
-manufacture the user's confirmation token. Credits are not a claim that SNOOP has
-initiated or completed an external card/transfer payment.
-
-Verified completion refreshes only the relevant existing screen via its scoped read
-port. Financial views reuse the existing records-changed event. There is no page
-reload, extra save, accounting formula change or replacement of the manual handlers.
-
-The new Workerd `--database` mode invokes the real isolated SQL ledger and original
-RPCs through the actual gateway and HTTP transport. Provider and identity upstreams
-are synthetic; this is still not a real Deepgram or physical-phone test.
+The additional `member.mail.request` command reuses the original QR outbox RPC and
+its legacy-cutover/retry/deduplication guards. Both configured email bindings are
+required before advertising or confirming it. Only persisted queue status is
+reported to the model/app: pending, accepted and delivered remain distinct.
+No email address, provider identifier or confirmation token is in that receipt.
+Tests prove the original legacy-review fence, one message after repeated requests,
+no outbound mail, no false delivery claim and cross-club denial.

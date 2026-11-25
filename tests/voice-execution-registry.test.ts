@@ -7,6 +7,7 @@ import {
   executionCapabilities,
   ExecutionRequest,
 } from "../src/lib/voice/execution-registry.ts";
+import { MEMBER_FIELDS } from "../src/lib/member-fields.ts";
 import { agentSettings } from "../src/lib/voice/agent-settings.server.ts";
 test("one bounded registry and advertised provider tool agree; unapproved writes stay unadvertised", async () => {
   assert.deepEqual(Object.keys(executionSchemas).sort(), Object.keys(executionCapabilities).sort());
@@ -23,12 +24,17 @@ test("one bounded registry and advertised provider tool agree; unapproved writes
   );
   const disabled = agentSettings("it", 48000);
   assert(!disabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
-  const enabled = agentSettings("it", 48000, undefined, true, true);
+  const enabled = agentSettings("it", 48000, undefined, true, true, true);
   const tool = enabled.agent.think.functions.find((f) => f.name === "snoop_execute");
   assert(tool);
   const schema = JSON.parse(JSON.stringify(tool)).parameters;
   assert.deepEqual(schema.properties.action.enum.sort(), Object.keys(executionSchemas).sort());
   const sql = await readFile("docs/sql/SNOOP_VOICE_EXECUTION_REVIEW_ONLY.sql", "utf8");
+  for (const field of MEMBER_FIELDS)
+    assert(
+      sql.includes(`('${field.key}',${field.defaultVisible},${field.defaultRequired})`),
+      "Voice registration must honor current default: " + field.key,
+    );
   for (const name of Object.keys(executionSchemas)) assert(sql.includes("'" + name + "'"));
   for (const capability of Object.values(executionCapabilities)) {
     assert(capability.confirmation);
@@ -64,6 +70,7 @@ test("registered references and disabled wallet capability cannot be guessed or 
   );
   assert(disabled);
   assert(!JSON.stringify(disabled).includes("wallet.topup"));
+  assert(!JSON.stringify(disabled).includes("member.mail.request"));
   for (const input of [
     {
       action: "stock.adjust",
@@ -90,4 +97,27 @@ test("registered references and disabled wallet capability cannot be guessed or 
     },
   ])
     assert(!ExecutionRequest.safeParse(input).success);
+});
+
+test("Caja tools use opening/closing sessions, never a night register or fixed shifts", () => {
+  const settings = agentSettings("it", 48000, undefined, true, true);
+  const inspect = settings.agent.think.functions.find((f) => f.name === "snoop_inspect");
+  assert(inspect);
+  assert.match(inspect.description, /actual opening\/closing sessions/);
+  assert.match(inspect.description, /never fixed shifts or a separate night cash register/);
+  assert(executionSchemas["cash.open"].safeParse({ opening_cash_cents: 5000 }).success);
+  assert(
+    executionSchemas["cash.close"].safeParse({
+      id: "00000000-0000-4000-8000-000000000201",
+      closing_cash_cents: 4950,
+      notes: "Conteo verificado",
+    }).success,
+  );
+  for (const invented of ["night_register", "shift", "turno", "start_time", "end_time"])
+    assert(
+      !executionSchemas["cash.open"].safeParse({
+        opening_cash_cents: 5000,
+        [invented]: "night",
+      }).success,
+    );
 });

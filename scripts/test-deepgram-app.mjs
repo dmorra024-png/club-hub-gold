@@ -114,10 +114,13 @@ for (const [label, engine, device] of [
     const receiptExecutions = new Set();
     let executionConfirms = 0,
       executionChecks = 0,
-      executionCancels = 0;
+      executionCancels = 0,
+      executionRecoveries = 0;
+    const recoveredExecutionId = crypto.randomUUID();
+    const reloadExecutionId = crypto.randomUUID();
     let capturedInputBytes = 0,
       capturedInputSignal = false;
-    let firstReady;
+    let firstReady, subsequentReady;
     const readyFirst = new Promise((resolve) => {
       firstReady = resolve;
     });
@@ -465,6 +468,29 @@ for (const [label, engine, device] of [
           return;
         }
         const m = JSON.parse(message);
+        if (executionUI && m.type === "AppExecutionRecover") {
+          executionRecoveries++;
+          assert([recoveredExecutionId, reloadExecutionId].includes(m.id));
+          assert.equal(
+            executionConfirms,
+            m.id === recoveredExecutionId ? 7 : 8,
+            "Recovery must never confirm a write automatically",
+          );
+          extraExecutions.add(m.id);
+          peer.send(
+            JSON.stringify({
+              type: "AppExecutionPrepared",
+              id: m.id,
+              token: uid,
+              action: "category.create",
+              summary: {
+                label: "Recovered synthetic proposal",
+                changes: { name: "Recovered category" },
+              },
+            }),
+          );
+          return;
+        }
         if (executionUI && m.type === "AppExecutionConfirm") {
           executionConfirms++;
           assert.equal(m.confirmed, true);
@@ -512,6 +538,7 @@ for (const [label, engine, device] of [
         assert.equal(m.synthetic, true);
         ws.send(JSON.stringify({ type: "AppReady" }));
         firstReady();
+        subsequentReady?.();
       });
     });
     const page = await context.newPage();
@@ -683,13 +710,100 @@ for (const [label, engine, device] of [
       await panel.getByRole("status").filter({ hasText: "Completa documento y firma" }).waitFor();
       assert.equal(executionCancels, 1);
       assert.equal(writes, 0);
+      peer.send(
+        JSON.stringify({
+          type: "AppExecutionPrepared",
+          id: recoveredExecutionId,
+          token: uid,
+          action: "category.create",
+          summary: {
+            label: "Recovered synthetic proposal",
+            changes: { name: "Recovered category" },
+          },
+        }),
+      );
+      await review.getByText("Recovered synthetic proposal", { exact: true }).waitFor();
       await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
       assert.equal(executionConfirms, 7);
+      await voiceEntry.click();
+      await panel.waitFor();
+      await panel.getByRole("button", { name: "Avvia JARVIS", exact: true }).click();
+      await review.getByText("Recovered synthetic proposal", { exact: true }).waitFor();
+      assert.equal(executionRecoveries, 1);
+      assert.equal(executionConfirms, 7);
+      await review.getByRole("button", { name: "Conferma modifica", exact: true }).click();
+      await review.waitFor({ state: "hidden" });
+      assert.equal(executionConfirms, 8);
+      assert.equal(
+        await page.evaluate(
+          () =>
+            Object.keys(sessionStorage).filter((k) => k.startsWith("snoop:voice-pending:")).length,
+        ),
+        0,
+      );
+      await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
       assert.equal(executionChecks, 1);
+      // An actual committed outbox request is not an email-delivery receipt.
+      await voiceEntry.click();
+      await panel.waitFor();
+      let subsequentDeadline;
+      const readyThird = new Promise((resolve, reject) => {
+        subsequentReady = resolve;
+        subsequentDeadline = setTimeout(
+          () => reject(Error("Third voice session did not become ready")),
+          20000,
+        );
+      });
+      try {
+        await panel.getByRole("button", { name: "Avvia JARVIS", exact: true }).click();
+        await readyThird;
+      } finally {
+        clearTimeout(subsequentDeadline);
+      }
+      assert.equal(await page.evaluate(() => window.__audio.started), 3);
+      peer.send(
+        JSON.stringify({
+          type: "AppExecutionResult",
+          id: crypto.randomUUID(),
+          status: "completed",
+          action: "member.mail.request",
+          mailStatus: "pending",
+        }),
+      );
+      await panel.getByRole("status").filter({ hasText: "Pendiente de envío" }).waitFor();
+      peer.send(
+        JSON.stringify({
+          type: "AppExecutionPrepared",
+          id: reloadExecutionId,
+          token: uid,
+          action: "category.create",
+          summary: {
+            label: "Recovered synthetic proposal",
+            changes: { name: "Reloaded category" },
+          },
+        }),
+      );
+      await review.getByText("Recovered synthetic proposal", { exact: true }).waitFor();
+      await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
+      await page.waitForLoadState("networkidle");
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Productos", exact: true }).waitFor();
+      await voiceEntry.click();
+      await panel.getByRole("checkbox").check();
+      await panel.getByRole("button", { name: "Avvia JARVIS", exact: true }).click();
+      await review.getByText("Recovered synthetic proposal", { exact: true }).waitFor();
+      assert.equal(executionRecoveries, 2);
+      assert.equal(executionConfirms, 8, "Reload must not repeat a persistent write");
+      await review.getByRole("button", { name: "Conferma modifica", exact: true }).click();
+      await review.waitFor({ state: "hidden" });
+      assert.equal(executionConfirms, 9);
+      await panel.getByRole("button", { name: "Chiudi assistente", exact: true }).click();
+      assert.deepEqual(errors, []);
       browserResults.push({
         browser: label,
         scenario: "execution-confirmation",
         confirmationRequests: executionConfirms,
+        recoveredProposals: executionRecoveries,
         statusReads: executionChecks,
         syntheticGateway: true,
         persistenceTestedSeparately: true,

@@ -1,3 +1,6 @@
+import { pendingExecution } from "@/lib/voice/pending-execution";
+import { getClubTheme } from "@/lib/club-theme-storage";
+import { memberMailLabel } from "@/lib/member-mail-state";
 import {
   CaptureHealth,
   ServerAudioHealth,
@@ -336,7 +339,11 @@ export function DeepgramPilotVoice({
               message.enabled ? "Controllo entrate attivo." : "Controllo entrate disattivato.",
             );
           } else if (message.type === "AppInspectionResult") {
-            if (message.kind === "wallet_balance")
+            if (message.kind === "stock_locations")
+              setStatus(
+                `Almacén: ${String(message.summary.almacen)} · Stock: ${String(message.summary.dispensario)} · Total: ${String(message.summary.total)} ${message.summary.unit_type === "gr" ? "g" : "uds."}`,
+              );
+            else if (message.kind === "wallet_balance")
               setStatus(
                 message.summary?.enabled && Number.isSafeInteger(message.summary.balanceCents)
                   ? `Saldo: ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(message.summary.balanceCents / 100)}`
@@ -377,6 +384,11 @@ export function DeepgramPilotVoice({
                     "Confirma que la recarga ya se ha cobrado antes de añadir créditos.",
                   VOICE_HUMAN_DOCUMENTS_REQUIRED:
                     "Completa documento y firma en el formulario existente. No se ha guardado nada.",
+                  VOICE_AVALADOR_REQUIRED: "Selecciona un socio avalador existente del club.",
+                  VOICE_DUAL_STOCK_REVIEW_REQUIRED:
+                    "La rectificación por ubicación requiere el flujo actual Almacén/Dispensario. No se ha modificado stock.",
+                  VOICE_LOCATION_CONFIRMATION_REQUIRED:
+                    "Indica Almacén o Dispensario para la ficha del producto.",
                   VOICE_REQUIRED_FIELD: "Faltan campos obligatorios del club.",
                   VOICE_STATE_CHANGED: "Los datos han cambiado. Revisa una nueva propuesta.",
                   VOICE_REFERENCE_NOT_FOUND: "El registro no está disponible en este club.",
@@ -384,6 +396,8 @@ export function DeepgramPilotVoice({
                   VOICE_CASH_ALREADY_OPEN: "Ya tienes una caja abierta.",
                   VOICE_WHOLE_UNITS_REQUIRED: "Este producto requiere unidades enteras.",
                   VOICE_INSUFFICIENT_STOCK: "La rectificación dejaría existencias negativas.",
+                  VOICE_WALLET_CREDITS_USED:
+                    "Los créditos ya se han utilizado. Requiere conciliación administrativa.",
                   VOICE_DUPLICATE_NAME: "Ya existe un registro con ese nombre.",
                 } as Record<string, string>
               )[String(message.code)] ?? "Operación no disponible. No se ha guardado nada.",
@@ -394,6 +408,10 @@ export function DeepgramPilotVoice({
               typeof message.token === "string" &&
               (typeof message.enabled === "boolean" || typeof message.summary?.label === "string")
             ) {
+              pendingExecution(
+                window.sessionStorage,
+                voiceOwner(auth.session!.user.id, accessRef.current.clubId!),
+              ).save(message.id);
               setExecution({
                 id: message.id,
                 token: message.token,
@@ -409,9 +427,19 @@ export function DeepgramPilotVoice({
             setExpanded(true);
             setStatus("Premi Annulla proposta per cancellare la modifica non confermata.");
           } else if (message.type === "AppExecutionResult") {
+            if (
+              ["completed", "cancelled"].includes(message.status) &&
+              typeof message.id === "string"
+            )
+              pendingExecution(
+                window.sessionStorage,
+                voiceOwner(auth.session!.user.id, accessRef.current.clubId!),
+              ).clear(message.id);
             setStatus(
               message.status === "completed"
-                ? "Operazione completata e verificata dal server."
+                ? message.action === "member.mail.request" && typeof message.mailStatus === "string"
+                  ? memberMailLabel(message.mailStatus)
+                  : "Operazione completata e verificata dal server."
                 : message.status === "cancelled"
                   ? "Proposta annullata. Nessuna operazione eseguita."
                   : message.status === "confirmation_required"
@@ -432,6 +460,18 @@ export function DeepgramPilotVoice({
               accessRef.current.clubId
             ) {
               const owner = voiceOwner(auth.session.user.id, accessRef.current.clubId);
+              if (message.action === "theme.set") {
+                try {
+                  const clubId = accessRef.current.clubId;
+                  const themeId = await getClubTheme(clubId);
+                  if (generation.current === current && accessRef.current.clubId === clubId)
+                    window.dispatchEvent(
+                      new CustomEvent("snoop:club-theme-changed", { detail: { clubId, themeId } }),
+                    );
+                } catch {
+                  setStatus("Tema salvato. Aggiorna la vista per ricaricare la palette.");
+                }
+              }
               const port =
                 message.action.startsWith("category.") ||
                 message.action.startsWith("product.") ||
@@ -443,7 +483,9 @@ export function DeepgramPilotVoice({
                       ? "member.sections"
                       : message.action.startsWith("cash.")
                         ? "cash.page"
-                        : null;
+                        : message.action.startsWith("finance.")
+                          ? "finance.page"
+                          : null;
               if (port) {
                 try {
                   await applicationPorts.get(owner, port)?.refresh?.();
@@ -473,6 +515,11 @@ export function DeepgramPilotVoice({
               });
           } else if (message.type === "AppReady") {
             state.ready = true;
+            const oldRequest = pendingExecution(
+              window.sessionStorage,
+              voiceOwner(auth.session!.user.id, accessRef.current.clubId!),
+            ).read();
+            if (oldRequest) state.transport.send({ type: "AppExecutionRecover", id: oldRequest });
             state.speaker.beginResponse();
             if (state.ctx.state !== "running") {
               state.speaker.contextChanged();
@@ -628,7 +675,7 @@ export function DeepgramPilotVoice({
               typeof summary.to === "string"
             )
               setStatus(
-                `${summary.from} – ${summary.to}: ${(summary.cents / 100).toFixed(2)} € · ${summary.scope === "club" ? "club" : "tu actividad"}`,
+                `${summary.from} – ${summary.to}: ${(summary.cents / 100).toFixed(2)} € · ${summary.scope === "club" ? "club" : summary.scope === "selected_collaborator" ? "colaborador seleccionado" : "tu actividad"}`,
               );
           } else if (
             message.type === "AppGeneticsResult" &&
@@ -802,12 +849,20 @@ export function DeepgramPilotVoice({
                 {index + 1}.{" "}
                 {String(
                   row.name ??
+                    row.description ??
+                    row.reference ??
                     (row.opened_at
                       ? `Caja · ${String(row.opened_at)} · ${String(row.status)}`
                       : [row.first_name, row.last_name].filter(Boolean).join(" ")),
                 )}
                 {row.stock !== undefined
-                  ? ` · Stock: ${String(row.stock)} ${row.unit_type === "gr" ? "g" : row.unit_type === "unit" ? "uds." : "(unidad no verificada)"}`
+                  ? ` · ${row.stock_scope === "total" ? "Total inventario" : "Stock"}: ${String(row.stock)} ${row.unit_type === "gr" ? "g" : row.unit_type === "unit" ? "uds." : "(unidad no verificada)"}`
+                  : ""}
+                {row.amount_cents !== undefined
+                  ? ` · ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Number(row.amount_cents) / 100)}`
+                  : ""}
+                {row.created_at
+                  ? ` · ${new Date(String(row.created_at)).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}`
                   : ""}
                 {row.price_cents !== undefined
                   ? ` · ${new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Number(row.price_cents) / 100)}`

@@ -60,7 +60,10 @@ export async function applyDeepgramDraft(
   };
   let skipped: string[] = [];
   let applied: string[] = [];
-  if (p.target && ["products", "product_create", "categories", "stock"].includes(p.target)) {
+  if (
+    p.target &&
+    ["products", "product_create", "categories", "stock", "warehouse"].includes(p.target)
+  ) {
     const page = await port("products.page");
     if (!page.open) throw Error("SNOOP_FORM_UNAVAILABLE");
     page.open(p.target, p.query);

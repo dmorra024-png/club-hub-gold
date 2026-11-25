@@ -92,10 +92,50 @@ function NewSocio() {
   const sigRef = useRef<SignaturePadHandle>(null);
 
   const [fieldCfg, setFieldCfg] = useState<FieldConfigMap>(defaultFieldConfig());
+  type AvaladorMatch = {id:string;member_number:string;first_name:string;last_name:string};
+  const [avaladorMode,setAvaladorMode]=useState<"nombre"|"numero">("nombre");
+  const [avaladorMatches,setAvaladorMatches]=useState<AvaladorMatch[]>([]);
+  const [avaladorResolved,setAvaladorResolved]=useState<AvaladorMatch|null>(null);
+  const [avaladorLookupBusy,setAvaladorLookupBusy]=useState(false);
+  const [avaladorLookupError,setAvaladorLookupError]=useState("");
+  const avaladorLookupGeneration=useRef(0);
+  function invalidateAvalador(){
+    avaladorLookupGeneration.current+=1;
+    setAvaladorResolved(null);setAvaladorMatches([]);setAvaladorLookupError("");
+  }
+  async function lookupAvalador(){
+    const number=form.avalador_member_number.trim();
+    const first=form.avalador_first_name.trim();
+    const last=form.avalador_last_name.trim();
+    if(avaladorMode==="numero"&&!number){setAvaladorLookupError("Introduce el número del socio.");return;}
+    if(avaladorMode==="nombre"&&(!first||!last)){setAvaladorLookupError("Introduce nombre y apellidos.");return;}
+    const generation=++avaladorLookupGeneration.current;
+    setAvaladorLookupBusy(true);setAvaladorLookupError("");setAvaladorMatches([]);setAvaladorResolved(null);
+    const club=routeContext.access.clubId;
+    if(!club){setAvaladorLookupError("No hay un club asignado.");setAvaladorLookupBusy(false);return;}
+    const base=supabase.from("members")
+      .select("id,member_number,first_name,last_name")
+      .eq("club_id",club);
+    const {data,error}=avaladorMode==="numero"
+      ? await base.eq("member_number",number).limit(1)
+      : await base.ilike("first_name",first).ilike("last_name",last).limit(20);
+    if(generation!==avaladorLookupGeneration.current)return;
+    setAvaladorLookupBusy(false);
+    if(error){setAvaladorLookupError("No se pudieron consultar los socios. Inténtalo otra vez.");return;}
+    if(!data?.length){setAvaladorLookupError("No hay socios registrados con esos datos en este club.");return;}
+    setAvaladorMatches(data as AvaladorMatch[]);
+  }
+  function confirmAvalador(person:AvaladorMatch){
+    setAvaladorResolved(person);
+    setAvaladorLookupError("");
+  }
 
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
+    avalador_first_name: "",
+    avalador_last_name: "",
+    avalador_member_number: "",
     birth_date: "",
     address: "",
     city: "",
@@ -112,9 +152,9 @@ function NewSocio() {
   // Voice
   const [lastHeard, setLastHeard] = useState(""),
     [voiceSummary, setVoiceSummary] = useState("");
-  const fieldConfigReady = useRef(false);
   const voiceMounted = useRef(true),
-    plansReady = useRef(false);
+    plansReady = useRef(false),
+    fieldConfigReady = useRef(false);
   const formRef = useRef(form);
   formRef.current = form;
   const voiceInitial = useRef(form);
@@ -245,13 +285,13 @@ function NewSocio() {
       const { getCurrentClubId } = await import("@/lib/club");
       const clubId = await getCurrentClubId();
       if (!clubId) return;
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("club_member_field_config")
         .select("field_key, visible, required")
         .eq("club_id", clubId);
       if (!voiceMounted.current) return;
       setFieldCfg(mergeFieldConfig((data as any) ?? []));
-      fieldConfigReady.current = !error;
+      fieldConfigReady.current = true;
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
@@ -427,6 +467,13 @@ function NewSocio() {
     if (!form.first_name.trim() || !form.last_name.trim())
       return failRegistration("Falta nombre y apellido");
     const req = (k: keyof FieldConfigMap) => fieldCfg[k].visible && fieldCfg[k].required;
+    if (fieldCfg.avalador.visible) {
+      const hasValue = avaladorMode==="nombre"
+        ? !!(form.avalador_first_name.trim() || form.avalador_last_name.trim())
+        : !!form.avalador_member_number.trim();
+      if ((req("avalador") || hasValue) && !avaladorResolved)
+        return failRegistration("Busca y confirma un socio avalador ya registrado.");
+    }
     const vis = (k: keyof FieldConfigMap) => fieldCfg[k].visible;
     if (req("birth_date")) {
       if (!form.birth_date) return failRegistration("Falta la fecha de nacimiento");
@@ -479,18 +526,20 @@ function NewSocio() {
       const expires = selectedPlan ? addCalendarDays(joined, selectedPlan.duration_days) : joined;
 
       const { data: savedId, error } = await (supabase as any).rpc(
-        form.plan_id ? "confirm_membership_with_receipt" : "save_membership_with_receipt",
+        "snoop_register_member_with_avalador",
         {
-          ...(form.plan_id ? { p_confirmed_cents: due, p_expected: null } : {}),
+          p_confirmed_cents: form.plan_id ? due : null,
           p_plan_id: form.plan_id || null,
           p_method: paymentMethod,
           p_request: memberId,
-          p_renew: false,
           p_member: {
             club_id: clubId,
             id: memberId,
             first_name: form.first_name.trim(),
             last_name: form.last_name.trim(),
+            avalador_first_name: "",
+            avalador_last_name: "",
+            avalador_member_number: fieldCfg.avalador.visible ? (avaladorResolved?.member_number ?? "") : "",
             birth_date: form.birth_date || "1900-01-01",
             address: form.address.trim() || null,
             city: form.city.trim(),
@@ -539,8 +588,10 @@ function NewSocio() {
       key === "plan_name" ? plansRef.current.find(plan => plan.id === formRef.current.plan_id)?.name ?? "" : formRef.current[key],
     ])),
     patch: (patch) => {
-      // Validate and resolve the whole patch before changing any field.
-      const visible = memberCreationKeys.filter(key => key === "first_name" || key === "last_name" || fieldCfg[key === "plan_name" ? "plan" : key].visible);
+      // Resolve the entire proposed patch before mutating the member registration form.
+      // Keep club visibility rules and never permit changing the confirmed avalador by voice.
+      const visible = memberCreationKeys.filter(key =>
+        key === "first_name" || key === "last_name" || fieldCfg[key === "plan_name" ? "plan" : key].visible);
       const values = memberCreationPatch(patch, plansRef.current, visible);
       setForm(previous => ({...previous, ...values}));
     },
@@ -722,6 +773,53 @@ function NewSocio() {
               />
             )}
           </div>
+          {fieldCfg.avalador.visible && (
+            <div className="mt-5 rounded-2xl border border-neon/25 bg-input/25 p-4 space-y-3">
+              <h4 className="font-display text-sm text-neon">Socio avalador{fieldCfg.avalador.required ? " *" : " (opcional)"}</h4>
+              <p className="text-xs text-muted-foreground">Nombre y apellidos del socio que avala la inscripción.</p>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Identificar socio avalador">
+                <button type="button" aria-pressed={avaladorMode==="nombre"} onClick={()=>{invalidateAvalador();setAvaladorMode("nombre");}}
+                  className={"min-h-11 rounded-xl border px-3 text-xs "+(avaladorMode==="nombre"?"border-neon bg-neon/10 text-neon":"border-border text-foreground")}>Nombre y apellidos</button>
+                <button type="button" aria-pressed={avaladorMode==="numero"} onClick={()=>{invalidateAvalador();setAvaladorMode("numero");}}
+                  className={"min-h-11 rounded-xl border px-3 text-xs "+(avaladorMode==="numero"?"border-neon bg-neon/10 text-neon":"border-border text-foreground")}>Número socio</button>
+              </div>
+              {avaladorMode==="nombre" ? (
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Inp label={"Nombre avalador" + (fieldCfg.avalador.required ? " *" : "")}
+                    value={form.avalador_first_name}
+                    onChange={(v)=>{invalidateAvalador();set("avalador_first_name",v);}} />
+                  <Inp label={"Apellidos avalador" + (fieldCfg.avalador.required ? " *" : "")}
+                    value={form.avalador_last_name}
+                    onChange={(v)=>{invalidateAvalador();set("avalador_last_name",v);}} />
+                </div>
+              ):(
+                <label className="block text-xs text-muted-foreground">Número del socio avalador{fieldCfg.avalador.required?" *":""}
+                  <input type="text" inputMode="text" autoComplete="off" value={form.avalador_member_number}
+                    onChange={(e)=>{invalidateAvalador();set("avalador_member_number",e.target.value);}}
+                    placeholder="Número de socio" className="mt-1 w-full rounded-xl border border-neon/30 bg-input px-3 py-3 text-foreground" />
+                </label>
+              )}
+              <button type="button" onClick={()=>void lookupAvalador()} disabled={avaladorLookupBusy || (avaladorMode==="nombre" ? !form.avalador_first_name.trim() || !form.avalador_last_name.trim() : !form.avalador_member_number.trim())}
+                className="min-h-11 rounded-xl border border-neon/45 px-5 text-sm text-neon disabled:opacity-40">
+                {avaladorLookupBusy?"Buscando…":"Buscar socio existente"}
+              </button>
+              {avaladorMatches.length>0&&<div className="space-y-2" role="group" aria-label="Socios encontrados">
+                <p className="text-xs text-muted-foreground">Selecciona y confirma el socio correcto:</p>
+                {avaladorMatches.map((person)=>(
+                  <button type="button" key={person.id} onClick={()=>confirmAvalador(person)}
+                    aria-pressed={avaladorResolved?.id===person.id}
+                    className={"flex min-h-12 w-full touch-manipulation items-center justify-between rounded-xl border px-3 py-2 text-left text-sm "+(avaladorResolved?.id===person.id?"border-neon bg-neon/15 text-neon":"border-border text-foreground")}>
+                    <span>{person.first_name} {person.last_name}</span>
+                    <span className="text-xs">Nº {person.member_number}{avaladorResolved?.id===person.id?" · Confirmado":""}</span>
+                  </button>
+                ))}
+              </div>}
+              {avaladorResolved&&<p role="status" className="rounded-xl border border-neon/35 bg-neon/10 p-3 text-sm">
+                Socio avalador confirmado: <b>{avaladorResolved.first_name} {avaladorResolved.last_name}</b> · Nº {avaladorResolved.member_number}
+              </p>}
+              {avaladorLookupError&&<p role="alert" className="text-xs text-destructive">{avaladorLookupError}</p>}
+            </div>
+          )}
         </section>
 
         {/* Plan */}

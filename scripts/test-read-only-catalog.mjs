@@ -176,6 +176,11 @@ for (const [label, engine, device] of [
             assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
             data = { first_name: "Persona", last_name: "de prueba", member_number: "TEST" };
           } else data = null;
+        } else if (u.pathname.endsWith("/snoop_stock_locations")) {
+          assert.equal(req.method(),"GET");
+          assert.equal(u.searchParams.get("club_id"),`eq.${club}`);
+          assert.equal(u.searchParams.get("location"),"eq.dispensario");
+          data=rows.map(p=>({product_id:p.id,quantity:p.stock}));
         } else if (u.pathname.endsWith("/products") || u.pathname.endsWith("/product_categories")) {
           assert.equal(req.method(), "GET", "catalog must be read-only");
           assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
