@@ -108,3 +108,11 @@ di stock, movimenti e prezzi non modificati. Le vecchie RPC che troncherebbero i
 prezzi vengono rifiutate prima della scrittura. La fixture carica la migrazione
 prezzi decimali già esistente, mai applicata a produzione da questo intervento.
 Nessun prezzo reale è stato toccato.
+
+La verifica degli screenshot ha inoltre riprodotto uno stato UI obsoleto: dopo un
+annullamento la nuova proposta mostrava ancora il messaggio precedente. Ogni
+proposta ora mostra il proprio stato di revisione e rimuove la lista di ricerca
+precedente. I controlli conferma/annulla hanno aree tattili di almeno 44 px, separate
+e senza sovrapposizioni. Il browser verifica stato, bersaglio, dimensioni e assenza
+di scritture implicite sui quattro profili. Screenshot reali renderizzati in
+`docs/screenshots/jarvis-confirmation-{samsung,iphone}.png` (provider sintetico).

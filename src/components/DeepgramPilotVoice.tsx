@@ -419,6 +419,8 @@ export function DeepgramPilotVoice({
                 enabled: message.enabled,
                 summary: message.summary,
               });
+              setPrivateRecords([]);
+              setStatus("Revisa los cambios antes de confirmar.");
               setExpanded(true);
             }
           } else if (message.type === "AppExecutionExpired") {
@@ -998,8 +1000,10 @@ export function DeepgramPilotVoice({
               {execution.summary.attestation}
             </label>
           )}
+          <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
+            className="min-h-11 rounded-xl border border-neon/60 bg-neon/10 px-3 text-sm disabled:opacity-50"
             disabled={
               execution.busy ||
               (!execution.uncertain &&
@@ -1026,6 +1030,7 @@ export function DeepgramPilotVoice({
           </button>
           <button
             type="button"
+            className="min-h-11 rounded-xl border border-border px-3 text-sm disabled:opacity-50"
             disabled={execution.busy || execution.uncertain}
             onClick={() => {
               if (!audio.current) return;
@@ -1039,6 +1044,7 @@ export function DeepgramPilotVoice({
           >
             Annulla proposta
           </button>
+          </div>
         </section>
       )}
       <p

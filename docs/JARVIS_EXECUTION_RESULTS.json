@@ -97,7 +97,9 @@
     ],
     "physicalDevice": false,
     "currentAvaladorRegistrationContract": "PASS on Chromium/WebKit with synthetic API, duplicate guard, payment review, renewal and original authenticated App Socio invitation",
-    "inventoryErrorIsolation": "PASS on Chromium/WebKit: malformed inventory response does not crash cash report"
+    "inventoryErrorIsolation": "PASS on Chromium/WebKit: malformed inventory response does not crash cash report",
+    "confirmationMessageIsolation": "PASS on all four profiles: new proposal clears cancelled-operation status and previous lookup list",
+    "confirmationTouchControls": "PASS: separate nonoverlapping controls, both at least 44px"
   },
   "supabaseManagementReadOnlyMetadata": {
     "httpStatus": 401,

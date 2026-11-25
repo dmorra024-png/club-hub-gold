@@ -684,6 +684,13 @@ for (const [label, engine, device] of [
           }),
         );
         await review.getByText(title, { exact: true }).waitFor();
+        await panel.getByRole("status").filter({hasText:"Revisa los cambios antes de confirmar."}).waitFor();
+        assert(!(await panel.innerText()).includes("Proposta annullata"),"A new proposal cannot retain a cancelled-operation message");
+        assert.equal(await panel.getByRole("region",{name:"Registros autorizados",exact:true}).count(),0,"A new confirmation cannot display the previous lookup as its target");
+        const confirmBox=await review.getByRole("button",{name:"Conferma modifica",exact:true}).boundingBox();
+        const cancelBox=await review.getByRole("button",{name:"Annulla proposta",exact:true}).boundingBox();
+        assert(confirmBox&&cancelBox&&confirmBox.height>=44&&cancelBox.height>=44,"Both confirmation controls need mobile touch targets");
+        assert(confirmBox.x+confirmBox.width<=cancelBox.x||confirmBox.y+confirmBox.height<=cancelBox.y,"Confirmation and cancellation controls must never overlap");
         const text = await review.innerText();
         for (const value of expected)
           assert(text.includes(value), title + " must display " + value);
