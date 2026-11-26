@@ -91,11 +91,8 @@ export function canonicalGeneticOrProduct(
   name: string,
   vocabulary: CatalogVocabulary = EMPTY_CATALOG,
 ) {
-  return (
-    [...catalogVocabulary(vocabulary).products, ...GENETIC_TERMS].find(
-      (candidate) => normalized(candidate) === normalized(name),
-    ) ?? name
-  );
+  const candidates = [...new Set([...catalogVocabulary(vocabulary).products, ...GENETIC_TERMS])];
+  return vocabularyMatch(name, candidates) ?? name;
 }
 const normalized = (name: string) =>
   name.normalize("NFKD").replace(/\p{M}/gu, "").trim().toLocaleLowerCase("en").replace(/\s+/g, " ");
