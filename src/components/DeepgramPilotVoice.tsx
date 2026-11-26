@@ -23,7 +23,7 @@ import { voiceGeneticsSource } from "@/lib/voice/source-links";
 
 type Language = "it" | "es" | "en";
 type Entry = { role: "user" | "assistant"; content: string };
-type ProposalResult = { ok: boolean; proposal?: ConversationProposalValue; code?: string };
+type ProposalResult = { ok: boolean; proposal?: ConversationProposalValue; code?: string; reason?: "format" | "permission" | "declined" };
 type AudioState = {
   ctx: AudioContext;
   stream: MediaStream;
@@ -573,7 +573,15 @@ export function DeepgramPilotVoice({
           } else if (message.type === "AppProposal") {
             const result = message.result as ProposalResult;
             if (!result.ok || !result.proposal) {
-              setStatus("Proposta rifiutata dai controlli SNOOP. Nessun dato modificato.");
+              setStatus(
+                result.reason === "format"
+                  ? "Il comando vocale non è nel formato richiesto. Nessun dato modificato."
+                  : result.reason === "permission"
+                    ? "Questa pagina non è autorizzata per il ruolo nel club. Nessun dato modificato."
+                    : result.reason === "declined"
+                      ? "La richiesta include un dato opzionale già rifiutato. Nessun dato modificato."
+                      : "Comando vocale non eseguito. Nessun dato modificato.",
+              );
               return;
             }
             if (result.proposal.intent === "stop") {
