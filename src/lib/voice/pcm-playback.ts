@@ -8,6 +8,19 @@ export type PlaybackNotice =
   | "invalid"
   | "empty"
   | "silent";
+/**
+ * Deepgram may send an assistant ConversationText before PCM without an
+ * AgentStartedSpeaking/AgentThinking event. This is a new assistant turn and
+ * the safe boundary at which an interrupted player may be rearmed. Never
+ * rearm for user transcripts or arbitrary binary frames (possibly stale).
+ */
+export function resumePlaybackForAssistantText(
+  player: PcmPlayback,
+  role: string,
+) {
+  if (role === "assistant") player.beginResponse();
+}
+
 export class PcmPlayback {
   private nodes = new Set<AudioBufferSourceNode>();
   private pending: Float32Array[] = [];
