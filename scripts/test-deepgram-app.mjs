@@ -684,6 +684,11 @@ for (const [label, engine, device] of [
           }),
         );
         await review.getByText(title, { exact: true }).waitFor();
+        // Provider audio phases must not erase a pending transaction's review notice.
+        peer.send(JSON.stringify({ type: "AgentThinking" }));
+        const phaseMarker = `Synthetic pending review ${action}`;
+        peer.send(JSON.stringify({ type: "ConversationText", role: "assistant", content: phaseMarker }));
+        await panel.getByText(phaseMarker, { exact: false }).waitFor();
         await panel.getByRole("status").filter({hasText:"Revisa los cambios antes de confirmar."}).waitFor();
         assert(!(await panel.innerText()).includes("Proposta annullata"),"A new proposal cannot retain a cancelled-operation message");
         assert.equal(await panel.getByRole("region",{name:"Registros autorizados",exact:true}).count(),0,"A new confirmation cannot display the previous lookup as its target");

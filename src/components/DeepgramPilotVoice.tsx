@@ -90,6 +90,7 @@ export function DeepgramPilotVoice({
     attested?: boolean;
     busy?: boolean;
     uncertain?: boolean;
+    notice?: string;
   } | null>(null);
   const [status, setStatus] = useState("Pronto");
   const [language, setLanguage] = useState<Language>("es");
@@ -376,7 +377,7 @@ export function DeepgramPilotVoice({
               port.open?.("history");
             }
           } else if (message.type === "AppExecutionRejected") {
-            setStatus(
+            const notice =
               (
                 {
                   VOICE_RECEIPT_CONFIRMATION_REQUIRED:
@@ -401,8 +402,9 @@ export function DeepgramPilotVoice({
                     "Los créditos ya se han utilizado. Requiere conciliación administrativa.",
                   VOICE_DUPLICATE_NAME: "Ya existe un registro con ese nombre.",
                 } as Record<string, string>
-              )[String(message.code)] ?? "Operación no disponible. No se ha guardado nada.",
-            );
+              )[String(message.code)] ?? "Operación no disponible. No se ha guardado nada.";
+            setStatus(notice);
+            setExecution((current) => current ? { ...current, busy: false, notice } : null);
           } else if (message.type === "AppExecutionPrepared") {
             if (
               typeof message.id === "string" &&
@@ -428,7 +430,9 @@ export function DeepgramPilotVoice({
             setStatus("Conferma scaduta. Nessuna modifica eseguita.");
           } else if (message.type === "AppExecutionCancelRequested") {
             setExpanded(true);
-            setStatus("Premi Annulla proposta per cancellare la modifica non confermata.");
+            const notice = "Premi Annulla proposta per cancellare la modifica non confermata.";
+            setStatus(notice);
+            setExecution((current) => current ? { ...current, notice } : null);
           } else if (message.type === "AppExecutionResult") {
             if (
               ["completed", "cancelled"].includes(message.status) &&
@@ -438,20 +442,19 @@ export function DeepgramPilotVoice({
                 window.sessionStorage,
                 voiceOwner(auth.session!.user.id, accessRef.current.clubId!),
               ).clear(message.id);
-            setStatus(
-              message.status === "completed"
+            const notice = message.status === "completed"
                 ? "Operazione completata e verificata dal server."
                 : message.status === "cancelled"
                   ? "Proposta annullata. Nessuna operazione eseguita."
                   : message.status === "confirmation_required"
                     ? "Il server non registra un completamento. Richiedi una nuova conferma."
-                    : "Esito incerto. Non ripetere: verifica lo stato dell'operazione.",
-            );
+                    : "Esito incerto. Non ripetere: verifica lo stato dell'operazione.";
+            setStatus(notice);
             setExecution((current) =>
               ["completed", "confirmation_required", "cancelled"].includes(message.status)
                 ? null
                 : current
-                  ? { ...current, busy: false, uncertain: message.status === "uncertain" }
+                  ? { ...current, busy: false, uncertain: message.status === "uncertain", notice }
                   : null,
             );
             if (
@@ -1012,7 +1015,7 @@ export function DeepgramPilotVoice({
             }
             onClick={() => {
               if (!audio.current) return;
-              setExecution({ ...execution, busy: true });
+              setExecution({ ...execution, busy: true, notice: execution.uncertain ? "Verifica dello stato in corso…" : "Conferma inviata. Attendo il risultato del server…" });
               audio.current.transport.send(
                 execution.uncertain
                   ? { type: "AppExecutionCheck", id: execution.id }
@@ -1034,7 +1037,7 @@ export function DeepgramPilotVoice({
             disabled={execution.busy || execution.uncertain}
             onClick={() => {
               if (!audio.current) return;
-              setExecution({ ...execution, busy: true });
+              setExecution({ ...execution, busy: true, notice: "Annullamento della proposta in corso…" });
               audio.current.transport.send({
                 type: "AppExecutionCancel",
                 id: execution.id,
@@ -1060,7 +1063,7 @@ export function DeepgramPilotVoice({
             : undefined
         }
       >
-        {status}
+        {execution ? (execution.notice ?? "Revisa los cambios antes de confirmar.") : status}
       </p>
       <div hidden={running}>
         <label>
