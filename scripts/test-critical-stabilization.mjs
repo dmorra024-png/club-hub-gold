@@ -41,6 +41,25 @@ const auth = {
   token_type: "bearer",
 };
 
+async function settledViewport(page) {
+  // Native resize, the hook's RAF and React paint must complete before reading layout.
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 3; frame++)
+      await new Promise(requestAnimationFrame);
+  });
+}
+async function viewportSnapshot(page) {
+  return JSON.stringify(await page.evaluate(() => ({
+    innerHeight, innerWidth,
+    keyboard: document.body.dataset.snoopKeyboard,
+    visible: window.visualViewport.height,
+    offset: window.visualViewport.offsetTop,
+    scale: window.visualViewport.scale,
+    focused: document.activeElement?.tagName,
+    field: document.activeElement?.getAttribute("aria-label"),
+    navHidden: document.querySelector('nav[aria-label="Navegación principal"]')?.hidden,
+  })));
+}
 const results = [];
 await mkdir("docs/screenshots", { recursive: true });
 for (const [label, engine, device] of [
@@ -362,8 +381,8 @@ for (const [label, engine, device] of [
           window.visualViewport.height = innerHeight;
           window.visualViewport.dispatchEvent(new Event("resize"));
         });
-        await page.waitForTimeout(200);
-        assert.equal(await nav.isVisible(), true);
+        await settledViewport(page);
+        assert.equal(await nav.isVisible(), true, `${path}: ${await viewportSnapshot(page)}`);
         // Resize-content keyboards (Chromium) and a VisualViewport scroll/pan event.
         await input.focus();
         const size = page.viewportSize();
@@ -373,10 +392,10 @@ for (const [label, engine, device] of [
           window.visualViewport.offsetTop = 10;
           window.visualViewport.dispatchEvent(new Event("scroll"));
         });
-        await page.waitForTimeout(200);
-        assert.equal(await nav.isVisible(), false);
+        await settledViewport(page);
+        assert.equal(await nav.isVisible(), false, `${path}: ${await viewportSnapshot(page)}`);
         const shrunk = await input.boundingBox();
-        assert.ok(shrunk.y >= 10 && shrunk.y + shrunk.height <= 460);
+        assert.ok(shrunk.y >= 10 && shrunk.y + shrunk.height <= 460, `${path}: field outside settled viewport ${JSON.stringify(shrunk)}`);
         await input.blur();
         await page.setViewportSize(size);
         await page.evaluate(() => {
@@ -384,8 +403,8 @@ for (const [label, engine, device] of [
           window.visualViewport.offsetTop = 0;
           window.visualViewport.dispatchEvent(new Event("resize"));
         });
-        await page.waitForTimeout(200);
-        assert.equal(await nav.isVisible(), true);
+        await settledViewport(page);
+        assert.equal(await nav.isVisible(), true, `${path}: ${await viewportSnapshot(page)}`);
       }
       await page.goto(base + "/caja", { waitUntil: "networkidle" });
       const fallbackInput = page.locator('input[inputmode="decimal"]').first();

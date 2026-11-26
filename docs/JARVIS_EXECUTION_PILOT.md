@@ -2,8 +2,8 @@
 
 ## Stato e base effettiva
 
-PR #27; applicazione pubblicata di riferimento `459303a` (PR #63), sorgenti
-`a410848`, con avalador, doppio stock e Finanzas. L'elenco effettivo dei 29 comandi
+PR #27; ultima sorgente effettivamente pubblicata di riferimento `3e74870`,
+conservando le integrazioni `459303a` e `ce9259b` con avalador, doppio stock e Finanzas. L'elenco effettivo dei 29 comandi
 è in `JARVIS_CAPABILITY_MATRIX.json`; non equivale a certificazione di parità totale.
 Nessun merge, deployment, attivazione REAL o scrittura su database reale da questo ramo.
 
@@ -24,7 +24,7 @@ fabbricarlo con `AppActionResult`. Le funzioni e i controlli manuali restano int
   registrazione compatibile con avalador e campi del club, rinnovi e ricevute.
 - Quote e sconti: creazione/modifica, attivazione, validità e assegnazione/rimozione.
 - Catalogo: categorie, archiviazione/ripristino, schede prodotto, descrizioni e prezzi
-  in centesimi; nuovo prodotto con posizione esplicita e zero stock.
+  con argomenti vocali in centesimi convertiti dal server in euro decimali; nuovo prodotto con posizione esplicita e zero stock.
 - Stock: consultazione totale, ubicazioni riconciliate e storico. Rettifica legacy
   provata solo sullo schema legacy; sul doppio stock si ferma prima della modifica.
 - Caja: apertura/chiusura sessioni, fondo/conteggio/note e audit originale; report

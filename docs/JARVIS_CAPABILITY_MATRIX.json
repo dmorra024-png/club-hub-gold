@@ -414,7 +414,10 @@
     "access_control.set",
     "category.update",
     "finance.expense.create",
-    "finance.expense.cancel"
+    "finance.expense.cancel",
+    "category.create",
+    "product.create",
+    "product.update"
   ],
   "sharedDetails": [
     "member_history",

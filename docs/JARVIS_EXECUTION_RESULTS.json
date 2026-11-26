@@ -1,6 +1,6 @@
 {
   "scope": "29 bounded registered administrative commands; actual published-source reconciliation; no full manual/voice parity claim",
-  "date": "2026-11-25",
+  "date": "2026-11-26",
   "productionSource": "3e7487088396cbd21edc99d454d88d9418dad0bb",
   "preservedIntegratedSources": [
     "459303a122ce5ae560712a234098deb20b43fae4",
@@ -99,7 +99,9 @@
     "currentAvaladorRegistrationContract": "PASS on Chromium/WebKit with synthetic API, duplicate guard, payment review, renewal and original authenticated App Socio invitation",
     "inventoryErrorIsolation": "PASS on Chromium/WebKit: malformed inventory response does not crash cash report",
     "confirmationMessageIsolation": "PASS on all four profiles: new proposal clears cancelled-operation status and previous lookup list",
-    "confirmationTouchControls": "PASS: separate nonoverlapping controls, both at least 44px"
+    "confirmationTouchControls": "PASS: separate nonoverlapping controls, both at least 44px",
+    "keyboardRepeatVerification": "PASS: 3 complete Chromium/WebKit repetitions; assertions unchanged, native resize/React frames awaited instead of fixed 200ms sleep",
+    "extendedDialogue": "PASS: 51 synthetic transcript/model turns per Chromium/WebKit profile; no automatic writes or recorder/reply overlap"
   },
   "supabaseManagementReadOnlyMetadata": {
     "httpStatus": 401,
@@ -122,6 +124,11 @@
       "run": 45572454853,
       "reason": "registration fixture omitted current avalador RPC; app correctly rejected unverified returned ID",
       "fixedWithoutWeakeningAssertions": true
+    },
+    "additionalRegression": {
+      "run": 45577701992,
+      "test": "scripts/test-critical-stabilization.mjs:377",
+      "cause": "fixed 200ms sampling of asynchronous viewport and React frames; synchronized on actual frames, same visibility/focus/geometry constraints retained"
     }
   },
   "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed.",

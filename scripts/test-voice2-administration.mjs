@@ -5,6 +5,8 @@ import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 import { privateCatalogCommand } from "../src/lib/private-voice.ts";
+import { clubDayRange } from "../src/lib/cash-summary.ts";
+import { calendarDate } from "../src/lib/member-administration.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3040";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
@@ -359,11 +361,27 @@ for (const [name, engine, device] of [
         });
       }
       if (!isApi) return route.continue();
+      // The current report route also reads inventory valuation. This is an
+      // explicit authenticated read contract, not an exception for arbitrary RPCs.
+      if (u.pathname.endsWith("/rpc/snoop_inventory_cost_report")) {
+        assert.equal(req.method(), "POST");
+        assert.equal(req.headers()["authorization"], `Bearer ${auth.access_token}`);
+        const body=JSON.parse(req.postData());
+        assert.deepEqual(Object.keys(body),["p_day"]);
+        assert.equal(calendarDate(body.p_day),body.p_day);
+        const {start,end}=clubDayRange(body.p_day);
+        const zeroValues={opening_eur:0,incoming_eur:0,outgoing_eur:0,closing_eur:0,opening_sale_eur:0,incoming_sale_eur:0,outgoing_sale_eur:0,closing_sale_eur:0,closing_expected_profit_eur:0};
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({
+          day:body.p_day,start_at:start,end_at:end,cost_basis:"current_purchase_price",...zeroValues,
+          missing_sale_price:1,missing_cost:1,invalid_quantities:0,
+          lines:[{id:"60000000-0000-4000-8000-000000000001",name:"Amnesia Haze",opening_qty:20,incoming_qty:0,outgoing_qty:0,closing_qty:20,cost:0,sale_price:0,product_cost_eur:0,expected_sale_eur:0,expected_profit_eur:0,unpriced:true,unpriced_sale:true}],
+        })});
+      }
       if (aiDialogue && req.method() === "POST" && u.pathname.includes("/rpc/")) {
         const rpc = u.pathname.split("/").at(-1);
         assert.ok(
           ["snoop_access_context", "current_club_id"].includes(rpc),
-          "unexpected mutation/unmodeled RPC in read-only dialogue",
+          "unexpected mutation/unmodeled RPC in read-only dialogue: " + rpc,
         );
       }
       let data = [];
@@ -1298,22 +1316,22 @@ for (const [name, engine, device] of [
       await page.getByRole("combobox", { name: "Categoría", exact: true }).inputValue(),
       plan,
     );
-    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("Cantidad inicial (unit)", { exact: true }).inputValue(), "25");
     assert.equal(await page.getByLabel("P. venta €", { exact: true }).inputValue(), "10.5");
     await say("No, el precio es cinco euros con veinte");
     await page.waitForFunction(
       () => document.querySelector('input[aria-label="P. venta €"]')?.value === "5.2",
     );
-    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("Cantidad inicial (unit)", { exact: true }).inputValue(), "25");
     const productName = page.getByPlaceholder("ej. Amnesia Haze");
     await say("Crea un prodotto Quaderno, categoria Material, quantità venticinque");
     await page.waitForFunction(
       () => document.querySelector('input[placeholder="ej. Amnesia Haze"]')?.value === "Quaderno",
     );
-    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("Cantidad inicial (unit)", { exact: true }).inputValue(), "25");
     await say("No, lo stock è zero");
     await page.waitForFunction(
-      () => document.querySelector('input[aria-label="Stock (unit)"]')?.value === "",
+      () => document.querySelector('input[aria-label="Cantidad inicial (unit)"]')?.value === "",
     );
     assert.equal(await productName.inputValue(), "Quaderno");
     assert.equal(writes, 0);

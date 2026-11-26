@@ -116,3 +116,20 @@ precedente. I controlli conferma/annulla hanno aree tattili di almeno 44 px, sep
 e senza sovrapposizioni. Il browser verifica stato, bersaglio, dimensioni e assenza
 di scritture implicite sui quattro profili. Screenshot reali renderizzati in
 `docs/screenshots/jarvis-confirmation-{samsung,iphone}.png` (provider sintetico).
+
+## Regressioni aggiuntive del collaudo finale
+
+Il run `45577701992` si interrompeva nel test tastiera WebKit: una pausa fissa
+di 200 ms campionava transizioni di focus/resize/render non ancora completate.
+Il test ora attende i frame effettivi e mantiene tutti i vincoli di visibilità,
+focus, valori conservati e posizione del campo. Tre ripetizioni complete hanno
+superato gli stessi assert su Chromium e WebKit, senza modificare il gestore
+tastiera o allungare i timeout.
+
+Il dialogo da 51 turni incontrava inoltre la lettura originale
+`snoop_inventory_cost_report`: la fixture non conosceva questa RPC e la rifiutava
+come scrittura. La sola lettura è ora modellata con metodo POST, JWT e data
+verificati; tutte le altre RPC non previste continuano a essere rifiutate.
+La fixture conserva gli avvisi per prezzi mancanti, senza inventare ricavi.
+Il controllo di compilazione quantità usa il campo attuale `Cantidad inicial`,
+conservando i controlli su quantità, decimali, correzioni e zero scritture.
