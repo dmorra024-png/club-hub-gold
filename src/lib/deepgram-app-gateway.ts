@@ -22,6 +22,7 @@ import {
   voiceCashPeriod,
 } from "./voice/cash-read.server.ts";
 import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
+import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -768,6 +769,45 @@ export async function deepgramAppSocket(
                         id: f.id,
                         name: f.name,
                         content: JSON.stringify({ ok: false, status: "unavailable" }),
+                      }),
+                    );
+                  }
+                  continue;
+                }
+                if (f.name === "snoop_cash_openers_today" && f.client_side === true) {
+                  if (typeof f.id !== "string" || seen.has(f.id)) continue;
+                  seen.add(f.id);
+                  try {
+                    if (!newTurn || ++calls > 8) throw Error("DENIED");
+                    z.object({}).strict().parse(JSON.parse(f.arguments));
+                    const checked = await verifySession(verifiedToken, env, authController.signal);
+                    if (
+                      !verifiedSession ||
+                      checked.user !== verifiedSession.user ||
+                      checked.access.clubId !== verifiedSession.access.clubId
+                    ) throw Error("AUTH_FORBIDDEN");
+                    const summary = await voiceCashOpenersToday({
+                      url: setting(env, "SUPABASE_URL"),
+                      key: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                      jwt: verifiedToken,
+                      actor: checked.user,
+                      access: checked.access,
+                    });
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({ ok: true, status: "read", ...summary }),
+                      }),
+                    );
+                  } catch {
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({ ok: false, status: "unavailable", persisted: false }),
                       }),
                     );
                   }
