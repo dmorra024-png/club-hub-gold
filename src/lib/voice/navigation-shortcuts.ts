@@ -28,5 +28,10 @@ export function voiceNavigationShortcut(text: string): VoiceDestination | null {
   if (/^(?:abre|abrir|apri|apre|ver|mostrar|muestrame|crear|crea) (?:la |un |una |el )?(?:ficha de producto|producto nuevo|nuevo producto)$/.test(cmd) ||
       /^(?:crear producto|crea un producto|aggiungi prodotto|creare prodotto)$/.test(cmd))
     return "product_create";
+  // Opening the new-member form is never a database mutation. Only a bare
+  // command may use this shortcut; dictated identity details go through the
+  // existing member-form voice draft and explicit human confirmation.
+  if (/^(?:crear|crea|creare|registra|registrar|aggiungi|anadir|nuevo|nuovo) (?:un |una |el |la )?(?:socio|socia|miembro)$/.test(cmd))
+    return "member_create";
   return null;
 }
