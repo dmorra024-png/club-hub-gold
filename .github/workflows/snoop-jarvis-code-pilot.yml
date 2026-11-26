@@ -37,7 +37,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "release/jarvis-pilot-safe-20261126"
-          VERIFIED=f8f8cddd2b872b523a0a98aaeb42f7c884a88117
+          VERIFIED=f66749f4da8e9e164da0adf1c88b1f50f9303272
+          PREVIOUS=3e327c65cbef3517110d49de0ba86d6e462ea7dc
+          ALLOWED=$(git diff --name-only "$PREVIOUS" "$VERIFIED" -- src apps package.json bun.lock wrangler.json supabase scripts tests | sort)
+          EXPECTED=$(printf '%s\n' src/components/DeepgramPilotVoice.tsx src/lib/voice/pcm-playback.ts tests/pcm-playback.test.ts | sort)
+          test "$ALLOWED" = "$EXPECTED"
           DEPLOYED=3e7487088396cbd21edc99d454d88d9418dad0bb
           git cat-file -e "$VERIFIED^{commit}"
           git merge-base --is-ancestor "$VERIFIED" HEAD
