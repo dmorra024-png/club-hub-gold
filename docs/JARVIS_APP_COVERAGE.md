@@ -133,3 +133,11 @@ verificati; tutte le altre RPC non previste continuano a essere rifiutate.
 La fixture conserva gli avvisi per prezzi mancanti, senza inventare ricavi.
 Il controllo di compilazione quantità usa il campo attuale `Cantidad inicial`,
 conservando i controlli su quantità, decimali, correzioni e zero scritture.
+
+Il catalogo originale definisce `strain_type` come `indica | sativa | hibrida`.
+L'adapter usava erroneamente `hybrid`, che poteva rifiutare la ricevuta persistita
+e produrre un esito incerto. Input, schema dello strumento, SQL proposto e output
+ora usano il valore originale `hibrida`. Il test attraversa l'adapter reale fino
+alla RPC originale e rilegge classificazione, prezzi e stock; ripetere la conferma
+restituisce lo stesso risultato e non genera movimenti. Il valore non previsto
+`hybrid` viene rifiutato prima della scrittura. Nessuna modifica al tipo del database.

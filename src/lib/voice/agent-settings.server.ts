@@ -391,7 +391,7 @@ export function agentSettings(
                           sell_price_cents: { type: "integer" },
                           strain: {
                             type: ["string", "null"],
-                            enum: ["sativa", "indica", "hybrid", null],
+                            enum: ["sativa", "indica", "hibrida", null],
                           },
                           delta: { type: "string" },
                           archived: { type: "boolean" },

@@ -6,7 +6,7 @@
     "459303a122ce5ae560712a234098deb20b43fae4",
     "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
   ],
-  "unitTests": 558,
+  "unitTests": 560,
   "unitFailures": 0,
   "typecheck": "PASS",
   "nodeBuild": "PASS",
@@ -16,7 +16,7 @@
   "postgresql": {
     "engine": "isolated PGlite/PostgreSQL",
     "syntheticUsersAndClubs": true,
-    "contractCases": 37,
+    "contractCases": 38,
     "originalApplicationRPCs": true,
     "result": "PASS",
     "checks": [
@@ -33,7 +33,8 @@
       "rollback/stale-state/cancel/idempotence/recovery",
       "explicit cents voice arguments converted exactly to original decimal-EUR catalog",
       "legacy integer-only catalog rejects edits before mutation",
-      "original inventory-report RPC validated without changing accounting values"
+      "original inventory-report RPC validated without changing accounting values",
+      "original hibrida classification enum: typed adapter, persisted original RPC receipt, exact unchanged prices/stock and replay"
     ]
   },
   "concurrency": {

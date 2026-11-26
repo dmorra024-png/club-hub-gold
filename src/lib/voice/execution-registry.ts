@@ -32,7 +32,7 @@ const productFields = {
   category_id: id.optional(),
   buy_price_cents: cents.optional(),
   sell_price_cents: cents.optional(),
-  strain: z.enum(["sativa", "indica", "hybrid"]).nullable().optional(),
+  strain: z.enum(["sativa", "indica", "hibrida"]).nullable().optional(),
   notes: z.string().max(1000).optional(),
   description: z.string().max(4000).optional(),
   active: z.boolean().optional(),
@@ -104,7 +104,7 @@ export const executionSchemas = {
       category_id: id,
       buy_price_cents: cents,
       sell_price_cents: cents,
-      strain: z.enum(["sativa", "indica", "hybrid"]).nullable(),
+      strain: z.enum(["sativa", "indica", "hibrida"]).nullable(),
       notes: z.string().max(1000),
       description: z.string().max(4000),
       destination: z.enum(["almacen", "dispensario"]),
@@ -351,7 +351,7 @@ const productResult = {
   sell_price: z.number().finite().nonnegative(),
   price_unit: z.literal("EUR"),
   description: z.string().nullable(),
-  strain: z.enum(["sativa", "indica", "hybrid"]).nullable(),
+  strain: z.enum(["sativa", "indica", "hibrida"]).nullable(),
   notes: z.string().nullable(),
 };
 const cashResult = z

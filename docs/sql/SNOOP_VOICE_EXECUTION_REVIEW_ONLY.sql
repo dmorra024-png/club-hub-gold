@@ -334,7 +334,7 @@ BEGIN
   IF p_args?'description' AND (jsonb_typeof(p_args->'description') IS DISTINCT FROM 'string' OR length(p_args->>'description')>4000) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF p_args?'notes' AND (jsonb_typeof(p_args->'notes') IS DISTINCT FROM 'string' OR length(p_args->>'notes')>1000) THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
   IF p_args?'active' AND jsonb_typeof(p_args->'active') IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
-  IF p_args?'strain' AND p_args->'strain'<>'null'::jsonb AND (p_args->>'strain') NOT IN ('sativa','indica','hybrid') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
+  IF p_args?'strain' AND p_args->'strain'<>'null'::jsonb AND (p_args->>'strain') NOT IN ('sativa','indica','hibrida') THEN RAISE EXCEPTION 'VOICE_INVALID_ARGUMENTS';END IF;
  END IF;
  CASE p_action
  WHEN 'access_control.set' THEN

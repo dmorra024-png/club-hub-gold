@@ -1651,3 +1651,26 @@ test("the original inventory report RPC satisfies the defensive UI contract with
   assert.deepEqual(InventoryCostReportData.parse(actual), actual);
   assert(actual.lines.length > 0);
 });
+
+
+test("catalog metadata uses the original hibrida enum and the adapter verifies the persisted receipt", async () => {
+  const before = (await db.query("select stock,buy_price,sell_price from public.products where id=$1",[uid(301)])).rows[0];
+  const movements = await db.query("select * from public.stock_movements order by id");
+  const options = {
+    url:"https://bnwanxbmprbymbutoths.supabase.co",key:"synthetic",jwt:"synthetic",enabled:true,
+    fetch:async (_url,request) => {
+      const p=JSON.parse(request.body);
+      return Response.json(await command(1,p.p_request,p.p_operation,p.p_action,p.p_arguments,p.p_token));
+    },
+  };
+  const prepared=await voiceCommandOperation(options,{id:uid(1910),operation:"prepare",action:"product.update",arguments:{id:uid(301),strain:"hibrida"}});
+  const completed=await voiceCommandOperation(options,{id:uid(1910),operation:"confirm",token:prepared.token});
+  assert.equal(completed.status,"completed");
+  assert.equal(completed.result.strain,"hibrida");
+  assert.equal(completed.result.price_unit,"EUR");
+  assert.equal((await db.query("select strain from public.products where id=$1",[uid(301)])).rows[0].strain,"hibrida");
+  assert.deepEqual((await db.query("select stock,buy_price,sell_price from public.products where id=$1",[uid(301)])).rows[0],before);
+  assert.deepEqual(await db.query("select * from public.stock_movements order by id"),movements);
+  assert.deepEqual(await voiceCommandOperation(options,{id:uid(1910),operation:"confirm",token:prepared.token}),completed);
+  await assert.rejects(()=>command(1,uid(1911),"prepare","product.update",{id:uid(301),strain:"hybrid"}),/INVALID_ARGUMENTS/);
+});

@@ -122,3 +122,12 @@ test("Caja tools use opening/closing sessions, never a night register or fixed s
       }).success,
     );
 });
+
+
+test("informational catalog classification matches the existing database enum",()=>{
+ const id="00000000-0000-4000-8000-000000000301";
+ assert(executionSchemas["product.update"].safeParse({id,strain:"hibrida"}).success);
+ assert(!executionSchemas["product.update"].safeParse({id,strain:"hybrid"}).success);
+ const tool=agentSettings("it",48000,undefined,true,true).agent.think.functions.find(f=>f.name==="snoop_execute");
+ assert.deepEqual(JSON.parse(JSON.stringify(tool)).parameters.properties.arguments.properties.strain.enum,["sativa","indica","hibrida",null]);
+});
