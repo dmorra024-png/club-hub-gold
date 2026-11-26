@@ -137,6 +137,16 @@
       "cause": "Azure HTTP package downloads repeatedly interrupted; runner hit 15-minute setup deadline before browser assertions",
       "fix": "Existing CI-only helper now replaces Azure HTTP with the same signed official Ubuntu archive over HTTPS and is used by mobile setup; no timeout increase or test removal",
       "appSocioChanged": false
+    },
+    "voiceFixtureSamplingFailure": {
+      "run": 45773749278,
+      "test": "scripts/test-voice2-administration.mjs:1261",
+      "before": "reproduced waitForURL timeout with fixed 400ms speech and 700ms analyser warmup",
+      "after": "PASS Samsung/Chromium and iPhone/WebKit with same analyser delay, real recording phase and four sampled speech frames",
+      "navigationTimeoutUnchanged": true,
+      "applicationAudioCodeChanged": false,
+      "physicalDevice": false,
+      "liveProvider": false
     }
   },
   "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed.",

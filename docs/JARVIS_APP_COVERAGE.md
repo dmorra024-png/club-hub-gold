@@ -154,3 +154,19 @@ nessun timeout aumentato, nessun test escluso, nessun file `apps/socio` cambiato
 Un test aggiuntivo verifica la sostituzione, l'idempotenza, la conservazione della
 firma e l'esclusione di host simili o non interessati. La regressione applicativa
 completa sul precedente head `a09acf0` era già PASS.
+
+## Campionamento della voce simulata in CI
+
+Nel run `45773749278`, `test-voice2-administration.mjs:1261`, WebKit non
+navigava a Crear socio. Il controllo stop era correttamente già nello stato
+recording: il difetto della fixture era assumere che 400 ms di tempo trascorso
+garantissero abbastanza campioni VAD. La prova prima/dopo usa un analizzatore
+sintetico disponibile dopo 700 ms: la precedente finestra fissa perde il comando
+e scade sulla stessa attesa URL; la fixture corretta attende quattro campioni
+effettivi, poi il silenzio, e passa su entrambi i browser.
+
+È la stessa sincronizzazione già impiegata dal test continuo. Nessuna soglia
+VAD o comportamento del gestionale è stato cambiato; i timeout di navigazione,
+una sola trascrizione e zero scritture automatiche restano verificati. Il
+ritardo è soltanto nella sorgente sintetica del test: non certifica Deepgram
+reale o hardware fisico e non forza la trascrizione del silenzio.

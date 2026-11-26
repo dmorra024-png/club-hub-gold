@@ -229,9 +229,11 @@ for (const [name, engine, device] of [
             return { connect() {}, disconnect() {} };
           }
           createAnalyser() {
+            const readyAt=performance.now()+(window.__voice.analyserDelayMs||0);
             return {
               fftSize: 1024,
               getByteTimeDomainData(a) {
+                if(performance.now()<readyAt){a.fill(128);return;}
                 if (!window.__voice.silent) window.__voice.speechSamples++;
                 a.fill(window.__voice.silent ? 128 : 144);
               },
@@ -1252,12 +1254,24 @@ for (const [name, engine, device] of [
     ];
     for (const [command, path] of automaticCommands) {
       transcript = command;
-      await page.evaluate(() => (window.__voice.silent = false));
+      // Recording state alone cannot prove that the VAD sampled synthetic speech.
+      // Delay the first analyser beyond the old 400ms wall-clock speech window,
+      // then wait for actual speech samples rather than assuming a timer elapsed.
+      await page.evaluate(delay => {
+        window.__voice.silent=true;
+        window.__voice.analyserDelayMs=delay;
+      },command==="Crear socio"?700:0);
       const before = audioCalls;
       await requestStart();
-      await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
-      await page.waitForTimeout(400);
-      await page.evaluate(() => (window.__voice.silent = true));
+      await page.waitForFunction(() => document.querySelector('.premium-voice-panel[data-phase="recording"], .snoop-listening[data-phase="recording"]'));
+      const speechBefore=await page.evaluate(()=>window.__voice.speechSamples);
+      await page.evaluate(() => (window.__voice.silent = false));
+      try {
+        await page.waitForFunction(baseline=>window.__voice.speechSamples>=baseline+4,speechBefore,{timeout:10000});
+      } finally {
+        await page.evaluate(() => (window.__voice.silent = true));
+      }
+      await page.evaluate(() => (window.__voice.analyserDelayMs = 0));
       await page.waitForURL(base + path);
       await page.getByRole("dialog", { name: "SNOOP", exact: true }).waitFor({ state: "hidden" });
       assert.equal(
