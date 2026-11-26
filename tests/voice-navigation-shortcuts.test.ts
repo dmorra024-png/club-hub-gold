@@ -28,6 +28,10 @@ test("common exact Spanish/Italian read-only shortcuts navigate existing screens
     ["abre ficha", "member_create"],
     ["apri scheda socio", "member_create"],
     ["crear producto", "product_create"],
+    ["crear socio", "member_create"],
+    ["crea un socio", "member_create"],
+    ["registrar socio", "member_create"],
+    ["aggiungi socio", "member_create"],
     ["crea un producto", "product_create"],
   ]) {
     assert.equal(voiceNavigationShortcut(phrase), target, phrase);
@@ -39,6 +43,7 @@ test("never turn a named person, amount, order or ambiguous sentence into a shor
     "abre ficha de Marco Rossi",
     "Abre producto Amnesia Haze",
     "crear producto Amnesia Haze 20 euros",
+    "crear socio Marco Rossi",
     "dispensar 2 gramos",
     "caja 10 euros",
     "quien abrió la caja hoy",
