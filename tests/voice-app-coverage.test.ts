@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { voiceDestinations } from "../src/lib/voice/destinations.ts";
 import { ConversationProposal, conversationAllowed } from "../src/lib/snoop-conversation.ts";
 import { authorizeProposal, proposalSchema } from "../src/lib/voice/agent-settings.server.ts";
-import { vocabularyMatch } from "../src/lib/voice/catalog-vocabulary.ts";
+import { vocabularyMatch, canonicalGeneticOrProduct } from "../src/lib/voice/catalog-vocabulary.ts";
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
 import { applyDeepgramDraft } from "../src/lib/deepgram-draft-actions.ts";
 import { VoiceCashDay, voiceCashDay } from "../src/lib/voice/cash-read.server.ts";
@@ -285,4 +285,12 @@ test("warehouse navigation opens the existing scoped products capability rather 
   } finally {
     remove();
   }
+});
+
+test("strain pronunciation corrections preserve real catalog identities and reject ambiguous labels", () => {
+  assert.equal(vocabularyMatch("Amnesia Heis", ["Amnesia Haze", "Amnesia OG"]), "Amnesia Haze");
+  assert.equal(canonicalGeneticOrProduct("Amnecia Heis"), "Amnesia Haze");
+  assert.equal(vocabularyMatch("Wite Widou", ["White Widow", "OG Kush"]), null);
+  assert.equal(vocabularyMatch("Amnesia Heis", ["Amnesia Haze", "Amnesia Heis"]), "Amnesia Heis");
+  assert.equal(vocabularyMatch("OG", ["OG Kush", "OG Glue"]), null);
 });
