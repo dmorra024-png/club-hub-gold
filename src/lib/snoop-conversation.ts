@@ -32,9 +32,9 @@ export const productFields = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     category: z.string().trim().min(1).max(100).optional(),
-    stock: z.string().regex(/^\\d{1,9}(?:[.,]\\d{1,3})?$/).optional(),
-    buy_price: z.string().regex(/^\\d{1,8}(?:[.,]\\d{1,2})?$/).optional(),
-    sell_price: z.string().regex(/^\\d{1,8}(?:[.,]\\d{1,2})?$/).optional(),
+    stock: z.string().regex(/^\d{1,9}(?:[.,]\d{1,3})?$/).optional(),
+    buy_price: z.string().regex(/^\d{1,8}(?:[.,]\d{1,2})?$/).optional(),
+    sell_price: z.string().regex(/^\d{1,8}(?:[.,]\d{1,2})?$/).optional(),
     destination: z.enum(["almacen", "dispensario"]).optional(),
   })
   .strict();
