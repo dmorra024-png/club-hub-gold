@@ -180,11 +180,48 @@ test("genetics tool returns only documented facts and attributed excerpts using 
     return new Response("");
   });
   assert(result.verified);
-  assert(result.sources.includes("https://www.wikidata.org/wiki/Q123"));
+  assert(!result.sources.some((source) => source.includes("wikidata.org")));
+  assert(!requested.some((url) => ["www.strainpedia.com", "strainpedia.com", "www.wikidata.org", "commons.wikimedia.org"].includes(url.hostname)));
   assert.equal(result.excerpts[0].source, "https://www.leafly.com/strains/amnesia-haze");
   assert.equal(result.persisted, false);
   assert(!JSON.stringify(result).includes("images"));
   assert(requested.length <= 40);
+});
+test("source priority falls back to Strainpedia only if Leafly has no matching verified description", async () => {
+  const calls: string[] = [];
+  const result = await voiceGeneticsInformation({ name: "Amnesia Haze" }, async (input, init) => {
+    const url = new URL(String(input));
+    calls.push(url.href);
+    assert.equal(init?.redirect, "manual");
+    if (url.pathname === "/robots.txt") return new Response("User-agent: *\\nAllow: /");
+    if (url.hostname === "html.duckduckgo.com") return new Response("");
+    if (url.hostname === "www.leafly.com") return new Response("<title>Unknown strain</title><meta name='description' content='Unrelated information that cannot be matched to the requested strain.'>");
+    if (url.hostname === "www.strainpedia.com" && url.pathname === "/amnesia-haze/")
+      return new Response('<title>Amnesia Haze Strain | Strainpedia</title><meta name="description" content="Independent synthetic information about Amnesia Haze with a source-backed strain profile.">');
+    return new Response("", { status: 404 });
+  });
+  assert.equal(result.verified, true);
+  assert.deepEqual(result.sources, ["https://www.strainpedia.com/amnesia-haze/"]);
+  assert(calls.some((url) => url.endsWith("www.strainpedia.com/amnesia-haze/")));
+  assert(!calls.some((url) => url.includes("www.strainpedia.com/strains/amnesia-haze/")));
+  assert.equal(result.excerpts.length, 1);
+});
+test("approved Leafly entry stops all secondary strain publisher calls even without images", async () => {
+  const calls: string[] = [];
+  const result = await voiceGeneticsInformation({ name: "Amnesia Haze" }, async (input, init) => {
+    const url = new URL(String(input));
+    calls.push(url.href);
+    if (url.hostname === "www.strainpedia.com" || url.hostname === "strainpedia.com")
+      throw Error("Strainpedia MUST NOT be fetched when Leafly has valid content");
+    if (url.pathname === "/robots.txt") return new Response("User-agent: *\\nAllow: /");
+    if (url.hostname === "html.duckduckgo.com") return new Response("");
+    if (url.hostname === "www.leafly.com")
+      return new Response('<title>Amnesia Haze | Leafly</title><meta name="description" content="This is a synthetic verified informational text about the requested Amnesia Haze cultivar.">');
+    return new Response("", { status: 404 });
+  });
+  assert.equal(result.verified, true);
+  assert.deepEqual(result.sources, ["https://www.leafly.com/strains/amnesia-haze"]);
+  assert(!calls.some((url) => url.includes("strainpedia")));
 });
 test("genetics source failures and blocked redirects do not invent facts or follow destinations", async () => {
   const requested: URL[] = [];

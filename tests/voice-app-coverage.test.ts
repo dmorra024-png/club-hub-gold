@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { voiceDestinations } from "../src/lib/voice/destinations.ts";
 import { ConversationProposal, conversationAllowed } from "../src/lib/snoop-conversation.ts";
 import { authorizeProposal, proposalSchema } from "../src/lib/voice/agent-settings.server.ts";
-import { vocabularyMatch } from "../src/lib/voice/catalog-vocabulary.ts";
+import { vocabularyMatch, canonicalGeneticOrProduct } from "../src/lib/voice/catalog-vocabulary.ts";
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
-import { applyDeepgramDraft } from "../src/lib/deepgram-draft-actions.ts";
+import { applyDeepgramDraft, protectedVoicePatch } from "../src/lib/deepgram-draft-actions.ts";
 import { VoiceCashDay, voiceCashDay } from "../src/lib/voice/cash-read.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 import { normalizedPilotNames } from "../src/lib/deepgram-pilot-policy.ts";
@@ -284,5 +284,92 @@ test("warehouse navigation opens the existing scoped products capability rather 
     assert.equal(opened, "warehouse");
   } finally {
     remove();
+  }
+});
+
+test("strain pronunciation corrections preserve real catalog identities and reject ambiguous labels", () => {
+  assert.equal(vocabularyMatch("Amnesia Heis", ["Amnesia Haze", "Amnesia OG"]), "Amnesia Haze");
+  assert.equal(canonicalGeneticOrProduct("Amnecia Heis"), "Amnesia Haze");
+  assert.equal(vocabularyMatch("Wite Widou", ["White Widow", "OG Kush"]), null);
+  assert.equal(vocabularyMatch("Amnesia Heis", ["Amnesia Haze", "Amnesia Heis"]), "Amnesia Heis");
+  assert.equal(vocabularyMatch("OG", ["OG Kush", "OG Glue"]), null);
+});
+
+test("consecutive product voice dictation collects exact quantities and euro prices without touching existing manual edits", () => {
+  const product = (fields: Record<string, string>) => ConversationProposal.parse({
+    intent: "product",
+    target: "product_create",
+    member: {},
+    product: fields,
+    query: null,
+    declined: [],
+    question: "",
+    asking: null,
+  });
+  assert.equal(product({ stock: "0,750", buy_price: "10.25", sell_price: "22,50", destination: "almacen" }).product.stock, "0,750");
+  assert.equal(product({ sell_price: "22,50" }).product.sell_price, "22,50");
+  assert.equal(product({ destination: "dispensario" }).product.destination, "dispensario");
+  assert.throws(() => product({ stock: "7.1234" }));
+  assert.throws(() => product({ sell_price: "22.501" }));
+  assert.throws(() => product({ sell_price: "22,50", forbidden: "unauthorized" }));
+  const defaults = { stock: "0", buy_price: "0.00", sell_price: "0.00", destination: "dispensario" };
+  const blank = { name: "", category: "", ...defaults };
+  const next = protectedVoicePatch(blank, defaults, { name: "Amnesia Haze", stock: "0,750", sell_price: "22,50" });
+  assert.deepEqual(next.skipped, []);
+  assert.deepEqual(next.applied, { name: "Amnesia Haze", stock: "0,750", sell_price: "22,50" });
+  const manuallyChanged = { ...blank, stock: "0.900", sell_price: "25.00" };
+  const preserved = protectedVoicePatch(manuallyChanged, defaults, { stock: "0.750", sell_price: "22.50" });
+  assert.deepEqual(preserved.applied, {});
+  assert.deepEqual(preserved.skipped.sort(), ["sell_price", "stock"]);
+});
+
+test("JARVIS keeps one product form alive while sequential utterances fill only the new fields", async () => {
+  const owner = voiceOwner("synthetic-worker", admin.clubId!);
+  const fields: Record<string, string> = {
+    name: "", category: "", stock: "0", buy_price: "0.00",
+    sell_price: "0.00", destination: "dispensario",
+  };
+  const last: Record<string, Record<string, string>> = {};
+  const opened: string[] = [];
+  const removePage = applicationPorts.register(owner, "products.page", {
+    open: (target) => { opened.push(target); },
+  });
+  const removeForm = applicationPorts.register(owner, "product.form", {
+    snapshot: () => ({ ...fields }),
+    patch: (values) => { Object.assign(fields, values); },
+  });
+  const say = async (product: Record<string, string>) =>
+    applyDeepgramDraft({
+      ...proposal("product_create"),
+      intent: "product",
+      product,
+    }, {
+      access: admin,
+      owner,
+      path: () => "/productos",
+      current: () => true,
+      navigate: () => {},
+      last,
+    });
+  try {
+    assert.deepEqual((await say({ name: "Amnesia Haze" })).applied, ["name"]);
+    assert.deepEqual((await say({ category: "Flores" })).applied, ["category"]);
+    assert.deepEqual((await say({ stock: "0.750" })).applied, ["stock"]);
+    assert.deepEqual((await say({ sell_price: "22.50" })).applied, ["sell_price"]);
+    assert.deepEqual((await say({ destination: "almacen", buy_price: "11.25" })).applied.sort(), ["buy_price", "destination"]);
+    assert.deepEqual(fields, {
+      name: "Amnesia Haze", category: "Flores", stock: "0.750",
+      buy_price: "11.25", sell_price: "22.50", destination: "almacen",
+    });
+    fields.sell_price = "25.00"; // The collaborator manually corrects this.
+    const rejected = await say({ sell_price: "20.00", stock: "0.800" });
+    assert.deepEqual(rejected.skipped, ["sell_price"]);
+    assert.deepEqual(rejected.applied, ["stock"]);
+    assert.equal(fields.sell_price, "25.00");
+    assert.equal(fields.stock, "0.800");
+    assert(opened.every((target) => target === "product_create"));
+  } finally {
+    removeForm();
+    removePage();
   }
 });
