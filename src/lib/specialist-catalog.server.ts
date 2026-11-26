@@ -1,5 +1,5 @@
 import type { CatalogImage } from "./catalog-enrichment.server";
-export type CatalogDescription = { title: string; source: string; excerpt: string };
+export type CatalogDescription = { title: string; source: string; excerpt: string; details?: { topic: string; evidence: string }[] };
 const hosts = [
   "www.strainpedia.com",
   "strainpedia.com",
@@ -57,6 +57,28 @@ function meta(html: string, name: string) {
   }
   return "";
 }
+/** Bounded excerpts from the SAME verified page. The agent paraphrases these
+ * into an original spoken explanation; no copy of an article is returned.
+ * Only strain-specific informational sections, not reviews, offers or ads. */
+export function specialistSections(html: string, name: string) {
+  const clean = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+  const heading = /<h([23])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  const found = [...clean.matchAll(heading)];
+  const details: { topic: string; evidence: string }[] = [];
+  const topics = /genetic|lineage|parent|aroma|flavo[u]?r|terpene|effect|botani|overview|appearance|profile|strain|caracter[ií]stic|sabor|olor|origen/i;
+  for (let i=0; i<found.length && details.length<7; i++) {
+    const h = plain(found[i][2]).slice(0, 100);
+    if (!topics.test(h) || /review|buy|shop|similar|photos|popular|related|faq|frequently|availability|near you/i.test(h)) continue;
+    const end = i+1<found.length ? found[i+1].index! : clean.length;
+    const block = clean.slice(found[i].index! + found[i][0].length, Math.min(end,found[i].index!+1800));
+    const evidence = plain(block.replace(/<(?:nav|aside|button|footer)\b[^>]*>[\s\S]*?<\/\s*(?:nav|aside|button|footer)>/gi," ")).slice(0,310);
+    if(evidence.length<35 || !/[\p{L}]{4}/u.test(evidence)) continue;
+    if (details.some(d=>d.topic.toLowerCase()===h.toLowerCase())) continue;
+    details.push({topic:h,evidence});
+  }
+  return details;
+}
 export function specialistDescription(
   html: string,
   url: string,
@@ -70,8 +92,9 @@ export function specialistDescription(
   const description = meta(html, "description") || meta(html, "og:description");
   if (description.length < 20) return null;
   // Short attributed excerpt, never a fabricated AI assertion or a copied full article.
-  const excerpt = description.split(/\s+/).slice(0, 35).join(" ").slice(0, 180);
-  return { title: title.slice(0, 180), source: url, excerpt };
+  const excerpt = description.split(/\s+/).slice(0, 55).join(" ").slice(0, 310);
+  const details = specialistSections(html, name);
+  return { title: title.slice(0, 180), source: url, excerpt, details };
 }
 export function specialistImages(html: string, source: string, name: string): CatalogImage[] {
   const origin = specialistUrl(source);

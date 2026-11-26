@@ -582,7 +582,14 @@ export function DeepgramPilotVoice({
               return;
             }
             if (applying.current || pathRef.current !== utterancePath.current) {
-              if (message.id)
+              if (message.shortcut === true && message.id)
+                state.transport.send({
+                  type: "AppShortcutResult",
+                  id: message.id,
+                  target: result.proposal.target,
+                  opened: false,
+                });
+              else if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
                   id: message.id,
@@ -608,7 +615,14 @@ export function DeepgramPilotVoice({
                 last: voiceValues.current,
                 reportDay: message.cashDay,
               });
-              if (message.id)
+              if (message.shortcut === true && message.id)
+                state.transport.send({
+                  type: "AppShortcutResult",
+                  id: message.id,
+                  target: applied.proposal.target,
+                  opened: true,
+                });
+              else if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
                   id: message.id,
@@ -646,7 +660,14 @@ export function DeepgramPilotVoice({
                     : reason === "SNOOP_MEMBER_FIELD_DISABLED"
                       ? "FIELD_DISABLED"
                       : "FORM_UNAVAILABLE";
-              if (message.id)
+              if (message.shortcut === true && message.id)
+                state.transport.send({
+                  type: "AppShortcutResult",
+                  id: message.id,
+                  target: result.proposal.target,
+                  opened: false,
+                });
+              else if (message.id)
                 state.transport.send({
                   type: "AppActionResult",
                   id: message.id,

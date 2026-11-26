@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { voiceCashPeriod, VoiceCashPeriod } from "../src/lib/voice/cash-read.server.ts";
 import { voiceGeneticsInformation } from "../src/lib/voice/genetics-read.server.ts";
+import { specialistDescription, specialistSections } from "../src/lib/specialist-catalog.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 import { voiceGeneticsSource } from "../src/lib/voice/source-links.ts";
 const access: AccountAccess = {
@@ -332,4 +333,45 @@ test("voice period matches released wallet accounting and never converts evidenc
     if (previous === undefined) delete process.env.SNOOP_WALLET_OPERATIONS_ENABLED;
     else process.env.SNOOP_WALLET_OPERATIONS_ENABLED = previous;
   }
+});
+
+test("Forbidden Fruit spoken as fortitten frut canonicalizes and provides several Leafly evidence sections", async () => {
+  const calls: string[] = [];
+  const html = `<html><title>Forbidden Fruit strain information | Leafly</title>
+  <meta name="description" content="Forbidden Fruit is an indica-dominant cultivar known for its genetic history and tropical aroma.">
+  <h2>Forbidden Fruit strain genetics</h2>
+  <p>Cherry Pie crosses with Tangie, creating a cultivar described as purple and green with orange pistils and resinous flowers.</p>
+  <h2>Forbidden Fruit terpenes</h2>
+  <p>Myrcene, caryophyllene and limonene are associated with the cultivar in this synthetic description for tests only.</p>
+  <h2>Forbidden Fruit strain flavors</h2>
+  <p>Grapefruit, tropical citrus, fruit and berry notes are attributed to the aromatic profile and vary by phenotype.</p>
+  <h2>Forbidden Fruit strain effects</h2>
+  <p>Readers report relaxation, sleepiness and tingling, which are experiences rather than confirmed clinical outcomes.</p>
+  </html>`;
+  const result = await voiceGeneticsInformation({ name: "fortitten frut" },async (input, init) => {
+    const url = new URL(String(input));
+    calls.push(url.href);
+    if(url.pathname==="/robots.txt")return new Response("User-agent: *\\nAllow: /");
+    if(url.hostname==="html.duckduckgo.com")return new Response("");
+    if(url.hostname==="www.leafly.com" && url.pathname==="/strains/forbidden-fruit")return new Response(html);
+    throw Error("Unexpected URL");
+  });
+  assert.equal(result.name,"Forbidden Fruit");
+  assert.equal(result.verified,true);
+  assert.equal(result.sources.length,1);
+  assert.equal(result.sources[0],"https://www.leafly.com/strains/forbidden-fruit");
+  assert(result.excerpts[0].details!.length>=3);
+  assert(!calls.some((x)=>x.includes("strainpedia")));
+  assert(!JSON.stringify(result).includes("unrelated-user-secret"));
+});
+test("strain section reader ignores reviews and unrelated advertisements",()=>{
+  const html = `<title>Forbidden Fruit Strain</title><h2>Forbidden Fruit terpenes</h2>
+  <p>A factual synthetic paragraph about profile notes and the main aromatic terpenes.</p>
+  <h2>Buy this product now</h2><p>Unrelated promotion and advertising information only.</p>
+  <h2>Reviews</h2><p>Customer names and unverified personal data are not informational facts.</p>`;
+  const entry=specialistDescription(html,"https://www.leafly.com/strains/forbidden-fruit","Forbidden Fruit");
+  assert.equal(entry,null);
+  const sections=specialistSections(html,"Forbidden Fruit");
+  assert.equal(sections.length,1);
+  assert(!JSON.stringify(sections).includes("Unrelated promotion"));
 });
