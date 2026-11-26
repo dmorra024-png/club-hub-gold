@@ -1,8 +1,10 @@
-name: SNOOP JARVIS — guarded code-only pilot release
+name: SNOOP JARVIS — guarded compatibility validation
 on:
   push:
     branches: [release/jarvis-pilot-safe-20261126]
-    paths: [docs/JARVIS_SAFE_DEPLOY_TRIGGER.md]
+    paths:
+      - .github/workflows/snoop-jarvis-code-pilot.yml
+      - docs/JARVIS_SAFE_DEPLOY_TRIGGER.md
 permissions:
   contents: read
 concurrency:
@@ -10,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'deploy-jarvis-code-only-pilot'
+    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'validate-jarvis-full-pilot'
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 30
@@ -30,7 +32,7 @@ jobs:
         with: {persist-credentials: false, fetch-depth: 0}
       - uses: oven-sh/setup-bun@v2
         with: {bun-version: "1.3.12"}
-      - name: Verify exact JARVIS source, protected modules, and isolated pilot target
+      - name: Verify isolated JARVIS source and immutable non-JARVIS modules
         shell: bash
         run: |
           set -euo pipefail
@@ -38,56 +40,9 @@ jobs:
           VERIFIED=f8f8cddd2b872b523a0a98aaeb42f7c884a88117
           DEPLOYED=3e7487088396cbd21edc99d454d88d9418dad0bb
           git cat-file -e "$VERIFIED^{commit}"
-          test "$(git rev-parse HEAD^^)" = "$VERIFIED"
+          git merge-base --is-ancestor "$VERIFIED" HEAD
           git diff --exit-code "$VERIFIED" HEAD -- src apps package.json bun.lock wrangler.json supabase scripts tests
           git diff --exit-code "$DEPLOYED" "$VERIFIED" -- apps/socio src/lib/wallet-management.functions.ts src/lib/cash-ledger.ts src/lib/cash-sessions.functions.ts src/lib/cash-sessions.server.ts package.json bun.lock wrangler.json supabase
-          test -z "$(git diff --name-only "$VERIFIED" HEAD -- .github/workflows | grep -v '^.github/workflows/snoop-jarvis-code-pilot.yml
-          node -e 'const c=require("./wrangler.json");if(c.name!=="snoop-pilot"||c.workers_dev!==true||c.ai?.binding!=="SNOOP_AI"||c.assets?.binding!=="ASSETS"||c.vars?.SNOOP_RESOURCE_NAMESPACE!=="snoop-pilot")process.exit(1)'
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
-      - run: bun install --frozen-lockfile
-      - name: Verify build, authorization boundaries and client bundle
-        run: |
-          set -euo pipefail
-          bun run build:worker
-          bun run typecheck
-          bun run test:security:architecture
-          bun run worker:dry-run
-          bun run test:security:bundle
-      - name: Read-only verify protected Worker bindings and feature safety
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          const res=await fetch('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/settings',{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
-          assert.equal(res.status,200);
-          const body=await res.json();
-          assert.equal(body.success,true);
-          const b=body.result?.bindings||[];
-          for(const [name,type] of [['SUPABASE_SERVICE_ROLE_KEY','secret_text'],['SOCIO_QR_SIGNING_KEY_BASE64','secret_text'],['SNOOP_AI','ai'],['ASSETS','assets']]){
-            assert.ok(b.some(x=>x.name===name&&x.type===type),'Missing protected binding '+name);
-          }
-          assert.equal(new Set(b.map(x=>x.name)).size,b.length);
-          const wallet=b.find(x=>x.name==='SNOOP_WALLET_OPERATIONS_ENABLED');
-          if(wallet)assert.ok(wallet.type==='plain_text','Wallet setting type must remain unchanged');
-          const execution=b.find(x=>x.name==='SNOOP_VOICE_EXECUTION_PILOT_ENABLED');
-          assert.ok(!execution || execution.type==='plain_text' && execution.text!=='true','Voice execution must stay gated until SQL dependencies are certified');
-          console.log('Existing protected bindings verified; no secret values read or changed.');
-          NODE
-      - name: Pre-deploy pilot availability check
-        run: curl -fsS --max-time 25 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-before
-      - name: Publish verified JARVIS code only to snoop-pilot while preserving bindings
-        run: WRANGLER_SEND_METRICS=false bunx wrangler deploy --config .output/server/wrangler.json --keep-vars
-      - name: Verify pilot is online
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsS --max-time 30 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-after
-          grep -qi 'snoop' /tmp/snoop-after
-          echo 'SNOOP_JARVIS_CODE_ONLY_PILOT_PUBLISHED'
- || true)"
-          test -z "$(git diff --name-only "$VERIFIED" HEAD -- docs | grep -v '^docs/JARVIS_SAFE_DEPLOY_TRIGGER.md
           node -e 'const c=require("./wrangler.json");if(c.name!=="snoop-pilot"||c.workers_dev!==true||c.ai?.binding!=="SNOOP_AI"||c.assets?.binding!=="ASSETS"||c.vars?.SNOOP_RESOURCE_NAMESPACE!=="snoop-pilot")process.exit(1)'
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
@@ -117,55 +72,8 @@ jobs:
           assert.equal(new Set(b.map(x=>x.name)).size,b.length);
           console.log('Existing protected bindings verified; no secret values read or changed.');
           NODE
-      - name: Pre-deploy pilot availability check
-        run: curl -fsS --max-time 25 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-before
-      - name: Publish warehouse UI to snoop-pilot while preserving bindings
-        run: WRANGLER_SEND_METRICS=false bunx wrangler deploy --config .output/server/wrangler.json --keep-vars
-      - name: Verify pilot is online
-        shell: bash
+      - name: Full execution schema compatibility gate (no database writes)
         run: |
-          set -euo pipefail
-          curl -fsS --max-time 30 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-after
-          grep -qi 'snoop' /tmp/snoop-after
-          echo 'SNOOP_ALMACEN_PILOT_PUBLISHED'
- || true)"
-          node -e 'const c=require("./wrangler.json");if(c.name!=="snoop-pilot"||c.workers_dev!==true||c.ai?.binding!=="SNOOP_AI"||c.assets?.binding!=="ASSETS"||c.vars?.SNOOP_RESOURCE_NAMESPACE!=="snoop-pilot")process.exit(1)'
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
-      - run: bun install --frozen-lockfile
-      - name: Verify build, authorization boundaries and client bundle
-        run: |
-          set -euo pipefail
-          bun run build:worker
-          bun run typecheck
-          bun run test:security:architecture
-          bun run worker:dry-run
-          bun run test:security:bundle
-      - name: Read-only verify protected Worker bindings
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          const res=await fetch('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/settings',{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
-          assert.equal(res.status,200);
-          const body=await res.json();
-          assert.equal(body.success,true);
-          const b=body.result?.bindings||[];
-          for(const [name,type] of [['SUPABASE_SERVICE_ROLE_KEY','secret_text'],['SOCIO_QR_SIGNING_KEY_BASE64','secret_text'],['SNOOP_AI','ai'],['ASSETS','assets']]){
-            assert.ok(b.some(x=>x.name===name&&x.type===type),'Missing protected binding '+name);
-          }
-          assert.equal(new Set(b.map(x=>x.name)).size,b.length);
-          console.log('Existing protected bindings verified; no secret values read or changed.');
-          NODE
-      - name: Pre-deploy pilot availability check
-        run: curl -fsS --max-time 25 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-before
-      - name: Publish warehouse UI to snoop-pilot while preserving bindings
-        run: WRANGLER_SEND_METRICS=false bunx wrangler deploy --config .output/server/wrangler.json --keep-vars
-      - name: Verify pilot is online
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsS --max-time 30 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-after
-          grep -qi 'snoop' /tmp/snoop-after
-          echo 'SNOOP_ALMACEN_PILOT_PUBLISHED'
+          echo 'BLOCKED: full administrative JARVIS requires the updated 29-command SQL execution adapter.'
+          echo 'Existing pilot schema supports a restricted subset and must be reviewed and migrated safely.'
+          exit 1
