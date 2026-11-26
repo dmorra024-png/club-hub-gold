@@ -159,6 +159,7 @@ test("Spanish and Italian abre ficha instructions route to existing member form,
     for (const phrase of ["abre ficha", "apri ficha", "member_create", "snoop_propose", "snoop_execution_status"]) {
       assert(prompt.includes(phrase), phrase);
     }
+    for (const phrase of ["crear producto", "product_create", "Opening the form never requires a prior voice execution ID"]) assert(prompt.includes(phrase), phrase);
     assert(prompt.includes("Do not call snoop_execution_status unless the user specifically asks"));
     assert(settings.agent.think.functions.some((f) => f.name === "snoop_propose"));
   }
