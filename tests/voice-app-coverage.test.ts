@@ -5,7 +5,7 @@ import { ConversationProposal, conversationAllowed } from "../src/lib/snoop-conv
 import { authorizeProposal, proposalSchema } from "../src/lib/voice/agent-settings.server.ts";
 import { vocabularyMatch, canonicalGeneticOrProduct } from "../src/lib/voice/catalog-vocabulary.ts";
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
-import { applyDeepgramDraft } from "../src/lib/deepgram-draft-actions.ts";
+import { applyDeepgramDraft, protectedVoicePatch } from "../src/lib/deepgram-draft-actions.ts";
 import { VoiceCashDay, voiceCashDay } from "../src/lib/voice/cash-read.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 import { normalizedPilotNames } from "../src/lib/deepgram-pilot-policy.ts";
@@ -293,4 +293,32 @@ test("strain pronunciation corrections preserve real catalog identities and reje
   assert.equal(vocabularyMatch("Wite Widou", ["White Widow", "OG Kush"]), null);
   assert.equal(vocabularyMatch("Amnesia Heis", ["Amnesia Haze", "Amnesia Heis"]), "Amnesia Heis");
   assert.equal(vocabularyMatch("OG", ["OG Kush", "OG Glue"]), null);
+});
+
+test("consecutive product voice dictation collects exact quantities and euro prices without touching existing manual edits", () => {
+  const product = (fields: Record<string, string>) => ConversationProposal.parse({
+    intent: "product",
+    target: "product_create",
+    member: {},
+    product: fields,
+    query: null,
+    declined: [],
+    question: "",
+    asking: null,
+  });
+  assert.equal(product({ stock: "0,750", buy_price: "10.25", sell_price: "22,50", destination: "almacen" }).product.stock, "0,750");
+  assert.equal(product({ sell_price: "22,50" }).product.sell_price, "22,50");
+  assert.equal(product({ destination: "dispensario" }).product.destination, "dispensario");
+  assert.throws(() => product({ stock: "7.1234" }));
+  assert.throws(() => product({ sell_price: "22.501" }));
+  assert.throws(() => product({ sell_price: "22,50", forbidden: "unauthorized" }));
+  const defaults = { stock: "0", buy_price: "0.00", sell_price: "0.00", destination: "dispensario" };
+  const blank = { name: "", category: "", ...defaults };
+  const next = protectedVoicePatch(blank, defaults, { name: "Amnesia Haze", stock: "0,750", sell_price: "22,50" });
+  assert.deepEqual(next.skipped, []);
+  assert.deepEqual(next.applied, { name: "Amnesia Haze", stock: "0,750", sell_price: "22,50" });
+  const manuallyChanged = { ...blank, stock: "0.900", sell_price: "25.00" };
+  const preserved = protectedVoicePatch(manuallyChanged, defaults, { stock: "0.750", sell_price: "22.50" });
+  assert.deepEqual(preserved.applied, {});
+  assert.deepEqual(preserved.skipped.sort(), ["sell_price", "stock"]);
 });
