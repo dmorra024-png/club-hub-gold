@@ -11,6 +11,7 @@ export const GENETIC_TERMS = [
   "Critical",
   "White Widow",
   "Gelato",
+  "Forbidden Fruit",
 ] as const;
 /** Existing UI examples (productos.tsx), pronunciation hints only, NOT club categories. */
 export const CATEGORY_PRONUNCIATION_TERMS = [
@@ -104,6 +105,8 @@ const spokenVariants: ReadonlyArray<[RegExp, string]> = [
   [/\b(?:cush|kushh|cushh)\b/gu, "kush"],
   [/\b(?:widou|widoww|widov)\b/gu, "widow"],
   [/\b(?:amnecia|amnezzia|amnezia)\b/gu, "amnesia"],
+  [/\b(?:fortitten|fortiten|forbitten|forbiten|forbidden|fortiden|forbiden|fortittenn)\b/gu, "forbidden"],
+  [/\b(?:frut|frutt|fruttt|frutoo|fruito|fruitt|fruto|fruita)\b/gu, "fruit"],
 ];
 function spokenKey(value: string) {
   let key = normalized(value).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
