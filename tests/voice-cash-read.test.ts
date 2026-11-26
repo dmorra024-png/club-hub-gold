@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { voiceCashToday } from "../src/lib/voice/cash-read.server.ts";
+import { voiceCashOpenersToday } from "../src/lib/voice/cash-openers.server.ts";
 import { madridToday } from "../src/lib/member-administration.ts";
 test("voice cash uses actual report calculations with user JWT, never sends names or false zero on errors", async () => {
   let fail = false;
@@ -73,4 +74,27 @@ test("voice cash uses actual report calculations with user JWT, never sends name
       fetcher,
     ),
   );
+});
+
+test("Caja voice opener lookup denies missing permissions or foreign club before fetching any data", async () => {
+  let calls = 0;
+  const options = {
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "synthetic",
+    jwt: "synthetic",
+    actor: "00000000-0000-4000-8000-000000000001",
+    access: {
+      role: "admin" as const,
+      status: "active" as const,
+      clubId: "00000000-0000-4000-8000-000000000002",
+      clubName: "Synthetic",
+      clubLogo: null,
+      permissions: [] as Array<"use_cash">,
+    },
+    fetch: async () => { calls++; return Response.json([]); },
+  };
+  await assert.rejects(voiceCashOpenersToday(options), /VOICE_READ_FORBIDDEN/);
+  await assert.rejects(voiceCashOpenersToday({ ...options, access: { ...options.access, clubId: null, permissions: ["use_cash"] } }), /VOICE_READ_FORBIDDEN/);
+  await assert.rejects(voiceCashOpenersToday({ ...options, actor: "not-an-id", access: { ...options.access, permissions: ["use_cash"] } }), /VOICE_READ_FORBIDDEN/);
+  assert.equal(calls, 0);
 });
