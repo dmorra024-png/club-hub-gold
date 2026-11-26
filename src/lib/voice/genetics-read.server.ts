@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { geneticsName } from "../genetics-archive.ts";
 import { searchSpecialistCatalog, specialistUrl } from "../specialist-catalog.server.ts";
+import { canonicalGeneticOrProduct } from "./catalog-vocabulary.ts";
 import { voiceGeneticsSource } from "./source-links.ts";
-export const VoiceGeneticsQuery = z.object({ name: z.string().transform(geneticsName) }).strict();
+export const VoiceGeneticsQuery = z.object({ name: z.string().transform((input) => geneticsName(canonicalGeneticOrProduct(input))) }).strict();
 /** Existing licensed-source research, informational only: no inventory/pricing or writes. */
 export async function voiceGeneticsInformation(
   args: unknown,
