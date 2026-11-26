@@ -23,6 +23,7 @@ import {
 } from "./voice/cash-read.server.ts";
 import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
+import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -1213,6 +1214,29 @@ export async function deepgramAppSocket(
                   calls = 0;
                 }
                 newTurn = true;
+              }
+              // Read-only shortcuts operate only on fully matched phrases and
+              // remain subject to the same club and role permissions.
+              if (m.role === "user") {
+                const destination = voiceNavigationShortcut(String(m.content || ""));
+                if (destination) {
+                  const direct = authorizeProposal(
+                    {
+                      intent: "navigate",
+                      target: destination,
+                      member: {},
+                      product: {},
+                      query: null,
+                      declined: [],
+                      question: "",
+                      asking: null,
+                    },
+                    verified.access,
+                    verified.catalog,
+                    memory.declined,
+                  );
+                  if (direct.ok) send({ type: "AppProposal", result: direct });
+                }
               }
               history.push({ role: m.role, content: String(m.content || "").slice(0, 1200) });
               if (history.length > 10) history.shift();
