@@ -1583,8 +1583,17 @@ function NuevoProducto({
     clearPrefill();
   }, [prefill]);
 
-  const aiValues = useRef({ name, category: cat?.name ?? "" });
-  aiValues.current = { name, category: cat?.name ?? "" };
+  // Values are scoped to this existing NEW PRODUCT form; voice proposals
+  // only prepare fields and never invoke product creation or stock movement.
+  const aiValues = useRef<Record<string, string>>({});
+  aiValues.current = {
+    name,
+    category: cat?.name ?? "",
+    stock: String(stock),
+    buy_price: buy.toFixed(2),
+    sell_price: sell.toFixed(2),
+    destination: initialLocation,
+  };
   useEffect(() => {
     const form = (event: Event) => {
       const detail = (event as CustomEvent).detail;
@@ -1613,14 +1622,35 @@ function NuevoProducto({
   useVoiceToolPort("product.form", {
     snapshot: () => aiValues.current,
     patch: (values) => {
+      // Validate the entire incoming patch before changing any field.
       const matches =
         typeof values.category === "string"
           ? cats.filter((c) => c.name.toLocaleLowerCase() === values.category.toLocaleLowerCase())
           : [];
       if (values.category !== undefined && matches.length !== 1)
         throw Error("SNOOP_UNKNOWN_CATEGORY");
-      if (typeof values.name === "string") setName(values.name);
+      const decimal = (key: string, digits: number) => {
+        if (values[key] === undefined) return null;
+        const text = values[key].replace(",", ".");
+        const re = digits === 3 ? /^\d{1,9}(?:\.\d{1,3})?$/ : /^\d{1,8}(?:\.\d{1,2})?$/;
+        const amount = Number(text);
+        if (!re.test(text) || !Number.isFinite(amount) || amount < 0)
+          throw Error("SNOOP_INVALID_AMOUNT");
+        return amount;
+      };
+      const quantity = decimal("stock", 3);
+      const purchase = decimal("buy_price", 2);
+      const selling = decimal("sell_price", 2);
+      if (values.destination !== undefined && !["almacen", "dispensario"].includes(values.destination))
+        throw Error("SNOOP_INVALID_DESTINATION");
+      if (values.name !== undefined && (!values.name.trim() || values.name.length > 120))
+        throw Error("SNOOP_INVALID_PRODUCT");
+      if (values.name !== undefined) setName(values.name.trim());
       if (matches[0]) setCategoryId(matches[0].id);
+      if (quantity !== null) setStock(quantity);
+      if (purchase !== null) setBuy(purchase);
+      if (selling !== null) setSell(selling);
+      if (values.destination !== undefined) setInitialLocation(values.destination as "almacen"|"dispensario");
     },
   });
   const nameDict = useDictation((t) => {

@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { geneticsName, informationalSource } from "../genetics-archive.ts";
-import { researchGenetics } from "../genetics-research.server.ts";
+import { geneticsName } from "../genetics-archive.ts";
 import { searchSpecialistCatalog, specialistUrl } from "../specialist-catalog.server.ts";
 import { voiceGeneticsSource } from "./source-links.ts";
 export const VoiceGeneticsQuery = z.object({ name: z.string().transform(geneticsName) }).strict();
@@ -48,14 +47,14 @@ export async function voiceGeneticsInformation(
     if (result.status >= 300 && result.status < 400) throw Error("SOURCE_REDIRECT_REJECTED");
     return result;
   };
-  const [research, specialists] = await Promise.all([
-    researchGenetics(name, bounded),
-    searchSpecialistCatalog(name, bounded),
-  ]);
-  const facts = research.facts.filter((f) => informationalSource(f.source)).slice(0, 6);
+  // A single sequential source chain, not a simultaneous multi-site search.
+  // The specialist reader tries Leafly and uses Strainpedia only if Leafly
+  // has no attributable matching description. No Wikidata/Commons fallback.
+  const specialists = await searchSpecialistCatalog(name, bounded);
+  const facts: Array<{ field: string; value: string; source: string }> = [];
   const excerpts = specialists.descriptions
     .filter((d) => specialistUrl(d.source) && voiceGeneticsSource(d.source, name))
-    .slice(0, 3);
+    .slice(0, 1);
   return {
     name,
     facts,
@@ -63,7 +62,7 @@ export async function voiceGeneticsInformation(
     verified: facts.length > 0 || excerpts.length > 0,
     persisted: false,
     limitations:
-      "Only facts and excerpts with attached sources are verified. Catalog names are not botanical evidence. Do not invent missing breeder, genealogy, composition, effects or medical claims.",
+      "Priority Leafly, then Strainpedia only when no matching verified Leafly description exists. A failed or blocked source is not proof of absence. Catalog names are not botanical evidence. Do not invent missing breeder, genealogy, composition, effects or medical claims.",
     sources: [...new Set([...facts.map((f) => f.source), ...excerpts.map((d) => d.source)])],
   };
 }

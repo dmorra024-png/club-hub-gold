@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { voiceRecordsRead } from "../src/lib/voice/records-read.server.ts";
+import { voiceRecordsRead, spokenMemberQuery } from "../src/lib/voice/records-read.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 const access: AccountAccess = {
   role: "admin",
@@ -242,4 +242,30 @@ test("finance text is sent only in a POST body and staff cannot inspect administ
     /FORBIDDEN/,
   );
   assert.equal(calls, 1);
+});
+
+test("spoken member names remove ficha commands without changing club access or disclosing personal data to the model", async () => {
+  assert.equal(spokenMemberQuery("abre la ficha del socio Marco Rossi"), "Marco Rossi");
+  assert.equal(spokenMemberQuery("apri scheda socio Mario Bianchi"), "Mario Bianchi");
+  let calls = 0;
+  const result = await voiceRecordsRead({
+    url: "https://bnwanxbmprbymbutoths.supabase.co",
+    key: "synthetic",
+    jwt: "synthetic",
+    access,
+    fetch: async (target, init) => {
+      calls++;
+      assert.equal(new URL(String(target)).pathname, "/rest/v1/rpc/snoop_voice_find_members");
+      assert.equal(new URL(String(target)).search, "");
+      assert.equal(new Headers(init?.headers).get("Authorization"), "Bearer synthetic");
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.p_club, access.clubId);
+      assert.equal(body.p_query, calls === 1 ? "Marco Rossi" : "Marco");
+      if (calls === 1) return Response.json([]);
+      return Response.json([{ id: rowId, first_name: "Marco", last_name: "Rossi", email: "PRIVATE" }]);
+    },
+  }, { kind: "members", query: "abre la ficha del socio Marco Rossi" });
+  assert.equal(calls, 2);
+  assert.equal(result.rows.length, 1);
+  assert.equal(JSON.stringify(result).includes("PRIVATE"), false);
 });

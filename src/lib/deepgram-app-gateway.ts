@@ -22,6 +22,8 @@ import {
   voiceCashPeriod,
 } from "./voice/cash-read.server.ts";
 import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
+import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
+import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -773,6 +775,45 @@ export async function deepgramAppSocket(
                   }
                   continue;
                 }
+                if (f.name === "snoop_cash_openers_today" && f.client_side === true) {
+                  if (typeof f.id !== "string" || seen.has(f.id)) continue;
+                  seen.add(f.id);
+                  try {
+                    if (!newTurn || ++calls > 8) throw Error("DENIED");
+                    z.object({}).strict().parse(JSON.parse(f.arguments));
+                    const checked = await verifySession(verifiedToken, env, authController.signal);
+                    if (
+                      !verifiedSession ||
+                      checked.user !== verifiedSession.user ||
+                      checked.access.clubId !== verifiedSession.access.clubId
+                    ) throw Error("AUTH_FORBIDDEN");
+                    const summary = await voiceCashOpenersToday({
+                      url: setting(env, "SUPABASE_URL"),
+                      key: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+                      jwt: verifiedToken,
+                      actor: checked.user,
+                      access: checked.access,
+                    });
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({ ok: true, status: "read", ...summary }),
+                      }),
+                    );
+                  } catch {
+                    upstream?.send(
+                      JSON.stringify({
+                        type: "FunctionCallResponse",
+                        id: f.id,
+                        name: f.name,
+                        content: JSON.stringify({ ok: false, status: "unavailable", persisted: false }),
+                      }),
+                    );
+                  }
+                  continue;
+                }
                 if (f.name === "snoop_access_control_status" && f.client_side === true) {
                   if (typeof f.id !== "string" || seen.has(f.id)) continue;
                   seen.add(f.id);
@@ -1173,6 +1214,29 @@ export async function deepgramAppSocket(
                   calls = 0;
                 }
                 newTurn = true;
+              }
+              // Read-only shortcuts operate only on fully matched phrases and
+              // remain subject to the same club and role permissions.
+              if (m.role === "user") {
+                const destination = voiceNavigationShortcut(String(m.content || ""));
+                if (destination) {
+                  const direct = authorizeProposal(
+                    {
+                      intent: "navigate",
+                      target: destination,
+                      member: {},
+                      product: {},
+                      query: null,
+                      declined: [],
+                      question: "",
+                      asking: null,
+                    },
+                    verified.access,
+                    verified.catalog,
+                    memory.declined,
+                  );
+                  if (direct.ok) send({ type: "AppProposal", result: direct });
+                }
               }
               history.push({ role: m.role, content: String(m.content || "").slice(0, 1200) });
               if (history.length > 10) history.shift();
