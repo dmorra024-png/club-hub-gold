@@ -1,4 +1,5 @@
 import { paymentMethodLabel } from "@/lib/administrative-payment";
+import { walletOrderPaymentState, walletCancel } from "@/lib/wallet-management.functions";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -57,6 +58,10 @@ export function FinancialRecordDialog({
     [refundMethod, setRefundMethod] = useState(""),
     [refundReason, setRefundReason] = useState(""),
     [refundConfirmed, setRefundConfirmed] = useState(false);
+  const [walletPayment,setWalletPayment]=useState<boolean|null>(null);
+  const [walletStatusError,setWalletStatusError]=useState(false);
+  const [walletUncertain,setWalletUncertain]=useState(false);
+  const walletCancelOperation=useRef<string|null>(null);
   const sending = useRef(false),
     sequence = useRef(0);
   const data = stored?.scope === scope ? stored.data : null,
@@ -88,13 +93,24 @@ export function FinancialRecordDialog({
       sequence.current++;
     };
   }, [scope, allowed, retry]);
+  useEffect(()=>{
+    if(!allowed)return;
+    // Classify the actual original payment on the authorized server.
+    // Build-time flags must never turn a wallet order into a cash cancellation.
+    let active=true;
+    setWalletPayment(null);setWalletStatusError(false);setWalletUncertain(false);
+    walletOrderPaymentState({data:{orderId}})
+      .then(result=>{if(active)setWalletPayment(result.wallet);})
+      .catch(()=>{if(active)setWalletStatusError(true);});
+    return()=>{active=false;};
+  },[scope,allowed,retry]);
   async function annul() {
     if (
       sending.current ||
       committed ||
       !order?.canCancel ||
       !can("use_cash") ||
-      reason.trim().length < 5
+      reason.trim().length < 5 || walletPayment===null || walletStatusError || walletUncertain
     )
       return;
     sending.current = true;
@@ -102,9 +118,15 @@ export function FinancialRecordDialog({
     setError("");
     const version = sequence.current;
     try {
-      await annulMemberFinancialRecord({
-        data: { memberId: memberId || data.memberId, orderId, reason: reason.trim() },
-      });
+      if(walletPayment){
+        walletCancelOperation.current??=crypto.randomUUID();
+        await walletCancel({data:{memberId:memberId||data.memberId,orderId,
+          reason:reason.trim(),operationId:walletCancelOperation.current,confirmed:true}});
+        walletCancelOperation.current=null;
+      }else{
+        await annulMemberFinancialRecord({data:{memberId:memberId||data.memberId,
+          orderId,reason:reason.trim()}});
+      }
       if (version !== sequence.current) return;
       setCommitted(true);
       window.dispatchEvent(new Event(RECORDS_CHANGED));
@@ -119,6 +141,7 @@ export function FinancialRecordDialog({
           );
       }
     } catch (e) {
+      if(walletPayment)setWalletUncertain(true);
       if (version === sequence.current)
         setError(
           e instanceof Error
@@ -131,15 +154,15 @@ export function FinancialRecordDialog({
     }
   }
   async function refund() {
-    if (
-      sending.current ||
-      refundRecorded ||
-      !order?.canRefund ||
-      !refundConfirmed ||
-      !refundMethod ||
-      refundReason.trim().length < 5
-    )
+    if (sending.current || refundRecorded || !order?.canRefund || walletPayment !== false) return;
+    if (!refundConfirmed || !refundMethod) {
+      setError("Selecciona el método real y confirma que el dinero ya se ha devuelto.");
       return;
+    }
+    if (refundReason.trim().length < 5) {
+      setError("Escribe al menos 5 caracteres en el motivo del reembolso.");
+      return;
+    }
     sending.current = true;
     setBusy(true);
     setError("");
@@ -193,7 +216,7 @@ export function FinancialRecordDialog({
         <DialogHeader>
           <DialogTitle>Detalle del registro</DialogTitle>
           <DialogDescription>
-            Historial original y rectificación contable. Al anular, se repone la cantidad vendida en el inventario; la merma no se repone.
+            Historial original y rectificación contable. Al anular, se repone la cantidad total descontada del stock, incluida la merma registrada en el pedido.
           </DialogDescription>
         </DialogHeader>
         {!data && !error && <p role="status">Consultando registro…</p>}
@@ -234,7 +257,10 @@ export function FinancialRecordDialog({
                 )}
               </div>
             )}
-            {order.status === "cancelled" && order.reversal && (
+            {order.status === "cancelled" && order.reversal && walletPayment===true && (
+              <p role="status" className="text-sm text-neon">Reembolso al Monedero integrado en la anulación. No registrar otro reembolso en efectivo.</p>
+            )}
+            {order.status === "cancelled" && order.reversal && walletPayment===false && (
               <div className="text-sm space-y-3 border-t border-border pt-3">
                 {order.reversal.refund ? (
                   <>
@@ -302,13 +328,11 @@ export function FinancialRecordDialog({
                         />
                         Confirmo que el dinero ya se ha devuelto y no está registrado previamente.
                       </label>
+                      {refundReason.trim().length > 0 && refundReason.trim().length < 5 && (
+                        <p className="text-xs text-amber-300" role="status">El motivo necesita al menos 5 caracteres para registrar el reembolso.</p>
+                      )}
                       <Button
-                        disabled={
-                          busy ||
-                          !refundConfirmed ||
-                          !refundMethod ||
-                          refundReason.trim().length < 5
-                        }
+                        disabled={busy || !refundConfirmed || !refundMethod}
                         onClick={refund}
                       >
                         Confirmar registro de reembolso
@@ -328,7 +352,7 @@ export function FinancialRecordDialog({
             {order.canCancel && can("use_cash") && !committed && (
               <div className="space-y-3 border-t border-border pt-3">
                 <p className="text-sm text-muted-foreground">
-                  Anular conserva el original, descuenta el importe del resultado contable y repone la cantidad vendida en el inventario (no la merma). No realiza un reembolso automático.
+                  Anular conserva el original, descuenta el importe del resultado contable y repone toda la cantidad descontada del inventario, incluida la merma registrada. No realiza un reembolso automático.
                 </p>
                 <label className="block text-sm">
                   Motivo de anulación
@@ -349,7 +373,7 @@ export function FinancialRecordDialog({
                 <Button
                   className="w-full"
                   variant="destructive"
-                  disabled={busy || reason.trim().length < 5}
+                  disabled={busy || reason.trim().length < 5 || walletPayment===null || walletStatusError || walletUncertain}
                   onClick={annul}
                 >
                   {busy ? "Anulando…" : "Confirmar anulación contable"}

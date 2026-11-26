@@ -1,0 +1,15 @@
+{
+  "engine": "PostgreSQL 17.11",
+  "sessions": 7,
+  "lockWaitersObserved": 3,
+  "synthetic": true,
+  "network": "none",
+  "productionDatabase": false,
+  "liveDeepgram": false,
+  "result": "PASS",
+  "audit": 1,
+  "amount": 1000,
+  "expires": "2030-01-31",
+  "receipts": 1,
+  "operations": 1
+}

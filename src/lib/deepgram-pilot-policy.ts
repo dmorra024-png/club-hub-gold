@@ -33,11 +33,8 @@ export function normalizedPilotNames(rows: unknown, max = 35): string[] {
   const result: string[] = [];
   for (const row of rows) {
     const name = typeof row?.name === "string" ? row.name.trim() : "";
-    if (
-      name.length < 2 ||
-      name.length > 60 ||
-      !/^[\p{L}\p{N} .&'’()+-]+$/u.test(name)
-    ) continue;
+    if (name.length < 2 || name.length > 60 || !/^[\p{L}\p{N} .&'’()+,:%_\/#-]+$/u.test(name))
+      continue;
     const key = name.normalize("NFKC").toLocaleLowerCase("en");
     if (seen.has(key)) continue;
     seen.add(key);

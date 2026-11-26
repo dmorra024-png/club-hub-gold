@@ -3,6 +3,9 @@ import { SnoopLayout } from "@/components/SnoopLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { addCalendarDays, madridToday } from "@/lib/member-administration";
+import { clubDayRange } from "@/lib/cash-summary";
+import { InventoryCostReport } from "@/components/InventoryCostReport";
 import {
   ResponsiveContainer,
   BarChart,
@@ -32,13 +35,14 @@ export const Route = createFileRoute("/_authenticated/ajustes/informes")({
   component: InformesPage,
 });
 
-const NEON = "#39FF14";
-const NEON_DIM = "#1f6a13";
-const RED = "#ef4444";
-const PIE_COLORS = ["#39FF14", "#22d3ee", "#a855f7", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899"];
+// All chart accents inherit the club's live theme; never pin a fixed palette.
+const NEON = "var(--snoop-accent)";
+const NEON_DIM = "var(--snoop-border)";
+const RED = "var(--destructive)";
+const PIE_COLORS = ["var(--snoop-accent)", "var(--snoop-electric)", "var(--snoop-border)", "var(--snoop-foreground)"];
 
-type Range = "7d" | "30d" | "90d" | "365d";
-const RANGES: { id: Range; label: string; days: number }[] = [
+type Range = "7d" | "30d" | "90d" | "365d" | "custom";
+const RANGES: { id: Exclude<Range, "custom">; label: string; days: number }[] = [
   { id: "7d", label: "7 días", days: 7 },
   { id: "30d", label: "30 días", days: 30 },
   { id: "90d", label: "90 días", days: 90 },
@@ -54,6 +58,19 @@ function InformesPage() {
   }, [loading, isAdmin, nav]);
 
   const [range, setRange] = useState<Range>("30d");
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(() => madridToday());
+  const [draftTo, setDraftTo] = useState(() => madridToday());
+  const [appliedCustom, setAppliedCustom] = useState(() => ({ from: madridToday(), to: madridToday() }));
+  const customValid = /^\d{4}-\d{2}-\d{2}$/.test(draftFrom) && /^\d{4}-\d{2}-\d{2}$/.test(draftTo) && draftFrom <= draftTo && draftTo <= madridToday() && (Date.parse(draftTo) - Date.parse(draftFrom)) / 86400000 <= 730;
+  const madridDay = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+  const period = useMemo(() => {
+    const to = range === "custom" ? appliedCustom.to : madridToday();
+    const from = range === "custom" ? appliedCustom.from : new Date(Date.parse(`${to}T00:00:00Z`) - (RANGES.find((r) => r.id === range)!.days - 1) * 86400000).toISOString().slice(0, 10);
+    const days: string[] = [];
+    for (let date = from; date <= to && days.length <= 731; date = addCalendarDays(date, 1)) days.push(date);
+    return { days, from, to, start: clubDayRange(from).start, end: clubDayRange(to).end };
+  }, [range, appliedCustom]);
   const [items, setItems] = useState<any[]>([]);
   const [movs, setMovs] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -61,12 +78,13 @@ function InformesPage() {
   const [checkIns, setCheckIns] = useState<any[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [completedOrderCount, setCompletedOrderCount] = useState(0);
 
   useEffect(() => {
     const clubId = access.clubId;
     if (!isAdmin || !clubId) return;
-    const days = RANGES.find((r) => r.id === range)!.days;
-    const since = new Date(Date.now() - days * 86400000).toISOString();
+    const since = period.start;
+    const until = period.end;
     setDataLoading(true);
     setDataError(null);
     let cancelled = false;
@@ -84,22 +102,22 @@ function InformesPage() {
       }
       const [oi, sm, pr, ct, ci, orders] = await Promise.all([
         pages(() =>
-          supabase.from("order_items").select("*").eq("club_id", clubId).gte("created_at", since),
+          supabase.from("order_items").select("*").eq("club_id", clubId).gte("created_at", since).lt("created_at", until),
         ),
-        supabase.from("stock_movements").select("*").gte("created_at", since),
+        supabase.from("stock_movements").select("*").gte("created_at", since).lt("created_at", until),
         supabase.from("products").select("id,name,stock,buy_price,sell_price,category_id"),
         supabase.from("product_categories").select("id,name,unit_type"),
         supabase
           .from("check_ins")
           .select("id,direction,created_at,member_id")
-          .gte("created_at", since),
+          .gte("created_at", since).lt("created_at", until),
         pages(() =>
           supabase
             .from("orders")
             .select("id,status")
             .eq("club_id", clubId)
             .eq("status", "completed")
-            .gte("created_at", since),
+            .gte("created_at", since).lt("created_at", until),
         ),
       ]);
       if (cancelled) return;
@@ -114,6 +132,7 @@ function InformesPage() {
         (orders.data ?? []).filter((o: any) => o.status === "completed").map((o: any) => o.id),
       );
       setItems((oi.data ?? []).filter((i: any) => completedIds.has(i.order_id)));
+      setCompletedOrderCount(completedIds.size);
       setMovs(sm.data ?? []);
       setProducts(pr.data ?? []);
       setCats(ct.data ?? []);
@@ -123,13 +142,12 @@ function InformesPage() {
     return () => {
       cancelled = true;
     };
-  }, [range, isAdmin, access.clubId]);
+  }, [period.start, period.end, isAdmin, access.clubId]);
 
   const accessStats = useMemo(() => {
-    const days = RANGES.find((r) => r.id === range)!.days;
-    const startToday = new Date();
-    startToday.setHours(0, 0, 0, 0);
-    const today = checkIns.filter((c) => new Date(c.created_at) >= startToday);
+    const todayStart = clubDayRange(madridToday()).start;
+    const todayEnd = clubDayRange(madridToday()).end;
+    const today = checkIns.filter((c) => c.created_at >= todayStart && c.created_at < todayEnd);
     const inToday = today.filter((c) => c.direction === "in").length;
     const outToday = today.filter((c) => c.direction === "out").length;
     // Currently inside: last direction per member today
@@ -146,20 +164,16 @@ function InformesPage() {
 
     // Daily series
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
-      buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
-    }
+    for (const key of period.days) buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
     for (const c of checkIns) {
-      const key = String(c.created_at).slice(0, 10);
+      const key = madridDay(String(c.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       if (c.direction === "in") b.entradas++;
       else b.salidas++;
     }
     return { inToday, outToday, insideNow, total: checkIns.length, daily: [...buckets.values()] };
-  }, [checkIns, range]);
+  }, [checkIns, period.days]);
 
   const stats = useMemo(() => {
     const revenue = items.reduce((s, i) => s + Number(i.line_total_cents || 0), 0) / 100;
@@ -170,6 +184,35 @@ function InformesPage() {
       .reduce((s, m) => s + Math.abs(Number(m.delta)), 0);
     return { revenue, soldQty, added, removed };
   }, [items, movs]);
+
+  // Read-only insights from data already loaded for this club and period.
+  const usefulStats = useMemo(() => {
+    const ticket = completedOrderCount > 0 ? stats.revenue / completedOrderCount : 0;
+    const daysWithActivity = new Map<string, { cents: number; orders: Set<string> }>();
+    const hours = Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, "0")}:00`, pedidos: 0, ingresos: 0 }));
+    const byOrderHour = new Map<string, { hour: number; cents: number }>();
+    for (const item of items) {
+      const cents = Number(item.line_total_cents || 0);
+      const date = new Date(item.created_at);
+      if (!Number.isFinite(date.getTime())) continue;
+      const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+      const bucket = daysWithActivity.get(dayKey) ?? { cents: 0, orders: new Set<string>() };
+      bucket.cents += cents;
+      if (item.order_id) bucket.orders.add(item.order_id);
+      daysWithActivity.set(dayKey, bucket);
+      const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", hour: "2-digit", hourCycle: "h23" }).format(date));
+      if (hour >= 0 && hour < 24) {
+        hours[hour].ingresos += cents / 100;
+        const key = String(item.order_id ?? item.id);
+        const record = byOrderHour.get(key);
+        byOrderHour.set(key, { hour, cents: (record?.cents ?? 0) + cents });
+      }
+    }
+    for (const o of byOrderHour.values()) hours[o.hour].pedidos++;
+    const bestHour = hours.reduce<(typeof hours)[number] | null>((a, b) => !a || b.pedidos > a.pedidos ? b : a, null);
+    const bestDay = [...daysWithActivity.entries()].sort((a, b) => b[1].cents - a[1].cents)[0];
+    return { ticket, bestHour: bestHour?.pedidos ? bestHour : null, bestDay, hours };
+  }, [items, stats.revenue, completedOrderCount]);
 
   // Top vendidos
   const topSold = useMemo(() => {
@@ -186,34 +229,24 @@ function InformesPage() {
 
   // Serie diaria de ventas
   const daily = useMemo(() => {
-    const days = RANGES.find((r) => r.id === range)!.days;
     const buckets = new Map<string, { day: string; revenue: number; qty: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
-      buckets.set(key, { day: key.slice(5), revenue: 0, qty: 0 });
-    }
+    for (const key of period.days) buckets.set(key, { day: key.slice(5), revenue: 0, qty: 0 });
     for (const it of items) {
-      const key = String(it.created_at).slice(0, 10);
+      const key = madridDay(String(it.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       b.revenue += Number(it.line_total_cents || 0) / 100;
       b.qty += Number(it.quantity || 0);
     }
     return [...buckets.values()];
-  }, [items, range]);
+  }, [items, period.days]);
 
   // Movimientos por día (entradas / salidas por ventas o retiradas)
   const dailyMovs = useMemo(() => {
-    const days = RANGES.find((r) => r.id === range)!.days;
     const buckets = new Map<string, { day: string; entradas: number; salidas: number }>();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
-      buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
-    }
+    for (const key of period.days) buckets.set(key, { day: key.slice(5), entradas: 0, salidas: 0 });
     for (const m of movs) {
-      const key = String(m.created_at).slice(0, 10);
+      const key = madridDay(String(m.created_at));
       const b = buckets.get(key);
       if (!b) continue;
       const d = Number(m.delta);
@@ -221,7 +254,7 @@ function InformesPage() {
       else b.salidas += Math.abs(d);
     }
     return [...buckets.values()];
-  }, [movs, range]);
+  }, [movs, period.days]);
 
   // Reparto por categoría (ingresos)
   const byCategory = useMemo(() => {
@@ -341,13 +374,13 @@ function InformesPage() {
     );
 
   return (
-    <SnoopLayout title="Informes" subtitle="Estadísticas de stock y ventas">
+    <SnoopLayout title="Informes" subtitle="Estadísticas de stock y ventas" contentClassName="snoop-informes-premium">
       {/* Range selector */}
       <div className="flex flex-wrap gap-2 mb-6">
         {RANGES.map((r) => (
           <button
             key={r.id}
-            onClick={() => setRange(r.id)}
+            onClick={() => { setRange(r.id); setCustomOpen(false); }}
             className={`px-3 py-1.5 rounded-full text-[11px] uppercase tracking-widest border transition ${
               range === r.id
                 ? "border-neon text-neon bg-neon/10"
@@ -357,12 +390,48 @@ function InformesPage() {
             {r.label}
           </button>
         ))}
+        <button type="button" onClick={() => setCustomOpen((open) => !open)} className={`px-3 py-1.5 rounded-full text-[11px] uppercase tracking-widest border transition ${range === "custom" ? "border-neon text-neon bg-neon/10" : "border-border text-muted-foreground hover:text-neon hover:border-neon/40"}`} aria-expanded={customOpen}>Personalizar búsqueda</button>
       </div>
+      {customOpen && (
+        <div className="snoop-informes-custom-range" aria-label="Personalizar búsqueda por fechas">
+          <label>Desde<input type="date" value={draftFrom} max={madridToday()} onChange={(e) => setDraftFrom(e.target.value)} /></label>
+          <label>Hasta<input type="date" value={draftTo} max={madridToday()} onChange={(e) => setDraftTo(e.target.value)} /></label>
+          {!customValid && <p role="alert">Selecciona fechas válidas: Desde debe ser anterior o igual a Hasta, sin fechas futuras (máximo 731 días).</p>}
+          <button type="button" disabled={!customValid} onClick={() => { setAppliedCustom({ from: draftFrom, to: draftTo }); setRange("custom"); setCustomOpen(false); }}>Aplicar fechas</button>
+        </div>
+      )}
+      {range === "custom" && <p className="snoop-informes-selected-period">Periodo seleccionado: {appliedCustom.from === appliedCustom.to ? appliedCustom.from : `${appliedCustom.from} — ${appliedCustom.to}`}</p>}
 
       {dataLoading ? (
         <div className="text-muted-foreground">Calculando…</div>
       ) : (
         <div className="space-y-6">
+          {access.clubId&&<InventoryCostReport clubId={access.clubId} />}
+          <section className="snoop-informes-insights" aria-label="Indicadores útiles">
+            <div className="snoop-informes-section-heading"><span>ANÁLISIS DEL PERIODO</span><h2>Lo importante, de un vistazo</h2></div>
+            <div className="snoop-informes-quick-grid">
+              <div><span>Pedidos completados</span><strong>{completedOrderCount}</strong><small>En el periodo seleccionado</small></div>
+              <div><span>Media por pedido</span><strong>{usefulStats.ticket.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong><small>Ingresos de artículos / pedidos</small></div>
+              <div><span>Hora con más pedidos</span><strong>{usefulStats.bestHour?.label ?? "—"}</strong><small>{usefulStats.bestHour ? `${usefulStats.bestHour.pedidos} pedidos` : "Sin actividad registrada"}</small></div>
+              <div><span>Productos con stock bajo</span><strong>{lowStock.length}{lowStock.length === 8 ? "+" : ""}</strong><small>Ver sección Stock bajo</small></div>
+            </div>
+            <div className="snoop-informes-tip" role="status">
+              {completedOrderCount === 0 ? "No hay pedidos completados en este periodo." :
+                usefulStats.bestDay ? `El día con mayores ingresos registrados fue el ${usefulStats.bestDay[0]}, con ${(usefulStats.bestDay[1].cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}.` :
+                "Consulta los movimientos del periodo para encontrar oportunidades."}
+            </div>
+          </section>
+          <ChartCard title="Actividad por hora · pedidos">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={usefulStats.hours} margin={{ left: -18, right: 4 }}>
+                <CartesianGrid vertical={false} stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                <XAxis dataKey="label" tick={{ fill: "var(--snoop-foreground)", fontSize: 10 }} interval={3} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "var(--snoop-foreground)", fontSize: 10 }} allowDecimals={false} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)", borderRadius: 12, color: "var(--snoop-foreground)" }} />
+                <Bar dataKey="pedidos" name="Pedidos" fill={NEON} radius={[5, 5, 0, 0]} maxBarSize={16} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi icon={Euro} label="Ingresos" value={`€${stats.revenue.toFixed(2)}`} tint="neon" />
@@ -415,13 +484,13 @@ function InformesPage() {
             <ChartCard title="Entradas y salidas por día">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={accessStats.daily}>
-                  <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                  <XAxis dataKey="day" stroke="#888" fontSize={10} />
-                  <YAxis stroke="#888" fontSize={10} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#0a0a0a", border: "1px solid #39FF14" }} />
+                  <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                  <XAxis dataKey="day" stroke="var(--snoop-foreground)" fontSize={10} />
+                  <YAxis stroke="var(--snoop-foreground)" fontSize={10} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: "1px solid var(--snoop-border)" }} />
                   <Legend />
-                  <Bar dataKey="entradas" fill={NEON} name="Entradas" />
-                  <Bar dataKey="salidas" fill={RED} name="Salidas" />
+                  <Bar dataKey="entradas" fill={NEON} name="Entradas" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="salidas" fill={RED} name="Salidas" radius={[5, 5, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -431,15 +500,15 @@ function InformesPage() {
           <ChartCard title="Ingresos por día">
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={daily}>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                <XAxis dataKey="day" stroke="#888" fontSize={11} />
-                <YAxis stroke="#888" fontSize={11} />
+                <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                <XAxis dataKey="day" stroke="var(--snoop-foreground)" fontSize={11} />
+                <YAxis stroke="var(--snoop-foreground)" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                  contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
                   labelStyle={{ color: NEON }}
                   formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
                 />
-                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenue" stroke={NEON} strokeWidth={3} dot={false} activeDot={{ r: 5, stroke: "var(--snoop-electric)", strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -451,11 +520,11 @@ function InformesPage() {
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={topSold} layout="vertical" margin={{ left: 16 }}>
-                  <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                  <XAxis type="number" stroke="#888" fontSize={11} />
-                  <YAxis type="category" dataKey="name" stroke="#888" fontSize={11} width={110} />
+                  <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                  <XAxis type="number" stroke="var(--snoop-foreground)" fontSize={11} />
+                  <YAxis type="category" dataKey="name" stroke="var(--snoop-foreground)" fontSize={11} width={110} />
                   <Tooltip
-                    contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
+                    contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }}
                     formatter={(v: any, n: string) =>
                       n === "revenue"
                         ? [`€${Number(v).toFixed(2)}`, "Ingresos"]
@@ -472,13 +541,13 @@ function InformesPage() {
           <ChartCard title="Movimientos de stock por día">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={dailyMovs}>
-                <CartesianGrid stroke="#333" strokeDasharray="3 3" />
-                <XAxis dataKey="day" stroke="#888" fontSize={11} />
-                <YAxis stroke="#888" fontSize={11} />
-                <Tooltip contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }} />
+                <CartesianGrid stroke="var(--snoop-border)" strokeOpacity={0.25} strokeDasharray="3 6" />
+                <XAxis dataKey="day" stroke="var(--snoop-foreground)" fontSize={11} />
+                <YAxis stroke="var(--snoop-foreground)" fontSize={11} />
+                <Tooltip contentStyle={{ background: "var(--snoop-panel)", border: `1px solid ${NEON}` }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="entradas" fill={NEON} name="Entradas" />
-                <Bar dataKey="salidas" fill={RED} name="Salidas" />
+                <Bar dataKey="entradas" fill={NEON} name="Entradas" radius={[5, 5, 0, 0]} />
+                <Bar dataKey="salidas" fill={RED} name="Salidas" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -564,28 +633,52 @@ function InformesPage() {
             )}
           </ChartCard>
 
-          {/* Ingresos por categoría */}
+          {/* Ingresos por categoría: mobile-safe donut + full accessible legend. */}
           {byCategory.length > 0 && (
             <ChartCard title="Ingresos por categoría">
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={byCategory}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={90}
-                    label={(e: any) => `${e.name}: €${Number(e.value).toFixed(0)}`}
-                  >
-                    {byCategory.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "#0a0a0a", border: `1px solid ${NEON}` }}
-                    formatter={(v: any) => [`€${Number(v).toFixed(2)}`, "Ingresos"]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="snoop-informes-category-chart">
+                <ResponsiveContainer width="100%" height={218}>
+                  <PieChart>
+                    <Pie
+                      data={byCategory}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={86}
+                      paddingAngle={byCategory.length > 1 ? 2 : 0}
+                      labelLine={false}
+                      label={false}
+                      stroke="var(--snoop-panel)"
+                      strokeWidth={2}
+                    >
+                      {byCategory.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ background: "var(--snoop-panel)", color: "var(--snoop-foreground)", border: "1px solid var(--snoop-border)", borderRadius: 12 }}
+                      formatter={(v: any) => [Number(v).toLocaleString("es-ES", { style: "currency", currency: "EUR" }), "Ingresos"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="snoop-informes-category-legend" aria-label="Desglose de ingresos por categoría">
+                  {byCategory
+                    .slice()
+                    .sort((a, b) => b.value - a.value)
+                    .map(({ name, value }) => {
+                      const index = byCategory.findIndex((c) => c.name === name);
+                      const total = byCategory.reduce((sum, c) => sum + c.value, 0);
+                      return (
+                        <div className="snoop-informes-category-item" key={name}>
+                          <span className="snoop-informes-category-dot" style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} aria-hidden="true" />
+                          <span className="snoop-informes-category-name">{name}</span>
+                          <strong>{value.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                          <span className="snoop-informes-category-percent">{total > 0 ? (value / total * 100).toLocaleString("es-ES", { maximumFractionDigits: 1 }) : "0"} %</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             </ChartCard>
           )}
 
@@ -632,7 +725,7 @@ function Kpi({
 }) {
   const color = tint === "neon" ? "text-neon" : "text-destructive";
   return (
-    <div className="bg-card/60 border border-neon/20 rounded-2xl p-4">
+    <div className="snoop-informes-kpi bg-card/60 border border-neon/20 rounded-2xl p-4">
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground">
         <Icon className={`w-4 h-4 ${color}`} />
         {label}
@@ -644,7 +737,7 @@ function Kpi({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-5">
+    <div className="snoop-informes-chart-card bg-card/60 border border-neon/20 rounded-2xl p-4 sm:p-5">
       <div className="font-display text-sm text-neon tracking-wide uppercase mb-3">{title}</div>
       {children}
     </div>

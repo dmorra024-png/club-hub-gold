@@ -1,6 +1,9 @@
 import { useMobileKeyboard } from "@/hooks/useMobileKeyboard";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { useVoicePhase } from "@/components/VoiceSession";
 import { SnoopWordmark } from "@/components/SnoopWordmark";
+import { SnoopReferenceWaves } from "@/components/SnoopReferenceWaves";
+import { SnoopDockIcon } from "@/components/SnoopDockIcon";
 import { Link, Navigate, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Home,
@@ -14,11 +17,11 @@ import {
   ScanLine,
   UserRound,
   Bell,
-  Mic,
 } from "lucide-react";
 import type { Permission } from "@/lib/access-context";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import {getClubAccessControl} from "@/lib/club-access-control.functions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 const NAV: {
   to: string;
@@ -33,7 +36,7 @@ const NAV: {
   { to: "/caja", label: "Caja", icon: Banknote, permission: "use_cash" },
   { to: "/control-acceso", label: "Control acceso", icon: ScanLine, permission: "manage_members" },
   { to: "/ajustes/informes", label: "Informes", icon: Banknote, permission: "view_reports" },
-  { to: "/ajustes", label: "Ajustes", icon: Settings, admin: true },
+  { to: "/ajustes", label: "Ajustes", icon: Settings },
   { to: "/perfil", label: "Perfil", icon: UserRound },
 ];
 export function SnoopLayout({
@@ -51,10 +54,31 @@ export function SnoopLayout({
 }) {
   const voicePhase = useVoicePhase();
   const { user, access, isAdmin, isSuperAdmin, can, loading, accessError, retryAccess } = useAuth();
+  useClubTheme(access.clubId);
   const nav = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const [clubAccessEnabled,setClubAccessEnabled]=useState<boolean|null>(null);
+  useEffect(()=>{
+    if(loading||!access.clubId)return;
+    let active=true;
+    const refresh=()=>{
+      getClubAccessControl().then(result=>{
+        if(active)setClubAccessEnabled(result.enabled);
+      }).catch(()=>{if(active)setClubAccessEnabled(false);});
+    };
+    refresh();
+    window.addEventListener("snoop:club-access-changed",refresh);
+    return()=>{active=false;window.removeEventListener("snoop:club-access-changed",refresh);};
+  },[access.clubId,loading]);
   const keyboard = useMobileKeyboard();
+  // Portaled dialogs, sheets and dropdowns are rendered outside the shell.
+  // Mark the body only while the Gestionale is mounted, so shared UI components
+  // do not restyle Auth, SNOOP Socio or unrelated administrative surfaces.
+  useEffect(() => {
+    document.body.classList.add("snoop-management-ui");
+    return () => document.body.classList.remove("snoop-management-ui");
+  }, []);
   const trigger = useRef<HTMLButtonElement>(null),
     drawer = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -84,7 +108,7 @@ export function SnoopLayout({
   if (!loading && !accessError && isSuperAdmin) return <Navigate to="/snoop-admin" />;
   if (!loading && !accessError && access.status !== "active") return <Navigate to="/club-status" />;
   const visible = NAV.filter(
-    (item) => (!item.admin || isAdmin) && (!item.permission || can(item.permission)),
+    (item) => (!item.admin || isAdmin) && (!item.permission || can(item.permission)) && (item.to!=="/control-acceso" || clubAccessEnabled===true),
   );
   const close = () => {
     setOpen(false);
@@ -92,13 +116,26 @@ export function SnoopLayout({
   };
   return (
     <div
-      className={`premium-shell ${home ? "premium-shell-home" : ""}`}
+      className={`premium-shell snoop-unified-shell ${home ? "premium-shell-home" : ""}`}
       data-keyboard-open={keyboard}
       data-menu-open={open}
     >
       <a href="#main-content" className="premium-skip">
         Ir al contenido
       </a>
+      <SnoopReferenceWaves />
+      <aside className="snoop-desktop-rail" aria-label="Navegación de escritorio">
+        <Link to="/" className="snoop-rail-logo" aria-label="SNOOP — Inicio"><SnoopWordmark /></Link>
+        <p className="snoop-rail-club">{access.clubName || "SNOOP"}</p>
+        <nav className="snoop-rail-links">
+          {visible.map(item => (
+            <Link key={item.to} to={item.to} aria-current={pathname === item.to ? "page" : undefined}>
+              <item.icon size={19} aria-hidden="true" /><span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+        <p className="snoop-rail-footer">SNOOP</p>
+      </aside>
       <header className="premium-topbar">
         <button
           ref={trigger}
@@ -111,18 +148,13 @@ export function SnoopLayout({
         >
           {open ? <X /> : <Menu />}
         </button>
-        {!home && (
-          <Link to="/" aria-label="SNOOP — Inicio" className="premium-header-brand">
-            <SnoopWordmark />
-          </Link>
-        )}
-        <Link
-          to="/actividades"
-          className="premium-header-button"
-          aria-label="Ver actividades del club"
-        >
-          <Bell />
+        <Link to="/" aria-label="SNOOP — Inicio" className="premium-header-brand">
+          <SnoopWordmark />
         </Link>
+        <div className="snoop-approved-header-actions">
+          <Link to="/actividades" className="premium-header-button" aria-label="Ver actividades del club"><Bell /></Link>
+          <Link to="/perfil" className="premium-header-button snoop-approved-header-user" aria-label="Mi perfil"><UserRound /></Link>
+        </div>
       </header>
       {open && (
         <>
@@ -193,7 +225,7 @@ export function SnoopLayout({
       </main>
       <nav aria-label="Navegación principal" className="premium-bottom-nav" hidden={keyboard}>
         <Link to="/" aria-current={pathname === "/" ? "page" : undefined}>
-          <Home aria-hidden="true" />
+          <SnoopDockIcon kind="home" />
           <span>Home</span>
         </Link>
         {can("manage_members") ? (
@@ -203,7 +235,7 @@ export function SnoopLayout({
             className="premium-qr"
             aria-label="Escanear socio para dispensación"
           >
-            <QrAccessIcon />
+            <SnoopDockIcon kind="qr" />
             <span>QR</span>
           </Link>
         ) : (
@@ -213,7 +245,7 @@ export function SnoopLayout({
             aria-label="Lector QR no autorizado"
             title="Sin permiso de gestión de socios"
           >
-            <QrAccessIcon />
+            <SnoopDockIcon kind="qr" />
             <span>QR</span>
           </button>
         )}
@@ -232,34 +264,14 @@ export function SnoopLayout({
           }
           onClick={() => window.dispatchEvent(new Event("snoop:voice-toggle"))}
         >
-          <Mic aria-hidden="true" />
-          <span>SNOOP</span>
+          <span className="snoop-approved-assistant-mark" aria-hidden="true"><SnoopDockIcon kind="jarvis" /><span className="snoop-jarvis-microbrand">SNOOP</span></span>
+
         </button>
         <Link to="/perfil" aria-current={pathname === "/perfil" ? "page" : undefined}>
-          <UserRound aria-hidden="true" />
+          <SnoopDockIcon kind="profile" />
           <span>Perfil</span>
         </Link>
       </nav>
     </div>
-  );
-}
-
-function QrAccessIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M8 2H4a2 2 0 0 0-2 2v4m14-6h4a2 2 0 0 1 2 2v4M2 16v4a2 2 0 0 0 2 2h4m14-6v4a2 2 0 0 1-2 2h-4" />
-      <rect x="6" y="6" width="4" height="4" rx=".4" />
-      <rect x="14" y="6" width="4" height="4" rx=".4" />
-      <rect x="6" y="14" width="4" height="4" rx=".4" />
-      <path d="M14 14h4v4h-4zM16 14v2h2" />
-    </svg>
   );
 }

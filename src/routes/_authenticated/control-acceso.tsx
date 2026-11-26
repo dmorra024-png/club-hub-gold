@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "@/hooks/useAuth";
+import {getClubAccessControl} from "@/lib/club-access-control.functions";
 
 export const Route = createFileRoute("/_authenticated/control-acceso")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -34,8 +35,18 @@ function ControlAccesoPage() {
   const { scanner: openScanner } = Route.useSearch();
   const { access, can, loading: accessLoading, accessError } = useAuth();
   const canScan = can("manage_members");
+  const [accessControlEnabled,setAccessControlEnabled]=useState<boolean|null>(null);
+  useEffect(()=>{
+    if(accessLoading||!access.clubId)return;
+    let active=true;
+    const refresh=()=>getClubAccessControl().then(r=>{if(active)setAccessControlEnabled(r.enabled);})
+      .catch(()=>{if(active)setAccessControlEnabled(false);});
+    refresh();
+    window.addEventListener("snoop:club-access-changed",refresh);
+    return()=>{active=false;window.removeEventListener("snoop:club-access-changed",refresh);};
+  },[accessLoading,access.clubId]);
   const scanPermission = useRef(false);
-  scanPermission.current = canScan;
+  scanPermission.current = canScan && accessControlEnabled===true;
   const autoStarted = useRef(false);
   const clubId = access.clubId;
   const [scannerOn, setScannerOn] = useState(false);
@@ -110,7 +121,7 @@ function ControlAccesoPage() {
 
   async function registerScan(rawCode: string) {
     if (!scanPermission.current) {
-      toast.error("Sin permiso de gestión de socios");
+      toast.error("Control de acceso desactivado o sin permisos");
       return;
     }
     if (!clubId) {
@@ -226,7 +237,7 @@ function ControlAccesoPage() {
   }
 
   useEffect(() => {
-    if (!openScanner || !clubId || !canScan || autoStarted.current) return;
+    if (!openScanner || !clubId || !canScan || accessControlEnabled!==true || autoStarted.current) return;
     // Let the route settle; StrictMode's probe mount must not acquire a camera.
     const timer = setTimeout(() => {
       if (
@@ -240,9 +251,9 @@ function ControlAccesoPage() {
       void toggleCamera();
     }, 0);
     return () => clearTimeout(timer);
-  }, [openScanner, clubId, canScan, cameraStarting]);
+  }, [openScanner, clubId, canScan, accessControlEnabled, cameraStarting]);
   useEffect(() => {
-    if (!accessLoading && (!canScan || accessError)) {
+    if (!accessLoading && (!canScan || accessError || accessControlEnabled!==true)) {
       cameraLife.current++;
       const reader = readerRef.current;
       readerRef.current = null;
@@ -253,7 +264,7 @@ function ControlAccesoPage() {
           .then(() => reader.stop())
           .catch(() => {});
     }
-  }, [accessLoading, canScan, accessError]);
+  }, [accessLoading, canScan, accessError, accessControlEnabled]);
   useEffect(() => {
     cameraMounted.current = true;
     return () => {
@@ -290,6 +301,7 @@ function ControlAccesoPage() {
   }, []);
 
   if (!accessLoading && !canScan) return <Navigate to="/" />;
+  if(accessControlEnabled===false)return <Navigate to="/" />;
 
   return (
     <SnoopLayout
@@ -311,7 +323,7 @@ function ControlAccesoPage() {
             </div>
             <button
               onClick={toggleCamera}
-              disabled={cameraStarting || !canScan}
+              disabled={cameraStarting || !canScan || accessControlEnabled!==true}
               className="text-[11px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-1.5"
             >
               {scannerOn ? (
@@ -356,11 +368,11 @@ function ControlAccesoPage() {
               placeholder="Nº de socio o SNOOP:0000123"
               autoFocus={!openScanner}
               className="w-full bg-input border border-border rounded-lg px-4 py-3 text-lg font-mono focus:border-neon outline-none"
-              disabled={busy || !canScan}
+              disabled={busy || !canScan || accessControlEnabled!==true}
             />
             <button
               type="submit"
-              disabled={busy || !manualCode || !canScan}
+              disabled={busy || !manualCode || !canScan || accessControlEnabled!==true}
               className="mt-3 w-full bg-gradient-neon text-primary-foreground py-2.5 rounded-lg font-display uppercase tracking-[0.2em] text-xs glow-neon disabled:opacity-50"
             >
               Registrar

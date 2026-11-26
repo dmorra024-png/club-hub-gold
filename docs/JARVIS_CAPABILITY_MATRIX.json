@@ -1,0 +1,470 @@
+{
+  "productionSource": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+  "actions": [
+    {
+      "action": "theme.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "collaborator.permissions.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "collaborators"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "collaborator.revoke",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "collaborators"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "wallet.topup.reverse",
+      "permission": "use_cash+manage_members+original_owner_or_admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "socio_wallet_void_topup",
+      "referenceKinds": {
+        "topup_id": "wallet_topups",
+        "cash_session_id": "cash_sessions"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "finance.supplier.create",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "finance.expense.create",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "supplier_id": "suppliers"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "finance.expense.cancel",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_cancel_expense",
+      "referenceKinds": {
+        "id": "expenses"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "finance.purchase.record",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "supplier_id": "suppliers"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "product.create",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_create_product_located",
+      "referenceKinds": {
+        "category_id": "categories"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "product.update",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "save_administrative_product_checked",
+      "referenceKinds": {
+        "id": "products",
+        "category_id": "categories"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "stock.adjust",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "adjust_administrative_stock",
+      "referenceKinds": {
+        "id": "products"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "blocked on dual-stock: legacy correction affects dispensary, not an arbitrary location",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "wallet.topup",
+      "permission": "use_cash+manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "socio_wallet_topup_with_method",
+      "referenceKinds": {
+        "member_id": "members",
+        "cash_session_id": "cash_sessions"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "wallet.configure",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "socio_wallet_set_club_enabled",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.create",
+      "permission": "manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "confirm_membership_with_receipt",
+      "referenceKinds": {
+        "plan_id": "membership_plans",
+        "avalador_id": "members"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "only when original human-input and adult-verification requirements are satisfied",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member_field.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "category.create",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.update",
+      "permission": "manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "members"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "fee.create",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "fee.update",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "membership_plans"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "discount.create",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "discount.update",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "discounts"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.discount.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "member_id": "members",
+        "discount_id": "discounts"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.discount.clear",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "member_id": "members"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "cash.open",
+      "permission": "use_cash",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "cash.close",
+      "permission": "use_cash",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_voice_entity",
+      "referenceKinds": {
+        "id": "cash_sessions"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "access_control.set",
+      "permission": "admin",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "snoop_set_club_access_control",
+      "referenceKinds": {},
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "category.update",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "manage_administrative_category",
+      "referenceKinds": {
+        "id": "categories"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "product.description",
+      "permission": "manage_products",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "save_administrative_product_checked",
+      "referenceKinds": {
+        "id": "products"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    },
+    {
+      "action": "member.renew",
+      "permission": "manage_members",
+      "publicRPC": "snoop_voice_command",
+      "downstream": "confirm_membership_with_receipt",
+      "referenceKinds": {
+        "member_id": "members",
+        "plan_id": "membership_plans"
+      },
+      "confirmation": "Separate authenticated manual confirmation; wallet receipt/refund requires actual-payment attestation",
+      "isolatedPersistenceTest": "tests/voice-execution.test.mjs",
+      "currentPilotStatus": "implemented in development; no activation or deployment",
+      "productionEnabled": false,
+      "physicalMicrophoneVerified": false
+    }
+  ],
+  "readKinds": [
+    "members",
+    "products",
+    "categories",
+    "stock",
+    "membership_plans",
+    "discounts",
+    "cash_sessions",
+    "suppliers",
+    "expenses",
+    "purchases",
+    "wallet_topups",
+    "collaborators"
+  ],
+  "fullGatewaySQLActions": [
+    "access_control.set",
+    "category.update",
+    "finance.expense.create",
+    "finance.expense.cancel",
+    "category.create",
+    "product.create",
+    "product.update"
+  ],
+  "sharedDetails": [
+    "member_history",
+    "cash_session",
+    "stock_history",
+    "stock_locations",
+    "wallet_balance"
+  ],
+  "cashModel": "opening/closing sessions; no fixed or night shifts",
+  "pendingRecovery": "opaque operation UUID only; same authenticated actor and club; fresh manual confirmation; no automatic retry",
+  "physicalInputs": [
+    "identity documents",
+    "signature",
+    "camera capture",
+    "import file selection",
+    "credential changes"
+  ],
+  "remaining": [
+    {
+      "operation": "voice order fulfillment / regulated-product stock distribution",
+      "status": "not implemented",
+      "reason": "No automation of regulated-product distribution is added. Existing manual functionality is preserved."
+    },
+    {
+      "operation": "located stock correction",
+      "status": "blocked",
+      "reason": "Published stock-movement trigger always updates dispensary; the existing transfer RPC does not implement a physical-count correction. Voice legacy correction fails closed. Actual installed RPC metadata remains unverified (Supabase HTTP 401)."
+    },
+    {
+      "operation": "outgoing collaborator invitations and password-reset messages",
+      "status": "existing draft/manual delivery only",
+      "reason": "Auth and SMTP side effects do not expose a durable operation key/authoritative replay contract in the original services. Do not auto-retry or fabricate delivery."
+    },
+    {
+      "operation": "other settings/import/upload and document-dependent registration",
+      "status": "existing manual flows remain",
+      "reason": "No arbitrary RPC/DOM executor is exposed. Human file/signature/credential inputs cannot be fabricated; unregistered writes remain disabled."
+    }
+  ],
+  "liveDeepgramVerified": false,
+  "completeManualVoiceParity": false,
+  "preservedIntegrationSources": [
+    "459303a122ce5ae560712a234098deb20b43fae4",
+    "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
+  ],
+  "memberRequirements": "actual club field configuration; no personal data; human-input restrictions preserved",
+  "retiredFeaturesNotReintroduced": [
+    "staff QR email delivery; current App Socio uses authenticated six-digit invitation"
+  ]
+}

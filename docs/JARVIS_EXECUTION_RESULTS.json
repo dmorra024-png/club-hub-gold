@@ -1,0 +1,154 @@
+{
+  "scope": "29 bounded registered administrative commands; actual published-source reconciliation; no full manual/voice parity claim",
+  "date": "2026-11-26",
+  "productionSource": "3e7487088396cbd21edc99d454d88d9418dad0bb",
+  "preservedIntegratedSources": [
+    "459303a122ce5ae560712a234098deb20b43fae4",
+    "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
+  ],
+  "unitTests": 561,
+  "unitFailures": 0,
+  "typecheck": "PASS",
+  "nodeBuild": "PASS",
+  "workerBuild": "PASS",
+  "workerDryRun": "PASS",
+  "bundleCredentialScan": "PASS",
+  "postgresql": {
+    "engine": "isolated PGlite/PostgreSQL",
+    "syntheticUsersAndClubs": true,
+    "contractCases": 38,
+    "originalApplicationRPCs": true,
+    "result": "PASS",
+    "checks": [
+      "persisted read-back",
+      "current/historical membership RPC compatibility",
+      "avalador and human-input requirements",
+      "exact money and original accounting",
+      "fees/discounts and cross-club RLS",
+      "cash session owner/audit",
+      "original wallet recharge/reversal with receipt attestation",
+      "unchanged Auth identities/admin roles",
+      "original theme policy two-club isolation",
+      "original warehouse schema loaded only in local tests",
+      "rollback/stale-state/cancel/idempotence/recovery",
+      "explicit cents voice arguments converted exactly to original decimal-EUR catalog",
+      "legacy integer-only catalog rejects edits before mutation",
+      "original inventory-report RPC validated without changing accounting values",
+      "original hibrida classification enum: typed adapter, persisted original RPC receipt, exact unchanged prices/stock and replay"
+    ]
+  },
+  "concurrency": {
+    "engine": "PostgreSQL 17.11",
+    "sessions": 7,
+    "lockWaitersObserved": 3,
+    "synthetic": true,
+    "network": "none",
+    "productionDatabase": false,
+    "liveDeepgram": false,
+    "result": "PASS",
+    "audit": 1,
+    "amount": 1000,
+    "expires": "2030-01-31",
+    "receipts": 1,
+    "operations": 1
+  },
+  "workerd": {
+    "source": "PASS",
+    "compiled": "PASS",
+    "databaseIntegration": "actual gateway -> user-JWT transport -> original isolated SQL RPC -> persisted result",
+    "authentication": "synthetic",
+    "provider": "synthetic",
+    "fullPathActions": [
+      "access_control.set",
+      "category.update",
+      "finance.expense.create",
+      "finance.expense.cancel",
+      "category.create",
+      "product.create",
+      "product.update"
+    ],
+    "twentyConsecutiveTurnsWithoutOptionalThinkingEvents": "PASS",
+    "meteringCloseRetry": "PASS",
+    "catalogPriceReadback": "PASS: synthetic office item 420/1250 cents -> original SQL 4.20/12.50 EUR; confirmed correction -> 13.50 EUR; duplicate confirmations, zero stock and no stock movements"
+  },
+  "browser": {
+    "engines": [
+      "Chromium",
+      "WebKit"
+    ],
+    "profiles": [
+      "Samsung",
+      "iPhone",
+      "desktop",
+      "tablet"
+    ],
+    "confirmationAndUncertainResult": "PASS",
+    "sessionRestartAndFullDocumentReload": "PASS",
+    "recoveredProposalsPerProfile": 2,
+    "explicitConfirmationRequestsPerProfile": 9,
+    "existingMountedAdministrativeFlows": "PASS",
+    "realWebAudioPCMDSP": "PASS with synthetic audio/provider",
+    "realAudioWorkletGraph": "PASS with synthetic stream",
+    "nativeDuplex": "PASS with synthetic stream/provider",
+    "orderCatalog": "PASS with synthetic location rows",
+    "orderKeyboard": [
+      "Samsung Chromium",
+      "iPhone WebKit",
+      "iPhone PWA simulation"
+    ],
+    "physicalDevice": false,
+    "currentAvaladorRegistrationContract": "PASS on Chromium/WebKit with synthetic API, duplicate guard, payment review, renewal and original authenticated App Socio invitation",
+    "inventoryErrorIsolation": "PASS on Chromium/WebKit: malformed inventory response does not crash cash report",
+    "confirmationMessageIsolation": "PASS on all four profiles: new proposal clears cancelled-operation status and previous lookup list",
+    "confirmationTouchControls": "PASS: separate nonoverlapping controls, both at least 44px",
+    "keyboardRepeatVerification": "PASS: 3 complete Chromium/WebKit repetitions; assertions unchanged, native resize/React frames awaited instead of fixed 200ms sleep",
+    "extendedDialogue": "PASS: 51 synthetic transcript/model turns per Chromium/WebKit profile; no automatic writes or recorder/reply overlap"
+  },
+  "supabaseManagementReadOnlyMetadata": {
+    "httpStatus": 401,
+    "configurationChanged": false
+  },
+  "liveDeepgram": false,
+  "physicalMicrophoneOrSpeaker": false,
+  "credentialsCreatedOrExtracted": false,
+  "productionDatabaseTouched": false,
+  "migrationApplied": false,
+  "pilotFlagEnabled": false,
+  "REALActivated": false,
+  "merge": false,
+  "deployment": false,
+  "githubCI": {
+    "url": "https://github.com/dmorra024-png/club-hub-gold/pull/27/checks",
+    "scope": "Check the exact PR head; local evidence is not a substitute for GitHub CI.",
+    "firstHeadFailure": {
+      "commit": "672d78b",
+      "run": 45572454853,
+      "reason": "registration fixture omitted current avalador RPC; app correctly rejected unverified returned ID",
+      "fixedWithoutWeakeningAssertions": true
+    },
+    "additionalRegression": {
+      "run": 45577701992,
+      "test": "scripts/test-critical-stabilization.mjs:377",
+      "cause": "fixed 200ms sampling of asynchronous viewport and React frames; synchronized on actual frames, same visibility/focus/geometry constraints retained"
+    },
+    "mobileSetupFailure": {
+      "run": 45769691314,
+      "attempts": 2,
+      "cause": "Azure HTTP package downloads repeatedly interrupted; runner hit 15-minute setup deadline before browser assertions",
+      "fix": "Existing CI-only helper now replaces Azure HTTP with the same signed official Ubuntu archive over HTTPS and is used by mobile setup; no timeout increase or test removal",
+      "appSocioChanged": false
+    },
+    "voiceFixtureSamplingFailure": {
+      "run": 45773749278,
+      "test": "scripts/test-voice2-administration.mjs:1261",
+      "before": "reproduced waitForURL timeout with fixed 400ms speech and 700ms analyser warmup",
+      "after": "PASS Samsung/Chromium and iPhone/WebKit with same analyser delay, real recording phase and four sampled speech frames",
+      "navigationTimeoutUnchanged": true,
+      "applicationAudioCodeChanged": false,
+      "physicalDevice": false,
+      "liveProvider": false
+    }
+  },
+  "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed.",
+  "liveDeepgramBlock": "No existing LAB_PROBE_TOKEN/VOICE_LAB_ACCESS_TOKEN, Deepgram key or authenticated Pilot session available to this workspace. Existing lab static page responds HTTP 200; that is not a voice-service verification."
+}

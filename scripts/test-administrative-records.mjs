@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
@@ -10,6 +10,11 @@ const api = new URL(
     (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
+const walletIds={walletMemberStatus:new Set(),walletOrderPaymentState:new Set()};
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("wallet-management.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["'](walletMemberStatus|walletOrderPaymentState)["']/g)) walletIds[match[2]].add(match[1]);
+for(const values of Object.values(walletIds))assert.equal(values.size,1,"One exact compiled wallet function");
+const walletMemberId=[...walletIds.walletMemberStatus][0],walletOrderId=[...walletIds.walletOrderPaymentState][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
   mid = "20000000-0000-4000-8000-000000000001",
@@ -45,7 +50,7 @@ for (const [label, engine, device] of [
           executablePath: existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined,
           args: ["--no-sandbox"],
         }
-      : {}),
+      : { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }),
   });
   try {
     for (const mode of ["admin", "staff", "no-finance"]) {
@@ -98,6 +103,15 @@ for (const [label, engine, device] of [
         if (u.pathname.includes("_serverFn")) {
           let result = { available: false, documents: false };
           const d = req.method() === "POST" ? fromJSON(JSON.parse(req.postData())).data : null;
+          if(u.pathname.includes(walletMemberId)){
+            assert.equal(mode,"admin");assert.deepEqual(d,{memberId:mid});
+            return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{enabled:false,clubEnabled:false,balanceCents:null,cashSessionId:null},context:{}})});
+          }
+          if(u.pathname.includes(walletOrderId)){
+            assert.deepEqual(d,{orderId:oid});
+            if(mode!=="admin")return route.fulfill({status:403,contentType:"application/json",body:JSON.stringify({error:{message:"Synthetic cash permission denied"}})});
+            return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{wallet:false},context:{}})});
+          }
           if (d?.memberId) {
             assert.equal(d.memberId, mid);
             historyReads++;

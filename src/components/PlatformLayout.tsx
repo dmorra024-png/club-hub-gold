@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 export function PlatformLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-screen bg-background p-4 md:p-8">
+    <main className="snoop-platform-visual min-h-screen bg-background p-4 md:p-8">
       <header className="max-w-6xl mx-auto flex justify-between items-center border-b border-neon/25 pb-5">
         <div className="w-32">
           <SnoopWordmark />

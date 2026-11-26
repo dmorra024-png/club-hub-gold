@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import process from "node:process";
 
@@ -37,6 +37,15 @@ const session = {
   expires_at: exp,
   token_type: "bearer",
 };
+// The released member card uses the authenticated invitation action, not the retired
+// staff-visible QR/share panel. Mock this exact server function, never an email provider.
+const invitationIds = new Set(readdirSync(".output/server/_ssr")
+  .filter(file => file.startsWith("socio-invitation-email.functions-"))
+  .flatMap(file => [...readFileSync(".output/server/_ssr/" + file, "utf8")
+    .matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']sendSocioInvitationEmail["']/g)]
+    .map(match => match[1])));
+assert.equal(invitationIds.size, 1, "Expected one compiled member invitation function");
+const invitationId = [...invitationIds][0];
 const isWebkit = process.env.TEST_WEBKIT === "true";
 const browser = await (isWebkit ? webkit : chromium).launch({
   ...(!isWebkit
@@ -46,7 +55,7 @@ const browser = await (isWebkit ? webkit : chromium).launch({
           (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
         args: ["--no-sandbox"],
       }
-    : {}),
+    : { executablePath: process.env.TEST_WEBKIT_EXECUTABLE_PATH }),
   headless: true,
 });
 try {
@@ -56,6 +65,7 @@ try {
   });
   const created = [];
   const updated = [];
+  let invitations = 0;
   let requireSignature = false;
   let rejectRegistration = false;
   const plan = {
@@ -70,6 +80,12 @@ try {
     const url = new URL(request.url());
     const isApi =
       url.origin === apiOrigin && (!apiPrefix || url.pathname.startsWith(apiPrefix + "/"));
+    if (url.origin === origin.origin && url.pathname.includes(invitationId)) {
+      assert.equal(request.method(), "POST");
+      assert(request.postData().includes(created[0].id), "Invitation must target the created member");
+      invitations++;
+      return route.fulfill({contentType:"application/json", body:JSON.stringify({result:{status:"accepted"},context:{}})});
+    }
     if (url.origin === origin.origin && !isApi) return route.continue();
     // The only nonlocal origin is fully mocked. Never pass through to real data.
     if (!isApi) return route.abort();
@@ -124,9 +140,19 @@ try {
       );
     else if (
       url.pathname.endsWith("/rpc/save_membership_with_receipt") ||
-      url.pathname.endsWith("/rpc/confirm_membership_with_receipt")
+      url.pathname.endsWith("/rpc/confirm_membership_with_receipt") ||
+      url.pathname.endsWith("/rpc/snoop_register_member_with_avalador")
     ) {
       const payload = request.postDataJSON();
+      if(!payload.p_renew) {
+        assert.ok(url.pathname.endsWith("/rpc/snoop_register_member_with_avalador"),"Creation must use the current avalador RPC, never the retired registration contract");
+        assert.deepEqual(Object.keys(payload).sort(),["p_confirmed_cents","p_member","p_method","p_plan_id","p_request"]);
+        assert.equal(payload.p_confirmed_cents,plan.price_cents);
+        assert.equal(payload.p_request,payload.p_member.id);
+        assert.equal(payload.p_member.club_id,clubId);
+        assert.equal(payload.p_member.created_by,userId);
+        assert.equal(payload.p_member.avalador_member_number,"");
+      }
       if (rejectRegistration && !payload.p_renew) {
         return route.fulfill({ status: 400, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ code: "PGRST202", message: "Prueba: función de inscripción no disponible" }) });
       }
@@ -212,7 +238,7 @@ try {
   await page.getByLabel("Dinero recibido (€)").fill("20");
   await page.getByLabel("Cambio", { exact: true }).getByText(/10,00/).waitFor();
   await (isWebkit ? page.getByRole("button", { name: "Confirmar aportación", exact: true }).click() : page.getByRole("button", { name: "Confirmar aportación", exact: true }).dblclick());
-  await page.waitForURL("**/soci/gestisci");
+  await page.waitForURL(url => created.length === 1 && url.pathname === `/soci/${created[0].id}`);
   assert.equal(created.length, 1, "Double-click must create only one record");
   assert.equal(created[0].club_id, clubId);
   assert.equal(created[0].birth_date, "2000-02-29");
@@ -224,29 +250,12 @@ try {
     waitUntil: "networkidle",
   });
   await page.getByRole("button", { name: "Renovar", exact: true }).waitFor();
-  await page.locator('img[src^="data:image/png"]').first().waitFor({ state: "visible" });
-  // Synthetic browser-share test: never contacts any external provider or recipient.
-  await page.evaluate(() => {
-    window.__snoopQrShared = null;
-    Object.defineProperty(navigator, "canShare", { configurable: true, value: ({ files }) =>
-      Array.isArray(files) && files.length === 1 && files[0].type === "image/png",
-    });
-    Object.defineProperty(navigator, "share", { configurable: true, value: async ({ files, title }) => {
-      const bytes = new Uint8Array(await files[0].arrayBuffer());
-      window.__snoopQrShared = {
-        filename: files[0].name, title, bytes: bytes.length,
-        signature: Array.from(bytes.slice(0, 8)),
-      };
-    } });
-  });
-  await page.getByRole("button", { name: "Compartir carnet QR" }).click();
-  await page.waitForFunction(() => window.__snoopQrShared !== null);
-  const shared = await page.evaluate(() => window.__snoopQrShared);
-  assert.equal(shared.filename, "snoop-carnet-0000123.png");
-  assert.equal(shared.title, "Carnet QR SNOOP");
-  assert.ok(shared.bytes > 200);
-  assert.deepEqual(shared.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.equal(created.length, 1, "Sharing a QR must never register another member");
+  assert.equal(await page.getByRole("button", {name:"Compartir carnet QR"}).count(),0,
+    "Do not restore the retired staff-visible QR/share workflow");
+  await page.getByRole("button", { name:"Enviar email App Socio", exact:true }).click();
+  await page.getByText("El proveedor ha aceptado el envío del código de 6 cifras. Comprueba el correo del socio.",{exact:true}).waitFor();
+  assert.equal(invitations,1,"One explicit invitation request, no real email delivery");
+  assert.equal(created.length,1,"Invitation cannot create another member");
 
 
   await page.getByRole("button", { name: "Renovar", exact: true }).click();
@@ -370,7 +379,7 @@ try {
   assert.equal(created.length, 1, "Rejected registration must not write a member");
   await payment.getByRole("button", { name: "Cancelar" }).click();
   console.log(
-    "PASS member administration: synthetic registration, duplicate guard, cancelled/confirmed renewal, QR view and AI draft without automatic writes (mock Supabase)",
+    "PASS member administration: synthetic registration, duplicate guard, cancelled/confirmed renewal, authenticated invitation request and AI draft without automatic writes (mock Supabase)",
   );
   await context.close();
 } finally {

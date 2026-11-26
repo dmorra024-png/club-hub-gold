@@ -12,6 +12,8 @@ async function setup(previous = false) {
     "20261107123000_membership_payment_flow.sql",
   ])
     await db.exec(await readFile("supabase/migrations/" + file, "utf8"));
+  // Current ledger reads recorded payment methods; historical fixtures remain unknown.
+  await db.exec("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method text; ALTER TABLE membership_receipts ADD COLUMN IF NOT EXISTS payment_method text;");
   for (let n = 1; n <= 6; n++)
     await db.query("INSERT INTO auth.users(id,email)VALUES($1,$2)", [
       uid(n),

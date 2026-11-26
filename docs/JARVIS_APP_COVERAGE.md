@@ -1,0 +1,172 @@
+# JARVIS — copertura verificabile del ramo di sviluppo
+
+## Base realmente pubblicata e riconciliazione
+
+L'ultimo upload verificato è `3e7487088396cbd21edc99d454d88d9418dad0bb`, workflow
+`45459564392` (Almacén). Quel ramo deriva da una base precedente all'integrazione
+JARVIS `ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae` / workflow `45381805328` e alla
+versione `459303a122ce5ae560712a234098deb20b43fae4` / workflow `45381047028`.
+La riconciliazione conserva WarehousePanel e il fix euro degli ordini dell'ultimo
+upload, insieme a correzioni audio/JARVIS, avalador, Finanzas e creazione prodotto
+idempotente con posizione esplicita. Non sostituisce il ramo pubblicato.
+`apps/socio`, contabilità, formule Caja e API Monedero restano invariati.
+
+## Registro comune e persistenza
+
+`JARVIS_CAPABILITY_MATRIX.json` deriva dagli schemi e permessi effettivi: 29 comandi
+amministrativi registrati, ricerche bounded e ispettori condivisi. Ogni capacità ha
+input/output Zod, autorizzazione, riferimenti emessi dal server, conferma manuale,
+chiave persistente, lock, verifica dello snapshot, audit e rilettura del risultato.
+Un risultato `completed` dal browser resta rifiutato; il modello non riceve il token.
+Dopo un errore di rete si legge l'esito, senza ripetere automaticamente la scrittura.
+Le operazioni usano le RPC originali o le stesse operazioni CRUD delle API manuali.
+Il singolo helper privato non è concesso agli utenti e non espone SQL/RPC arbitrarie.
+
+## Capacità amministrative
+
+- Soci: configurazione reale dei campi richiesti/facoltativi/disabilitati, ricerca
+  privata POST, scheda e storico, modifiche consentite, registrazione eleggibile con
+  avalador, rinnovi e ricevute. Documenti, firma ed età non vengono inventati.
+- Quote e sconti: creazione, modifica, attivazione, validità e assegnazione/rimozione.
+- Catalogo: categorie, archivio/ripristino, schede prodotto, descrizioni e prezzi in
+  centesimi. Nuovo prodotto con destinazione esplicita e zero stock iniziale.
+- Stock: totale, ubicazioni e storico. Le somme usano millesimi esatti. Una riga
+  mancante è zero solo se la conservazione del totale lo dimostra; errori HTTP e
+  mismatch non diventano zero. La rettifica legacy è bloccata sul doppio stock:
+  il trigger originale aggiorna sempre Dispensario, non un conteggio per ubicazione.
+- Caja: apertura/chiusura di sessioni, fondo, conteggio e note; report Madrid per
+  giorno, periodo, sessione e collaboratore verificato. Nessun turno fisso o notturno.
+- Monedero: configurazione club, saldo, storico ricariche, ricarica e storno mediante
+  le RPC originali. L'operatore attesta l'incasso o rimborso già avvenuto; SNOOP non
+  avvia pagamenti POS/bancari. Storico e movimento originale sono conservati.
+- Finanzas: fornitori, spese, annullamento spesa e acquisti amministrativi previsti;
+  non genera ordini prodotto, pagamenti, movimenti stock o movimenti Caja.
+- Collaboratori: ricerca privata, modifica dei permessi o revoca del ruolo nel club
+  solo da admin, con conferma e controllo di modifiche concorrenti. Non modifica
+  ruoli admin né cancella utenti Auth.
+- Tema: selezione delle sette palette esistenti, conferma e rilettura del tema;
+  policy del proprietario verificata su due club sintetici, senza modificare RLS reale.
+- App Socio: conservato l'invito autenticato a sei cifre del flusso manuale corrente.
+  Il vecchio invio QR email non viene reintrodotto come nuovo comando JARVIS.
+- Navigazione, ricerche, bozze, correzioni e consultazione botanica con fonti rimangono
+  sulle porte autorizzate e sulle schermate esistenti, senza click DOM simulati.
+
+## Recupero e audio
+
+Solo UUID dell'operazione in sessionStorage, per utente e club: niente token,
+trascrizioni o dati del modulo. Riavvio e reload recuperano l'esito dal server e
+richiedono nuovamente conferma per una proposta valida. Una proposta scaduta non è
+eseguita, un completamento non è ripetuto. Le viste si aggiornano tramite letture
+scoped senza reload automatici. Gli ascolti non rimangono nascosti in background.
+Deepgram, endpointing 0.85/5000 ms, vocabolario e voce restano quelli esistenti.
+I test Web Audio misurano PCM non nullo, frequenza, ripresa dopo sospensione e
+interruzione. Non certificano microfono, altoparlante o qualità STT/TTS fisica.
+
+## Evidenze e vincoli residui
+
+`JARVIS_EXECUTION_RESULTS.json` distingue PostgreSQL/Workerd/browser reali isolati da
+provider/autenticazione sintetici. Il flusso gateway completo verifica anche
+registrazione e annullamento spesa con esito persistito, senza doppia esecuzione.
+La matrice non dichiara parità completa né abilita automaticamente la produzione.
+Non vengono introdotte automazioni di distribuzione/checkout di prodotti regolamentati.
+Documenti, firma, file, credenziali e inviti Auth/SMTP senza contratto di replay
+verificabile rimangono nei flussi umani originali. Le impostazioni non registrate
+non sono esposte tramite esecutori arbitrari.
+La richiesta readonly ai metadati Supabase ha risposto HTTP 401. Le definizioni stock
+pubblicate sono disponibili e provate localmente; lo schema effettivamente installato
+resta da verificare. Non sono state estratte o sostituite credenziali.
+La proposta SQL unica NON è applicata; voice_usage_budget non viene riapplicata.
+REAL, merge e deployment restano disattivati/non eseguiti. Servono revisione dello
+schema reale e autorizzazione specifica prima del futuro rilascio del commit esatto.
+
+## Regressione CI individuata sul primo push
+
+Run `45572454853`, `test-member-administration.mjs:231`: mancata navigazione dopo
+la conferma. La schermata invocava correttamente `snoop_register_member_with_avalador`,
+ma la fixture riconosceva soltanto le precedenti RPC e restituiva un array vuoto.
+Il controllo applicativo di `savedId` rifiutava correttamente quell'esito non verificato.
+La fixture ora valida le cinque chiavi attuali, identità/club/importo/request ID e
+rifiuta il contratto di creazione ritirato; rinnovi e controllo del doppio clic restano.
+Anche i test di assenza di salvataggi vocali riconoscono la nuova RPC come scrittura.
+Nessun timeout allungato, controllo di sicurezza rimosso o falso successo introdotto.
+
+## Correzioni verificate dopo il secondo push
+
+La CI `45573995837` falliva in `test-financial-annulment.mjs:423`: una risposta
+inventario malformata (`[]`) causava un errore di rendering e nascondeva anche
+Ingresos. Il componente valida ora il DTO originale con Zod e mostra il proprio
+errore senza interrompere gli altri report. Il test browser verifica entrambi i
+comportamenti; un test PostgreSQL usa la RPC originale e ne verifica il contratto
+senza ricalcolare o modificare importi.
+
+Corretto anche il contratto prezzi del nuovo adapter: gli argomenti vocali
+`buy_price_cents` e `sell_price_cents` sono esplicitamente centesimi interi. Solo
+sul server vengono convertiti esattamente in euro decimali per la RPC originale
+(420 → 4,20 EUR). La risposta persistita dichiara `price_unit: EUR`. Il test legge
+il database dopo creazione/modifica (4,20 / 12,50 → 13,50) e verifica conservazione
+di stock, movimenti e prezzi non modificati. Le vecchie RPC che troncherebbero i
+prezzi vengono rifiutate prima della scrittura. La fixture carica la migrazione
+prezzi decimali già esistente, mai applicata a produzione da questo intervento.
+Nessun prezzo reale è stato toccato.
+
+La verifica degli screenshot ha inoltre riprodotto uno stato UI obsoleto: dopo un
+annullamento la nuova proposta mostrava ancora il messaggio precedente. Ogni
+proposta ora mostra il proprio stato di revisione e rimuove la lista di ricerca
+precedente. I controlli conferma/annulla hanno aree tattili di almeno 44 px, separate
+e senza sovrapposizioni. Il browser verifica stato, bersaglio, dimensioni e assenza
+di scritture implicite sui quattro profili. Screenshot reali renderizzati in
+`docs/screenshots/jarvis-confirmation-{samsung,iphone}.png` (provider sintetico).
+
+## Regressioni aggiuntive del collaudo finale
+
+Il run `45577701992` si interrompeva nel test tastiera WebKit: una pausa fissa
+di 200 ms campionava transizioni di focus/resize/render non ancora completate.
+Il test ora attende i frame effettivi e mantiene tutti i vincoli di visibilità,
+focus, valori conservati e posizione del campo. Tre ripetizioni complete hanno
+superato gli stessi assert su Chromium e WebKit, senza modificare il gestore
+tastiera o allungare i timeout.
+
+Il dialogo da 51 turni incontrava inoltre la lettura originale
+`snoop_inventory_cost_report`: la fixture non conosceva questa RPC e la rifiutava
+come scrittura. La sola lettura è ora modellata con metodo POST, JWT e data
+verificati; tutte le altre RPC non previste continuano a essere rifiutate.
+La fixture conserva gli avvisi per prezzi mancanti, senza inventare ricavi.
+Il controllo di compilazione quantità usa il campo attuale `Cantidad inicial`,
+conservando i controlli su quantità, decimali, correzioni e zero scritture.
+
+Il catalogo originale definisce `strain_type` come `indica | sativa | hibrida`.
+L'adapter usava erroneamente `hybrid`, che poteva rifiutare la ricevuta persistita
+e produrre un esito incerto. Input, schema dello strumento, SQL proposto e output
+ora usano il valore originale `hibrida`. Il test attraversa l'adapter reale fino
+alla RPC originale e rilegge classificazione, prezzi e stock; ripetere la conferma
+restituisce lo stesso risultato e non genera movimenti. Il valore non previsto
+`hybrid` viene rifiutato prima della scrittura. Nessuna modifica al tipo del database.
+
+## Setup CI mobile riproducibile
+
+Il job mobile di `45769691314` e il suo retry sono scaduti prima di eseguire gli
+assert: download HTTP da `azure.archive.ubuntu.com` ripetutamente interrotti per
+font e Mesa, poi fallback tardivo a `https://archive.ubuntu.com`. La preparazione
+del runner riutilizza ora l'helper CI esistente anche nel job mobile e converte
+quel solo mirror HTTP nel medesimo archivio Ubuntu ufficiale via HTTPS.
+Suite, componenti, priorità, chiavi GPG e verifica delle firme restano invariati;
+nessun timeout aumentato, nessun test escluso, nessun file `apps/socio` cambiato.
+Un test aggiuntivo verifica la sostituzione, l'idempotenza, la conservazione della
+firma e l'esclusione di host simili o non interessati. La regressione applicativa
+completa sul precedente head `a09acf0` era già PASS.
+
+## Campionamento della voce simulata in CI
+
+Nel run `45773749278`, `test-voice2-administration.mjs:1261`, WebKit non
+navigava a Crear socio. Il controllo stop era correttamente già nello stato
+recording: il difetto della fixture era assumere che 400 ms di tempo trascorso
+garantissero abbastanza campioni VAD. La prova prima/dopo usa un analizzatore
+sintetico disponibile dopo 700 ms: la precedente finestra fissa perde il comando
+e scade sulla stessa attesa URL; la fixture corretta attende quattro campioni
+effettivi, poi il silenzio, e passa su entrambi i browser.
+
+È la stessa sincronizzazione già impiegata dal test continuo. Nessuna soglia
+VAD o comportamento del gestionale è stato cambiato; i timeout di navigazione,
+una sola trascrizione e zero scritture automatiche restano verificati. Il
+ritardo è soltanto nella sorgente sintetica del test: non certifica Deepgram
+reale o hardware fisico e non forza la trascrizione del silenzio.

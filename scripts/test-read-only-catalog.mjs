@@ -1,6 +1,6 @@
 import { checkOrderKeyboard, installOrderViewport } from "./order-keyboard-checks.mjs";
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
@@ -11,6 +11,11 @@ const api = new URL(
     (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
+const walletReadIds = new Set();
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("wallet-management.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']walletMemberStatus["']/g)) walletReadIds.add(match[1]);
+assert.equal(walletReadIds.size,1);
+const walletReadId=[...walletReadIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
   member = "20000000-0000-4000-8000-000000000001";
@@ -124,6 +129,11 @@ for (const [label, engine, device] of [
           u = new URL(req.url()),
           isApi = u.origin === api.origin;
         if (u.origin !== new URL(base).origin && !isApi) return route.abort();
+        if (u.pathname.includes(walletReadId)) {
+          assert.equal(req.method(),"POST");
+          assert.deepEqual(fromJSON(JSON.parse(req.postData())).data,{memberId:member});
+          return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{enabled:false,clubEnabled:false,balanceCents:null,cashSessionId:null},context:{}})});
+        }
         if (u.pathname.includes("_serverFn")) {
           if (req.method() === "POST") {
             const payload = fromJSON(JSON.parse(req.postData())).data;
@@ -166,6 +176,11 @@ for (const [label, engine, device] of [
             assert.equal(u.searchParams.get("club_id"), `eq.${club}`);
             data = { first_name: "Persona", last_name: "de prueba", member_number: "TEST" };
           } else data = null;
+        } else if (u.pathname.endsWith("/snoop_stock_locations")) {
+          assert.equal(req.method(),"GET");
+          assert.equal(u.searchParams.get("club_id"),`eq.${club}`);
+          assert.equal(u.searchParams.get("location"),"eq.dispensario");
+          data=rows.map(p=>({product_id:p.id,quantity:p.stock}));
         } else if (u.pathname.endsWith("/products") || u.pathname.endsWith("/product_categories")) {
           assert.equal(req.method(), "GET", "catalog must be read-only");
           assert.equal(u.searchParams.get("club_id"), `eq.${club}`);

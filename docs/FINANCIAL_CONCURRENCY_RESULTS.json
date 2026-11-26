@@ -16,7 +16,7 @@
     {
       "operation": "refund",
       "sessions": 7,
-      "lockWaitersObserved": 2,
+      "lockWaitersObserved": 6,
       "uniqueEntries": 1,
       "status": "PASS"
     }

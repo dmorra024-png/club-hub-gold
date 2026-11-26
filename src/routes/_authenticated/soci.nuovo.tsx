@@ -1,3 +1,4 @@
+import { memberCreationKeys, memberCreationPatch } from "@/lib/voice/member-creation-fields";
 import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import {
   memberConversation,
@@ -40,6 +41,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { scopedMemberDraft, voiceDraftSummary } from "@/lib/administrative-voice";
 import { defaultFieldConfig, mergeFieldConfig, type FieldConfigMap } from "@/lib/member-fields";
+import { scanMemberIdentityWithQwen } from "@/lib/qwen-id.functions";
 
 export const Route = createFileRoute("/_authenticated/soci/nuovo")({
   component: NewSocio,
@@ -90,10 +92,50 @@ function NewSocio() {
   const sigRef = useRef<SignaturePadHandle>(null);
 
   const [fieldCfg, setFieldCfg] = useState<FieldConfigMap>(defaultFieldConfig());
+  type AvaladorMatch = {id:string;member_number:string;first_name:string;last_name:string};
+  const [avaladorMode,setAvaladorMode]=useState<"nombre"|"numero">("nombre");
+  const [avaladorMatches,setAvaladorMatches]=useState<AvaladorMatch[]>([]);
+  const [avaladorResolved,setAvaladorResolved]=useState<AvaladorMatch|null>(null);
+  const [avaladorLookupBusy,setAvaladorLookupBusy]=useState(false);
+  const [avaladorLookupError,setAvaladorLookupError]=useState("");
+  const avaladorLookupGeneration=useRef(0);
+  function invalidateAvalador(){
+    avaladorLookupGeneration.current+=1;
+    setAvaladorResolved(null);setAvaladorMatches([]);setAvaladorLookupError("");
+  }
+  async function lookupAvalador(){
+    const number=form.avalador_member_number.trim();
+    const first=form.avalador_first_name.trim();
+    const last=form.avalador_last_name.trim();
+    if(avaladorMode==="numero"&&!number){setAvaladorLookupError("Introduce el número del socio.");return;}
+    if(avaladorMode==="nombre"&&(!first||!last)){setAvaladorLookupError("Introduce nombre y apellidos.");return;}
+    const generation=++avaladorLookupGeneration.current;
+    setAvaladorLookupBusy(true);setAvaladorLookupError("");setAvaladorMatches([]);setAvaladorResolved(null);
+    const club=routeContext.access.clubId;
+    if(!club){setAvaladorLookupError("No hay un club asignado.");setAvaladorLookupBusy(false);return;}
+    const base=supabase.from("members")
+      .select("id,member_number,first_name,last_name")
+      .eq("club_id",club);
+    const {data,error}=avaladorMode==="numero"
+      ? await base.eq("member_number",number).limit(1)
+      : await base.ilike("first_name",first).ilike("last_name",last).limit(20);
+    if(generation!==avaladorLookupGeneration.current)return;
+    setAvaladorLookupBusy(false);
+    if(error){setAvaladorLookupError("No se pudieron consultar los socios. Inténtalo otra vez.");return;}
+    if(!data?.length){setAvaladorLookupError("No hay socios registrados con esos datos en este club.");return;}
+    setAvaladorMatches(data as AvaladorMatch[]);
+  }
+  function confirmAvalador(person:AvaladorMatch){
+    setAvaladorResolved(person);
+    setAvaladorLookupError("");
+  }
 
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
+    avalador_first_name: "",
+    avalador_last_name: "",
+    avalador_member_number: "",
     birth_date: "",
     address: "",
     city: "",
@@ -111,7 +153,8 @@ function NewSocio() {
   const [lastHeard, setLastHeard] = useState(""),
     [voiceSummary, setVoiceSummary] = useState("");
   const voiceMounted = useRef(true),
-    plansReady = useRef(false);
+    plansReady = useRef(false),
+    fieldConfigReady = useRef(false);
   const formRef = useRef(form);
   formRef.current = form;
   const voiceInitial = useRef(form);
@@ -120,10 +163,14 @@ function NewSocio() {
   const transcribe = useServerFn(transcribeAudio);
 
   const extractFromImages = useServerFn(extractMemberFieldsFromImages);
+  const scanQwen = useServerFn(scanMemberIdentityWithQwen);
 
   // Document scan (OCR of DNI / passport)
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning">("idle");
   const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+  const [ocrReviewed, setOcrReviewed] = useState(true);
+  const [ocrMessage, setOcrMessage] = useState("");
+
 
   useEffect(() => {
     voiceMounted.current = true;
@@ -200,7 +247,7 @@ function NewSocio() {
     const onAiForm = (event: Event) => {
       const detail = (event as CustomEvent).detail;
       if (detail.kind !== "member") return;
-      const keys = ["first_name", "last_name", "birth_date", "city", "phone"] as const;
+      const keys = ["first_name", "last_name", "birth_date", "city", "phone", "email"] as const;
       const current = Object.fromEntries(keys.map((k) => [k, formRef.current[k]]));
       if (detail.patch)
         setForm((previous) => ({
@@ -242,7 +289,9 @@ function NewSocio() {
         .from("club_member_field_config")
         .select("field_key, visible, required")
         .eq("club_id", clubId);
+      if (!voiceMounted.current) return;
       setFieldCfg(mergeFieldConfig((data as any) ?? []));
+      fieldConfigReady.current = true;
     })();
     return () => {
       window.removeEventListener("snoop:member-draft", onDraft);
@@ -342,65 +391,46 @@ function NewSocio() {
 
   // --- Document OCR: take up to 2 photos of the DNI / passport and auto-fill fields ---
   async function scanDocuments(files: FileList | File[]) {
-    const initial = { ...formRef.current };
-    const status = await aiStatus();
-    if (!status.documents)
-      return toast.error(
-        "Procesamiento de documentos no autorizado. Introduce los datos manualmente.",
-      );
-    if (!confirm("Las fotos del documento se enviarán al proveedor de IA configurado. ¿Continuar?"))
-      return;
     const list = Array.from(files).slice(0, 2);
-    if (list.length === 0) return;
+    if (!list.length) return;
+    // Explicit user consent is required because these photos contain sensitive personal data.
+    if (!window.confirm("La foto del documento se enviará a Cloudflare Workers AI (Qwen) para extraer los datos. No se enviará a otros proveedores ni se guardará por este escáner. ¿Continuar?")) return;
+    const initial = { ...formRef.current };
     setScanStatus("scanning");
+    setOcrReviewed(true);
+    setOcrMessage("");
     try {
-      // Compress + convert each file
       const compressed: Blob[] = [];
-      for (const f of list) compressed.push(await compressImage(f, 1600, 0.85));
-
-      // Preview URLs
-      const previews = await Promise.all(
-        compressed.map(
-          (b) =>
-            new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = () => res(r.result as string);
-              r.readAsDataURL(b);
-            }),
-        ),
-      );
+      for (const file of list) compressed.push(await compressImage(file, 1200, 0.72));
+      const previews = await Promise.all(compressed.map(blob => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("No se pudo abrir la foto"));
+        reader.readAsDataURL(blob);
+      })));
+      const images = await Promise.all(compressed.map(async blob => ({
+        base64: await blobToBase64(blob), mimeType: "image/jpeg" as const
+      })));
+      const { fields } = await scanQwen({ data: { consent: true, images } });
       setScanPreviews(previews);
-
-      // Base64 payload for the AI Gateway
-      const images = await Promise.all(
-        compressed.map(async (b) => ({
-          base64: await blobToBase64(b),
-          mimeType: "image/jpeg",
-        })),
-      );
-
-      const { fields } = await extractFromImages({ data: { images } });
-
-      setForm((f) =>
-        mergeUneditedValues(f, initial, {
-          first_name: fields.first_name || f.first_name,
-          last_name: fields.last_name || f.last_name,
-          birth_date: fields.birth_date || f.birth_date,
-          dni_number: (fields.dni_number || f.dni_number).toUpperCase(),
-          address: fields.address || f.address,
-          city: fields.city || f.city,
-          postal_code: fields.postal_code || f.postal_code,
-        }),
-      );
-
-      // Reuse the front photo (first image) as the required DNI photo
-      const front = compressed[0];
-      set("dni_file", new File([front], "dni.jpg", { type: "image/jpeg" }));
+      setForm(current => mergeUneditedValues(current, initial, {
+        first_name: fields.first_name || current.first_name,
+        last_name: fields.last_name || current.last_name,
+        birth_date: fields.birth_date || current.birth_date,
+        dni_number: fields.dni_number || current.dni_number,
+        address: fields.address || current.address,
+        city: fields.city || current.city,
+        postal_code: fields.postal_code || current.postal_code
+      }));
+      setOcrReviewed(false);
+      setOcrMessage("La IA ha leído el documento. Comprueba los datos antes de guardar.");
+      const first = compressed[0];
+      set("dni_file", new File([first], "dni.jpg", { type: "image/jpeg" }));
       set("dni_preview", previews[0]);
-
-      toast.success("Datos rellenados desde el documento");
-    } catch (e: any) {
-      toast.error(e.message ?? "No se pudo leer el documento");
+      toast.success("Datos leídos. Comprueba los campos.");
+    } catch (error: any) {
+      setOcrMessage("La foto no se ha podido procesar. No se han cambiado los datos.");
+      toast.error(error?.message || "No se pudo leer el documento");
     } finally {
       setScanStatus("idle");
     }
@@ -431,11 +461,19 @@ function NewSocio() {
 
   async function submit(confirmedCents?: number) {
     setRegistrationError("");
+    if (!ocrReviewed) return failRegistration("Comprueba y confirma los datos del documento antes de guardar.");
     if (savingRef.current || !navigator.onLine)
       return failRegistration("Espera a que termine el envío y comprueba la conexión.");
     if (!form.first_name.trim() || !form.last_name.trim())
       return failRegistration("Falta nombre y apellido");
     const req = (k: keyof FieldConfigMap) => fieldCfg[k].visible && fieldCfg[k].required;
+    if (fieldCfg.avalador.visible) {
+      const hasValue = avaladorMode==="nombre"
+        ? !!(form.avalador_first_name.trim() || form.avalador_last_name.trim())
+        : !!form.avalador_member_number.trim();
+      if ((req("avalador") || hasValue) && !avaladorResolved)
+        return failRegistration("Busca y confirma un socio avalador ya registrado.");
+    }
     const vis = (k: keyof FieldConfigMap) => fieldCfg[k].visible;
     if (req("birth_date")) {
       if (!form.birth_date) return failRegistration("Falta la fecha de nacimiento");
@@ -488,18 +526,20 @@ function NewSocio() {
       const expires = selectedPlan ? addCalendarDays(joined, selectedPlan.duration_days) : joined;
 
       const { data: savedId, error } = await (supabase as any).rpc(
-        form.plan_id ? "confirm_membership_with_receipt" : "save_membership_with_receipt",
+        "snoop_register_member_with_avalador",
         {
-          ...(form.plan_id ? { p_confirmed_cents: due, p_expected: null } : {}),
+          p_confirmed_cents: form.plan_id ? due : null,
           p_plan_id: form.plan_id || null,
           p_method: paymentMethod,
           p_request: memberId,
-          p_renew: false,
           p_member: {
             club_id: clubId,
             id: memberId,
             first_name: form.first_name.trim(),
             last_name: form.last_name.trim(),
+            avalador_first_name: "",
+            avalador_last_name: "",
+            avalador_member_number: fieldCfg.avalador.visible ? (avaladorResolved?.member_number ?? "") : "",
             birth_date: form.birth_date || "1900-01-01",
             address: form.address.trim() || null,
             city: form.city.trim(),
@@ -526,46 +566,13 @@ function NewSocio() {
 
       setPaymentOpen(false);
       registrationId.current = crypto.randomUUID();
-      // Email failure must not undo a committed registration. Open the new
-      // member card so a staff member can share its QR without a provider.
-      let qrMailFailed = false;
-      // Send the QR carnet by email if the socio provided one
-      try {
-        if (form.email.trim()) {
-          const { data: created } = await supabase
-            .from("members")
-            .select("member_number")
-            .eq("id", memberId)
-            .maybeSingle();
-          const { data: club } = await supabase
-            .from("clubs")
-            .select("name")
-            .eq("id", clubId)
-            .maybeSingle();
-          const { sendMemberQrEmail } = await import("@/lib/member-qr");
-          const mail = await sendMemberQrEmail({
-            memberId,
-            memberNumber: (created as any)?.member_number ?? "",
-            fullName: `${form.first_name} ${form.last_name}`.trim(),
-            email: form.email.trim(),
-            clubName: (club as any)?.name ?? "Club",
-          });
-          const { memberMailLabel } = await import("@/lib/member-mail-state");
-          toast.success("Socio creado — " + memberMailLabel(mail.status));
-        } else {
-          toast.success("Socio creado (sin email: no se envió el QR)");
-        }
-      } catch (mailErr: any) {
-        console.error("qr email failed", mailErr);
-        qrMailFailed = true;
-        toast.warning("Socio creado, pero falta el email. Comparte el QR desde esta ficha.");
-      }
-
+      // A newly registered member uses the single App Socio email invitation.
+      // No extra QR, duplicate member card or old QR-email is generated here.
+      toast.success("Socio creado. Envía su acceso desde «Enviar email App Socio».");
       try {
         window.sessionStorage.removeItem("snoop:new-member-transcript");
       } catch {}
-      if (qrMailFailed) nav({ to: "/soci/$id", params: { id: memberId } });
-      else nav({ to: "/soci/gestisci" });
+      nav({ to: "/soci/$id", params: { id: memberId } });
       return true;
     } catch (e: any) {
       failRegistration(e?.message || "Error al registrar el socio. No repitas el pago sin comprobar el estado.");
@@ -576,22 +583,18 @@ function NewSocio() {
   }
 
   useVoiceToolPort("member.form", {
-    snapshot: () =>
-      Object.fromEntries(
-        ["first_name", "last_name", "birth_date", "city", "phone"].map((k) => [
-          k,
-          (form as any)[k],
-        ]),
-      ),
-    patch: (patch) =>
-      setForm((previous) => ({
-        ...previous,
-        ...Object.fromEntries(
-          Object.entries(patch).filter(([k]) =>
-            ["first_name", "last_name", "birth_date", "city", "phone"].includes(k),
-          ),
-        ),
-      })),
+    ready: () => plansReady.current && fieldConfigReady.current,
+    snapshot: () => Object.fromEntries(memberCreationKeys.map(key => [key,
+      key === "plan_name" ? plansRef.current.find(plan => plan.id === formRef.current.plan_id)?.name ?? "" : formRef.current[key],
+    ])),
+    patch: (patch) => {
+      // Resolve the entire proposed patch before mutating the member registration form.
+      // Keep club visibility rules and never permit changing the confirmed avalador by voice.
+      const visible = memberCreationKeys.filter(key =>
+        key === "first_name" || key === "last_name" || fieldCfg[key === "plan_name" ? "plan" : key].visible);
+      const values = memberCreationPatch(patch, plansRef.current, visible);
+      setForm(previous => ({...previous, ...values}));
+    },
   });
   return (
     <SnoopLayout title="Nuevo socio" subtitle="Dicta los datos o rellénalos a mano">
@@ -653,27 +656,35 @@ function NewSocio() {
               Haz 1 o 2 fotos del DNI (frente y reverso) y se rellenarán los campos automáticamente.
             </p>
           </div>
-          <label className="cursor-pointer shrink-0 text-[11px] uppercase tracking-widest px-4 py-2.5 rounded-full border border-neon/40 text-neon hover:bg-neon/10 flex items-center gap-2">
-            <Camera className="w-4 h-4" />
-            {scanStatus === "scanning"
-              ? "Leyendo..."
-              : scanPreviews.length
-                ? "Volver a escanear"
-                : "Escanear"}
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="hidden"
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className={`cursor-pointer min-h-12 rounded-xl border border-neon/40 text-neon hover:bg-neon/10 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : ""}`}>
+            <Camera className="w-5 h-5" />
+            {scanStatus === "scanning" ? "Leyendo..." : "Sacar foto"}
+            <input type="file" accept="image/*" capture="environment" className="sr-only"
               disabled={scanStatus === "scanning"}
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length) scanDocuments(e.target.files);
-                e.target.value = "";
-              }}
-            />
+              onChange={(e) => { if (e.target.files?.length) void scanDocuments(e.target.files); e.target.value = ""; }} />
+          </label>
+          <label className={`cursor-pointer min-h-12 rounded-xl border border-neon/40 text-neon hover:bg-neon/10 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold ${scanStatus === "scanning" ? "opacity-50 pointer-events-none" : ""}`}>
+            <ScanLine className="w-5 h-5" />
+            {scanStatus === "scanning" ? "Leyendo..." : "Añadir foto de galería"}
+            <input type="file" accept="image/*" multiple className="sr-only"
+              disabled={scanStatus === "scanning"}
+              onChange={(e) => { if (e.target.files?.length) void scanDocuments(e.target.files); e.target.value = ""; }} />
           </label>
         </div>
+
+        {ocrMessage && (
+          <div className="mt-3 text-sm space-y-2" aria-live="polite">
+            <p className="text-muted-foreground">{ocrMessage}</p>
+            {!ocrReviewed && (
+              <label className="flex gap-2 items-start cursor-pointer">
+                <input type="checkbox" checked={ocrReviewed} onChange={(e) => setOcrReviewed(e.target.checked)} className="mt-1" />
+                <span>He comprobado los datos con el documento original.</span>
+              </label>
+            )}
+          </div>
+        )}
         {scanPreviews.length > 0 && (
           <div className="mt-3 flex gap-2">
             {scanPreviews.map((src, i) => (
@@ -762,6 +773,53 @@ function NewSocio() {
               />
             )}
           </div>
+          {fieldCfg.avalador.visible && (
+            <div className="mt-5 rounded-2xl border border-neon/25 bg-input/25 p-4 space-y-3">
+              <h4 className="font-display text-sm text-neon">Socio avalador{fieldCfg.avalador.required ? " *" : " (opcional)"}</h4>
+              <p className="text-xs text-muted-foreground">Nombre y apellidos del socio que avala la inscripción.</p>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Identificar socio avalador">
+                <button type="button" aria-pressed={avaladorMode==="nombre"} onClick={()=>{invalidateAvalador();setAvaladorMode("nombre");}}
+                  className={"min-h-11 rounded-xl border px-3 text-xs "+(avaladorMode==="nombre"?"border-neon bg-neon/10 text-neon":"border-border text-foreground")}>Nombre y apellidos</button>
+                <button type="button" aria-pressed={avaladorMode==="numero"} onClick={()=>{invalidateAvalador();setAvaladorMode("numero");}}
+                  className={"min-h-11 rounded-xl border px-3 text-xs "+(avaladorMode==="numero"?"border-neon bg-neon/10 text-neon":"border-border text-foreground")}>Número socio</button>
+              </div>
+              {avaladorMode==="nombre" ? (
+                <div className="grid md:grid-cols-2 gap-3">
+                  <Inp label={"Nombre avalador" + (fieldCfg.avalador.required ? " *" : "")}
+                    value={form.avalador_first_name}
+                    onChange={(v)=>{invalidateAvalador();set("avalador_first_name",v);}} />
+                  <Inp label={"Apellidos avalador" + (fieldCfg.avalador.required ? " *" : "")}
+                    value={form.avalador_last_name}
+                    onChange={(v)=>{invalidateAvalador();set("avalador_last_name",v);}} />
+                </div>
+              ):(
+                <label className="block text-xs text-muted-foreground">Número del socio avalador{fieldCfg.avalador.required?" *":""}
+                  <input type="text" inputMode="text" autoComplete="off" value={form.avalador_member_number}
+                    onChange={(e)=>{invalidateAvalador();set("avalador_member_number",e.target.value);}}
+                    placeholder="Número de socio" className="mt-1 w-full rounded-xl border border-neon/30 bg-input px-3 py-3 text-foreground" />
+                </label>
+              )}
+              <button type="button" onClick={()=>void lookupAvalador()} disabled={avaladorLookupBusy || (avaladorMode==="nombre" ? !form.avalador_first_name.trim() || !form.avalador_last_name.trim() : !form.avalador_member_number.trim())}
+                className="min-h-11 rounded-xl border border-neon/45 px-5 text-sm text-neon disabled:opacity-40">
+                {avaladorLookupBusy?"Buscando…":"Buscar socio existente"}
+              </button>
+              {avaladorMatches.length>0&&<div className="space-y-2" role="group" aria-label="Socios encontrados">
+                <p className="text-xs text-muted-foreground">Selecciona y confirma el socio correcto:</p>
+                {avaladorMatches.map((person)=>(
+                  <button type="button" key={person.id} onClick={()=>confirmAvalador(person)}
+                    aria-pressed={avaladorResolved?.id===person.id}
+                    className={"flex min-h-12 w-full touch-manipulation items-center justify-between rounded-xl border px-3 py-2 text-left text-sm "+(avaladorResolved?.id===person.id?"border-neon bg-neon/15 text-neon":"border-border text-foreground")}>
+                    <span>{person.first_name} {person.last_name}</span>
+                    <span className="text-xs">Nº {person.member_number}{avaladorResolved?.id===person.id?" · Confirmado":""}</span>
+                  </button>
+                ))}
+              </div>}
+              {avaladorResolved&&<p role="status" className="rounded-xl border border-neon/35 bg-neon/10 p-3 text-sm">
+                Socio avalador confirmado: <b>{avaladorResolved.first_name} {avaladorResolved.last_name}</b> · Nº {avaladorResolved.member_number}
+              </p>}
+              {avaladorLookupError&&<p role="alert" className="text-xs text-destructive">{avaladorLookupError}</p>}
+            </div>
+          )}
         </section>
 
         {/* Plan */}

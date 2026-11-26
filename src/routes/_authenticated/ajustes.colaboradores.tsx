@@ -1,3 +1,4 @@
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
@@ -56,6 +57,27 @@ function ColaboradoresPage() {
   const [fullName, setFullName] = useState("");
   const [surname, setSurname] = useState("");
   const [perms, setPerms] = useState<Perm[]>(["manage_members", "use_cash"]);
+  useVoiceToolPort(
+    "admin.collaborator_invite",
+    {
+      ready: () => isAdmin && !loading && !busy,
+      baseline: () => ({ first_name: "", last_name: "", email: "" }),
+      snapshot: () => ({ first_name: fullName, last_name: surname, email }),
+      patch: (values) => {
+        if (
+          !isAdmin ||
+          busy ||
+          Object.keys(values).some((key) => !["first_name", "last_name", "email"].includes(key))
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (values.first_name !== undefined) setFullName(values.first_name);
+        if (values.last_name !== undefined) setSurname(values.last_name);
+        if (values.email !== undefined) setEmail(values.email);
+      },
+    },
+    String(busy),
+  );
+
   const loadCollaborators = useServerFn(listCollaborators);
   const addCollaborator = useServerFn(createCollaborator);
   const savePermissions = useServerFn(updateCollaboratorPermissions);
@@ -294,7 +316,12 @@ function CollabRow({
               type="button"
               disabled={resetting}
               onClick={async () => {
-                if (!confirm("¿Regenerar un enlace personal de un solo uso? La cuenta y sus permisos se conservarán.")) return;
+                if (
+                  !confirm(
+                    "¿Regenerar un enlace personal de un solo uso? La cuenta y sus permisos se conservarán.",
+                  )
+                )
+                  return;
                 setResetting(true);
                 try {
                   await onPasswordReset(row.id);

@@ -1,16 +1,22 @@
 import { dialogueCases } from "../tests/fixtures/snoop-dialogue-cases.mjs";
 import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 import { privateCatalogCommand } from "../src/lib/private-voice.ts";
+import { clubDayRange } from "../src/lib/cash-summary.ts";
+import { calendarDate } from "../src/lib/member-administration.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3040";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL || (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
+const topupIds=new Set();
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("cash-sessions.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']getRecentWalletTopups["']/g))topupIds.add(match[1]);
+assert.equal(topupIds.size,1);const topupId=[...topupIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
   plan = "20000000-0000-4000-8000-000000000001";
@@ -223,9 +229,11 @@ for (const [name, engine, device] of [
             return { connect() {}, disconnect() {} };
           }
           createAnalyser() {
+            const readyAt=performance.now()+(window.__voice.analyserDelayMs||0);
             return {
               fftSize: 1024,
               getByteTimeDomainData(a) {
+                if(performance.now()<readyAt){a.fill(128);return;}
                 if (!window.__voice.silent) window.__voice.speechSamples++;
                 a.fill(window.__voice.silent ? 128 : 144);
               },
@@ -247,6 +255,11 @@ for (const [name, engine, device] of [
           (!api.pathname.replace(/\/$/, "") ||
             u.pathname.startsWith(api.pathname.replace(/\/$/, "") + "/"));
       if (u.origin !== new URL(base).origin && !isApi) return route.abort();
+      if(u.pathname.includes(topupId)) {
+        assert.equal(req.method(),"POST");
+        assert.deepEqual(fromJSON(JSON.parse(req.postData())).data,{limit:100});
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({result:[],context:{}})});
+      }
       if (u.pathname.includes("_serverFn")) {
         let result = {
           ...(aiDialogue ? { pilot: true, real: false } : {}),
@@ -350,11 +363,27 @@ for (const [name, engine, device] of [
         });
       }
       if (!isApi) return route.continue();
+      // The current report route also reads inventory valuation. This is an
+      // explicit authenticated read contract, not an exception for arbitrary RPCs.
+      if (u.pathname.endsWith("/rpc/snoop_inventory_cost_report")) {
+        assert.equal(req.method(), "POST");
+        assert.equal(req.headers()["authorization"], `Bearer ${auth.access_token}`);
+        const body=JSON.parse(req.postData());
+        assert.deepEqual(Object.keys(body),["p_day"]);
+        assert.equal(calendarDate(body.p_day),body.p_day);
+        const {start,end}=clubDayRange(body.p_day);
+        const zeroValues={opening_eur:0,incoming_eur:0,outgoing_eur:0,closing_eur:0,opening_sale_eur:0,incoming_sale_eur:0,outgoing_sale_eur:0,closing_sale_eur:0,closing_expected_profit_eur:0};
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({
+          day:body.p_day,start_at:start,end_at:end,cost_basis:"current_purchase_price",...zeroValues,
+          missing_sale_price:1,missing_cost:1,invalid_quantities:0,
+          lines:[{id:"60000000-0000-4000-8000-000000000001",name:"Amnesia Haze",opening_qty:20,incoming_qty:0,outgoing_qty:0,closing_qty:20,cost:0,sale_price:0,product_cost_eur:0,expected_sale_eur:0,expected_profit_eur:0,unpriced:true,unpriced_sale:true}],
+        })});
+      }
       if (aiDialogue && req.method() === "POST" && u.pathname.includes("/rpc/")) {
         const rpc = u.pathname.split("/").at(-1);
         assert.ok(
           ["snoop_access_context", "current_club_id"].includes(rpc),
-          "unexpected mutation/unmodeled RPC in read-only dialogue",
+          "unexpected mutation/unmodeled RPC in read-only dialogue: " + rpc,
         );
       }
       let data = [];
@@ -362,7 +391,8 @@ for (const [name, engine, device] of [
         req.method() !== "GET" &&
         (!u.pathname.includes("/rpc/") ||
           u.pathname.endsWith("/rpc/save_membership_with_receipt") ||
-          u.pathname.endsWith("/rpc/confirm_membership_with_receipt")) &&
+          u.pathname.endsWith("/rpc/confirm_membership_with_receipt") ||
+          u.pathname.endsWith("/rpc/snoop_register_member_with_avalador")) &&
         !u.pathname.includes("/auth/")
       )
         writes++;
@@ -474,7 +504,7 @@ for (const [name, engine, device] of [
     async function start() {
       await page.waitForLoadState("networkidle");
       if (new URL(page.url()).pathname === "/")
-        await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
+        await page.getByRole("heading", { name: "Bienvenido, Club Sintético", exact: true }).waitFor();
       await begin();
       try {
         await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
@@ -1150,16 +1180,25 @@ for (const [name, engine, device] of [
           iconWidth: i.width,
           iconHeight: i.height,
           labelTop: l.top,
+          iconContained:i.left>=r.left&&i.right<=r.right&&i.top>=r.top&&i.bottom<=r.bottom,
         };
       }),
     );
-    for (const field of ["width", "top", "height", "iconWidth", "iconHeight", "labelTop"])
+    for (const field of ["width", "top", "height"])
       assert.ok(
         Math.max(...dockGeometry.map((r) => r[field])) -
           Math.min(...dockGeometry.map((r) => r[field])) <
           1,
         `equal dock ${field}`,
       );
+
+    // Current approved artwork has a branded SNOOP mark and larger QR glyph.
+    // Interactive columns stay equal; do not replace the released artwork to
+    // satisfy an obsolete requirement that every inner SVG have the same size.
+    for(const item of dockGeometry) {
+      assert(item.width>=44&&item.height>=44,"Every dock action has a full touch target");
+      assert(item.iconWidth>=20&&item.iconHeight>=20&&item.iconContained,"Approved icon remains legible inside its own column");
+    }
 
     await page.evaluate(() => window.dispatchEvent(new Event("snoop:voice-open")));
     assert.equal(
@@ -1215,12 +1254,24 @@ for (const [name, engine, device] of [
     ];
     for (const [command, path] of automaticCommands) {
       transcript = command;
-      await page.evaluate(() => (window.__voice.silent = false));
+      // Recording state alone cannot prove that the VAD sampled synthetic speech.
+      // Delay the first analyser beyond the old 400ms wall-clock speech window,
+      // then wait for actual speech samples rather than assuming a timer elapsed.
+      await page.evaluate(delay => {
+        window.__voice.silent=true;
+        window.__voice.analyserDelayMs=delay;
+      },command==="Crear socio"?700:0);
       const before = audioCalls;
       await requestStart();
-      await page.getByRole("button", { name: "Apagar SNOOP", exact: true }).waitFor();
-      await page.waitForTimeout(400);
-      await page.evaluate(() => (window.__voice.silent = true));
+      await page.waitForFunction(() => document.querySelector('.premium-voice-panel[data-phase="recording"], .snoop-listening[data-phase="recording"]'));
+      const speechBefore=await page.evaluate(()=>window.__voice.speechSamples);
+      await page.evaluate(() => (window.__voice.silent = false));
+      try {
+        await page.waitForFunction(baseline=>window.__voice.speechSamples>=baseline+4,speechBefore,{timeout:10000});
+      } finally {
+        await page.evaluate(() => (window.__voice.silent = true));
+      }
+      await page.evaluate(() => (window.__voice.analyserDelayMs = 0));
       await page.waitForURL(base + path);
       await page.getByRole("dialog", { name: "SNOOP", exact: true }).waitFor({ state: "hidden" });
       assert.equal(
@@ -1279,22 +1330,22 @@ for (const [name, engine, device] of [
       await page.getByRole("combobox", { name: "Categoría", exact: true }).inputValue(),
       plan,
     );
-    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("Cantidad inicial (unit)", { exact: true }).inputValue(), "25");
     assert.equal(await page.getByLabel("P. venta €", { exact: true }).inputValue(), "10.5");
     await say("No, el precio es cinco euros con veinte");
     await page.waitForFunction(
       () => document.querySelector('input[aria-label="P. venta €"]')?.value === "5.2",
     );
-    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("Cantidad inicial (unit)", { exact: true }).inputValue(), "25");
     const productName = page.getByPlaceholder("ej. Amnesia Haze");
     await say("Crea un prodotto Quaderno, categoria Material, quantità venticinque");
     await page.waitForFunction(
       () => document.querySelector('input[placeholder="ej. Amnesia Haze"]')?.value === "Quaderno",
     );
-    assert.equal(await page.getByLabel("Stock (unit)", { exact: true }).inputValue(), "25");
+    assert.equal(await page.getByLabel("Cantidad inicial (unit)", { exact: true }).inputValue(), "25");
     await say("No, lo stock è zero");
     await page.waitForFunction(
-      () => document.querySelector('input[aria-label="Stock (unit)"]')?.value === "",
+      () => document.querySelector('input[aria-label="Cantidad inicial (unit)"]')?.value === "",
     );
     assert.equal(await productName.inputValue(), "Quaderno");
     assert.equal(writes, 0);
@@ -1499,7 +1550,7 @@ for (const [name, engine, device] of [
       .getByRole("link", { name: "Home", exact: true })
       .click();
     await page.waitForURL(base + "/");
-    await page.getByRole("heading", { name: "Club Sintético", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Bienvenido, Club Sintético", exact: true }).waitFor();
     denied = true;
     await page.reload({ waitUntil: "networkidle" });
     const readBefore = memberReads;

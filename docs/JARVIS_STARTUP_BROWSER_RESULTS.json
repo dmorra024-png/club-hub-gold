@@ -1,0 +1,62 @@
+[
+  {
+    "browser": "samsung",
+    "scenario": "pending-resume",
+    "syntheticAuth": true,
+    "syntheticProvider": true,
+    "syntheticMediaStream": false,
+    "physicalMicrophone": false,
+    "physicalSpeaker": false,
+    "liveDeepgram": false,
+    "inputBytes": 8192,
+    "inputSignal": false,
+    "outputRms": null,
+    "automaticWrites": 0,
+    "result": "PASS"
+  },
+  {
+    "browser": "iphone-webkit",
+    "scenario": "pending-resume",
+    "syntheticAuth": true,
+    "syntheticProvider": true,
+    "syntheticMediaStream": false,
+    "physicalMicrophone": false,
+    "physicalSpeaker": false,
+    "liveDeepgram": false,
+    "inputBytes": 12288,
+    "inputSignal": false,
+    "outputRms": null,
+    "automaticWrites": 0,
+    "result": "PASS"
+  },
+  {
+    "browser": "desktop-chromium",
+    "scenario": "pending-resume",
+    "syntheticAuth": true,
+    "syntheticProvider": true,
+    "syntheticMediaStream": false,
+    "physicalMicrophone": false,
+    "physicalSpeaker": false,
+    "liveDeepgram": false,
+    "inputBytes": 8192,
+    "inputSignal": false,
+    "outputRms": null,
+    "automaticWrites": 0,
+    "result": "PASS"
+  },
+  {
+    "browser": "tablet-webkit",
+    "scenario": "pending-resume",
+    "syntheticAuth": true,
+    "syntheticProvider": true,
+    "syntheticMediaStream": false,
+    "physicalMicrophone": false,
+    "physicalSpeaker": false,
+    "liveDeepgram": false,
+    "inputBytes": 12288,
+    "inputSignal": false,
+    "outputRms": null,
+    "automaticWrites": 0,
+    "result": "PASS"
+  }
+]

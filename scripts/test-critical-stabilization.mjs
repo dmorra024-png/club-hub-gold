@@ -1,6 +1,6 @@
 import { cashBrowserFixture } from "./lib/cash-browser-fixture.mjs";
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fromJSON } from "seroval";
 import { chromium, webkit, devices } from "playwright-core";
@@ -13,6 +13,10 @@ const configured =
     : "/sandbox-api");
 const api = new URL(configured, base),
   prefix = api.pathname.replace(/\/$/, "");
+const invitationIds=new Set();
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("socio-invitation-email.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']sendSocioInvitationEmail["']/g))invitationIds.add(match[1]);
+assert.equal(invitationIds.size,1);const invitationId=[...invitationIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001",
   cat = "20000000-0000-4000-8000-000000000001",
@@ -37,6 +41,25 @@ const auth = {
   token_type: "bearer",
 };
 
+async function settledViewport(page) {
+  // Native resize, the hook's RAF and React paint must complete before reading layout.
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 3; frame++)
+      await new Promise(requestAnimationFrame);
+  });
+}
+async function viewportSnapshot(page) {
+  return JSON.stringify(await page.evaluate(() => ({
+    innerHeight, innerWidth,
+    keyboard: document.body.dataset.snoopKeyboard,
+    visible: window.visualViewport.height,
+    offset: window.visualViewport.offsetTop,
+    scale: window.visualViewport.scale,
+    focused: document.activeElement?.tagName,
+    field: document.activeElement?.getAttribute("aria-label"),
+    navHidden: document.querySelector('nav[aria-label="Navegación principal"]')?.hidden,
+  })));
+}
 const results = [];
 await mkdir("docs/screenshots", { recursive: true });
 for (const [label, engine, device] of [
@@ -63,6 +86,7 @@ for (const [label, engine, device] of [
       writes = 0,
       staff = false,
       mailState = "pending",
+      invitationSends=0,
       activeClub = club;
     await context.addInitScript(
       ({ auth, key }) => {
@@ -82,6 +106,11 @@ for (const [label, engine, device] of [
         u = new URL(req.url()),
         isApi = u.origin === api.origin && (!prefix || u.pathname.startsWith(prefix + "/"));
       if (u.origin !== new URL(base).origin && !isApi) return route.abort();
+      if(u.pathname.includes(invitationId)) {
+        assert.deepEqual(fromJSON(JSON.parse(req.postData())).data,{memberId:pid});
+        invitationSends++;
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{status:mailState},context:{}})});
+      }
       if (u.pathname.includes("_serverFn")) {
         let result = req.headers().referer?.includes("/ajustes/")
           ? []
@@ -92,7 +121,7 @@ for (const [label, engine, device] of [
             return route.fulfill({
               contentType: "application/json",
               body: JSON.stringify({
-                result: { status: mailState, attempts: 1, error_code: null },
+                result: { enabled:false,clubEnabled:false,balanceCents:null,cashSessionId:null },
                 context: {},
               }),
             });
@@ -333,6 +362,11 @@ for (const [label, engine, device] of [
         assert.equal(await input.inputValue(), "Synthetic draft");
         const nav = page.getByRole("navigation", { name: "Navegación principal" });
         assert.equal(await nav.isVisible(), false, "Bottom navigation hides for overlay keyboard");
+        const room = await page.locator("main.premium-main").evaluate(main => ({
+          padding:parseFloat(getComputedStyle(main).paddingBottom),
+          inset:parseFloat(document.documentElement.style.getPropertyValue("--snoop-keyboard-inset"))||0,
+        }));
+        assert(room.padding >= room.inset + 23, `${path} must retain keyboard scroll room: ${JSON.stringify(room)}`);
         const box = await input.boundingBox();
         assert.ok(
           box.y >= 0 && box.y + box.height <= 300,
@@ -347,8 +381,8 @@ for (const [label, engine, device] of [
           window.visualViewport.height = innerHeight;
           window.visualViewport.dispatchEvent(new Event("resize"));
         });
-        await page.waitForTimeout(200);
-        assert.equal(await nav.isVisible(), true);
+        await settledViewport(page);
+        assert.equal(await nav.isVisible(), true, `${path}: ${await viewportSnapshot(page)}`);
         // Resize-content keyboards (Chromium) and a VisualViewport scroll/pan event.
         await input.focus();
         const size = page.viewportSize();
@@ -358,10 +392,10 @@ for (const [label, engine, device] of [
           window.visualViewport.offsetTop = 10;
           window.visualViewport.dispatchEvent(new Event("scroll"));
         });
-        await page.waitForTimeout(200);
-        assert.equal(await nav.isVisible(), false);
+        await settledViewport(page);
+        assert.equal(await nav.isVisible(), false, `${path}: ${await viewportSnapshot(page)}`);
         const shrunk = await input.boundingBox();
-        assert.ok(shrunk.y >= 10 && shrunk.y + shrunk.height <= 460);
+        assert.ok(shrunk.y >= 10 && shrunk.y + shrunk.height <= 460, `${path}: field outside settled viewport ${JSON.stringify(shrunk)}`);
         await input.blur();
         await page.setViewportSize(size);
         await page.evaluate(() => {
@@ -369,8 +403,8 @@ for (const [label, engine, device] of [
           window.visualViewport.offsetTop = 0;
           window.visualViewport.dispatchEvent(new Event("resize"));
         });
-        await page.waitForTimeout(200);
-        assert.equal(await nav.isVisible(), true);
+        await settledViewport(page);
+        assert.equal(await nav.isVisible(), true, `${path}: ${await viewportSnapshot(page)}`);
       }
       await page.goto(base + "/caja", { waitUntil: "networkidle" });
       const fallbackInput = page.locator('input[inputmode="decimal"]').first();
@@ -408,25 +442,17 @@ for (const [label, engine, device] of [
       assert.doesNotMatch(await page.locator("main").innerText(), /42,50|Operador sintético B/);
       staff = false;
       await page.goto(base + "/soci/" + pid, { waitUntil: "networkidle" });
+      assert.equal(invitationSends,0,"Invitation cannot be sent automatically");
+      const invite=page.getByRole("button",{name:"Enviar email App Socio",exact:true});
       for (const state of ["pending", "accepted", "delivered", "error", "unknown"]) {
-        mailState = state;
-        await page
-          .getByRole("button", { name: "Consultar estado del email QR", exact: true })
-          .click();
-        const status = page.getByRole("status").filter({
-          hasText:
-            state === "pending"
-              ? "Pendiente"
-              : state === "accepted"
-                ? "no confirmada"
-                : state === "delivered"
-                  ? "confirmado"
-                  : state === "error"
-                    ? "Error de envío"
-                    : "Resultado incierto",
-        });
-        await status.waitFor();
+        mailState=state;
+        await invite.click();
+        const status=invite.locator("..").getByRole("status");
+        await status.filter({hasText:state==="accepted"?"El proveedor ha aceptado":"Envío no confirmado"}).waitFor();
+        assert.doesNotMatch(await status.innerText(),/entregado|entregada|delivered/i,
+          "Request acceptance is never proof of delivery");
       }
+      assert.equal(invitationSends,5,"Only the five explicit requests were issued to the simulated server");
       await page.screenshot({
         path: `docs/screenshots/critical-mail-${label}.png`,
         fullPage: true,
@@ -434,7 +460,7 @@ for (const [label, engine, device] of [
       });
       results.push({
         device: label,
-        case: "actual member QR email status UI: pending/accepted/delivered/error/unknown remain distinct",
+        case: "current invitation UI: only accepted is acknowledged; invalid/pending/error/unknown responses cannot claim delivery (legacy queue states remain unit-tested)",
         result: "PASS",
       });
       results.push({

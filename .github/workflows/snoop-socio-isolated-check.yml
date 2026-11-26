@@ -1,0 +1,205 @@
+name: SNOOP Socio isolated scaffold checks
+on:
+  push:
+    branches: [feature/snoop-socio-app-design-20261117]
+    paths:
+      - apps/socio/**
+      - .github/workflows/snoop-socio-isolated-check.yml
+  pull_request:
+    paths:
+      - apps/socio/**
+      - .github/workflows/snoop-socio-isolated-check.yml
+permissions:
+  contents: read
+jobs:
+  static-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate isolated member app without production secrets or API
+        run: node apps/socio/check.mjs
+      - name: Verify isolated membership, QR and wallet guards
+        run: node --test apps/socio/domain.test.mjs apps/socio/service.test.mjs apps/socio/auto-link.test.mjs apps/socio/http.test.mjs apps/socio/integration.test.mjs apps/socio/auth-supabase.test.mjs apps/socio/supabase-rls.test.mjs apps/socio/bootstrap.test.mjs apps/socio/socio-role.test.mjs apps/socio/worker.test.mjs apps/socio/build-public.test.mjs apps/socio/wallet-operations.test.mjs apps/socio/claim-challenges.test.mjs apps/socio/wallet-http.test.mjs apps/socio/cash-shifts.test.mjs apps/socio/wallet-cash-guards.test.mjs apps/socio/staff-scanner-http.test.mjs apps/socio/build-offline-demo.test.mjs apps/socio/staff-claim-http.test.mjs apps/socio/supabase-scanner-rpc.test.mjs apps/socio/supabase-wallet-topup.test.mjs apps/socio/wallet-cash-reconciliation.test.mjs apps/socio/staff-wallet-topup-app.test.mjs apps/socio/supabase-wallet-operations.test.mjs apps/socio/staff-wallet-operations-app.test.mjs apps/socio/staff-wallet-checkout-http.test.mjs
+      - name: No deployment
+        run: echo "Static-only checks; no Cloudflare deployment or Supabase mutations"
+
+  bundle-staging-dry-run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - name: Install locked dependencies (staging only)
+        run: bun install --frozen-lockfile
+      - name: Package public member assets
+        run: node apps/socio/build-public.mjs
+      - name: Compile isolated staging Worker without deploying
+        run: bunx wrangler deploy --dry-run --config apps/socio/wrangler.staging.jsonc --outdir "$GITHUB_WORKSPACE/.sandbox/socio-worker-dry-run"
+      - name: Scan compiled output for secrets (no credentials supplied)
+        run: |
+          test -d .sandbox/socio-worker-dry-run
+          test -n "$(find .sandbox/socio-worker-dry-run -type f \( -name '*.js' -o -name '*.mjs' \) -print -quit)"
+          if grep -R -E 'sb_secret_|SUPABASE_SERVICE_ROLE_KEY|DEEPGRAM_API_KEY|SOCIO_QR_SIGNING_KEY_BASE64=' .sandbox/socio-worker-dry-run; then
+            echo "Unexpected secret marker in isolated Worker bundle"
+            exit 1
+          fi
+      - name: Package downloadable client preview with instructions
+        run: |
+          mkdir -p .sandbox/snoop-socio-download
+          cp apps/socio/dist/index.html apps/socio/dist/styles.css apps/socio/dist/main.js apps/socio/dist/manifest.webmanifest apps/socio/dist/sw.js apps/socio/dist/icon.svg .sandbox/snoop-socio-download/
+          cat > .sandbox/snoop-socio-download/LEGGIMI.txt <<'INFO'
+          SNOOP SOCIO — PWA CLIENT (ANTEPRIMA TECNICA)
+          Questo pacchetto contiene solo l'interfaccia client originale SNOOP Socio.
+          NON e' un APK, non contiene account demo e non include dati reali dei soci.
+          Per installare la PWA su Android e iPhone, va pubblicata su un dominio HTTPS
+          con il backend /api/socio configurato, verifiche email e database autorizzato.
+          Aprire index.html come file locale NON attiva login, QR, saldo o Monedero.
+          Non usare questo pacchetto per operazioni reali o distribuzione ai soci.
+          NESSUN deposito di credenziali, chiavi API o dati personali nel pacchetto.
+          INFO
+      - name: Build verified standalone offline demo (fake data only)
+        run: node apps/socio/build-offline-demo.mjs .sandbox/snoop-socio-download/SNOOP-Socio-Demo.html
+      - name: Include demo instructions and isolated test credentials
+        run: |
+          cat > .sandbox/snoop-socio-download/DEMO-ISTRUZIONI.txt <<'INFO'
+          SNOOP SOCIO · DEMO COMPLETAMENTE OFFLINE
+          Apri SNOOP-Socio-Demo.html con Chrome sul telefono o computer.
+          Email: socio.demo@snoop.test
+          Password: SnoopDemo2026!
+          L'accesso vale solo nella demo; tutti i club, QR e saldi sono FINTI.
+          La tessera di esempio NON e' un QR valido e non si puo' scansionare.
+          NON usare con soci reali. Nessun backend o database viene contattato.
+          INFO
+      - name: Upload downloadable SNOOP Socio client preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-socio-client-preview
+          path: .sandbox/snoop-socio-download/
+          if-no-files-found: error
+          retention-days: 30
+      - name: No deployment or database connection
+        run: echo "Staging packaging only; no network calls to private project"
+
+  mobile-browser-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.12'
+      - name: Install pinned dependencies
+        run: bun install --frozen-lockfile
+      - name: Install pinned browser runner in isolated Socio directory
+        run: npm install --prefix apps/socio --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright-core@1.57.0
+      - name: Install Chromium and WebKit browser engines
+        shell: bash
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS "$(command -v node)" scripts/prepare-ci-ubuntu-mirrors.mjs
+          apps/socio/node_modules/.bin/playwright-core install --with-deps chromium webkit
+      - name: Real member frontend on Android-sized Chromium and iPhone-sized WebKit
+        run: node apps/socio/browser-acceptance.mjs
+      - name: Save synthetic mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snoop-socio-mobile-browser
+          path: .sandbox/socio-browser/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Never deploy
+        run: echo "Local browser test with intercepted fake API; no staging or production deployment"
+
+  sql-schema-isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: snoop_socio_sql
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: only_synthetic_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d snoop_socio_sql"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: only_synthetic_ci
+      PGDATABASE: snoop_socio_sql
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install PostgreSQL client if unavailable
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client)
+      - name: Create minimal sandbox schema (never live production)
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_BOOTSTRAP.sql
+      - name: Compile standalone Socio proposal on PostgreSQL 16
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/REVIEW_ONLY.sql
+      - name: Assert tenant isolation, RLS, restricted writes and no cross-club links
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_ASSERTIONS.sql
+      - name: Compile isolated staff and member claim procedures
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/CLAIM_RPCS_REVIEW_ONLY.sql
+      - name: Verify issuance, verified account claim and one-use protection
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_CLAIM.sql
+      - name: Compile minimal membership card sync procedure in isolated database
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/CARD_SYNC_REVIEW_ONLY.sql
+      - name: Verify member renewal/expiry and optional wallet projection
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_CARD_SYNC.sql
+      - name: Compile QR scanner atomic verification and replay RPC
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/SCANNER_RPC_REVIEW_ONLY.sql
+      - name: Verify same-club staff scanning and reject QR replay
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_SCANNER.sql
+      - name: Compile wallet topup transaction and default-deny operator permissions
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_TOPUP_REVIEW_ONLY.sql
+      - name: Verify transactional topup, replay, cash closure and authorization
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_TOPUP.sql
+      - name: Compile wallet settlement spend and audited refund RPC drafts
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_ORDER_SETTLEMENT_REVIEW_ONLY.sql
+      - name: Verify proven wallet spend and single audited cancellation refund
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ORDERS.sql
+      - name: Bootstrap fake SNOOP order/stock contracts only inside disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ATOMIC_BOOTSTRAP.sql
+      - name: Compile atomic wallet order plus cancellation draft with no runtime grants
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_ATOMIC_ORDER_INTEGRATION_REVIEW_ONLY.sql
+      - name: Verify single-transaction order/debit and cancellation/refund rollback
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_ATOMIC.sql
+      - name: Compile staff-only wallet status and verified cash evidence
+        run: |
+          psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_STAFF_STATUS_REVIEW_ONLY.sql
+          psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_CASH_EVIDENCE_REVIEW_ONLY.sql
+      - name: Verify staff wallet read, topup accounting and tenant denial
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_MANAGER_READS.sql
+      - name: Compile club-wide admin settings with no member toggles
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_CLUB_CONFIGURATION_REVIEW_ONLY.sql
+      - name: Validate all active members share club setting and preserve existing balances
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_CLUB_CONFIGURATION.sql
+      - name: Compile automatic wallet enrolment for future members
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/WALLET_FUTURE_MEMBERS_AUTO_SYNC.sql
+      - name: Verify new and renewed members inherit club-level wallet
+        run: psql -v ON_ERROR_STOP=1 -f apps/socio/schema/ISOLATED_TEST_WALLET_AUTO_SYNC.sql
+      - name: No Supabase modifications
+        run: echo "Only ephemeral local PostgreSQL container; no production database access"

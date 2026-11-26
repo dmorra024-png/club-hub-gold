@@ -20,6 +20,8 @@ export class VoiceTransport {
   private queue: ArrayBuffer[] = [];
   private queuedBytes = 0;
   private speechMs = 0;
+  private sentInputFrames = 0;
+  private sentInputBytes = 0;
   private options: {
     url: string;
     sampleRate: number;
@@ -46,6 +48,17 @@ export class VoiceTransport {
   }) {
     this.options = options;
     this.resumeToken = options.resume;
+  }
+  diagnostics() {
+    return {
+      connected: this.ready,
+      reconnecting: this.connecting,
+      paused: this.paused,
+      queuedInputBytes: this.queuedBytes,
+      attempts: this.attempts,
+      sentInputFrames: this.sentInputFrames,
+      sentInputBytes: this.sentInputBytes,
+    };
   }
   get checkpoint() {
     return this.resumeToken;
@@ -216,6 +229,8 @@ export class VoiceTransport {
       const frame = this.queue.shift()!;
       this.queuedBytes -= frame.byteLength;
       ws.send(frame);
+      this.sentInputFrames++;
+      this.sentInputBytes += frame.byteLength;
     }
   }
   send(message: unknown) {

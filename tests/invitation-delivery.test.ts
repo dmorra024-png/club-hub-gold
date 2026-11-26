@@ -34,7 +34,7 @@ test("provider acceptance requires success status AND provider message ID", asyn
   let calls = 0;
   globalThis.fetch = async (_input, init) => {
     calls++;
-    assert.equal(init?.redirect, "error");
+    assert.equal(init?.redirect, "manual");
     const body = JSON.parse(init?.body as string);
     assert.equal(body.text.includes(link), true);
     assert.deepEqual(body.to, ["person@example.test"]);

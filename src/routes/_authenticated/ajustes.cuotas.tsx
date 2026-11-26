@@ -1,6 +1,9 @@
+import { useCommittedEffect } from "@/hooks/useCommittedEffect";
+import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
+import { parseCashCents } from "@/lib/member-administration";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus, Save, Trash2 } from "lucide-react";
@@ -24,12 +27,62 @@ function PianiPage() {
   const { isAdmin } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [editing, setEditing] = useState<Plan | null>(null);
+  const newVoicePlan = useRef<Plan | null>(null);
+  useCommittedEffect(() => {
+    if (!editing) newVoicePlan.current = null;
+  }, [editing]);
+  const planValues = (plan: Plan | null) => ({
+    name: plan?.name ?? "",
+    duration_days: String(plan?.duration_days ?? 30),
+    price: String((plan?.price_cents ?? 2000) / 100),
+  });
+  useVoiceToolPort(
+    "admin.membership_fee",
+    {
+      refresh:load,
+      ready: () => isAdmin,
+      baseline: () =>
+        planValues(
+          plans.find((plan) => plan.id === editing?.id) ?? (editing ? newVoicePlan.current : null),
+        ),
+      snapshot: () => planValues(editing),
+      patch: (values) => {
+        if (
+          !isAdmin ||
+          Object.keys(values).some((key) => !["name", "duration_days", "price"].includes(key))
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        const cents = values.price === undefined ? undefined : parseCashCents(values.price);
+        if (cents === null) throw Error("SNOOP_INVALID_AMOUNT");
+        const next = {
+          ...(editing ?? {
+            id: "",
+            name: "",
+            duration_days: 30,
+            price_cents: 2000,
+            active: true,
+            sort_order: plans.length + 1,
+          }),
+          ...(values.name === undefined ? {} : { name: values.name }),
+          ...(values.duration_days === undefined
+            ? {}
+            : { duration_days: Number(values.duration_days) }),
+          ...(cents === undefined ? {} : { price_cents: cents }),
+        };
+        if (!editing) newVoicePlan.current = next;
+        setEditing(next);
+      },
+    },
+    editing ? editing.id || "draft" : "closed",
+  );
 
   async function load() {
     const { data } = await supabase.from("membership_plans").select("*").order("sort_order");
     setPlans((data as any) ?? []);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function save(p: Plan) {
     const { getCurrentClubId } = await import("@/lib/club");
@@ -60,24 +113,54 @@ function PianiPage() {
   }
 
   if (!isAdmin) {
-    return <SnoopLayout title="Cuotas"><div className="text-muted-foreground">Sólo el administrador puede gestionar las cuotas.</div></SnoopLayout>;
+    return (
+      <SnoopLayout title="Cuotas">
+        <div className="text-muted-foreground">
+          Sólo el administrador puede gestionar las cuotas.
+        </div>
+      </SnoopLayout>
+    );
   }
 
   return (
     <SnoopLayout title="Cuotas" subtitle="Gestiona las modalidades de inscripción">
       <div className="grid gap-3 max-w-3xl">
         {plans.map((p) => (
-          <div key={p.id} className="flex items-center gap-4 bg-card/60 border border-neon/20 rounded-xl p-4">
+          <div
+            key={p.id}
+            className="flex items-center gap-4 bg-card/60 border border-neon/20 rounded-xl p-4"
+          >
             <div className="flex-1">
               <div className="font-display text-foreground">{p.name}</div>
-              <div className="text-xs text-muted-foreground">{p.duration_days} días · {formatPrice(p.price_cents)} {!p.active && "· inactiva"}</div>
+              <div className="text-xs text-muted-foreground">
+                {p.duration_days} días · {formatPrice(p.price_cents)} {!p.active && "· inactiva"}
+              </div>
             </div>
-            <button onClick={() => setEditing(p)} className="text-xs uppercase tracking-widest text-neon hover:text-glow-neon">Editar</button>
-            <button onClick={() => remove(p.id)} className="text-destructive hover:text-destructive/80"><Trash2 className="w-4 h-4" /></button>
+            <button
+              onClick={() => setEditing(p)}
+              className="text-xs uppercase tracking-widest text-neon hover:text-glow-neon"
+            >
+              Editar
+            </button>
+            <button
+              onClick={() => remove(p.id)}
+              className="text-destructive hover:text-destructive/80"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         ))}
         <button
-          onClick={() => setEditing({ id: "", name: "", duration_days: 30, price_cents: 2000, active: true, sort_order: plans.length + 1 })}
+          onClick={() =>
+            setEditing({
+              id: "",
+              name: "",
+              duration_days: 30,
+              price_cents: 2000,
+              active: true,
+              sort_order: plans.length + 1,
+            })
+          }
           className="flex items-center justify-center gap-2 border-2 border-dashed border-neon/30 hover:border-neon/60 hover:bg-neon/5 rounded-xl py-4 text-sm text-neon font-display uppercase tracking-widest"
         >
           <Plus className="w-4 h-4" /> Nueva cuota
@@ -87,20 +170,56 @@ function PianiPage() {
       {editing && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 p-4">
           <div className="bg-card border border-neon/40 rounded-2xl p-6 max-w-md w-full glow-neon-soft">
-            <h2 className="font-display text-lg mb-4">{editing.id ? "Editar cuota" : "Nueva cuota"}</h2>
+            <h2 className="font-display text-lg mb-4">
+              {editing.id ? "Editar cuota" : "Nueva cuota"}
+            </h2>
             <div className="space-y-3">
-              <Inp label="Nombre" value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} />
-              <Inp label="Duración (días)" type="number" value={String(editing.duration_days)} onChange={(v) => setEditing({ ...editing, duration_days: parseInt(v) || 0 })} />
-              <Inp label="Precio (€)" type="number" value={(editing.price_cents / 100).toString()} onChange={(v) => setEditing({ ...editing, price_cents: Math.round(parseFloat(v) * 100) || 0 })} />
-              <Inp label="Orden" type="number" value={String(editing.sort_order)} onChange={(v) => setEditing({ ...editing, sort_order: parseInt(v) || 0 })} />
+              <Inp
+                label="Nombre"
+                value={editing.name}
+                onChange={(v) => setEditing({ ...editing, name: v })}
+              />
+              <Inp
+                label="Duración (días)"
+                type="number"
+                value={String(editing.duration_days)}
+                onChange={(v) => setEditing({ ...editing, duration_days: parseInt(v) || 0 })}
+              />
+              <Inp
+                label="Precio (€)"
+                type="number"
+                value={(editing.price_cents / 100).toString()}
+                onChange={(v) =>
+                  setEditing({ ...editing, price_cents: Math.round(parseFloat(v) * 100) || 0 })
+                }
+              />
+              <Inp
+                label="Orden"
+                type="number"
+                value={String(editing.sort_order)}
+                onChange={(v) => setEditing({ ...editing, sort_order: parseInt(v) || 0 })}
+              />
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} className="accent-[oklch(0.86_0.28_145)]" />
+                <input
+                  type="checkbox"
+                  checked={editing.active}
+                  onChange={(e) => setEditing({ ...editing, active: e.target.checked })}
+                  className="accent-[oklch(0.86_0.28_145)]"
+                />
                 Activa
               </label>
             </div>
             <div className="flex gap-2 mt-6">
-              <button onClick={() => setEditing(null)} className="flex-1 border border-border text-muted-foreground py-2 rounded-md text-xs uppercase tracking-widest">Cancelar</button>
-              <button onClick={() => save(editing)} className="flex-1 bg-gradient-neon text-primary-foreground py-2 rounded-md text-xs uppercase tracking-widest font-semibold flex items-center justify-center gap-2 glow-neon">
+              <button
+                onClick={() => setEditing(null)}
+                className="flex-1 border border-border text-muted-foreground py-2 rounded-md text-xs uppercase tracking-widest"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => save(editing)}
+                className="flex-1 bg-gradient-neon text-primary-foreground py-2 rounded-md text-xs uppercase tracking-widest font-semibold flex items-center justify-center gap-2 glow-neon"
+              >
                 <Save className="w-3 h-3" /> Guardar
               </button>
             </div>
@@ -111,12 +230,28 @@ function PianiPage() {
   );
 }
 
-function Inp({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function Inp({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1.5">{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none" />
+      <span className="block text-[10px] uppercase tracking-[0.3em] text-neon-dim mb-1.5">
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm focus:border-neon outline-none"
+      />
     </label>
   );
 }

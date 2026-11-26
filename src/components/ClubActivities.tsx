@@ -6,8 +6,11 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { UserRound, Wallet, Package, Boxes, ChevronRight } from "lucide-react";
+import { SnoopGoldIcon } from "@/components/SnoopGoldIcon";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getRecentWalletTopups } from "@/lib/cash-sessions.functions";
+import {WalletTopupVoidDialog} from "./WalletTopupVoidDialog";
 import {
   activityRows,
   activitySources,
@@ -34,9 +37,10 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
     ":",
   );
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [selectedTopup,setSelectedTopup]=useState<{id:string;amountCents:number}|null>(null);
   const canAudit = can("manage_members") && (can("use_cash") || can("view_reports"));
   useEffect(() => {
-    setSelectedOrder(null);
+    setSelectedOrder(null);setSelectedTopup(null);
   }, [scope]);
   useEffect(() => {
     const refresh = () => setTick((n) => n + 1);
@@ -56,7 +60,8 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
     async function load() {
       const version = ++request;
       const responses = await Promise.allSettled(
-        sources.map(async (table) => {
+        [
+          ...sources.map(async (table) => {
           const [select, order] = fields[table];
           let query = (supabase.from as any)(table)
             .select(select)
@@ -68,7 +73,11 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
           const { data, error } = await query;
           if (error) throw error;
           return activityRows(table, data || [], access.permissions.includes("use_cash"));
-        }),
+          }),
+          ...(can("use_cash") ? [
+            getRecentWalletTopups({data:{limit:100}}).then(data=>activityRows("wallet_topups",data,true))
+          ] : [])
+        ],
       );
       if (cancelled || version !== request) return;
       const failed = responses.some((r) => r.status === "rejected");
@@ -126,20 +135,43 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
             <li key={item.key}>
               <Link to={item.href} className="premium-activity">
                 <span className="premium-activity-icon">
-                  <Icon aria-hidden="true" />
+                  <span className="snoop-activity-gold-icon"><SnoopGoldIcon kind={item.kind==="cash"?"wallet":item.kind==="product"?"productos":item.kind==="inventory"?"productos":"socios"}/></span>
+                  <span className="snoop-activity-legacy-icon"><Icon aria-hidden="true" /></span>
                 </span>
                 <span className="premium-activity-copy">
                   <span>{item.title}</span>
-                  <small>{item.detail}</small>
+                  <small>{!expanded && item.kind === "cash" && item.detail.startsWith("Importe: ")
+                    ? "Operación registrada"
+                    : item.detail}</small>
                   {item.status === "cancelled" && <FinancialRecordStatus status={item.status} />}
                 </span>
-                <time
-                  dateTime={item.at}
-                  title={new Date(item.at).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}
-                >
-                  {relativeActivityTime(item.at)}
-                </time>
+                <span className="premium-activity-right">
+                  {!expanded && item.kind === "cash" &&
+                    (item.amountCents !== undefined || item.detail.startsWith("Importe: ")) && (
+                    <strong className="premium-activity-amount">
+                      {item.amountCents !== undefined
+                        ? new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(item.amountCents/100)
+                        : item.detail.slice("Importe: ".length)}
+                    </strong>
+                  )}
+                  <time
+                    dateTime={item.at}
+                    title={new Date(item.at).toLocaleString("es-ES", { timeZone: "Europe/Madrid" })}
+                  >
+                    {relativeActivityTime(item.at)}
+                  </time>
+                </span>
               </Link>
+              {expanded && canAudit && item.topupId && item.voidable &&
+                (access.role==="admin" || item.actorId===user?.id) &&
+                can("use_cash") && item.amountCents!==undefined && (
+                  <div className="flex justify-end px-3 pb-3">
+                    <button type="button" className="text-red-400 py-2 text-sm"
+                     onClick={()=>setSelectedTopup({id:item.topupId!,amountCents:item.amountCents!})}>
+                     Anular recarga
+                    </button>
+                  </div>
+              )}
               {expanded && canAudit && item.orderId && (
                 <div className="flex justify-end gap-4 px-3 pb-3 text-sm">
                   <button
@@ -173,6 +205,10 @@ export function ClubActivities({ expanded = false }: { expanded?: boolean }) {
         <p className="premium-empty">
           Últimas 100 actividades. Consulta el historial completo en cada sección.
         </p>
+      )}
+      {selectedTopup && canAudit && (
+        <WalletTopupVoidDialog key={selectedTopup.id} topupId={selectedTopup.id}
+         amountCents={selectedTopup.amountCents} onClose={()=>setSelectedTopup(null)}/>
       )}
       {selectedOrder && canAudit && (
         <FinancialRecordDialog

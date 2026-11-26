@@ -6,7 +6,7 @@ import { fromJSON } from "seroval";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3030";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
-  (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
+  process.env.TEST_SUPABASE_URL || (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
 
@@ -20,6 +20,10 @@ const pilotStatusId = /id:\s*["'`]([a-f0-9]+)["'`],\s*name:\s*["'`]deepgramPilot
   pilotSource,
 )?.[1];
 assert(pilotStatusId, "Read-only pilot status function must be identified exactly");
+const accessIds=new Set();
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("club-access-control.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']getClubAccessControl["']/g))accessIds.add(match[1]);
+assert.equal(accessIds.size,1);const accessId=[...accessIds][0];
 const uid = "00000000-0000-4000-8000-000000000001",
   club = "10000000-0000-4000-8000-000000000001";
 const user = {
@@ -69,6 +73,10 @@ for (const [label, engine, device] of [
         u = new URL(req.url()),
         isApi = u.origin === api.origin;
       if (u.origin !== new URL(base).origin && !isApi) return route.abort();
+      if(u.pathname.endsWith("/"+accessId)){
+        assert.equal(req.method(),"GET");
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({result:{enabled:false},context:{}})});
+      }
       if (u.pathname.includes("_serverFn") && req.method() === "POST") {
         const data = fromJSON(JSON.parse(req.postData())).data;
         assert.equal(data.name, "Genética sintética");

@@ -1,0 +1,105 @@
+-- Disposable Postgres assertions only; requires prior claim fixture.
+\set ON_ERROR_STOP on
+update public.members
+ set member_number='015'
+ where id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+insert into public.socio_club_wallet_settings(club_id,enabled)
+values('4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc',true)
+on conflict (club_id) do update set enabled=excluded.enabled;
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '7dbe4ead-c904-4c52-9fc1-51a9018aeb22',false);
+select public.socio_sync_member_card('935b7336-4bc9-4ba3-88e0-98b04f53ec51') as synced \gset
+select 1/(case when :'synced'='t' then 1 else 0 end) as sync_ok;
+reset role;
+do $assert$
+declare c record;
+begin
+ select * into c from public.socio_member_cards
+ where member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if c.member_number<>'015' or c.club_name<>'Club A' or
+   c.active is not true or c.wallet_enabled is not true then
+  raise exception 'SYNCHRONIZED_CARD_FIELDS_INVALID';
+ end if;
+ if (select count(*) from information_schema.columns
+  where table_schema='public' and table_name='socio_member_cards'
+  and column_name in ('email','first_name','last_name','dni_number','dni_photo_path','signature_path','notes'))<>0 then
+  raise exception 'SENSITIVE_MEMBER_COLUMNS_EXPOSED';
+ end if;
+end
+$assert$;
+-- Opening a wallet does not invent an income or credit.
+do $assert$
+declare bal bigint; n integer;
+begin
+ select balance_cents into bal from public.socio_wallet_accounts where
+ member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if bal is distinct from 0 then raise exception 'NEW_WALLET_MUST_START_AT_ZERO'; end if;
+ select count(*) into n from public.socio_wallet_ledger where
+ member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if n<>0 then raise exception 'CARD_SYNC_MUST_NOT_CREATE_LEDGER'; end if;
+end
+$assert$;
+-- Repeated synchronization must NEVER reset a funded wallet.
+update public.socio_wallet_accounts set balance_cents=1234
+ where member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '7dbe4ead-c904-4c52-9fc1-51a9018aeb22',false);
+select public.socio_sync_member_card('935b7336-4bc9-4ba3-88e0-98b04f53ec51');
+reset role;
+do $assert$
+declare b bigint;
+begin
+ select balance_cents into b from public.socio_wallet_accounts where
+ member_id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if b<>1234 then raise exception 'REPEATED_CARD_SYNC_RESET_FUNDS'; end if;
+end
+$assert$;
+-- Non-admin accounts must not update other people's membership projections.
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '4f778a41-c207-4011-84b6-8a6c2cc1c011',false);
+do $assert$
+begin
+ begin
+  perform public.socio_sync_member_card('935b7336-4bc9-4ba3-88e0-98b04f53ec51');
+  raise exception 'UNAUTHORIZED_CARD_SYNC_ALLOWED';
+ exception when insufficient_privilege then null; end;
+end
+$assert$;
+reset role;
+update public.members set expires_at=current_date-1
+ where id='935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '7dbe4ead-c904-4c52-9fc1-51a9018aeb22',false);
+select public.socio_sync_member_card('935b7336-4bc9-4ba3-88e0-98b04f53ec51') as synced \gset
+reset role;
+do $assert$
+declare c record;
+begin
+ select * into c from public.socio_member_cards where member_id=
+ '935b7336-4bc9-4ba3-88e0-98b04f53ec51';
+ if c.active or c.wallet_enabled or c.revoked_at is null then
+  raise exception 'EXPIRED_MEMBER_NOT_DISABLED';
+ end if;
+end
+$assert$;
+-- Turning a club wallet off blocks reads immediately, even if card rows
+-- have not yet been resynchronized. The balance remains intact in the ledger.
+update public.socio_club_wallet_settings set enabled=false
+ where club_id='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc';
+set role authenticated;
+select set_config('request.jwt.claim.sub',
+ '4f778a41-c207-4011-84b6-8a6c2cc1c011',false);
+do $assert$
+declare n integer;
+begin
+ select count(*) into n from public.socio_wallet_accounts
+ where club_id='4b9f2ad0-8c1f-4e44-80c8-7b879ad7a0cc';
+ if n<>0 then raise exception 'DISABLED_WALLET_STILL_READABLE'; end if;
+end
+$assert$;
+reset role;
+select 'SNOOP SOCIO: authorized minimal card sync, wallet setting, expiry and privacy PASS' as result;

@@ -2,6 +2,7 @@ import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { scopedMemberSearch } from "@/lib/administrative-voice";
 import { createPortal } from "react-dom";
 import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
+import { decodeLegacyMemberQr, matchLegacyMember } from "@/lib/legacy-member-qr";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import { Search, Mic, QrCode, X } from "lucide-react";
 import { toast } from "sonner";
 import { expiryBadge } from "@/lib/snoop";
 import { Html5Qrcode } from "html5-qrcode";
+import { verifySnoopSocioScan } from "@/lib/socio-qr-scanner.functions";
 
 export const Route = createFileRoute("/_authenticated/soci/gestisci")({
   component: GestisciSoci,
@@ -33,7 +35,7 @@ function GestisciSoci() {
   const [loading, setLoading] = useState(true);
   const [scanOpen, setScanOpen] = useState(false);
   const navigate = useNavigate();
-  useVoiceToolPort("members.search", { search: (query) => runVoiceSearch(query) });
+  useVoiceToolPort("members.search", { ready: () => !loading, search: (query) => runVoiceSearch(query) });
   // This page is reached by the central QR shortcut: open the existing member
   // scanner immediately, rather than the separate entry/exit scanner.
   useEffect(() => {
@@ -218,12 +220,33 @@ function GestisciSoci() {
           onClose={() => setScanOpen(false)}
           onResult={(text) => {
             setScanOpen(false);
-            const num = extractMemberNumber(text);
-            if (num) {
-              const member = rowsRef.current.find((r) => r.member_number === num);
-              if (member) navigate({ to: "/soci/$id/pedido", params: { id: member.id } });
-              else toast.error(`Ningún socio con número ${num}`);
-            } else toast.error("Código QR no reconocido");
+            if(text.startsWith("ssc2.")){
+              // New Socio QR: authenticate, check club and consume server-side.
+              void verifySnoopSocioScan({data:{token:text}})
+                .then(({memberId})=>navigate({to:"/soci/$id/pedido",params:{id:memberId}}))
+                .catch(()=>toast.error("QR SNOOP Socio no autorizado, caducado o ya utilizado."));
+              return;
+            }
+            // Historical emailed/printed SNOOP QR: no re-issuance or wipe.
+            const num = decodeLegacyMemberQr(text);
+            if (!num) { toast.error("QR no reconocido. Usa el carnet SNOOP o introduce el número."); return; }
+            const cached = matchLegacyMember(rowsRef.current,num);
+            if (cached) {
+              navigate({to:"/soci/$id/pedido",params:{id:cached.id}});
+              return;
+            }
+            // A fresh exact query handles stale lists and older linked cards;
+            // DB tenant scope is mandatory, never search across clubs.
+            if(!routeContext.access.clubId){toast.error("Club no disponible.");return;}
+            void supabase.from("members").select("id,member_number")
+              .eq("club_id",routeContext.access.clubId).eq("member_number",num).limit(2)
+              .then(({data,error})=>{
+                if(error || !data || data.length!==1) {
+                  toast.error("No se encontró un carnet único de este club. Comprueba el número.");
+                  return;
+                }
+                navigate({to:"/soci/$id/pedido",params:{id:data[0].id}});
+              });
           }}
         />
       )}

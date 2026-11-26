@@ -14,7 +14,7 @@
     },
     {
       "device": "samsung",
-      "case": "actual member QR email status UI: pending/accepted/delivered/error/unknown remain distinct",
+      "case": "current invitation UI: only accepted is acknowledged; invalid/pending/error/unknown responses cannot claim delivery (legacy queue states remain unit-tested)",
       "result": "PASS"
     },
     {
@@ -34,7 +34,7 @@
     },
     {
       "device": "iphone",
-      "case": "actual member QR email status UI: pending/accepted/delivered/error/unknown remain distinct",
+      "case": "current invitation UI: only accepted is acknowledged; invalid/pending/error/unknown responses cannot claim delivery (legacy queue states remain unit-tested)",
       "result": "PASS"
     },
     {

@@ -9,7 +9,13 @@ import {
 } from "./FinancialRecordDialog";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/snoop";
-export function MemberOrderHistory({ memberId }: { memberId: string }) {
+export function MemberOrderHistory({
+  memberId,
+  openRequest = 0,
+}: {
+  memberId: string;
+  openRequest?: number;
+}) {
   const { user, access, loading, accessError, can } = useAuth();
   const allowed = can("manage_members") && (can("use_cash") || can("view_reports"));
   const scope = JSON.stringify([
@@ -26,6 +32,9 @@ export function MemberOrderHistory({ memberId }: { memberId: string }) {
     [stored, setStored] = useState<any>(null),
     [error, setError] = useState(""),
     [selectedId, setSelectedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (openRequest > 0 && allowed) setOpen(true);
+  }, [openRequest, allowed]);
   const data = stored?.scope === scope && stored?.page === page ? stored.data : null;
   useEffect(() => {
     if (!open || loading || accessError || !allowed) return;
@@ -53,7 +62,7 @@ export function MemberOrderHistory({ memberId }: { memberId: string }) {
   if (!allowed || accessError) return null;
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card/60 p-4">
-      <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
         <summary className="cursor-pointer font-display">Historial de pedidos</summary>
         {open && (
           <div className="space-y-3 pt-3">

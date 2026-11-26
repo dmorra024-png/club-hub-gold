@@ -3,7 +3,7 @@ import { useCashRefresh } from "@/hooks/useCashRefresh";
 import { paymentMethodLabel } from "@/lib/administrative-payment";
 import { FinancialRecordStatus } from "@/components/FinancialRecordDialog";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { getCashReport, openCash, closeCash } from "@/lib/cash-sessions.functions";
@@ -14,16 +14,18 @@ import {
   cashDaySummary,
   type CashSession,
 } from "@/lib/cash-sessions";
-import { parseCashCents } from "@/lib/member-administration";
+import { calendarDate, parseCashCents } from "@/lib/member-administration";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Clock3, Wallet, ReceiptText, CalendarDays, UserRound, AlertTriangle } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/caja")({ component: Caja });
 const money = (c: number) =>
   (c / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 const time = (s: string) => new Date(s).toLocaleString("es-ES", { timeZone: "Europe/Madrid" });
+const hour = (s: string) => new Date(s).toLocaleTimeString("es-ES", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit" });
 function Caja() {
   const { user, access, loading, accessError, can, retryAccess } = useAuth();
   const scope = JSON.stringify([
@@ -33,6 +35,7 @@ function Caja() {
     access.status,
     [...access.permissions].sort(),
   ]);
+  const cashVoicePending = useRef(false);
   const [voiceTab, setVoiceTab] = useState("mia");
   const [refresh, setRefresh] = useCashRefresh();
   const [stored, setStored] = useState<any>(null),
@@ -45,9 +48,17 @@ function Caja() {
     [busy, setBusy] = useState(false);
   const data = stored?.scope === scope && stored?.requestedDay === day ? stored : null;
   useVoiceToolPort("cash.page", {
-    open: () => {
-      if (can("view_reports")) {
+    refresh:setRefresh,
+    open: (target, requestedDay) => {
+      if (target === "mine") {
+        if (day !== null) cashVoicePending.current = true;
         setDay(null);
+        setVoiceTab("mia");
+        return;
+      }
+      if (can("view_reports")) {
+        if (requestedDay && !calendarDate(requestedDay)) return;
+        setDay(requestedDay ?? null);
         setVoiceTab("informe");
       }
     },
@@ -88,6 +99,45 @@ function Caja() {
     (s: CashSession) => s.user_id === user?.id && s.status === "open",
   );
   const daily = data?.daily ?? null;
+  useEffect(() => {
+    if (data && !updating) cashVoicePending.current = false;
+  }, [data, updating]);
+  useVoiceToolPort(
+    "cash.form",
+    {
+      ready: () =>
+        !cashVoicePending.current &&
+        !!data &&
+        !updating &&
+        !busy &&
+        !accessError &&
+        can("use_cash"),
+      baseline: () => ({ opening_cash: "0", closing_cash: "", notes: "" }),
+      snapshot: () => ({ opening_cash: opening, closing_cash: closing, notes }),
+      patch: (values) => {
+        if (!data || updating || busy || accessError || !can("use_cash"))
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        for (const [key, value] of Object.entries(values)) {
+          if (!["opening_cash", "closing_cash", "notes"].includes(key))
+            throw Error("SNOOP_FORM_UNAVAILABLE");
+          if (key !== "notes") {
+            const amount = parseCashCents(value);
+            if (amount === null || amount > 2147483647) throw Error("SNOOP_INVALID_AMOUNT");
+          } else if (value.length > 2000) throw Error("SNOOP_FORM_UNAVAILABLE");
+        }
+        if (
+          (values.opening_cash !== undefined && session) ||
+          ((values.closing_cash !== undefined || values.notes !== undefined) && !session)
+        )
+          throw Error("SNOOP_FORM_UNAVAILABLE");
+        if (values.opening_cash !== undefined) setOpening(values.opening_cash);
+        if (values.closing_cash !== undefined) setClosing(values.closing_cash);
+        if (values.notes !== undefined) setNotes(values.notes);
+      },
+    },
+    `${scope}:${session?.id ?? "no-session"}`,
+  );
+
   const reconciliation = session && data ? reconcileCash(session, data.movements) : null;
   async function submit(kind: "open" | "close") {
     if (busy || !can("use_cash") || !navigator.onLine) return;
@@ -112,7 +162,7 @@ function Caja() {
     }
   }
   return (
-    <SnoopLayout title="Caja">
+    <SnoopLayout title="Caja" contentClassName="snoop-caja-premium">
       {accessError && (
         <div role="alert">
           No se pudo verificar el acceso. <button onClick={retryAccess}>Reintentar acceso</button>
@@ -139,20 +189,18 @@ function Caja() {
                 if (value === "mia") setDay(null);
               }}
             >
-              <TabsList className="grid grid-cols-2 h-auto w-full sm:w-fit">
+              <TabsList className="snoop-caja-switch grid grid-cols-2 h-auto w-full">
                 <TabsTrigger value="mia">Mi caja</TabsTrigger>
                 <TabsTrigger value="informe">Informe de caja</TabsTrigger>
               </TabsList>
-              <TabsContent value="mia">
+              <TabsContent value="mia" className="snoop-caja-pane">
                 {!data && !error && <p role="status">Cargando…</p>}
                 {data && (
-                  <Card className="p-5 space-y-3 bg-card/60">
-                    <p>
-                      Colaborador: <strong>{name(user?.id)}</strong>
-                    </p>
+                  <Card className="snoop-caja-session-card p-5 space-y-3 bg-card/60">
+                    <div className="snoop-caja-session-top"><span><UserRound size={17}/> {name(user?.id)}</span><span className={`snoop-caja-status ${session ? "is-open" : "is-closed"}`}>{session ? "Activa" : "Sin caja abierta"}</span></div>
                     {session ? (
                       <>
-                        <p>Caja abierta · {time(session.opened_at)}</p>
+                        <div className="snoop-caja-session-time"><Clock3 size={17}/> Caja abierta · {time(session.opened_at)}</div>
                         <p>Fondo inicial: {money(session.opening_cash_cents)}</p>
                         <p>
                           Ingresos registrados:{" "}
@@ -214,9 +262,9 @@ function Caja() {
                   </Card>
                 )}
               </TabsContent>
-              <TabsContent value="informe" className="space-y-4">
-                <label className="block">
-                  Fecha
+              <TabsContent value="informe" className="snoop-caja-pane space-y-4">
+                <label className="snoop-caja-date-label block">
+                  <span><CalendarDays size={17}/> Fecha del informe</span>
                   <Input
                     aria-label="Fecha del informe"
                     type="date"
@@ -226,46 +274,30 @@ function Caja() {
                 </label>
                 {data && (
                   <>
-                    <h2>
-                      {data.admin ? "Caja del día" : "Mi caja del día"} · {data.day}
-                    </h2>
-                    <p className="text-2xl" aria-label="Total del día">
-                      {money(daily!.totalCents)}
-                    </p>
-                    <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-2 text-sm">
-                      <dt>Aportaciones asociativas (cuotas)</dt>
-                      <dd aria-label="Aportaciones del día">{money(daily!.feeCents)}</dd>
-                      <dt>Otros ingresos registrados</dt>
-                      <dd>{money(daily!.orderCents)}</dd>
-                      {(data.refunds ?? []).some(
-                        (r: any) => r.method === "cash" && inCashDay(r, data.start, data.end),
-                      ) && (
-                        <>
-                          <dt>Reembolsos efectivos registrados (salidas)</dt>
-                          <dd>
-                            {money(
-                              (data.refunds ?? [])
-                                .filter(
-                                  (r: any) =>
-                                    r.method === "cash" && inCashDay(r, data.start, data.end),
-                                )
-                                .reduce((n: number, r: any) => n + r.cents, 0),
-                            )}
-                          </dd>
-                        </>
-                      )}
-                      <dt>Efectivo identificado</dt>
-                      <dd aria-label="Efectivo del día">{money(daily!.cashCents)}</dd>
-                      <dt>Contado en cierres del día</dt>
-                      <dd>{money(daily!.countedCents)}</dd>
-                      <dt>Ingresos fuera de sesión</dt>
-                      <dd>{money(daily!.outsideSessionCents)}</dd>
-                    </dl>
-                    {daily!.unidentifiedCents > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Método de pago sin identificar: {money(daily!.unidentifiedCents)}
-                      </p>
-                    )}
+                    <section className="snoop-caja-overview" aria-label="Resumen de caja">
+                      <div className="snoop-caja-overview-head">
+                        <span><Wallet size={19}/> {data.admin ? "Caja del día" : "Mi caja del día"}</span>
+                        <span className="snoop-caja-date-pill">{new Date(data.day + "T12:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                      </div>
+                      <div className="snoop-caja-total" aria-label="Total del día">{money(daily!.totalCents)}</div>
+                      <p className="snoop-caja-total-caption">Ingresos registrados del día · sin duplicar Monedero ni fondos iniciales</p>
+                      <div className="snoop-caja-metrics">
+                        <div><span>Aportaciones asociativas</span><strong aria-label="Aportaciones del día">{money(daily!.feeCents)}</strong></div>
+                        <div><span>Otros ingresos registrados</span><strong>{money(daily!.orderCents)}</strong></div>
+                        <div><span>Efectivo identificado</span><strong aria-label="Efectivo del día">{money(daily!.cashCents)}</strong></div>
+                        <div><span>Contado en cierres</span><strong>{money(daily!.countedCents)}</strong></div>
+                        <div><span>Ingresos fuera de sesión</span><strong>{money(daily!.outsideSessionCents)}</strong></div>
+                        {daily!.walletPaidCents > 0 && <div><span>Pedidos pagados con Monedero (separados)</span><strong>{money(daily!.walletPaidCents)}</strong></div>}
+                        {daily!.topupCents > 0 && <div><span>Recargas Monedero (todos los métodos)</span><strong>{money(daily!.topupCents)}</strong></div>}
+                        {(data.refunds ?? []).some((r: any) => r.method === "cash" && inCashDay(r, data.start, data.end)) && (
+                          <div><span>Reembolsos en efectivo (salidas)</span><strong>{money((data.refunds ?? []).filter((r: any) => r.method === "cash" && inCashDay(r, data.start, data.end)).reduce((n: number, r: any) => n + r.cents, 0))}</strong></div>
+                        )}
+                      </div>
+                      {daily!.unidentifiedCents > 0 && <div className="snoop-caja-unknown" role="status">
+                        <AlertTriangle size={17}/>
+                        <span><strong>{money(daily!.unidentifiedCents)} sin método de pago identificado.</strong> No se clasifica automáticamente como efectivo: verifica el registro original. POS y Monedero permanecen disponibles.</span>
+                      </div>}
+                    </section>
                     {daily!.closedSessions > 0 && (
                       <details className="text-sm">
                         <summary className="cursor-pointer py-2">Conciliación de cierres</summary>
@@ -286,68 +318,48 @@ function Caja() {
                         </p>
                       </details>
                     )}
-                    <section aria-label="Sesiones de caja" className="space-y-3">
-                      <h3>Sesiones</h3>
-                      {data.sessions.length === 0 && <p>Sin sesiones este día.</p>}
-                      {data.sessions.map((s: CashSession) => (
-                        <Card key={s.id} className="p-4 space-y-1 bg-card/60">
-                          <p>
-                            Abierta por: {name(s.user_id)} · {time(s.opened_at)}
-                          </p>
-                          <p>
-                            {s.closed_at
-                              ? `Cerrada por: ${name(s.closed_by)} · ${time(s.closed_at)}`
-                              : "Abierta"}
-                          </p>
-                          <p>Ingresos: {money(sessionRevenue(s, data.movements))}</p>
-                          <p>
-                            Fondo inicial: {money(s.opening_cash_cents)}
-                            {s.closing_cash_cents !== null
-                              ? ` · Contado al cierre: ${money(s.closing_cash_cents)}`
-                              : ""}
-                          </p>
-                          <p>
-                            Efectivo esperado:{" "}
-                            {reconcileCash(s, data.movements).expected === null
-                              ? s.unverified_cancelled_cash
-                                ? "No determinable: revisa el pago original de las anulaciones."
-                                : "No determinable: hay pagos sin método identificado"
-                              : money(reconcileCash(s, data.movements).expected!)}
-                          </p>
-                          {reconcileCash(s, data.movements).difference !== null && (
-                            <p>Diferencia: {money(reconcileCash(s, data.movements).difference!)}</p>
-                          )}
-                          {s.notes && <p>Notas: {s.notes}</p>}
-                          <details>
-                            <summary className="cursor-pointer py-2">
-                              Ver movimientos de la sesión
-                            </summary>
-                            {data.movements
-                              .filter((m: any) => m.session_id === s.id && m.by === s.user_id)
-                              .map((m: any) => (
-                                <p
-                                  key={`${m.source}:${m.id}`}
-                                  className="border-b border-border py-2 text-sm"
-                                >
-                                  {m.source === "fee" ? "Cuota asociativa" : "Pedido"} ·{" "}
-                                  {money(m.cents)} · {name(m.by)} · {time(m.at)}
-                                </p>
-                              ))}
+                    <section aria-label="Sesiones de caja" className="snoop-caja-section">
+                      <div className="snoop-caja-section-heading"><h3><Clock3 size={21}/> Sesiones de caja</h3><span>{data.sessions.length} registradas</span></div>
+                      {data.sessions.length === 0 && <div className="snoop-caja-empty"><Clock3 size={22}/><strong>Sin sesiones este día</strong><span>Las aperturas y cierres aparecerán aquí al registrarse.</span></div>}
+                      {data.sessions.map((s: CashSession) => {
+                        const balance = reconcileCash(s, data.movements);
+                        const isOpen = s.status === "open" && !s.closed_at;
+                        return <article key={s.id} className="snoop-caja-shift">
+                          <div className="snoop-caja-shift-head">
+                            <div className="snoop-caja-shift-person"><UserRound size={19}/><strong>{name(s.user_id)}</strong></div>
+                            <span className={`snoop-caja-status ${isOpen ? "is-open" : "is-closed"}`}>{isOpen ? "Activa" : "Cerrada"}</span>
+                          </div>
+                          <div className="snoop-caja-shift-times">
+                            <div><span>Apertura</span><strong>{hour(s.opened_at)}</strong><small>{new Date(s.opened_at).toLocaleDateString("es-ES", {timeZone:"Europe/Madrid"})}</small></div>
+                            <div><span>Cierre</span><strong>{s.closed_at ? hour(s.closed_at) : "—"}</strong><small>{s.closed_at ? `Cerrada por: ${name(s.closed_by ?? s.user_id)}` : "Caja en curso"}</small></div>
+                          </div>
+                          <div className="snoop-caja-shift-revenue"><span>Ingresos registrados</span><strong>{money(sessionRevenue(s, data.movements))}</strong></div>
+                          <div className="snoop-caja-shift-detail"><span>Fondo inicial</span><strong>{money(s.opening_cash_cents)}</strong></div>
+                          {s.closing_cash_cents !== null && <div className="snoop-caja-shift-detail"><span>Efectivo contado al cierre</span><strong>{money(s.closing_cash_cents)}</strong></div>}
+                          <div className="snoop-caja-shift-detail"><span>Efectivo esperado</span><strong>{balance.expected === null ? "No determinable" : money(balance.expected)}</strong></div>
+                          {balance.expected === null && <p className="snoop-caja-shift-note">No determinable: hay pagos sin método identificado o anulaciones sin efectivo verificado.</p>}
+                          {balance.difference !== null && <div className="snoop-caja-shift-detail"><span>Diferencia: </span><strong>{money(balance.difference)}</strong></div>}
+                          {s.notes && <p className="snoop-caja-shift-note">Notas: {s.notes}</p>}
+                          <details className="snoop-caja-shift-movements">
+                            <summary>Ver movimientos de la sesión</summary>
+                            {data.movements.filter((m: any) => m.session_id === s.id && m.by === s.user_id).map((m: any) => (
+                              <p key={`${m.source}:${m.id}`}>{m.source === "fee" ? "Cuota asociativa" : m.source === "topup" ? "Recarga Monedero" : m.payment_method === "wallet" ? "Pedido · Monedero" : "Pedido"} · {money(m.cents)} · {name(m.by)} · {time(m.at)}</p>
+                            ))}
                           </details>
-                        </Card>
-                      ))}
+                        </article>;
+                      })}
                     </section>
-                    <section aria-label="Movimientos de caja" className="space-y-2">
-                      <h3>Movimientos del día</h3>
+                    <section aria-label="Movimientos de caja" className="snoop-caja-section snoop-caja-movements">
+                      <div className="snoop-caja-section-heading"><h3><ReceiptText size={21}/> Movimientos del día</h3></div>
                       {data.movements
                         .filter((m: any) => inCashDay(m, data.start, data.end))
                         .map((m: any) => (
                           <div
                             key={`${m.source}:${m.id}`}
-                            className="border-b border-border py-2 text-sm"
+                            className="snoop-caja-movement-row text-sm"
                           >
                             <p>
-                              {m.source === "order" ? "Pedido" : "Cuota asociativa"} ·{" "}
+                              {m.source === "order" ? (m.payment_method === "wallet" ? "Pedido · Monedero" : "Pedido") : m.source === "topup" ? `Recarga Monedero · ${paymentMethodLabel(m.payment_method)}` : "Cuota asociativa"} ·{" "}
                               {money(m.cents)}
                             </p>
                             <p>
@@ -404,7 +416,7 @@ function Caja() {
                         </div>
                       ))}
                       {!data.movements.some((m: any) => inCashDay(m, data.start, data.end)) && (
-                        <p>Sin movimientos.</p>
+                        <div className="snoop-caja-empty"><ReceiptText size={22}/><strong>Sin movimientos</strong><span>Los registros del día aparecerán aquí.</span></div>
                       )}
                     </section>
                   </>

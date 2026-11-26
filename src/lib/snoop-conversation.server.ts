@@ -77,7 +77,7 @@ const schema = {
       type: "object",
       additionalProperties: false,
       properties: Object.fromEntries(
-        ["first_name", "last_name", "birth_date", "city", "phone"].map((k) => [
+        ["first_name", "last_name", "birth_date", "city", "phone", "email"].map((k) => [
           k,
           { type: "string" },
         ]),

@@ -8,6 +8,7 @@ const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const configured =
   process.env.TEST_SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
   (process.env.TEST_BASE_URL
     ? (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)?.[1]
     : "/sandbox-api");
@@ -210,7 +211,17 @@ for (const [label, engine, device] of [
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(base + "/caja", { waitUntil: "networkidle" });
-    await page.getByLabel("Dinero inicial (€)").fill("100");
+    const initialMoney = page.getByLabel("Dinero inicial (€)");
+    try {
+      await initialMoney.waitFor({ timeout: 12000 });
+    } catch (e) {
+      const main = await page.locator("main").innerText().catch(() => "(no main)");
+      console.error("SYNTHETIC_CASH_BROWSER_DIAGNOSTIC", JSON.stringify({
+        url: page.url(), main: main.slice(0, 1800), pageErrors: errors,
+      }));
+      throw e;
+    }
+    await initialMoney.fill("100");
     await page.getByRole("button", { name: "Abrir caja", exact: true }).click();
     await page.getByLabel("Dinero contado (€)").waitFor();
     assert.equal(opened, 1);
@@ -245,7 +256,7 @@ for (const [label, engine, device] of [
     assert.match(text, /Cerrada por: Ana Sintética/);
     assert.match(text, /Bruno Sintético/);
     assert.match(text, /Sin sesión/);
-    assert.match(text, /Ingresos: 9,00/);
+    assert.match(text, /Ingresos registrados\s+9,00/);
     assert.match(text, /No determinable: hay pagos sin método identificado/);
     const detail = page
       .locator('section[aria-label="Sesiones de caja"]')

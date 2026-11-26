@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { chromium, webkit, devices } from "playwright-core";
 import { fromJSON } from "seroval";
 import { cashDataset, cashBackend, actor, club } from "./lib/cash-totals-fixture.mjs";
@@ -9,9 +9,14 @@ import { madridToday } from "../src/lib/member-administration.ts";
 const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3143";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname));
 const api = new URL(
+  process.env.TEST_SUPABASE_URL || process.env.VITE_SUPABASE_URL ||
   (await readFile(".env", "utf8")).match(/^VITE_SUPABASE_URL=["']?([^\s"']+)/m)[1],
   base,
 );
+const topupIds=new Set();
+for(const file of (await readdir(".output/server/_ssr")).filter(f=>f.startsWith("cash-sessions.functions-")))
+ for(const match of (await readFile(".output/server/_ssr/"+file,"utf8")).matchAll(/id:\s*["']([a-f0-9]+)["'],\s*name:\s*["']getRecentWalletTopups["']/g))topupIds.add(match[1]);
+assert.equal(topupIds.size,1);const topupId=[...topupIds][0];
 const exp = Math.floor(Date.parse("2026-11-12T00:00:00Z") / 1000),
   enc = (x) => Buffer.from(JSON.stringify(x)).toString("base64url");
 const user = {
@@ -88,6 +93,7 @@ for (const [device, engine, profile, standalone] of [
             },
             body: JSON.stringify(value),
           });
+        if(u.pathname.includes(topupId))return response({result:[],context:{}});
         if (u.pathname.includes("_serverFn")) {
           let result = { available: false, documents: false, browserSpeech: false };
           if (req.method() === "POST") {
@@ -191,7 +197,7 @@ for (const [device, engine, profile, standalone] of [
         await locator.filter({ hasText: new RegExp(`^\\s*${escaped}\\s*€\\s*$`) }).waitFor();
         assert.equal((await locator.innerText()).replace(/\s/g, ""), `${amount}€`);
       };
-      const home = () => page.locator(".premium-cash-amount");
+      const home = () => page.locator(".snoop-approved-cash-info strong");
       await page.goto(base + "/", { waitUntil: "networkidle" });
       await money(home(), admin ? 7200 : 3400);
       assert.equal(
@@ -207,7 +213,7 @@ for (const [device, engine, profile, standalone] of [
       await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
       await home().filter({ hasText: "No disponible" }).waitFor();
       assert.doesNotMatch(await home().innerText(), /0,00/);
-      await page.getByRole("button", { name: "Reintentar caja", exact: true }).waitFor();
+      await page.locator(".snoop-approved-cash").getByRole("button", { name: "Reintentar", exact: true }).waitFor();
       fault = null;
       records.membership_receipts.push({
         id: "new-fee",
@@ -221,8 +227,8 @@ for (const [device, engine, profile, standalone] of [
       // already triggers the required retry and can replace the button before
       // Playwright finishes its click. Require the refreshed amount in either
       // case; only an action timeout after proven recovery is acceptable.
-      const retryOutcome = page
-        .getByRole("button", { name: "Reintentar caja", exact: true })
+      const retryOutcome = page.locator(".snoop-approved-cash")
+        .getByRole("button", { name: "Reintentar", exact: true })
         .click({ timeout: 3000 })
         .then(
           () => null,
@@ -244,10 +250,11 @@ for (const [device, engine, profile, standalone] of [
       await page.getByRole("alert").filter({ hasText: "No se pudo cargar la caja" }).waitFor();
       assert.equal(await page.getByLabel("Total del día", { exact: true }).isVisible(), false);
       fault = null;
-      await page.getByRole("button", { name: "Reintentar", exact: true }).click();
+      await page.getByRole("alert").filter({hasText:"No se pudo cargar la caja"}).getByRole("button", { name: "Reintentar", exact: true }).click();
       await money(page.getByLabel("Total del día", { exact: true }), admin ? 7300 : 3500);
       await page.getByRole("tab", { name: "Mi caja", exact: true }).click();
-      await page.getByText(/^Caja abierta · /).waitFor();
+      await page.getByText("Activa", { exact: true }).waitFor();
+      await page.getByLabel("Dinero contado (€)").waitFor();
       // Clock crosses Madrid midnight while the same open session remains active.
       now = Date.parse("2026-11-10T23:10:00Z");
       await page.evaluate((now) => {

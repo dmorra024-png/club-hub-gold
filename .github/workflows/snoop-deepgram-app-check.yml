@@ -29,6 +29,8 @@ jobs:
         run: npm test
       - name: Actual Workerd gateway with synthetic upstreams
         run: node scripts/test-deepgram-app-worker.mjs
+      - name: Consecutive turns without optional thinking events (synthetic)
+        run: node scripts/test-deepgram-app-worker.mjs --no-thinking
       - name: Prepare isolated synthetic build settings
         run: |
           cat > .env.sandbox.local <<'ENV'
@@ -46,6 +48,8 @@ jobs:
         run: npm run worker:dry-run
       - name: Compiled application WebSocket regression (synthetic)
         run: node scripts/test-deepgram-app-worker.mjs --compiled
+      - name: Confirmed execution gateway with isolated PostgreSQL persistence (provider synthetic)
+        run: node scripts/test-deepgram-app-worker.mjs --compiled --database --close-retry
       - name: Scan public bundle for credentials
         run: npm run test:security:bundle
       - name: No deployment or database writes
