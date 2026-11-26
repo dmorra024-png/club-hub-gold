@@ -21,13 +21,13 @@ export function authorizeProposal(
   declined: readonly string[] = [],
 ) {
   const parsed = ConversationProposal.safeParse(value);
-  if (
-    !parsed.success ||
-    !conversationAllowed(access, parsed.data) ||
-    ((parsed.data.declined.includes("phone") || declined.includes("phone")) &&
+  if (!parsed.success)
+    return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED", reason: "format" as const };
+  if (!conversationAllowed(access, parsed.data))
+    return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED", reason: "permission" as const };
+  if ((parsed.data.declined.includes("phone") || declined.includes("phone")) &&
       parsed.data.asking === "phone")
-  )
-    return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED" };
+    return { ok: false as const, code: "SNOOP_PROPOSAL_REJECTED", reason: "declined" as const };
   if (parsed.data.product.category) {
     const canonical = canonicalCategory(parsed.data.product.category, vocabulary);
     if (!canonical)
