@@ -29,14 +29,14 @@ export const RecordsQuery = z
  * candidates for human selection rather than guessing a member identity. */
 export function spokenMemberQuery(input: string) {
   return input.trim().replace(
-    /^(?:(?:abre|abrir|apri|apre|busca|buscar|cerca|trova|encuentra|mostrar|mostra)\\s+)?(?:(?:la|el|una|un)\\s+)?(?:(?:ficha|scheda|perfil|profile)\\s+)?(?:(?:del|de|della|di)\\s+)?(?:(?:socio|socia|soci|miembro|member)\\s+)?(?:(?:llamado|llamada|nombre|di|de)\\s+)?/iu,
+    /^(?:(?:abre|abrir|apri|apre|busca|buscar|cerca|trova|encuentra|mostrar|mostra)\s+)?(?:(?:la|el|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile)\s+)?(?:(?:del|de|della|di)\s+)?(?:(?:socio|socia|soci|miembro|member)\s+)?(?:(?:llamado|llamada|nombre|di|de)\s+)?/iu,
     "",
   ).trim();
 }
 function memberFallbackQuery(input: string) {
   // A deliberately broad candidate lookup. The server still enforces the
   // same actor and club permissions and the model receives opaque refs only.
-  const words = input.split(/\\s+/).filter((x) => x.length >= 4);
+  const words = input.split(/\s+/).filter((x) => x.length >= 4);
   return words.length > 1 ? words.sort((a, b) => b.length - a.length)[0] : null;
 }
 const projections = {
