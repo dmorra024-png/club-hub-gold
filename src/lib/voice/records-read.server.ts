@@ -24,6 +24,21 @@ export const RecordsQuery = z
       .regex(/^[\p{L}\p{N} .&'’%_\/#-]*$/u),
   })
   .strict();
+/** Keep personal names inside the authenticated club RPC, never in the
+ * agent's catalog keyterms. Remove only voice-command prefixes, and offer
+ * candidates for human selection rather than guessing a member identity. */
+export function spokenMemberQuery(input: string) {
+  return input.trim().replace(
+    /^(?:(?:abre|abrir|apri|apre|busca|buscar|cerca|trova|encuentra|mostrar|mostra)\\s+)?(?:(?:la|el|una|un)\\s+)?(?:(?:ficha|scheda|perfil|profile)\\s+)?(?:(?:del|de|della|di)\\s+)?(?:(?:socio|socia|soci|miembro|member)\\s+)?(?:(?:llamado|llamada|nombre|di|de)\\s+)?/iu,
+    "",
+  ).trim();
+}
+function memberFallbackQuery(input: string) {
+  // A deliberately broad candidate lookup. The server still enforces the
+  // same actor and club permissions and the model receives opaque refs only.
+  const words = input.split(/\\s+/).filter((x) => x.length >= 4);
+  return words.length > 1 ? words.sort((a, b) => b.length - a.length)[0] : null;
+}
 const projections = {
   members: "id,first_name,last_name,city,expires_at",
   products: "id,name,description,category_id",
@@ -148,6 +163,7 @@ export async function voiceRecordsRead(
   if (query.query && query.kind !== "members" && query.kind !== "cash_sessions")
     params.set("name", "ilike.%" + query.query.replace(/[\\%_]/g, "\\$&") + "%");
   const personal = query.kind === "members" || finance || collaborators;
+  const memberText = query.kind === "members" ? spokenMemberQuery(query.query) : query.query;
   const response = await (options.fetch ?? fetch)(
     options.url +
       (personal
@@ -167,7 +183,7 @@ export async function voiceRecordsRead(
       ...(personal
         ? {
             body: JSON.stringify({
-              p_query: query.query,
+              p_query: memberText,
               p_club: access.clubId,
               p_limit: 7,
               ...(finance ? { p_kind: query.kind } : {}),
@@ -180,10 +196,30 @@ export async function voiceRecordsRead(
   );
   if (!response.ok) throw Error("VOICE_READ_UNAVAILABLE");
   const row = z.object({ id: z.string().uuid() }).passthrough();
-  const rows = z
-    .array(row)
-    .max(7)
-    .parse(await response.json());
+  let rows = z.array(row).max(7).parse(await response.json());
+  if (query.kind === "members" && rows.length === 0) {
+    const fallback = memberFallbackQuery(memberText);
+    if (fallback) {
+      const retry = await (options.fetch ?? fetch)(
+        options.url + "/rest/v1/rpc/snoop_voice_find_members",
+        {
+          method: "POST",
+          headers: {
+            apikey: options.key,
+            Authorization: "Bearer " + options.jwt,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ p_query: fallback, p_club: access.clubId, p_limit: 7 }),
+          redirect: "manual",
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+      if (!retry.ok) throw Error("VOICE_READ_UNAVAILABLE");
+      rows = z.array(row).max(7).parse(await retry.json());
+      // The result is only a list of possible identities for human selection.
+      // No automatic member update, checkout or registration may use this match.
+    }
+  }
   // Return only the requested projection, even if a malformed upstream sends more data.
   const allowed = projections[query.kind].split(",");
   const projected = rows
