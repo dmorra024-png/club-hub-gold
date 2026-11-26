@@ -322,3 +322,54 @@ test("consecutive product voice dictation collects exact quantities and euro pri
   assert.deepEqual(preserved.applied, {});
   assert.deepEqual(preserved.skipped.sort(), ["sell_price", "stock"]);
 });
+
+test("JARVIS keeps one product form alive while sequential utterances fill only the new fields", async () => {
+  const owner = voiceOwner("synthetic-worker", admin.clubId!);
+  const fields: Record<string, string> = {
+    name: "", category: "", stock: "0", buy_price: "0.00",
+    sell_price: "0.00", destination: "dispensario",
+  };
+  const last: Record<string, Record<string, string>> = {};
+  const opened: string[] = [];
+  const removePage = applicationPorts.register(owner, "products.page", {
+    open: (target) => { opened.push(target); },
+  });
+  const removeForm = applicationPorts.register(owner, "product.form", {
+    snapshot: () => ({ ...fields }),
+    patch: (values) => { Object.assign(fields, values); },
+  });
+  const say = async (product: Record<string, string>) =>
+    applyDeepgramDraft({
+      ...proposal("product_create"),
+      intent: "product",
+      product,
+    }, {
+      access: admin,
+      owner,
+      path: () => "/productos",
+      current: () => true,
+      navigate: () => {},
+      last,
+    });
+  try {
+    assert.deepEqual((await say({ name: "Amnesia Haze" })).applied, ["name"]);
+    assert.deepEqual((await say({ category: "Flores" })).applied, ["category"]);
+    assert.deepEqual((await say({ stock: "0.750" })).applied, ["stock"]);
+    assert.deepEqual((await say({ sell_price: "22.50" })).applied, ["sell_price"]);
+    assert.deepEqual((await say({ destination: "almacen", buy_price: "11.25" })).applied.sort(), ["buy_price", "destination"]);
+    assert.deepEqual(fields, {
+      name: "Amnesia Haze", category: "Flores", stock: "0.750",
+      buy_price: "11.25", sell_price: "22.50", destination: "almacen",
+    });
+    fields.sell_price = "25.00"; // The collaborator manually corrects this.
+    const rejected = await say({ sell_price: "20.00", stock: "0.800" });
+    assert.deepEqual(rejected.skipped, ["sell_price"]);
+    assert.deepEqual(rejected.applied, ["stock"]);
+    assert.equal(fields.sell_price, "25.00");
+    assert.equal(fields.stock, "0.800");
+    assert(opened.every((target) => target === "product_create"));
+  } finally {
+    removeForm();
+    removePage();
+  }
+});
