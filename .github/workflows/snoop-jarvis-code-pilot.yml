@@ -1,4 +1,4 @@
-name: SNOOP JARVIS — guarded compatibility validation
+name: SNOOP JARVIS — guarded full pilot release
 on:
   push:
     branches: [release/jarvis-pilot-safe-20261126]
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
-    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'validate-jarvis-full-pilot'
+    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'deploy-jarvis-full-pilot'
     runs-on: ubuntu-24.04
     environment: snoop-pilot
     timeout-minutes: 30
@@ -50,6 +50,7 @@ jobs:
       - name: Verify build, authorization boundaries and client bundle
         run: |
           set -euo pipefail
+          bun run test
           bun run build:worker
           bun run typecheck
           bun run test:security:architecture
@@ -72,8 +73,92 @@ jobs:
           assert.equal(new Set(b.map(x=>x.name)).size,b.length);
           console.log('Existing protected bindings verified; no secret values read or changed.');
           NODE
-      - name: Full execution schema compatibility gate (no database writes)
+      - name: Check live 29-command RPC is registered and deny anonymous access
+        shell: bash
         run: |
-          echo 'BLOCKED: full administrative JARVIS requires the updated 29-command SQL execution adapter.'
-          echo 'Existing pilot schema supports a restricted subset and must be reviewed and migrated safely.'
-          exit 1
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const key=process.env.SUPABASE_PUBLISHABLE_KEY;
+          assert.ok(key?.startsWith('sb_publishable_'));
+          const response=await fetch(process.env.SUPABASE_URL+'/rest/v1/rpc/snoop_voice_command',{
+            method:'POST',
+            headers:{apikey:key,'content-type':'application/json'},
+            body:JSON.stringify({p_request:'00000000-0000-4000-8000-000000000001',p_operation:'status',p_action:null,p_arguments:null,p_token:null,p_receipt_confirmed:false}),
+            signal:AbortSignal.timeout(20000)
+          });
+          let payload={};try{payload=await response.json();}catch{}
+          assert.equal(payload.code,'42501','Expected the installed full RPC to reject anonymous access before accessing any records');
+          assert.ok(response.status===401 || response.status===403);
+          console.log('Full voice RPC installed and anonymous access denied');
+          NODE
+      - name: Save protected binding inventory, without recording secret values
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          const api='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/settings';
+          const res=await fetch(api,{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
+          assert.equal(res.status,200);
+          const j=await res.json();assert.equal(j.success,true);
+          const list=j.result?.bindings??[];
+          const wallet=list.find(x=>x.name==='SNOOP_WALLET_OPERATIONS_ENABLED');
+          const snapshot=list.map(x=>({name:x.name,type:x.type,...(x.name==='SNOOP_WALLET_OPERATIONS_ENABLED'?{text:x.text}: {})}));
+          const types=Object.fromEntries(snapshot.map(x=>[x.name,x.type]));
+          for(const [name,type] of Object.entries({SUPABASE_SERVICE_ROLE_KEY:'secret_text',SOCIO_QR_SIGNING_KEY_BASE64:'secret_text',SNOOP_AI:'ai',ASSETS:'assets'}))assert.equal(types[name],type);
+          assert.equal(new Set(list.map(x=>x.name)).size,list.length);
+          if(wallet)assert.equal(wallet.type,'plain_text');
+          writeFileSync(process.env.RUNNER_TEMP+'/snoop-pilot-binding-snapshot.json',JSON.stringify(snapshot));
+          console.log('Existing wallet state and protected bindings captured safely');
+          NODE
+      - name: Enable only the JARVIS execution flag in the generated Pilot Worker
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const path='.output/server/wrangler.json';
+          const config=JSON.parse(readFileSync(path,'utf8'));
+          assert.equal(config.name,'snoop-pilot');
+          assert.equal(config.ai?.binding,'SNOOP_AI');
+          assert.equal(config.assets?.binding,'ASSETS');
+          assert.equal(config.vars?.SNOOP_RESOURCE_NAMESPACE,'snoop-pilot');
+          assert.ok(!Object.hasOwn(config.vars,'SNOOP_WALLET_OPERATIONS_ENABLED'),'Existing Monedero flag must stay inherited');
+          config.vars.SNOOP_VOICE_EXECUTION_PILOT_ENABLED='true';
+          writeFileSync(path,JSON.stringify(config,null,2));
+          console.log('JARVIS full execution enabled for Pilot only; Monedero inherited untouched');
+          NODE
+      - name: Verify existing pilot availability before deployment
+        run: curl -fsS --max-time 25 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-before
+      - name: Publish full JARVIS to the existing Pilot preserving all variables and secrets
+        run: WRANGLER_SEND_METRICS=false bunx wrangler deploy --config .output/server/wrangler.json --keep-vars
+      - name: Verify live JARVIS flag and unchanged protected bindings
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const prev=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/snoop-pilot-binding-snapshot.json','utf8'));
+          const res=await fetch('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/settings',{headers:{authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
+          assert.equal(res.status,200);
+          const body=await res.json();assert.equal(body.success,true);
+          const list=body.result?.bindings??[];
+          const flag=list.find(x=>x.name==='SNOOP_VOICE_EXECUTION_PILOT_ENABLED');
+          assert.equal(flag?.type,'plain_text');
+          assert.equal(flag?.text,'true');
+          for(const item of prev){
+            const after=list.find(x=>x.name===item.name);
+            assert.equal(after?.type,item.type,'Missing or changed existing binding: '+item.name);
+            if(item.name==='SNOOP_WALLET_OPERATIONS_ENABLED')assert.equal(after?.text,item.text,'Monedero status must not change');
+          }
+          assert.equal(new Set(list.map(x=>x.name)).size,list.length);
+          console.log('Full JARVIS live; all previous binding names/types and Monedero state preserved');
+          NODE
+      - name: Verify pilot website is online
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-after
+          grep -qi 'snoop' /tmp/snoop-after
+          echo 'SNOOP_JARVIS_FULL_PILOT_PUBLISHED'
