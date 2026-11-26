@@ -11,3 +11,7 @@ On 2026-11-26, the additive 29-command SQL Pilot upgrade was installed via Supab
 ## JARVIS speech hotfix — 26 November 2026
 
 Release pin f66749f4da8e9e164da0adf1c88b1f50f9303272 (PR #65). Fixes Deepgram audible playback following UserStartedSpeaking where provider output arrives but PcmPlayback remains suppressed=true if optional speaking markers are absent. An assistant ConversationText is the verified boundary to lift suppression; user text and stale PCM cannot lift it. Adds a regression test; no modification to database, wallets, Caja, inventory, member app or deployment flags.
+
+## Conversational club collaborator pilot release — 26 November 2026
+
+Pinned source c4ae5e72a95628579a0aa0e3a330d4541e9ad6c6 (PR #68, 17 code/test files) on top of merged #66. Authorized voice navigation and successive human-confirmed member/product form dictation, decimal prices and stock, scoped Caja operator read, Leafly-first then Strainpedia verified genetics, conservative pronunciation matching. This is a guarded SNOOP Pilot code release only. Worker keeps existing secret bindings, Monedero state, voice execution gate and existing database; neither SNOOP Socio nor REAL is deployed. Automated unit/database/typecheck/build/audio synthetic tests succeeded. Full administrative browser CI remains independently tracked and is not represented as a live-device test.
