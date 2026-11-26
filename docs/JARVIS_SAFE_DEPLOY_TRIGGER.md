@@ -19,3 +19,7 @@ Pinned source c4ae5e72a95628579a0aa0e3a330d4541e9ad6c6 (PR #68, 17 code/test fil
 ## SNOOP Pilot JARVIS spoken-screen acknowledgement and evidence-rich genetics hotfix
 
 Pinned seven-file source commit ca73fc008363ee003578ea35a94eee84f4e03c85. Distinguishes browser-confirmed screen opening from AI assumptions: authenticated direct navigation now acknowledges success/failure only after actual app result. Bounded research canonicalizes known Forbidden Fruit pronunciation variants and extracts several verified informational sections from the first approved source, falling back from Leafly to Strainpedia only if no verified Leafly result. Keeps controlled read-only research and does not include fees, cash, stock, Monedero, Socio or REAL changes. Live Deepgram phone validation remains necessary after guarded deployment.
+
+## JARVIS form navigation reject fix
+
+Pinned source 712bdb20d1c794ad48bc3eb1a8a44793e56848df (five files, PR #70). Authenticated voice requests opening member/product forms now accept missing optional empty JSON keys only for read-only navigation with the original permission gate. Concurrent shortcut and Deepgram snoop_propose use the same verified browser acknowledgement. Malformed commands and authorization denial have separate safe UI labels. This release must not modify database schema, member/product records, Caja, inventory, Monedero, Socio or REAL.
