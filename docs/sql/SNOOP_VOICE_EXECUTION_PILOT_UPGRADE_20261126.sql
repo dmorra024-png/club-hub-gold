@@ -555,7 +555,7 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.snoop_voice_access(uuid,text,boolean,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.snoop_voice_access(uuid,text,boolean,uuid) TO authenticated;
-DO $ BEGIN
+DO $$ BEGIN
  IF to_regprocedure('public.snoop_voice_command(uuid,text,text,jsonb,uuid,boolean)') IS NULL OR to_regprocedure('public.snoop_voice_entity(text,jsonb,boolean,uuid)') IS NULL THEN RAISE EXCEPTION 'VOICE_NEW_RPC_MISSING'; END IF;
  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.snoop_voice_executions'::regclass) THEN RAISE EXCEPTION 'VOICE_RLS_DISABLED'; END IF;
  IF has_function_privilege('anon','public.snoop_voice_command(uuid,text,text,jsonb,uuid,boolean)','EXECUTE') THEN RAISE EXCEPTION 'VOICE_ANON_EXECUTE_NOT_ALLOWED'; END IF;
