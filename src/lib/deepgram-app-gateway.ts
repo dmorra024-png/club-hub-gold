@@ -190,7 +190,26 @@ export async function deepgramAppSocket(
   };
   // A direct navigation proposal is NOT an LLM function call. Track its
   // acknowledgement separately, so only verified app success can be spoken.
-  const navigationReceipts = new Map<string, { target: string; created: number }>();
+  const navigationReceipts = new Map<string, {
+    target: string; created: number; turn: number; toolCalls: string[];
+  }>();
+  let lastShortcutId: string | null = null;
+  let lastShortcutOutcome: { target: string; turn: number; opened: boolean } | null = null;
+  const shortcutToolResponse = (id: string, opened: boolean) => {
+    try {
+      upstream?.send(JSON.stringify({
+        type: "FunctionCallResponse",
+        id,
+        name: "snoop_propose",
+        content: JSON.stringify({
+          ok: opened,
+          status: opened ? "opened" : "rejected",
+          code: opened ? "OK" : "FORM_UNAVAILABLE",
+          persisted: false,
+        }),
+      }));
+    } catch {}
+  };
   const resolveReferences = (action: string, args: Record<string, unknown>) => {
     const next = { ...args };
     for (const [key, kind] of Object.entries(executionReferences[action] ?? {})) {
@@ -1152,6 +1171,28 @@ export async function deepgramAppSocket(
                   } catch {}
                 }
                 if ((result as { ok: boolean }).ok) {
+                  const accepted = result as { ok: true; proposal: ConversationProposalValue };
+                  // The browser's direct read-only shortcut can already be
+                  // opening this screen. Never open it twice or tell Deepgram
+                  // that a real successful opening failed. Reuse its exact
+                  // verified browser result for the redundant LLM call.
+                  if (f.name === "snoop_propose" &&
+                      accepted.proposal.intent === "navigate" &&
+                      typeof f.id === "string") {
+                    const destination = accepted.proposal.target;
+                    const pendingShortcut = lastShortcutId
+                      ? navigationReceipts.get(lastShortcutId) : undefined;
+                    if (pendingShortcut?.turn === turn && pendingShortcut.target === destination &&
+                        Date.now() - pendingShortcut.created < 12000) {
+                      pendingShortcut.toolCalls.push(f.id);
+                      continue;
+                    }
+                    if (lastShortcutOutcome?.turn === turn &&
+                        lastShortcutOutcome.target === destination) {
+                      shortcutToolResponse(f.id, lastShortcutOutcome.opened);
+                      continue;
+                    }
+                  }
                   const id = f.id;
                   if (pending.has(id)) continue;
                   const timer = setTimeout(() => {
@@ -1243,7 +1284,9 @@ export async function deepgramAppSocket(
                   );
                   if (direct.ok) {
                     const id = crypto.randomUUID();
-                    navigationReceipts.set(id, { target: destination, created: Date.now() });
+                    navigationReceipts.set(id, { target: destination, created: Date.now(), turn, toolCalls: [] });
+                    lastShortcutId = id;
+                    lastShortcutOutcome = null;
                     if (navigationReceipts.size > 12) {
                       const oldest = navigationReceipts.keys().next().value;
                       if (oldest) navigationReceipts.delete(oldest);
@@ -1334,6 +1377,8 @@ export async function deepgramAppSocket(
           if (!offered || offered.target !== outcome.target ||
               Date.now() - offered.created > 12000) return;
           navigationReceipts.delete(outcome.id);
+          lastShortcutOutcome = { target: outcome.target, turn: offered.turn, opened: outcome.opened };
+          for (const id of offered.toolCalls) shortcutToolResponse(id, outcome.opened);
           const screens: Record<string,string> = {
             member_create:"la ficha de nuevo socio",
             product_create:"el formulario de nuevo producto",
