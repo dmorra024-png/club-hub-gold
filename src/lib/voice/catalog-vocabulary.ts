@@ -99,6 +99,21 @@ export function canonicalGeneticOrProduct(
 }
 const normalized = (name: string) =>
   name.normalize("NFKD").replace(/\p{M}/gu, "").trim().toLocaleLowerCase("en").replace(/\s+/g, " ");
+/** These are pronunciation hints, not confirmed product identities.
+ * Apply only to the user's spoken query and require a unique catalog match
+ * before populating any draft or record reference. */
+const spokenVariants: ReadonlyArray<[RegExp, string]> = [
+  [/\\b(?:jeis|heis|jais|hays|hais|eis)\\b/gu, "haze"],
+  [/\\b(?:cush|kushh|cushh)\\b/gu, "kush"],
+  [/\\b(?:widou|widoww|widov)\\b/gu, "widow"],
+  [/\\b(?:amnecia|amnezzia|amnezia)\\b/gu, "amnesia"],
+];
+function spokenKey(value: string) {
+  let key = normalized(value).replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+  for (const [pattern, canonical] of spokenVariants)
+    key = key.replace(pattern, canonical);
+  return key;
+}
 /** At most one character error, only for a unique sufficiently long label.
  * This prepares a draft, never selects inventory or executes an operation.
  * Short, missing, or conflicting labels require clarification. */
@@ -106,6 +121,12 @@ export function vocabularyMatch(name: string, candidates: readonly string[]) {
   const wanted = normalized(name);
   const exact = candidates.filter((n) => normalized(n) === wanted);
   if (exact.length) return exact.length === 1 ? exact[0] : null;
+  // Respect exact spelling first; a pronunciation repair only works when
+  // precisely ONE candidate exists. Never silently choose between members,
+  // products, strains or variants with near-identical names.
+  const pronounced = spokenKey(name);
+  const phonetic = candidates.filter((n) => spokenKey(n) === pronounced);
+  if (phonetic.length) return phonetic.length === 1 ? phonetic[0] : null;
   if (wanted.length < 6) return null;
   const near = candidates.filter((n) => {
     const other = normalized(n);
