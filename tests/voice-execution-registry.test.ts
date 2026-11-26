@@ -131,3 +131,23 @@ test("informational catalog classification matches the existing database enum",(
  const tool=agentSettings("it",48000,undefined,true,true).agent.think.functions.find(f=>f.name==="snoop_execute");
  assert.deepEqual(JSON.parse(JSON.stringify(tool)).parameters.properties.arguments.properties.strain.enum,["sativa","indica","hibrida",null]);
 });
+
+test("JARVIS enabled pilot can propose new member and product without misreading previous-operation status as missing club session", () => {
+  const enabled = agentSettings("es", 48000, undefined, true, true);
+  const prompt = enabled.agent.think.prompt;
+  assert.match(prompt, /CREATE a member or product/);
+  assert.match(prompt, /does not need a pre-existing record reference/);
+  assert.match(prompt, /THIS DOES NOT mean the current user lacks an authenticated club session/);
+  assert.doesNotMatch(prompt, /You cannot save, pay, cancel, mutate stock or access a database directly/);
+  assert(enabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
+  assert(enabled.agent.think.functions.some((f) => f.name === "snoop_member_requirements"));
+  assert(enabled.agent.think.functions.some((f) => f.name === "snoop_genetics_information"));
+});
+test("JARVIS prompts retain decimal units and scoped live research without inventing web access", () => {
+  const prompt = agentSettings("it", 48000, undefined, true, true).agent.think.prompt;
+  for (const fragment of ["0.75 from 75", "22.50 EUR = 2250 cents", "Grams and stock deltas are NOT monetary cents", "snoop_genetics_information", "unrestricted browsing are not supported"]) {
+    assert(prompt.includes(fragment), fragment);
+  }
+  const disabled = agentSettings("it", 48000, undefined, false, false);
+  assert(!disabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
+});
