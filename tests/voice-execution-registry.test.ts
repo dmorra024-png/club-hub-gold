@@ -137,7 +137,7 @@ test("JARVIS enabled pilot can propose new member and product without misreading
   const prompt = enabled.agent.think.prompt;
   assert.match(prompt, /CREATE a member or product/);
   assert.match(prompt, /does not need a pre-existing record reference/);
-  assert.match(prompt, /THIS DOES NOT mean the current user lacks an authenticated club session/);
+  assert.match(prompt, /A missing prior operation is not missing authentication/);
   assert.doesNotMatch(prompt, /You cannot save, pay, cancel, mutate stock or access a database directly/);
   assert(enabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
   assert(enabled.agent.think.functions.some((f) => f.name === "snoop_member_requirements"));
