@@ -37,27 +37,17 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "release/jarvis-pilot-safe-20261126"
-          VERIFIED=c4ae5e72a95628579a0aa0e3a330d4541e9ad6c6
-          PREVIOUS=1fc8d25aec8c52b88d2eb09c0087226f4d6133ba
+          VERIFIED=ca73fc008363ee003578ea35a94eee84f4e03c85
+          PREVIOUS=e19b72dfc5064a3e4866fc6995d3d14db15971f5
           ALLOWED=$(git diff --name-only "$PREVIOUS" "$VERIFIED" -- src apps package.json bun.lock wrangler.json supabase scripts tests | sort)
           EXPECTED=$(printf '%s\n' \
+            src/components/DeepgramPilotVoice.tsx \
             src/lib/deepgram-app-gateway.ts \
-            src/lib/deepgram-draft-actions.ts \
-            src/lib/snoop-conversation.ts \
             src/lib/specialist-catalog.server.ts \
             src/lib/voice/agent-settings.server.ts \
-            src/lib/voice/cash-openers.server.ts \
             src/lib/voice/catalog-vocabulary.ts \
             src/lib/voice/genetics-read.server.ts \
-            src/lib/voice/navigation-shortcuts.ts \
-            src/lib/voice/records-read.server.ts \
-            src/routes/_authenticated/productos.tsx \
-            tests/voice-app-coverage.test.ts \
-            tests/voice-cash-read.test.ts \
-            tests/voice-execution-registry.test.ts \
-            tests/voice-navigation-shortcuts.test.ts \
-            tests/voice-period-genetics.test.ts \
-            tests/voice-records-read.test.ts | sort)
+            tests/voice-period-genetics.test.ts | sort)
           test "$ALLOWED" = "$EXPECTED"
           DEPLOYED=3e7487088396cbd21edc99d454d88d9418dad0bb
           git cat-file -e "$VERIFIED^{commit}"
