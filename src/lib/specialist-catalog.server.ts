@@ -219,20 +219,19 @@ export async function searchSpecialistCatalog(name: string, request: typeof fetc
       images: [] as CatalogImage[],
       warning: "Nombre no válido para buscar fuentes.",
     };
+  // User-selected order: stop on the first verified matching description.
+  // The /strains/ URL is a Strainpedia index, NOT the individual strain path.
   const publishers = [
     { host: "leafly.com", direct: `https://www.leafly.com/strains/${slug}` },
     { host: "strainpedia.com", direct: `https://www.strainpedia.com/${slug}/` },
-    { host: "seedfinder.eu", direct: "" },
-    { host: "allbud.com", direct: "" },
-    { host: "wikileaf.com", direct: `https://www.wikileaf.com/strain/${slug}/` },
   ];
   const descriptions: CatalogDescription[] = [];
   const images: CatalogImage[] = [];
   const seen = new Set<string>();
-  // Priority is deterministic: start with Leafly and continue in order when
-  // there is no description or no licensed matching image.
+  // Never query Strainpedia when Leafly provides a verified entry.
+  // Absence of a separately licensed image must not trigger the fallback.
   for (const publisher of publishers) {
-    if (descriptions.length && images.length) break;
+    if (descriptions.length) break;
     const candidates: string[] = [];
     if (publisher.direct) candidates.push(publisher.direct);
     // Search is restricted to one specialist publisher at a time. A failed
@@ -269,7 +268,7 @@ export async function searchSpecialistCatalog(name: string, request: typeof fetc
         if (!entry) continue;
         if (!descriptions.length) descriptions.push(entry);
         if (!images.length) images.push(...specialistImages(html, url.href, name));
-        if (descriptions.length && images.length) break;
+        if (descriptions.length) break;
       } catch {
         // Unavailable, disallowed or unverifiable pages are never invented.
       }
