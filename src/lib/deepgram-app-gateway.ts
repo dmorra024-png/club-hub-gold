@@ -187,6 +187,9 @@ export async function deepgramAppSocket(
       id = (outcome.result as { id?: unknown } | null)?.id;
     return kind && typeof id === "string" ? issueReference(kind, id) : undefined;
   };
+  // A direct navigation proposal is NOT an LLM function call. Track its
+  // acknowledgement separately, so only verified app success can be spoken.
+  const navigationReceipts = new Map<string, { target: string; created: number }>();
   const resolveReferences = (action: string, args: Record<string, unknown>) => {
     const next = { ...args };
     for (const [key, kind] of Object.entries(executionReferences[action] ?? {})) {
@@ -1235,7 +1238,15 @@ export async function deepgramAppSocket(
                     verified.catalog,
                     memory.declined,
                   );
-                  if (direct.ok) send({ type: "AppProposal", result: direct });
+                  if (direct.ok) {
+                    const id = crypto.randomUUID();
+                    navigationReceipts.set(id, { target: destination, created: Date.now() });
+                    if (navigationReceipts.size > 12) {
+                      const oldest = navigationReceipts.keys().next().value;
+                      if (oldest) navigationReceipts.delete(oldest);
+                    }
+                    send({ type: "AppProposal", id, shortcut: true, result: direct });
+                  }
                 }
               }
               history.push({ role: m.role, content: String(m.content || "").slice(0, 1200) });
@@ -1309,6 +1320,38 @@ export async function deepgramAppSocket(
         if (e.data === "STOP") return close("STOPPED");
         if (e.data.length > 3000) return close("INVALID_SEQUENCE");
         const incoming = JSON.parse(e.data);
+        if (incoming.type === "AppShortcutResult") {
+          const outcome = z.object({
+            type: z.literal("AppShortcutResult"),
+            id: z.string().uuid(),
+            target: z.string().max(80),
+            opened: z.boolean(),
+          }).strict().parse(incoming);
+          const offered = navigationReceipts.get(outcome.id);
+          if (!offered || offered.target !== outcome.target ||
+              Date.now() - offered.created > 12000) return;
+          navigationReceipts.delete(outcome.id);
+          const screens: Record<string,string> = {
+            member_create:"la ficha de nuevo socio",
+            product_create:"el formulario de nuevo producto",
+            products:"la página de productos",
+            stock:"la pantalla de stock",
+            warehouse:"el almacén",
+            cash:"la caja",
+            members:"la lista de socios",
+          };
+          const screen = screens[outcome.target];
+          if (!screen) return;
+          const words = outcome.opened
+            ? "He abierto " + screen + ". Puedes continuar dictando los datos."
+            : "No se pudo abrir " + screen + ". La aplicación conserva los datos sin cambios.";
+          // Speak only after the browser confirms actual navigation. No tool
+          // status is faked and this cannot mutate administrative state.
+          upstream?.send(JSON.stringify({
+            type: "InjectAgentMessage", message: words, behavior: "queue",
+          }));
+          return;
+        }
         if (incoming.type === "AppExecutionRecover") {
           const request = z
             .object({ type: z.literal("AppExecutionRecover"), id: z.string().uuid() })
