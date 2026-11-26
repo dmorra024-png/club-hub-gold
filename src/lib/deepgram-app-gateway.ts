@@ -580,9 +580,9 @@ export async function deepgramAppSocket(
                           name: f.name,
                           content: JSON.stringify({
                             ok: false,
-                            status: "no_session_reference",
+                            status: "no_previous_operation",
                             instruction:
-                              "Do not guess success. Use the visible operation-status control to recover the reference.",
+                              "No prior execution to verify in THIS voice connection. The authenticated SNOOP club session is valid; this status is not a permission or session failure. New member.create or product.create requests can proceed independently through snoop_execute with required details and manual confirmation. Never claim an earlier operation succeeded.",
                           }),
                         }),
                       );
