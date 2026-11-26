@@ -5,7 +5,7 @@ import {
   ServerAudioHealth,
   type ServerAudioHealthValue,
 } from "@/lib/voice/audio-health";
-import { PcmPlayback } from "@/lib/voice/pcm-playback";
+import { PcmPlayback, resumePlaybackForAssistantText } from "@/lib/voice/pcm-playback";
 import { VoiceTransport } from "@/lib/voice/transport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "@tanstack/react-router";
@@ -539,6 +539,10 @@ export function DeepgramPilotVoice({
             message.type === "ConversationText" &&
             ["user", "assistant"].includes(message.role)
           ) {
+            // Real Deepgram streams can omit AgentStartedSpeaking/AgentThinking.
+            // An assistant transcript is a trustworthy new-turn boundary:
+            // release the barge-in mute before its PCM audio arrives.
+            resumePlaybackForAssistantText(state.speaker, message.role);
             setLines((prev) =>
               [
                 ...prev,

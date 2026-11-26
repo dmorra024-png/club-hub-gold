@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PcmPlayback, VOICE_OUTPUT_SAMPLE_RATE } from "../src/lib/voice/pcm-playback.ts";
+import { PcmPlayback, VOICE_OUTPUT_SAMPLE_RATE, resumePlaybackForAssistantText } from "../src/lib/voice/pcm-playback.ts";
 function fixture(state = "running") {
   const buffers: Float32Array[] = [],
     nodes: any[] = [],
@@ -120,4 +120,25 @@ test("text/provider completion is never proof of audio: empty and silent respons
   audible.player.push(new Uint8Array([0, 64]).buffer);
   audible.player.finishResponse();
   assert.equal(audible.player.snapshot().lastError, null);
+});
+
+test("real provider sequence: assistant text rearms interrupted PCM without optional AgentStartedSpeaking marker", () => {
+  const f = fixture();
+  f.player.beginResponse();
+  f.player.push(new Uint8Array([0, 64]).buffer);
+  f.player.interrupt(); // UserStartedSpeaking barge-in
+  assert.equal(f.player.suppressed, true);
+  f.player.push(new Uint8Array([0, 64]).buffer); // old interrupted audio must not play
+  resumePlaybackForAssistantText(f.player, "user");
+  assert.equal(f.player.suppressed, true);
+  assert.equal(f.nodes.length, 1);
+  // Deepgram's assistant ConversationText is a new response even when the
+  // optional AgentThinking / AgentStartedSpeaking notifications are absent.
+  resumePlaybackForAssistantText(f.player, "assistant");
+  assert.equal(f.player.suppressed, false);
+  f.player.push(new Uint8Array([0, 64]).buffer);
+  assert.equal(f.nodes.length, 2);
+  assert.equal(f.player.snapshot().decodedSamples, 2);
+  assert.equal(f.player.snapshot().scheduledSamples, 2);
+  assert.equal(f.player.snapshot().nonzeroSamples, 2);
 });
