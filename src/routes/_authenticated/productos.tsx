@@ -1632,7 +1632,7 @@ function NuevoProducto({
       const decimal = (key: string, digits: number) => {
         if (values[key] === undefined) return null;
         const text = values[key].replace(",", ".");
-        const re = digits === 3 ? /^\\d{1,9}(?:\\.\\d{1,3})?$/ : /^\\d{1,8}(?:\\.\\d{1,2})?$/;
+        const re = digits === 3 ? /^\d{1,9}(?:\.\d{1,3})?$/ : /^\d{1,8}(?:\.\d{1,2})?$/;
         const amount = Number(text);
         if (!re.test(text) || !Number.isFinite(amount) || amount < 0)
           throw Error("SNOOP_INVALID_AMOUNT");
