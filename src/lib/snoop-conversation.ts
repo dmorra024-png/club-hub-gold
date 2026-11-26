@@ -26,11 +26,16 @@ export const memberFields = z
     email: z.string().trim().email().max(254).optional(),
   })
   .strict();
-// Informational fields only. No pricing, stock mutation, payment or fulfillment tools.
+/** Proposed product form values only: never written to stock or orders by a
+ * voice proposal. The existing UI validates and saves after human confirmation. */
 export const productFields = z
   .object({
-    name: z.string().max(120).optional(),
-    category: z.string().max(100).optional(),
+    name: z.string().trim().min(1).max(120).optional(),
+    category: z.string().trim().min(1).max(100).optional(),
+    stock: z.string().regex(/^\d{1,9}(?:[.,]\d{1,3})?$/).optional(),
+    buy_price: z.string().regex(/^\d{1,8}(?:[.,]\d{1,2})?$/).optional(),
+    sell_price: z.string().regex(/^\d{1,8}(?:[.,]\d{1,2})?$/).optional(),
+    destination: z.enum(["almacen", "dispensario"]).optional(),
   })
   .strict();
 export const cashDraftFields = z

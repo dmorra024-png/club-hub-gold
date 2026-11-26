@@ -164,3 +164,16 @@ test("Spanish and Italian abre ficha instructions route to existing member form,
     assert(settings.agent.think.functions.some((f) => f.name === "snoop_propose"));
   }
 });
+
+test("Spanish and Italian read-only product, stock and Caja opener commands have authorized tools", () => {
+  for (const language of ["es", "it"] as const) {
+    const settings = agentSettings(language, 48000, undefined, true, true);
+    for (const phrase of ["quiero ver los productos", "abre stock", "quién abrió la caja hoy", "snoop_cash_openers_today"]) {
+      assert(settings.agent.think.prompt.includes(phrase), phrase);
+    }
+    const tool = settings.agent.think.functions.find((f) => f.name === "snoop_cash_openers_today");
+    assert(tool);
+    assert.deepEqual(tool.parameters.required, []);
+    assert.deepEqual(Object.keys(tool.parameters.properties), []);
+  }
+});

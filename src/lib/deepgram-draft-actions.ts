@@ -101,7 +101,16 @@ export async function applyDeepgramDraft(
       options.last[kind] =
         kind.startsWith("admin.") || ["member_edit", "cash"].includes(kind)
           ? (form.baseline?.() ?? {})
-          : {};
+          : kind === "product"
+            ? {
+                // Initial empty form values, NOT manually entered values.
+                // A changed value is still protected by protectedVoicePatch.
+                stock: "0",
+                buy_price: "0.00",
+                sell_price: "0.00",
+                destination: "dispensario",
+              }
+            : {};
       forms.set(kind, form);
     }
     const patch = {
