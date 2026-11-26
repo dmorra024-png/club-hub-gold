@@ -151,3 +151,15 @@ test("JARVIS prompts retain decimal units and scoped live research without inven
   const disabled = agentSettings("it", 48000, undefined, false, false);
   assert(!disabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
 });
+
+test("Spanish and Italian abre ficha instructions route to existing member form, not voice execution status", () => {
+  for (const language of ["es", "it"] as const) {
+    const settings = agentSettings(language, 48000, undefined, true, true);
+    const prompt = settings.agent.think.prompt;
+    for (const phrase of ["abre ficha", "apri ficha", "member_create", "snoop_propose", "snoop_execution_status"]) {
+      assert(prompt.includes(phrase), phrase);
+    }
+    assert(prompt.includes("Do not call snoop_execution_status unless the user specifically asks"));
+    assert(settings.agent.think.functions.some((f) => f.name === "snoop_propose"));
+  }
+});
