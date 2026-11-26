@@ -560,5 +560,5 @@ DO $ BEGIN
  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.snoop_voice_executions'::regclass) THEN RAISE EXCEPTION 'VOICE_RLS_DISABLED'; END IF;
  IF has_function_privilege('anon','public.snoop_voice_command(uuid,text,text,jsonb,uuid,boolean)','EXECUTE') THEN RAISE EXCEPTION 'VOICE_ANON_EXECUTE_NOT_ALLOWED'; END IF;
  IF NOT has_function_privilege('authenticated','public.snoop_voice_command(uuid,text,text,jsonb,uuid,boolean)','EXECUTE') THEN RAISE EXCEPTION 'VOICE_AUTH_EXECUTE_MISSING'; END IF;
-END $;
+END $$;
 COMMIT;
