@@ -131,3 +131,36 @@ test("informational catalog classification matches the existing database enum",(
  const tool=agentSettings("it",48000,undefined,true,true).agent.think.functions.find(f=>f.name==="snoop_execute");
  assert.deepEqual(JSON.parse(JSON.stringify(tool)).parameters.properties.arguments.properties.strain.enum,["sativa","indica","hibrida",null]);
 });
+
+test("JARVIS enabled pilot can propose new member and product without misreading previous-operation status as missing club session", () => {
+  const enabled = agentSettings("es", 48000, undefined, true, true);
+  const prompt = enabled.agent.think.prompt;
+  assert.match(prompt, /CREATE a member or product/);
+  assert.match(prompt, /does not need a pre-existing record reference/);
+  assert.match(prompt, /A missing prior operation is not missing authentication/);
+  assert.doesNotMatch(prompt, /You cannot save, pay, cancel, mutate stock or access a database directly/);
+  assert(enabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
+  assert(enabled.agent.think.functions.some((f) => f.name === "snoop_member_requirements"));
+  assert(enabled.agent.think.functions.some((f) => f.name === "snoop_genetics_information"));
+});
+test("JARVIS prompts retain decimal units and scoped live research without inventing web access", () => {
+  const prompt = agentSettings("it", 48000, undefined, true, true).agent.think.prompt;
+  for (const fragment of ["0.75 from 75", "22.50 EUR = 2250 cents", "Grams and stock deltas are NOT monetary cents", "snoop_genetics_information", "unrestricted browsing are not supported"]) {
+    assert(prompt.includes(fragment), fragment);
+  }
+  const disabled = agentSettings("it", 48000, undefined, false, false);
+  assert(!disabled.agent.think.functions.some((f) => f.name === "snoop_execute"));
+});
+
+test("Spanish and Italian abre ficha instructions route to existing member form, not voice execution status", () => {
+  for (const language of ["es", "it"] as const) {
+    const settings = agentSettings(language, 48000, undefined, true, true);
+    const prompt = settings.agent.think.prompt;
+    for (const phrase of ["abre ficha", "apri ficha", "member_create", "snoop_propose", "snoop_execution_status"]) {
+      assert(prompt.includes(phrase), phrase);
+    }
+    for (const phrase of ["crear producto", "product_create", "Opening the form never requires a prior voice execution ID"]) assert(prompt.includes(phrase), phrase);
+    assert(prompt.includes("Do not call snoop_execution_status unless the user specifically asks"));
+    assert(settings.agent.think.functions.some((f) => f.name === "snoop_propose"));
+  }
+});
