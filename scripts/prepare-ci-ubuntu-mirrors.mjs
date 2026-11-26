@@ -1,9 +1,12 @@
 import { readFile, writeFile, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-/** Same signed Ubuntu archive/suites; avoid the repeatedly stalled EC2 HTTP mirror. */
+/** Same signed Ubuntu archive/suites; avoid repeatedly stalled EC2/Azure HTTP downloads. */
 export function officialUbuntuMirror(source) {
   return source.replace(
     /https?:\/\/[a-z0-9-]+\.ec2\.archive\.ubuntu\.com\/ubuntu(?=[\s/]|$)/gi,
+    "https://archive.ubuntu.com/ubuntu",
+  ).replace(
+    /http:\/\/azure\.archive\.ubuntu\.com\/ubuntu(?=[\s/]|$)/gi,
     "https://archive.ubuntu.com/ubuntu",
   );
 }

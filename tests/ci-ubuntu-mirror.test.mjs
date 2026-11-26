@@ -28,3 +28,13 @@ test("browser CI leaves nonregional mirrors, signing and unrelated URLs unchange
   ])
     assert.equal(officialUbuntuMirror(source), source);
 });
+
+
+test("stalled Azure HTTP downloads use the official HTTPS archive without altering signed repositories",()=>{
+ const source="Types: deb\nURIs: http://azure.archive.ubuntu.com/ubuntu/\nSuites: noble noble-updates\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n";
+ const expected=source.replace("http://azure.archive.ubuntu.com/ubuntu/","https://archive.ubuntu.com/ubuntu/");
+ assert.equal(officialUbuntuMirror(source),expected);
+ assert.equal(officialUbuntuMirror(expected),expected);
+ for(const unrelated of ["http://azure.archive.ubuntu.com.evil.invalid/ubuntu","http://azure.archive.ubuntu.com/ubuntu-other","https://azure.archive.ubuntu.com/ubuntu","https://security.ubuntu.com/ubuntu"])
+  assert.equal(officialUbuntuMirror(unrelated),unrelated);
+});

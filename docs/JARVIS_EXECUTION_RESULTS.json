@@ -6,7 +6,7 @@
     "459303a122ce5ae560712a234098deb20b43fae4",
     "ce9259b1d5a4f757057c1e4b7902bc3e6b26c9ae"
   ],
-  "unitTests": 560,
+  "unitTests": 561,
   "unitFailures": 0,
   "typecheck": "PASS",
   "nodeBuild": "PASS",
@@ -130,6 +130,13 @@
       "run": 45577701992,
       "test": "scripts/test-critical-stabilization.mjs:377",
       "cause": "fixed 200ms sampling of asynchronous viewport and React frames; synchronized on actual frames, same visibility/focus/geometry constraints retained"
+    },
+    "mobileSetupFailure": {
+      "run": 45769691314,
+      "attempts": 2,
+      "cause": "Azure HTTP package downloads repeatedly interrupted; runner hit 15-minute setup deadline before browser assertions",
+      "fix": "Existing CI-only helper now replaces Azure HTTP with the same signed official Ubuntu archive over HTTPS and is used by mobile setup; no timeout increase or test removal",
+      "appSocioChanged": false
     }
   },
   "limits": "See JARVIS_CAPABILITY_MATRIX.json; regulated fulfillment, unregistered settings, external Auth/SMTP replay and required human inputs are not presented as completed.",

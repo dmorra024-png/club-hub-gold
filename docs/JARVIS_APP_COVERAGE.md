@@ -141,3 +141,16 @@ ora usano il valore originale `hibrida`. Il test attraversa l'adapter reale fino
 alla RPC originale e rilegge classificazione, prezzi e stock; ripetere la conferma
 restituisce lo stesso risultato e non genera movimenti. Il valore non previsto
 `hybrid` viene rifiutato prima della scrittura. Nessuna modifica al tipo del database.
+
+## Setup CI mobile riproducibile
+
+Il job mobile di `45769691314` e il suo retry sono scaduti prima di eseguire gli
+assert: download HTTP da `azure.archive.ubuntu.com` ripetutamente interrotti per
+font e Mesa, poi fallback tardivo a `https://archive.ubuntu.com`. La preparazione
+del runner riutilizza ora l'helper CI esistente anche nel job mobile e converte
+quel solo mirror HTTP nel medesimo archivio Ubuntu ufficiale via HTTPS.
+Suite, componenti, priorità, chiavi GPG e verifica delle firme restano invariati;
+nessun timeout aumentato, nessun test escluso, nessun file `apps/socio` cambiato.
+Un test aggiuntivo verifica la sostituzione, l'idempotenza, la conservazione della
+firma e l'esclusione di host simili o non interessati. La regressione applicativa
+completa sul precedente head `a09acf0` era già PASS.

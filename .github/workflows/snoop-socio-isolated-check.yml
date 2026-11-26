@@ -109,7 +109,10 @@ jobs:
       - name: Install pinned browser runner in isolated Socio directory
         run: npm install --prefix apps/socio --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright-core@1.57.0
       - name: Install Chromium and WebKit browser engines
-        run: apps/socio/node_modules/.bin/playwright-core install --with-deps chromium webkit
+        shell: bash
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS "$(command -v node)" scripts/prepare-ci-ubuntu-mirrors.mjs
+          apps/socio/node_modules/.bin/playwright-core install --with-deps chromium webkit
       - name: Real member frontend on Android-sized Chromium and iPhone-sized WebKit
         run: node apps/socio/browser-acceptance.mjs
       - name: Save synthetic mobile screenshots
