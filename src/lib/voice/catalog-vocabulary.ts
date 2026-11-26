@@ -100,13 +100,13 @@ const normalized = (name: string) =>
  * Apply only to the user's spoken query and require a unique catalog match
  * before populating any draft or record reference. */
 const spokenVariants: ReadonlyArray<[RegExp, string]> = [
-  [/\\b(?:jeis|heis|jais|hays|hais|eis)\\b/gu, "haze"],
-  [/\\b(?:cush|kushh|cushh)\\b/gu, "kush"],
-  [/\\b(?:widou|widoww|widov)\\b/gu, "widow"],
-  [/\\b(?:amnecia|amnezzia|amnezia)\\b/gu, "amnesia"],
+  [/\b(?:jeis|heis|jais|hays|hais|eis)\b/gu, "haze"],
+  [/\b(?:cush|kushh|cushh)\b/gu, "kush"],
+  [/\b(?:widou|widoww|widov)\b/gu, "widow"],
+  [/\b(?:amnecia|amnezzia|amnezia)\b/gu, "amnesia"],
 ];
 function spokenKey(value: string) {
-  let key = normalized(value).replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+  let key = normalized(value).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   for (const [pattern, canonical] of spokenVariants)
     key = key.replace(pattern, canonical);
   return key;
