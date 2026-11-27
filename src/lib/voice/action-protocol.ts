@@ -61,6 +61,7 @@ export const actionDefinitions = Object.freeze({
   cash_draft: { effect: "draft", confirmation: true },
   administrative_draft: { effect: "draft", confirmation: true },
   product: { effect: "informational-draft", confirmation: false },
+  stock_draft: { effect: "informational-draft", confirmation: true },
   category: { effect: "draft", confirmation: false },
   search: { effect: "read", confirmation: false },
   review: { effect: "review", confirmation: true },
