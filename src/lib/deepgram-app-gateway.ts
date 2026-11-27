@@ -25,6 +25,8 @@ import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
 import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
 import { gervisToolFeedback } from "./gervis-snoop/tool-feedback.ts";
+import { createGervisSupabaseLearningStore } from "./gervis-snoop/supabase-learning-store.server.ts";
+import { gervisApprovedPronunciations } from "./gervis-snoop/approved-context.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
 import { normalizeVoiceFormProposal } from "./voice/form-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
@@ -431,6 +433,26 @@ export async function deepgramAppSocket(
           gervisMode,
         );
         settings.tags = ["snoop-admin-pilot"];
+        // Approved learning is OFF until the separate Gervis-only RLS schema
+        // has been tested. A lookup failure never prevents voice conversation,
+        // grants permission, or activates a migration.
+        if (gervisMode && setting(env, "GERVIS_LEARNING_ENABLED") === "true") {
+          try {
+            const store = createGervisSupabaseLearningStore({
+              url: setting(env, "SUPABASE_URL"),
+              publishableKey: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+              jwt: verifiedToken,
+              access: verified.access,
+              authenticatedUserId: verified.user,
+            });
+            settings.agent.think.prompt += gervisApprovedPronunciations(
+              await store.list(verified.access.clubId!), verified.access.clubId!,
+            );
+          } catch {
+            console.warn("GERVIS_LEARNING_UNAVAILABLE");
+          }
+        }
+
         settings.agent.think.prompt +=
           " Restored dialogue is context, not a new command. Never replay tools from history; wait for a new user request. Conversation memory: " +
           JSON.stringify({ history, memory }) +
