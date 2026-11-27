@@ -5,6 +5,7 @@ import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { transcribeAudio } from "@/lib/voice-agent.functions";
 import { productFormVoice, contextualProductDictation } from "@/lib/product-form-voice";
 import { voiceStockCandidates } from "@/lib/voice/stock-candidates";
+import { parseVoiceStockMovement } from "@/lib/voice/stock-command";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -234,22 +235,7 @@ function ProductosPage() {
   }
 
   function isStockAdjustmentCommand(text: string) {
-    const low = compactVoiceText(text)
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-    if (/\b(crea|crear|creare|nuevo|nuovo|nueva|alta)\b/.test(low)) return false;
-    return (
-      (/\b(stock|stok)\b/.test(low) &&
-        (/\b(mas|menos|anad|agreg|sum|quit|rest|sac|remov)\w*\b\s+\d/.test(low) ||
-          /\d+(?:[.,]\d+)?\s*(?:gramos?|gr|g|u|unidad(?:es)?)?\s+\b(mas|menos|anad|agreg|sum|quit|rest|sac|remov)\w*\b/.test(
-            low,
-          ) ||
-          /[+-]\s*\d/.test(low))) ||
-      /^\s*(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low) ||
-      /\b(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low) ||
-      /\b[a-z0-9]{2,}\b\s+(?:mas|menos|anad|agreg|sum|quit|rest|sac|remov|[+-])\w*\s+\d/i.test(low)
-    );
+    return parseVoiceStockMovement(text) !== null;
   }
 
   // Fast local parser: fills fields instantly without waiting for AI.
@@ -682,39 +668,11 @@ function Stock({
       .trim();
     if (!t) return;
 
-    // --- Stock adjustment: "stock <nombre> añadir/quitar N", "más 10 gr amnesia", "amnesia +10"
-    const adjRx =
-      /^(?:stock\s+)?(.+?)\s+(a[nñ]ad\w*|agreg\w*|sum\w*|mas|\+|quit\w*|rest\w*|menos|-|remov\w*|sac\w*)\s+(\d+(?:[.,]\d+)?)\s*(?:gramos?|gr|g|unidades?|unidad|u)?\b(?:\s+(?:gramos?|gr|g|unidades?|unidad|u)\b)*$/i;
-    const addToRx =
-      /^(?:stock\s+)?(?:a[nñ]ad\w*|sum\w*|agreg\w*|met\w*|pon\w*|mas|\+)\s+(\d+(?:[.,]\d+)?)\s*(?:gramos?|gr|g|unidades?|unidad|u)?\b(?:\s+(?:al|del|a|en|de)\b)?\s*(.*?)(?:\s+(?:gramos?|gr|g|unidades?|unidad|u)\b)*$/i;
-    const removeFromRx =
-      /^(?:stock\s+)?(?:quit\w*|rest\w*|sac\w*|remov\w*|menos|-)\s+(\d+(?:[.,]\d+)?)\s*(?:gramos?|gr|g|unidades?|unidad|u)?\b(?:\s+(?:del|al|de|a|en)\b)?\s*(.*?)(?:\s+(?:gramos?|gr|g|unidades?|unidad|u)\b)*$/i;
-    const qtyFirstRx =
-      /^(?:stock\s+)?(\d+(?:[.,]\d+)?)\s*(?:gramos?|gr|g|unidades?|unidad|u)?\b\s+(mas|menos|a[nñ]ad\w*|agreg\w*|sum\w*|quit\w*|rest\w*|sac\w*|remov\w*|\+|-)\s*(.*?)(?:\s+(?:gramos?|gr|g|unidades?|unidad|u)\b)*$/i;
-
-    let adjName = "";
-    let adjSign = 0;
-    let adjQty = 0;
-    let m = t.match(adjRx);
-    if (m) {
-      adjName = m[1];
-      const op = m[2].toLowerCase();
-      adjSign = /a[nñ]ad|sumar|mas|\+/.test(op) ? 1 : -1;
-      adjQty = parseFloat(m[3].replace(",", "."));
-    } else if ((m = t.match(addToRx))) {
-      adjSign = 1;
-      adjQty = parseFloat(m[1].replace(",", "."));
-      adjName = m[2];
-    } else if ((m = t.match(removeFromRx))) {
-      adjSign = -1;
-      adjQty = parseFloat(m[1].replace(",", "."));
-      adjName = m[2];
-    } else if ((m = t.match(qtyFirstRx))) {
-      adjQty = parseFloat(m[1].replace(",", "."));
-      const op = m[2].toLowerCase();
-      adjSign = /a[nñ]ad|agreg|sum|mas|\+/.test(op) ? 1 : -1;
-      adjName = m[3];
-    }
+    // Shared parser: the browser only stages a movement for human confirmation.
+    const movement = parseVoiceStockMovement(raw);
+    const adjName = movement?.name ?? "";
+    const adjQty = Math.abs(movement?.delta ?? 0);
+    const adjSign = Math.sign(movement?.delta ?? 0);
 
     if (adjQty > 0 && adjSign !== 0) {
       const target = norm(adjName)
