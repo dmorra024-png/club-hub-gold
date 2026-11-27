@@ -18,6 +18,7 @@ const FieldKey = z.enum([
   "buy_price",
   "sell_price",
   "destination",
+  "strain",
   "opening_cash",
   "closing_cash",
   "notes",
