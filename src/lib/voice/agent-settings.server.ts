@@ -172,7 +172,7 @@ export const proposalSchema = {
       required: ["name", "delta"],
       properties: {
         name: { type: "string", minLength: 2, maxLength: 120, description: "Exact name dictated by the operator. Do not invent a catalog match." },
-        delta: { type: "string", pattern: "^-?\\d{1,7}(?:\\.\\d{1,2})?$", description: "Explicit signed change in grams or units, NOT final quantity. Example: +50 or -2.50" },
+        delta: { type: "string", pattern: "^[+-]?\\d{1,7}(?:\\.\\d{1,2})?$", description: "Explicit signed change in grams or units, NOT final quantity. Example: +50 or -2.50" },
       },
     },
     query: { type: ["string", "null"] },
