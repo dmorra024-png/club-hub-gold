@@ -27,6 +27,7 @@ import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
 import { gervisToolFeedback } from "./gervis-snoop/tool-feedback.ts";
 import { createGervisSupabaseLearningStore } from "./gervis-snoop/supabase-learning-store.server.ts";
 import { gervisApprovedPronunciations } from "./gervis-snoop/approved-context.ts";
+import { gervisTaskFeedback } from "./gervis-snoop/task-feedback.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
 import { normalizeVoiceFormProposal } from "./voice/form-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
@@ -1623,6 +1624,10 @@ export async function deepgramAppSocket(
             outcome = { ok: false, code: "CASH_UNAVAILABLE", persisted: false };
           }
         }
+        // In Gervis mode, use the actual browser receipt to guide the next
+        // conversational step; never upgrade a draft to a persisted result.
+        if (gervisMode && item.name === "snoop_propose")
+          outcome = gervisTaskFeedback(item.proposal, actionOutcome(receipt.data));
         history.push({
           role: "assistant",
           content: "Application result: " + JSON.stringify(outcome),
