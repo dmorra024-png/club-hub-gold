@@ -73,6 +73,7 @@ export const proposalSchema = {
         "cash_draft",
         "administrative_draft",
         "product",
+        "stock_draft",
         "category",
         "search",
         "clarify",
@@ -163,6 +164,15 @@ export const proposalSchema = {
         sell_price: { type: "string", description: "Explicit euros, maximum two decimals, never cents" },
         destination: { type: "string", enum: ["almacen", "dispensario"] },
         strain: { type: "string", enum: ["indica", "sativa", "hibrida"], description: "Only when user explicitly dictates the botanical classification of a smokeable product" },
+      },
+    },
+    stock_movement: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name", "delta"],
+      properties: {
+        name: { type: "string", minLength: 2, maxLength: 120, description: "Exact name dictated by the operator. Do not invent a catalog match." },
+        delta: { type: "string", pattern: "^-?\\d{1,7}(?:\\.\\d{1,2})?$", description: "Explicit signed change in grams or units, NOT final quantity. Example: +50 or -2.50" },
       },
     },
     query: { type: ["string", "null"] },
@@ -548,6 +558,9 @@ export function agentSettings(
     settings.agent.think.prompt =
       "Exception to draft-only behavior: snoop_execute may persist ONLY registered administrative actions and snoop_access_control the club entrance-control setting after a separate administrator confirmation. Await its verified server response; do not infer success. Never request or invent the confirmation token. All other mutation tools remain draft-only. " +
       settings.agent.think.prompt;
+  settings.agent.think.prompt =
+    "For an explicit STOCK adjustment, prefer snoop_propose intent stock_draft target stock with stock_movement {name,delta} and empty member/product, null query. This ONLY prepares the existing stock confirmation panel; it NEVER persists and does not require the execution flag. Do not use stock.adjust for product sales or order fulfillment. Require a clearly spoken product name and signed change; if the request sets an absolute total or is ambiguous ask first. For a new PRODUCT with incomplete required details, open the real product_create form using snoop_propose intent product with ONLY explicitly stated fields. Do not invoke snoop_execute before mandatory fields exist. Never turn unspoken fields into zero or empty values. If an operator dictates a strain, select the classification only for a smokeable category. " +
+    settings.agent.think.prompt;
   settings.agent.think.prompt =
     `Current Europe/Madrid calendar date: ${madridToday()}. For any day other than today use snoop_cash_day with an explicit ISO calendar day; ask for clarification for ambiguous dates. Available navigation targets: ${voiceDestinationNames.join(", ")}. These targets only open existing screens and never imply that their forms were saved. ` +
     settings.agent.think.prompt;
