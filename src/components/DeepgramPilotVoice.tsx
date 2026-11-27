@@ -631,6 +631,7 @@ export function DeepgramPilotVoice({
                 },
                 last: voiceValues.current,
                 reportDay: message.cashDay,
+                verifyNavigation: message.gervis === true,
               });
               if (message.shortcut === true && message.id)
                 state.transport.send({
