@@ -487,7 +487,7 @@ function ProductosPage() {
       if (matches.length === 1 && Number(matches[0].stock) + amount < 0)
         return false;
       setTab("stock");
-      setStockCommand({ text: name + " " + (amount > 0 ? "+" : "") + delta, at: Date.now() });
+      setStockCommand({ text: name + " " + (amount > 0 ? "+" : "-") + " " + Math.abs(amount), at: Date.now() });
       return true;
     },
     open: (target, query) => {
