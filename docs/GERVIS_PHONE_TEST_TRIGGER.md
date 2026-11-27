@@ -38,3 +38,11 @@ Requested by the user for a genuine mobile phone test. All unverified real-voice
 
 ### First CI attempt and verified fix
 The first upload of Gervis's non-deployed Worker version passed its unit/type/build/dry-run checks but the Version URL returned HTTP 404. The existing Pilot had Version URL routing disabled. The guarded workflow now verifies the existing workers.dev route remains enabled, enables version URL routing with Cloudflare's documented subdomain API if needed, re-uploads the Gervis version alias, and retries the URL smoke test. This changes only the Worker-wide **Version URL routing setting**, not deployed code or live traffic. These URLs are publicly routable to the existing app authentication screen; all account and pilot allowlists still apply.
+
+### Email dictation correction — guarded phone retest, 27 November 2026
+Real Android tester reports name, surname and date of birth working much better, but one invented dot in a spoken email and inability to correct it.
+This preview update includes two independently tested draft-only fixes:
+1. Natural language guidance for @/dot spelling, no invented punctuation, in-place explicit corrected email.
+2. Narrow `email_correction=remove_single_local_dot` tool parameter: browser can remove exactly one dot BEFORE @ only when its current address is still exactly the last VOICE-OWNED value. Ambiguous/multiple dots and manual changes fail without modifying anything. No member save or personal data disclosure.
+Test on synthetic member details only. Example: dictate `mar.ta@example.test` then explicitly say `Snoop, quita el punto antes de la arroba`; expected `marta@example.test` in the same form, retaining prior name/surname/birth date. If there are multiple possible dots, Gervis must ask to spell the full corrected email and must never guess.
+Only the dedicated version alias is uploaded; the existing Pilot deployed traffic remains unchanged. Full real-voice recognition is still unverified until the human phone retest.
