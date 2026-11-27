@@ -27,3 +27,7 @@ Pinned source 712bdb20d1c794ad48bc3eb1a8a44793e56848df (five files, PR #70). Aut
 ## November 27 — fixed language and sequential member/product voice dictation
 
 Verified source 6f20d120e18aa59b0dfe4c7d32a7b7dd74e0dc6d (PR #72). Seven-file guarded source diff: use only explicitly selected Deepgram language hint and matching Flux speaker, persist language selection for form dictation, recognize sequential member/product fields with omitted empty JSON envelope keys while preserving original Zod validation, the verified club category requirement and manual Save boundary. Tested safe non-invasive member and product field updates, decimal validation, authorization and manual-edit preservation. Do not change data, payments, stock accounting, Monedero, SNOOP Socio or REAL. Real phone test remains required after Pilot deploy.
+
+## Immediate voice disconnect after product field dictation — 27 November 2026
+
+Pinned commit 3b53bb3a151d086482679da133aa9026d740e85f. The product form previously emitted acknowledged fields stock, buy_price, sell_price, destination not accepted by the server's strict ActionReceipt enum. This caused INVALID_SEQUENCE and an immediate connection close, independent of inactivity. Fixed only those verified keys, with regression tests, no privileged stock adjustments. Also enabled human-confirmed smokeable-product sativa/indica/hibrida form field without guessing classification. No DB migrations, Caja, inventory ledger, Monedero, Socio or REAL updates. Deepgram client audio/transport and cost limits preserved.
