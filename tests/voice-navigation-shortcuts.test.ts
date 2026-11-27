@@ -175,8 +175,9 @@ test("dictating product fields separately preserves values and requires the norm
       product: { [field]: value }, query: null,
       declined: [], question: "", asking: null,
     });
-    assert.equal(authorizeProposal(normalized, access).ok, true, field);
-    assert.equal(authorizeProposal(normalized, { ...access, permissions: ["manage_members"] }).ok, false);
+    const catalog = { products: ["Amnesia Haze"], categories: ["Flores"] };
+    assert.equal(authorizeProposal(normalized, access, catalog).ok, true, field);
+    assert.equal(authorizeProposal(normalized, { ...access, permissions: ["manage_members"] }, catalog).ok, false);
   }
   for (const invalid of [
     { intent: "product", target: "product_create", product: { sell_price: "22.501" } },
