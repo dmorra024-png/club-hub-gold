@@ -35,3 +35,9 @@ SNOOP is an additional authorized club coworker, not a chatbot or a fixed-comman
 
 ## Deployment policy
 This branch is **not deployed**. Merging or publishing requires full CI, a separate Gervis-only runtime, real voice acceptance with synthetic records, and explicit release approval. A green automated CI run alone is insufficient.
+
+## Verified development progress, 27 November 2026
+- The default project test runner now includes `tests/gervis-worker-gateway.test.mjs`: two **synthetic** audio turns in Workerd use the real authenticated gateway and a fake Deepgram tool call to request `member_create`, receive the application's simulated acknowledgement, and prepare a new member city field on the next turn. It verifies there are no parallel legacy shortcut proposals, no backend writes, and no secret leaks.
+- The Gervis-only browser pathway (`verifyNavigation`) now demands that the router actually reaches `/soci/nuovo` and that the registered `member.form` port is ready **before** the app reports successful navigation. `tests/gervis-member-form-readiness.test.ts` covers both accepted and rejected routes. Existing Pilot remains unchanged.
+- Missing empty model tool envelopes can be normalized for Gervis, but real member, product, cash, stock fields and permissions are never invented or bypassed.
+- CI tests cover these steps with synthetic provider responses. They do **not** prove autonomous comprehension by the live model, real microphone reliability, or an end-to-end real user/browser execution. Those remain explicit release blockers.
