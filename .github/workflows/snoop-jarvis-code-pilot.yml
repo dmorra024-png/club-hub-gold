@@ -37,21 +37,38 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "release/jarvis-pilot-safe-20261126"
-          VERIFIED=3b53bb3a151d086482679da133aa9026d740e85f
-          PREVIOUS=42f7e76cc9ece3618b565b171ca502b298b9fed7
+          VERIFIED=3d6afa3e9cabd58f3f2eb0a47d5771b7ad3f2584
+          PREVIOUS=3b53bb3a151d086482679da133aa9026d740e85f
           ALLOWED=$(git diff --name-only "$PREVIOUS" "$VERIFIED" -- src apps package.json bun.lock wrangler.json supabase scripts tests | sort)
           EXPECTED=$(printf '%s\n' \
+            scripts/prepare-ci-ubuntu-mirrors.mjs \
+            scripts/test-voice2-administration.mjs \
+            src/lib/deepgram-draft-actions.ts \
+            src/lib/private-voice.ts \
+            src/lib/product-form-voice.ts \
             src/lib/snoop-conversation.ts \
             src/lib/voice/action-protocol.ts \
             src/lib/voice/agent-settings.server.ts \
+            src/lib/voice/application-ports.ts \
+            src/lib/voice/member-query.ts \
+            src/lib/voice/records-read.server.ts \
+            src/lib/voice/stock-candidates.ts \
+            src/lib/voice/stock-command.ts \
             src/routes/_authenticated/productos.tsx \
-            tests/voice-app-coverage.test.ts | sort)
+            src/routes/_authenticated/soci.gestisci.tsx \
+            supabase/migrations/20261127125000_snoop_voice_member_accent_search.sql \
+            tests/voice-coworker-end-to-end.test.ts \
+            tests/voice-product-classification.test.ts \
+            tests/voice-records-read.test.ts \
+            tests/voice-stock-command.test.ts \
+            tests/voice-stock-matching.test.ts | sort)
           test "$ALLOWED" = "$EXPECTED"
           DEPLOYED=3e7487088396cbd21edc99d454d88d9418dad0bb
           git cat-file -e "$VERIFIED^{commit}"
           git merge-base --is-ancestor "$VERIFIED" HEAD
           git diff --exit-code "$VERIFIED" HEAD -- src apps package.json bun.lock wrangler.json supabase scripts tests
-          git diff --exit-code "$DEPLOYED" "$VERIFIED" -- apps/socio src/lib/wallet-management.functions.ts src/lib/cash-ledger.ts src/lib/cash-sessions.functions.ts src/lib/cash-sessions.server.ts package.json bun.lock wrangler.json supabase
+          git diff --exit-code "$DEPLOYED" "$VERIFIED" -- apps/socio src/lib/wallet-management.functions.ts src/lib/cash-ledger.ts src/lib/cash-sessions.functions.ts src/lib/cash-sessions.server.ts package.json bun.lock wrangler.json
+          test "$(git diff --name-only "$DEPLOYED" "$VERIFIED" -- supabase | sort)" = "supabase/migrations/20261127125000_snoop_voice_member_accent_search.sql"
           node -e 'const c=require("./wrangler.json");if(c.name!=="snoop-pilot"||c.workers_dev!==true||c.ai?.binding!=="SNOOP_AI"||c.assets?.binding!=="ASSETS"||c.vars?.SNOOP_RESOURCE_NAMESPACE!=="snoop-pilot")process.exit(1)'
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
@@ -113,7 +130,7 @@ jobs:
           const j=await res.json();assert.equal(j.success,true);
           const list=j.result?.bindings??[];
           const wallet=list.find(x=>x.name==='SNOOP_WALLET_OPERATIONS_ENABLED');
-          const snapshot=list.map(x=>({name:x.name,type:x.type,...(x.name==='SNOOP_WALLET_OPERATIONS_ENABLED'?{text:x.text}: {})}));
+          const snapshot=list.map(x=>({name:x.name,type:x.type,...(['SNOOP_WALLET_OPERATIONS_ENABLED','SNOOP_VOICE_EXECUTION_PILOT_ENABLED'].includes(x.name)?{text:x.text}: {})}));
           const types=Object.fromEntries(snapshot.map(x=>[x.name,x.type]));
           for(const [name,type] of Object.entries({SUPABASE_SERVICE_ROLE_KEY:'secret_text',SOCIO_QR_SIGNING_KEY_BASE64:'secret_text',SNOOP_AI:'ai',ASSETS:'assets'}))assert.equal(types[name],type);
           assert.equal(new Set(list.map(x=>x.name)).size,list.length);
@@ -121,28 +138,11 @@ jobs:
           writeFileSync(process.env.RUNNER_TEMP+'/snoop-pilot-binding-snapshot.json',JSON.stringify(snapshot));
           console.log('Existing wallet state and protected bindings captured safely');
           NODE
-      - name: Enable only the JARVIS execution flag in the generated Pilot Worker
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          import {readFileSync,writeFileSync} from 'node:fs';
-          const path='.output/server/wrangler.json';
-          const config=JSON.parse(readFileSync(path,'utf8'));
-          assert.equal(config.name,'snoop-pilot');
-          assert.equal(config.ai?.binding,'SNOOP_AI');
-          assert.equal(config.assets?.binding,'ASSETS');
-          assert.equal(config.vars?.SNOOP_RESOURCE_NAMESPACE,'snoop-pilot');
-          assert.ok(!Object.hasOwn(config.vars,'SNOOP_WALLET_OPERATIONS_ENABLED'),'Existing Monedero flag must stay inherited');
-          config.vars.SNOOP_VOICE_EXECUTION_PILOT_ENABLED='true';
-          writeFileSync(path,JSON.stringify(config,null,2));
-          console.log('JARVIS full execution enabled for Pilot only; Monedero inherited untouched');
-          NODE
       - name: Verify existing pilot availability before deployment
         run: curl -fsS --max-time 25 https://snoop-pilot.dmorra024.workers.dev/ -o /tmp/snoop-before
       - name: Publish full JARVIS to the existing Pilot preserving all variables and secrets
         run: WRANGLER_SEND_METRICS=false bunx wrangler deploy --config .output/server/wrangler.json --keep-vars
-      - name: Verify live JARVIS flag and unchanged protected bindings
+      - name: Verify unchanged JARVIS execution flag and protected bindings
         shell: bash
         run: |
           node --input-type=module <<'NODE'
@@ -153,16 +153,17 @@ jobs:
           assert.equal(res.status,200);
           const body=await res.json();assert.equal(body.success,true);
           const list=body.result?.bindings??[];
-          const flag=list.find(x=>x.name==='SNOOP_VOICE_EXECUTION_PILOT_ENABLED');
-          assert.equal(flag?.type,'plain_text');
-          assert.equal(flag?.text,'true');
+          const beforeFlag=prev.find(x=>x.name==='SNOOP_VOICE_EXECUTION_PILOT_ENABLED');
+          const afterFlag=list.find(x=>x.name==='SNOOP_VOICE_EXECUTION_PILOT_ENABLED');
+          assert.equal(afterFlag?.type,beforeFlag?.type,'Voice execution binding type must not change');
+          assert.equal(afterFlag?.text,beforeFlag?.text,'Voice execution flag must be preserved unchanged');
           for(const item of prev){
             const after=list.find(x=>x.name===item.name);
             assert.equal(after?.type,item.type,'Missing or changed existing binding: '+item.name);
             if(item.name==='SNOOP_WALLET_OPERATIONS_ENABLED')assert.equal(after?.text,item.text,'Monedero status must not change');
           }
           assert.equal(new Set(list.map(x=>x.name)).size,list.length);
-          console.log('Full JARVIS live; all previous binding names/types and Monedero state preserved');
+          console.log('JARVIS Pilot updated; voice-execution flag, existing bindings, and Monedero state preserved');
           NODE
       - name: Verify pilot website is online
         shell: bash
