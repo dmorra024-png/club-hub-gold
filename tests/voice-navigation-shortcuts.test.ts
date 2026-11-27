@@ -121,7 +121,11 @@ test("partial draft normalization never drops unknown or disallowed fields", () 
     { intent: "member", target: "member_create", member: { first_name: "Synthetic" }, declined: "phone" },
   ]) {
     const normalized = normalizeVoiceFormProposal(raw);
-    if ("injection" in raw || "price" in (raw.product ?? {}) || raw.target === "member_edit" || raw.declined === "phone")
+    const input = raw as Record<string, unknown>;
+    if ("injection" in input ||
+        ("product" in input && input.product !== null && typeof input.product === "object" &&
+         "price" in input.product) ||
+        input.target === "member_edit" || input.declined === "phone")
       assert.equal(normalized, raw);
     assert.equal(authorizeProposal(normalized, access).ok, false);
   }
