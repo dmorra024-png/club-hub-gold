@@ -5,6 +5,7 @@ import { authorizeProposal } from "../src/lib/voice/agent-settings.server.ts";
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
 import { applyDeepgramDraft } from "../src/lib/deepgram-draft-actions.ts";
 import { productFormVoice } from "../src/lib/product-form-voice.ts";
+import { parseVoiceStockMovement } from "../src/lib/voice/stock-command.ts";
 
 const access = {
   status: "active" as const, role: "admin" as const,
@@ -62,4 +63,13 @@ test("product voice creation never fabricates absent zero prices or wipes previo
   assert(!Object.hasOwn(bare, "stock"));
   assert(!Object.hasOwn(bare, "buy_price"));
   assert(!Object.hasOwn(bare, "sell_price"));
+});
+
+test("stock preview format round-trips through the shared UI parser", () => {
+  assert.deepEqual(parseVoiceStockMovement("Amnesia Haze + 50"), {
+    name: "amnesia haze", delta: 50,
+  });
+  assert.deepEqual(parseVoiceStockMovement("Amnesia Haze - 2.50"), {
+    name: "amnesia haze", delta: -2.5,
+  });
 });
