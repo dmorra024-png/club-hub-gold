@@ -726,19 +726,20 @@ function Stock({
         if (q && !norm(p.name).includes(norm(q))) return false;
         return true;
       });
-      const prod = target
-        ? prods.find((p) => {
-            const n = norm(p.name);
-            return n === target || n.includes(target) || target.includes(n);
-          })
-        : visible.length === 1
-          ? visible[0]
-          : null;
+      // Never pick the first fuzzy match for a stock-changing operation.
+      // Exact unique matches are safe; ambiguous names require human selection.
+      const exact = target ? prods.filter((p) => norm(p.name) === target) : [];
+      const candidates = target
+        ? exact.length
+          ? exact
+          : prods.filter((p) => norm(p.name).includes(target))
+        : visible;
+      const prod = candidates.length === 1 ? candidates[0] : null;
       if (!prod) {
         const delta = adjSign * adjQty;
-        if (!target && visible.length > 1) {
-          setPendingChoice({ delta, raw, candidates: visible.slice(0, 12) });
-          toast.info("Elige el producto y confirma el movimiento");
+        if (candidates.length > 1) {
+          setPendingChoice({ delta, raw, candidates: candidates.slice(0, 12) });
+          toast.info("Hay varios productos posibles. Elige el correcto y confirma el movimiento");
           return;
         }
         toast.error(
