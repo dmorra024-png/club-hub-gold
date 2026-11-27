@@ -24,6 +24,7 @@ import {
 import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
 import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
+import { gervisToolFeedback } from "./gervis-snoop/tool-feedback.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
 import { normalizeVoiceFormProposal } from "./voice/form-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
@@ -1236,7 +1237,7 @@ export async function deepgramAppSocket(
                       type: "FunctionCallResponse",
                       id: f.id,
                       name: f.name,
-                      content: JSON.stringify(result),
+                      content: JSON.stringify(gervisMode ? gervisToolFeedback(result) : result),
                     }),
                   );
                 }
