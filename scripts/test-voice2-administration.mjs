@@ -379,6 +379,23 @@ for (const [name, engine, device] of [
           lines:[{id:"60000000-0000-4000-8000-000000000001",name:"Amnesia Haze",opening_qty:20,incoming_qty:0,outgoing_qty:0,closing_qty:20,cost:0,sale_price:0,product_cost_eur:0,expected_sale_eur:0,expected_profit_eur:0,unpriced:true,unpriced_sale:true}],
         })});
       }
+      // The authorized UI member-search fallback is a READ-ONLY, club-scoped
+      // RPC despite using HTTP POST (PostgREST function calling convention).
+      // Verify its exact contract rather than broadly allowing arbitrary RPCs.
+      if (aiDialogue && u.pathname.endsWith("/rpc/snoop_voice_find_members")) {
+        assert.equal(req.method(), "POST");
+        assert.equal(req.headers()["authorization"], `Bearer ${auth.access_token}`);
+        const args = JSON.parse(req.postData() || "{}");
+        assert.deepEqual(Object.keys(args).sort(), ["p_club", "p_limit", "p_query"]);
+        assert.equal(args.p_club, club, "member read must be scoped to current club");
+        assert.equal(args.p_limit, 7);
+        assert.equal(typeof args.p_query, "string");
+        assert.ok(args.p_query.trim().length > 0 && args.p_query.length <= 100);
+        memberReads++;
+        // None of the synthetic local member identities match the spoken
+        // name: remain empty so the page must NOT auto-open another record.
+        return route.fulfill({ contentType: "application/json", body: "[]" });
+      }
       if (aiDialogue && req.method() === "POST" && u.pathname.includes("/rpc/")) {
         const rpc = u.pathname.split("/").at(-1);
         assert.ok(
