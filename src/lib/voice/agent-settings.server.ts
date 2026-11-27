@@ -570,6 +570,9 @@ export function agentSettings(
   // EXACTLY the existing Deepgram voice, provider, tools, authorizer, and
   // manual confirmation protocol. No runtime change without the flag.
   if (gervisMode) {
+    // Managed by Deepgram within the Standard tier; the legacy Pilot retains
+    // gpt-4o-mini. Validate actual model tool behavior in separate live tests.
+    settings.agent.think.provider.model = "gpt-4.1-mini";
     settings.agent.think.prompt = gervisBrainPrompt({
       language,
       executionEnabled,
