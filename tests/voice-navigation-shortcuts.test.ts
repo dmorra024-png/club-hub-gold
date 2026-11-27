@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { voiceNavigationShortcut } from "../src/lib/voice/navigation-shortcuts.ts";
 import { normalizeNavigationProposal } from "../src/lib/voice/navigation-proposal.ts";
+import { normalizeVoiceFormProposal } from "../src/lib/voice/form-proposal.ts";
 import { authorizeProposal } from "../src/lib/voice/agent-settings.server.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 const access: AccountAccess = {
@@ -86,4 +87,74 @@ test("navigation repair never discards real fields, unknown extra arguments or p
   ]) {
     assert.equal(normalizeNavigationProposal(value), value);
   }
+});
+
+test("dictating one field into the existing new-member form requires no fake prior session or empty transport keys", () => {
+  for (const [field, value] of [
+    ["first_name", "Marco"],
+    ["last_name", "Rossi"],
+    ["city", "Palma"],
+    ["birth_date", "1995-03-12"],
+  ]) {
+    const raw = { intent: "member", target: "member_create", member: { [field]: value } };
+    const normalized = normalizeVoiceFormProposal(raw);
+    assert.deepEqual(normalized, {
+      intent: "member", target: "member_create",
+      member: { [field]: value }, product: {}, query: null,
+      declined: [], question: "", asking: null,
+    });
+    const authorized = authorizeProposal(normalized, access);
+    assert.equal(authorized.ok, true, field);
+    assert.equal(authorizeProposal(normalized, { ...access, status: "suspended" }).ok, false);
+  }
+  assert.equal(authorizeProposal(normalizeVoiceFormProposal({
+    intent: "product", target: "product_create", product: { name: "Synthetic Example" },
+  }), access).ok, true);
+});
+test("partial draft normalization never drops unknown or disallowed fields", () => {
+  for (const raw of [
+    { intent: "member", target: "member_create", member: { id: "forbidden" } },
+    { intent: "member", target: "member_create", member: { first_name: "" } },
+    { intent: "member", target: "member_create", member: { first_name: "Synthetic" }, injection: true },
+    { intent: "member", target: "member_create", member: { first_name: "Synthetic" }, product: { price: "99" } },
+    { intent: "member", target: "member_edit", member: { first_name: "Synthetic" } },
+    { intent: "member", target: "member_create", member: { first_name: "Synthetic" }, declined: "phone" },
+  ]) {
+    const normalized = normalizeVoiceFormProposal(raw);
+    const input = raw as Record<string, unknown>;
+    if ("injection" in input ||
+        ("product" in input && input.product !== null && typeof input.product === "object" &&
+         "price" in input.product) ||
+        input.target === "member_edit" || input.declined === "phone")
+      assert.equal(normalized, raw);
+    assert.equal(authorizeProposal(normalized, access).ok, false);
+  }
+});
+
+test("crear producto and successive Spanish product field dictation use the same validated form route", () => {
+  for (const product of [
+    { name: "Amnesia Haze" },
+    { category: "Flores" },
+    { stock: "0.750" },
+    { buy_price: "10.25" },
+    { sell_price: "22.50" },
+    { destination: "almacen" },
+  ]) {
+    const raw = { intent: "product", target: "product_create", product };
+    const normalized = normalizeVoiceFormProposal(raw);
+    assert.deepEqual(normalized, {
+      intent: "product", target: "product_create", member: {},
+      product, query: null, declined: [], question: "", asking: null,
+    });
+    // A named category is accepted only when present in the authenticated club catalog.
+    const clubCatalog = { products: ["Amnesia Haze"], categories: ["Flores"] };
+    assert.equal(authorizeProposal(normalized, access, clubCatalog).ok, true);
+    assert.equal(authorizeProposal(normalized, {...access, status: "suspended"}, clubCatalog).ok, false);
+  }
+  assert.equal(authorizeProposal(normalizeVoiceFormProposal({
+    intent: "product", target: "product_create", product: { sell_price: "22.501" },
+  }), access).ok, false, "Invalid euro precision remains blocked");
+  assert.equal(authorizeProposal(normalizeVoiceFormProposal({
+    intent: "product", target: "product_create", product: { name: "Synthetic Example", unauthorized: "x" },
+  }), access).ok, false, "Unknown fields never bypass schema validation");
 });

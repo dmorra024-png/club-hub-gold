@@ -373,3 +373,36 @@ test("JARVIS keeps one product form alive while sequential utterances fill only 
     removePage();
   }
 });
+
+test("member registration accumulates successive spoken form fields without overwriting manual edits", async () => {
+  const owner = voiceOwner("synthetic-member-dictation", admin.clubId!);
+  const fields: Record<string, string> = { first_name: "", last_name: "", birth_date: "", city: "" };
+  const last: Record<string, Record<string, string>> = {};
+  const deregister = applicationPorts.register(owner, "member.form", {
+    snapshot: () => ({ ...fields }),
+    patch: patch => Object.assign(fields, patch),
+    ready: () => true,
+  });
+  const say = async (member: Record<string, string>) => applyDeepgramDraft({
+    ...proposal("member_create"), intent: "member", member,
+  }, {
+    access: admin,
+    owner,
+    path: () => "/soci/nuovo",
+    current: () => true,
+    navigate: () => {},
+    last,
+  });
+  try {
+    assert.deepEqual((await say({ first_name: "Marco" })).applied, ["first_name"]);
+    assert.deepEqual((await say({ last_name: "Rossi" })).applied, ["last_name"]);
+    assert.deepEqual((await say({ birth_date: "1995-03-12" })).applied, ["birth_date"]);
+    assert.deepEqual(fields, { first_name: "Marco", last_name: "Rossi", birth_date: "1995-03-12", city: "" });
+    fields.last_name = "Rossini"; // collaborator correction
+    const result = await say({ last_name: "Rossi", city: "Palma" });
+    assert.deepEqual(result.skipped, ["last_name"]);
+    assert.deepEqual(result.applied, ["city"]);
+    assert.equal(fields.last_name, "Rossini");
+    assert.equal(fields.city, "Palma");
+  } finally { deregister(); }
+});
