@@ -36,7 +36,7 @@ export function spokenMemberQuery(input: string) {
   const started = intent.test(value);
   if (!started) return value;
   value = value.replace(intent, "");
-  value = value.replace(/^(?:(?:la|el|lo|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile|datos|dati)\s+)?(?:(?:del|de|della|di|al)\s+)?(?:socio|socia|soci|miembro|member)\s+/iu, "");
+  value = value.replace(/^(?:(?:la|el|lo|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile|datos|dati)\s+)?(?:(?:del|de|della|di|al)\s+)?(?:socio|socia|soci|miembro|member)\s+(?:(?:de\s+nombre|di\s+nome)\s+)?/iu, "");
   value = value.replace(/^(?:(?:la|el)\s+)?(?:ficha|scheda|perfil|profile)\s+(?:del|de|di)\s+/iu, "");
   value = value.replace(/^(?:que\s+se\s+llama|che\s+si\s+chiama|llamado|llamada|de\s+nombre|di\s+nome|nombre)\s+/iu, "");
   return value.trim();
