@@ -5,7 +5,7 @@
  * denial. The underlying server result remains authoritative.
  */
 type GervisRejection = {
-  ok: false;
+  ok: boolean;
   code?: string;
   reason?: string;
   persisted?: boolean;
@@ -20,8 +20,10 @@ const HINTS = {
   unknown: "The application did not complete this operation. Do not claim permission was denied, nor that any form was saved. Ask one useful question or offer an authorized next step.",
 } as const;
 
-export function gervisToolFeedback(value: GervisRejection) {
-  if (value.ok !== false) return value;
+export function gervisToolFeedback(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const value = input as GervisRejection;
+  if (value.ok !== false) return input;
   const reason = value.reason === "permission" ? "permission"
     : value.reason === "format" ? "format"
     : value.reason === "declined" ? "declined"
