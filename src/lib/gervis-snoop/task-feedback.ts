@@ -12,7 +12,9 @@ export function gervisTaskFeedback(
   if (!outcome.ok || outcome.status === "rejected") {
     return {
       ...outcome,
-      next_step: outcome.code === "STALE"
+      next_step: outcome.code === "EMAIL_CORRECTION_UNCLEAR"
+        ? "The member email correction was NOT applied. Do not retry blindly or claim success. Ask the operator to spell the complete corrected address with arroba and punto. Preserve all earlier form fields."
+        : outcome.code === "STALE"
         ? "The operator changed screens. Ask if they want to resume this task; never retry a write."
         : "This step was not completed. Explain the real error, retain previous confirmed progress and ask for the next safe step.",
     };
