@@ -14,6 +14,7 @@ import type { AccountAccess } from "../access-context.ts";
 import { voiceDestinationNames } from "./destinations.ts";
 import { actionDefinitions } from "./action-protocol.ts";
 import { madridToday } from "../member-administration.ts";
+import { gervisBrainPrompt } from "../gervis-snoop/brain.ts";
 export function authorizeProposal(
   value: unknown,
   access: AccountAccess,
@@ -190,6 +191,7 @@ export function agentSettings(
   vocabulary: CatalogVocabulary = EMPTY_CATALOG,
   executionEnabled = false,
   walletEnabled = false,
+  gervisMode = false,
 ) {
   const settings = {
     type: "Settings",
@@ -564,5 +566,16 @@ export function agentSettings(
   settings.agent.think.prompt =
     `Current Europe/Madrid calendar date: ${madridToday()}. For any day other than today use snoop_cash_day with an explicit ISO calendar day; ask for clarification for ambiguous dates. Available navigation targets: ${voiceDestinationNames.join(", ")}. These targets only open existing screens and never imply that their forms were saved. ` +
     settings.agent.think.prompt;
+  // Gervis is a branch-isolated, opt-in alternative system prompt. It uses
+  // EXACTLY the existing Deepgram voice, provider, tools, authorizer, and
+  // manual confirmation protocol. No runtime change without the flag.
+  if (gervisMode) {
+    settings.agent.think.prompt = gervisBrainPrompt({
+      language,
+      executionEnabled,
+      walletEnabled,
+      today: madridToday(),
+    });
+  }
   return settings;
 }
