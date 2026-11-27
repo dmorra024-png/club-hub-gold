@@ -426,6 +426,7 @@ export async function deepgramAppSocket(
           verified.catalog,
           executionEnabled,
           walletEnabled,
+          setting(env, "GERVIS_SNOOP_EXPERIMENTAL") === "true",
         );
         settings.tags = ["snoop-admin-pilot"];
         settings.agent.think.prompt +=
