@@ -13,14 +13,14 @@ export function normalizeGervisProposal(value: unknown): unknown {
   if (!value || Array.isArray(value) || typeof value !== "object") return value;
   const raw = value as Record<string, unknown>;
   const intents = new Set([
-    "navigate", "stock_draft", "cash_draft", "administrative_draft",
+    "member", "navigate", "stock_draft", "cash_draft", "administrative_draft",
     "search", "member_edit", "member_section", "category",
     "clarify", "review", "stop",
   ]);
   if (!intents.has(String(raw.intent))) return value;
   const allowed = new Set([
     "intent","target","member","product","stock_movement","query",
-    "cash","form","declined","question","asking",
+    "cash","form","email_correction","declined","question","asking",
   ]);
   if (Object.keys(raw).some(key => !allowed.has(key))) return value;
   // A destination is ALWAYS explicit (nullable only where the schema allows).
