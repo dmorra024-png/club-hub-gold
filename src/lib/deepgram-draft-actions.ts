@@ -7,6 +7,7 @@ import {
 import { applicationPorts, isMemberCardPath, type VoicePort } from "./voice/application-ports.ts";
 import type { AccountAccess } from "./access-context.ts";
 import { parseCashCents, calendarDate } from "./member-administration.ts";
+import { removeSingleLocalEmailDot } from "./gervis-snoop/email-correction.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
@@ -138,6 +139,18 @@ export async function applyDeepgramDraft(
             ? p.member
             : p.product),
     } as Record<string, string>;
+    if (p.email_correction) {
+      // Only the Gervis phone-test pathway may use this narrow local edit.
+      // Never replace a manually modified email or guess punctuation.
+      if (!options.verifyNavigation || kind !== "member" || !form.snapshot ||
+          Object.keys(patch).length !== 0)
+        throw Error("SNOOP_EMAIL_CORRECTION_UNCLEAR");
+      const currentEmail = form.snapshot().email;
+      const voiceOwnedEmail = options.last.member?.email;
+      if (!voiceOwnedEmail || voiceOwnedEmail !== currentEmail)
+        throw Error("SNOOP_EMAIL_CORRECTION_UNCLEAR");
+      patch.email = removeSingleLocalEmailDot(currentEmail);
+    }
     if (kind === "admin.membership_fee" && patch.price !== undefined) {
       const cents = parseCashCents(patch.price);
       if (cents === null) throw Error("SNOOP_INVALID_AMOUNT");
