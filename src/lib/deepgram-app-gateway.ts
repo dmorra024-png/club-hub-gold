@@ -338,6 +338,26 @@ export async function deepgramAppSocket(
       server.send(JSON.stringify(body));
     } catch {}
   };
+  let deferredNavigationSpeech: {
+    text: string; target: string; created: number;
+  } | null = null;
+  const flushNavigationSpeech = () => {
+    const queued = deferredNavigationSpeech;
+    if (!queued || speech || !providerReady || !upstream) return;
+    deferredNavigationSpeech = null;
+    if (Date.now() - queued.created > 12000) return;
+    // Deepgram may silently refuse InjectAgentMessage while the user is
+    // speaking, even with behavior:queue. Only enqueue when the upstream
+    // user turn has finished. Signal the PCM player before fresh TTS.
+    send({ type: "AppVoiceResponseExpected", target: queued.target });
+    try {
+      upstream.send(JSON.stringify({
+        type: "InjectAgentMessage", message: queued.text, behavior: "queue",
+      }));
+    } catch {
+      send({ type: "AppAudioNotice", code: "VOICE_RESPONSE_UNAVAILABLE" });
+    }
+  };
   const close = (reason: string) => {
     if (ended) return;
     recordReferences.clear();
@@ -1254,7 +1274,11 @@ export async function deepgramAppSocket(
             } else if (m.type === "ConversationText" && ["user", "assistant"].includes(m.role)) {
               lastInteraction = Date.now();
               if (m.role === "user") audioHealth.providerUserMessages++;
-              else audioHealth.providerAssistantMessages++;
+              else {
+                audioHealth.providerAssistantMessages++;
+                speech = false;
+                flushNavigationSpeech();
+              }
               if (m.role === "user") {
                 if (!newTurn) {
                   turn++;
@@ -1320,8 +1344,10 @@ export async function deepgramAppSocket(
               }
               // AgentThinking is optional: a spoken reply also ends the user turn.
               // Otherwise consecutive phrases share one tool budget and eventually fail.
-              if (m.type === "AgentThinking" || m.type === "AgentStartedSpeaking") speech = false;
+              if (m.type === "AgentThinking" || m.type === "AgentStartedSpeaking" ||
+                  m.type === "AgentAudioDone") speech = false;
               send({ type: m.type, ...(m.type === "UserStartedSpeaking" ? { turn } : {}) });
+              if (m.type !== "UserStartedSpeaking") flushNavigationSpeech();
             }
           } catch {
             close("PROVIDER_INVALID");
@@ -1393,17 +1419,10 @@ export async function deepgramAppSocket(
           const words = outcome.opened
             ? "He abierto " + screen + ". Puedes continuar dictando los datos."
             : "No se pudo abrir " + screen + ". La aplicación conserva los datos sin cambios.";
-          // The screen acknowledgement is a fresh, server-authorized voice
-          // response boundary, not a second user utterance. Rearm the local
-          // PCM player before Deepgram's new audio reaches the browser:
-          // Deepgram does not always emit AgentThinking/AgentStartedSpeaking
-          // for injected speech.
-          send({ type: "AppVoiceResponseExpected", target: outcome.target });
-          // Injection is not guaranteed during user speech (Deepgram may
-          // refuse it). Do not advertise a guarantee that voice was played.
-          upstream?.send(JSON.stringify({
-            type: "InjectAgentMessage", message: words, behavior: "queue",
-          }));
+          // Do not inject a spoken confirmation during user speech: the
+          // upstream provider explicitly ignores it, producing a silent app.
+          deferredNavigationSpeech = { text: words, target: outcome.target, created: Date.now() };
+          flushNavigationSpeech();
           return;
         }
         if (incoming.type === "AppExecutionRecover") {
