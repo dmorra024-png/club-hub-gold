@@ -177,3 +177,17 @@ test("Spanish and Italian read-only product, stock and Caja opener commands have
     assert.deepEqual(Object.keys(tool.parameters.properties), []);
   }
 });
+
+test("pilot speech and transcription consistently use the chosen language, never Italian fallback for Spanish", () => {
+  for (const [language, expectedVoice] of [
+    ["es", "flux-carmen-es"],
+    ["it", "flux-paola-it"],
+    ["en", "flux-kit-en"],
+  ] as const) {
+    const settings = agentSettings(language, 48000, undefined, true, true);
+    assert.deepEqual(settings.agent.listen.provider.language_hints, [language]);
+    assert.equal(settings.agent.speak.provider.model, expectedVoice);
+    assert(settings.agent.think.prompt.includes("Strictly keep all spoken replies in the SELECTED language"));
+    assert(settings.agent.think.prompt.includes("birth_date as unambiguous ISO YYYY-MM-DD"));
+  }
+});
