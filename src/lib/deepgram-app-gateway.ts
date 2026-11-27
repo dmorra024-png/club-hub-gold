@@ -1393,8 +1393,14 @@ export async function deepgramAppSocket(
           const words = outcome.opened
             ? "He abierto " + screen + ". Puedes continuar dictando los datos."
             : "No se pudo abrir " + screen + ". La aplicación conserva los datos sin cambios.";
-          // Speak only after the browser confirms actual navigation. No tool
-          // status is faked and this cannot mutate administrative state.
+          // The screen acknowledgement is a fresh, server-authorized voice
+          // response boundary, not a second user utterance. Rearm the local
+          // PCM player before Deepgram's new audio reaches the browser:
+          // Deepgram does not always emit AgentThinking/AgentStartedSpeaking
+          // for injected speech.
+          send({ type: "AppVoiceResponseExpected", target: outcome.target });
+          // Injection is not guaranteed during user speech (Deepgram may
+          // refuse it). Do not advertise a guarantee that voice was played.
           upstream?.send(JSON.stringify({
             type: "InjectAgentMessage", message: words, behavior: "queue",
           }));
