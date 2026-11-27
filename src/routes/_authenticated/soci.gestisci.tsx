@@ -80,9 +80,8 @@ function GestisciSoci() {
     }
   }
 
-  function runVoiceSearch(query: string) {
-    // The browser must share the same command normalization as the
-    // authenticated agent read: never search for literal "busca socio".
+  async function runVoiceSearch(query: string) {
+    // Voice UI and server share the same member-name normalizer.
     const memberQuery = spokenMemberQuery(query);
     if (!memberQuery) {
       toast.error("Indica el nombre o número del socio.");
@@ -97,21 +96,53 @@ function GestisciSoci() {
     setQ(memberQuery);
     const norm = normalizeAdministrativeSearch;
     const tokens = norm(memberQuery).split(/\s+/).filter(Boolean);
-    const exact = rowsRef.current.filter((r) => {
-      const hay = norm(
-        `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`,
-      );
+    const local = rowsRef.current.filter((r) => {
+      const hay = norm(`${r.first_name} ${r.last_name}`);
       return tokens.length > 0 && tokens.every((t) => hay.includes(t));
     });
-    if (exact.length === 1) {
-      toast.success(`Abriendo ficha de ${exact[0].first_name} ${exact[0].last_name}`);
-      navigate({ to: "/soci/$id", params: { id: exact[0].id } });
-    } else if (exact.length === 0 && query)
-      toast.error("No se encontró una coincidencia exacta. Revisa el nombre o número.");
-    else if (exact.length > 1)
-      toast.message(
-        `${exact.length} coincidencias. Selecciona el socio; no se abre una ficha por aproximación.`,
+    if (local.length === 1) {
+      toast.success(`Abriendo ficha de ${local[0].first_name} ${local[0].last_name}`);
+      navigate({ to: "/soci/$id", params: { id: local[0].id } });
+      return;
+    }
+    if (local.length > 1) {
+      toast.message(`${local.length} coincidencias. Selecciona el socio; no se abre una ficha por aproximación.`);
+      return;
+    }
+
+    // The local list can be paginated or incomplete. A zero local match is
+    // NOT evidence that no member exists. Recheck through the authenticated
+    // club-scoped RPC (same access rules as the voice agent).
+    try {
+      const { data, error } = await (supabase as any).rpc("snoop_voice_find_members", {
+        p_query: memberQuery,
+        p_club: routeContext.access.clubId!,
+        p_limit: 7,
+      });
+      if (error || !Array.isArray(data)) {
+        toast.error("Búsqueda no disponible. No se ha comprobado si existe el socio.");
+        return;
+      }
+      const matches = data.filter(
+        (row: unknown): row is { id: string; first_name: string; last_name: string } =>
+          !!row && typeof row === "object" &&
+          typeof (row as any).id === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test((row as any).id) &&
+          typeof (row as any).first_name === "string" &&
+          typeof (row as any).last_name === "string",
       );
+      if (matches.length === 1) {
+        navigate({ to: "/soci/$id", params: { id: matches[0].id } });
+        return;
+      }
+      if (matches.length > 1) {
+        toast.message(`${matches.length} coincidencias. Indica el apellido o selecciona la ficha.`);
+      } else {
+        toast.error("No se encontró el nombre en este club. Comprueba nombre y apellidos.");
+      }
+    } catch {
+      toast.error("Búsqueda no disponible. No se ha comprobado si existe el socio.");
+    }
   }
 
   useEffect(() => {
