@@ -26,6 +26,11 @@ test("Gervis is opt-in; existing Deepgram speech settings and exact tools are un
   assert.match(gervis.agent.think.prompt, /DISABLED\. Never call it/);
   assert.match(gervis.agent.think.prompt, /human confirmation/);
   assert.match(gervis.agent.think.prompt, /member_create/);
+  assert.match(gervis.agent.think.prompt, /CHATGPT-LIKE VOICE CONVERSATION/);
+  assert.match(gervis.agent.think.prompt, /corrected midway/);
+  assert.match(gervis.agent.think.prompt, /no puedo/);
+  assert.match(gervis.agent.think.prompt, /compound tasks/);
+  assert.match(gervis.agent.think.prompt, /relevant authorized tool/);
 });
 
 test("Gervis never enables mutations merely by rewriting the prompt", () => {
