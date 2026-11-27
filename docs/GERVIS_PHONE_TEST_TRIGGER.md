@@ -35,3 +35,6 @@ The only GitHub Actions path is `.github/workflows/gervis-snoop-phone-test.yml`,
 
 ## Release attempt
 Requested by the user for a genuine mobile phone test. All unverified real-voice behaviors stay OPEN pending device acceptance.
+
+### First CI attempt and verified fix
+The first upload of Gervis's non-deployed Worker version passed its unit/type/build/dry-run checks but the Version URL returned HTTP 404. The existing Pilot had Version URL routing disabled. The guarded workflow now verifies the existing workers.dev route remains enabled, enables version URL routing with Cloudflare's documented subdomain API if needed, re-uploads the Gervis version alias, and retries the URL smoke test. This changes only the Worker-wide **Version URL routing setting**, not deployed code or live traffic. These URLs are publicly routable to the existing app authentication screen; all account and pilot allowlists still apply.
