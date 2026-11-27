@@ -8,7 +8,7 @@ import type { ConversationProposalValue } from "../snoop-conversation.ts";
 export function gervisTaskFeedback(
   proposal: ConversationProposalValue,
   outcome: {ok: boolean; status: string; persisted: boolean; applied?: readonly string[]; skipped?: readonly string[]; code?: string},
-) {
+): {ok: boolean; status: string; persisted: boolean; applied?: readonly string[]; skipped?: readonly string[]; code?: string; next_step?: string} {
   if (!outcome.ok || outcome.status === "rejected") {
     return {
       ...outcome,
