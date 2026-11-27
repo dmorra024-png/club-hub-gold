@@ -122,6 +122,11 @@ export const proposalSchema = {
         },
       },
     },
+    email_correction: {
+      type: "string",
+      enum: ["remove_single_local_dot"],
+      description: "GERVIS ONLY: after the operator explicitly asks to remove the erroneous dot BEFORE @ from a previously VOICE-FILLED member email. Never use for domain dots, ambiguous positions, manual edits or without confirmation.",
+    },
     cash: {
       type: "object",
       additionalProperties: false,
