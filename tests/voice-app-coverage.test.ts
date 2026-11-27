@@ -415,7 +415,7 @@ test("product field receipts do not terminate a voice session as INVALID_SEQUENC
     product: { name: "Synthetic Haze", category: "Flores", stock: "0.750",
                buy_price: "10.25", sell_price: "22.50", destination: "almacen" },
   });
-  const emittedFields = ["name", "category", "stock", "buy_price", "sell_price", "destination"];
+  const emittedFields = ["name", "category", "stock", "buy_price", "sell_price", "destination", "strain"];
   const receipt = ActionReceipt.parse({
     type: "AppActionResult", id: "synthetic-receipt", status: "prepared",
     code: "OK", applied: emittedFields, skipped: [],
@@ -434,5 +434,20 @@ test("product field receipts do not terminate a voice session as INVALID_SEQUENC
   assert.equal(ActionReceipt.safeParse({
     type: "AppActionResult", id: "unsafe-extra", status: "prepared",
     applied: ["stock_adjust"], skipped: [], code: "OK",
+  }).success, false);
+});
+
+test("sativa/indica/hibrida form dictation is typed and requires an explicit validated value", () => {
+  for (const strain of ["sativa", "indica", "hibrida"]) {
+    const p = ConversationProposal.safeParse({
+      ...proposal("product_create"), intent: "product", product: { strain },
+    });
+    assert.equal(p.success, true, strain);
+    assert.equal(ActionReceipt.safeParse({
+      type: "AppActionResult", id: "synthetic-strain", status: "prepared", applied: ["strain"], skipped: [],
+    }).success, true);
+  }
+  assert.equal(ConversationProposal.safeParse({
+    ...proposal("product_create"), intent: "product", product: { strain: "sativaa" },
   }).success, false);
 });
