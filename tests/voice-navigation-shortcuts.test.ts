@@ -40,12 +40,40 @@ test("common exact Spanish/Italian read-only shortcuts navigate existing screens
     assert(authorizeProposal(navigation(target), access).ok, phrase);
   }
 });
+test("natural coworker requests open authorized member/product forms, not an execution", () => {
+  for (const phrase of [
+    "Snoop, quiero crear un socio",
+    "Quiero que me abras el formulario para crear socio",
+    "Por favor, abre el formulario para crear un socio",
+    "Puedes abrir la ficha de socio",
+    "Necesito registrar un socio",
+    "Ayúdame a crear socio",
+    "vorrei creare un socio",
+    "Apri formulario per creare socio",
+    "registrar a un socio",
+  ]) {
+    assert.equal(voiceNavigationShortcut(phrase), "member_create", phrase);
+    assert.equal(authorizeProposal(navigation("member_create"), access).ok, true);
+    assert.equal(authorizeProposal(navigation("member_create"), { ...access, status: "suspended" }).ok, false);
+  }
+  for (const phrase of [
+    "Quiero crear un producto",
+    "Por favor abre el formulario para crear producto",
+    "Voglio creare un prodotto",
+    "Snoop, registra un producto",
+  ]) assert.equal(voiceNavigationShortcut(phrase), "product_create", phrase);
+});
+
 test("never turn a named person, amount, order or ambiguous sentence into a shortcut", () => {
   for (const phrase of [
     "abre ficha de Marco Rossi",
     "Abre producto Amnesia Haze",
     "crear producto Amnesia Haze 20 euros",
     "crear socio Marco Rossi",
+    "no quiero crear socio",
+    "quiero crear socio con nombre Juan",
+    "quiero crear producto de 20 euros",
+    "quiero registrar socio y darle cuota de 20 euros",
     "dispensar 2 gramos",
     "caja 10 euros",
     "quien abrió la caja hoy",
