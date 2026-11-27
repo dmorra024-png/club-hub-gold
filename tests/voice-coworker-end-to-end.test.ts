@@ -63,6 +63,10 @@ test("product voice creation never fabricates absent zero prices or wipes previo
   assert(!Object.hasOwn(bare, "stock"));
   assert(!Object.hasOwn(bare, "buy_price"));
   assert(!Object.hasOwn(bare, "sell_price"));
+  const typeOnly = productFormVoice("crea prodotto Amnesia Haze tipo sativa", categories);
+  assert(typeOnly);
+  assert.equal(typeOnly.name, "Amnesia Haze");
+  assert.equal(typeOnly.strain, "sativa");
 });
 
 test("stock preview format round-trips through the shared UI parser", () => {
