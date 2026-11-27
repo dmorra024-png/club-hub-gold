@@ -223,7 +223,9 @@ const mf = new Miniflare(
     ],
   }),
 );
-const base = "https://snoop-pilot.dmorra024.workers.dev";
+const base = gervisMode
+  ? "https://gervis-snoop-snoop-pilot.dmorra024.workers.dev"
+  : "https://snoop-pilot.dmorra024.workers.dev";
 async function socket(token, wrongConfig = false, autoAck = true) {
   const r = await mf.dispatchFetch(base + "/api/snoop-deepgram/socket", {
     headers: {
