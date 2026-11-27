@@ -269,3 +269,19 @@ test("spoken member names remove ficha commands without changing club access or 
   assert.equal(result.rows.length, 1);
   assert.equal(JSON.stringify(result).includes("PRIVATE"), false);
 });
+
+// Protect member search normalization from swallowing surnames or adding personal
+// data to an unscoped catalog query.
+test("natural-language member lookup keeps full names and leading De surnames", () => {
+  const cases: Array<[string, string]> = [
+    ["Marco Rossi", "Marco Rossi"],
+    ["De Luca", "De Luca"],
+    ["busca socio Marco Rossi", "Marco Rossi"],
+    ["busca la ficha del socio Marco Rossi", "Marco Rossi"],
+    ["buscar socio de nombre De Luca", "De Luca"],
+    ["apri scheda socio Mario Bianchi", "Mario Bianchi"],
+    ["encuentra miembro llamado Juan Pérez", "Juan Pérez"],
+  ];
+  for (const [phrase, expected] of cases)
+    assert.equal(spokenMemberQuery(phrase), expected, phrase);
+});
