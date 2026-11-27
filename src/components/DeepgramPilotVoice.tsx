@@ -557,6 +557,15 @@ export function DeepgramPilotVoice({
             utterancePath.current = pathRef.current;
             interrupt();
             setStatus("Ti ascolto…");
+          } else if (message.type === "AppVoiceResponseExpected") {
+            // Bounded fresh response: the browser has actually opened an
+            // authorized page. Do not lose Deepgram's TTS just because the
+            // previous user's barge-in left the PCM player suppressed.
+            state.speaker.beginResponse();
+            if (state.ctx.state !== "running") {
+              setAudioSuspended(true);
+              setStatus("Audio sospeso dal telefono. Tocca Riattiva audio.");
+            }
           } else if (message.type === "AgentStartedSpeaking") {
             // Deepgram can begin the next audio response without an AgentThinking event.
             // A previous interruption must suppress the old response, not all future speech.
