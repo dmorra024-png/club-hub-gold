@@ -19,7 +19,8 @@ test("Gervis is opt-in; existing Deepgram speech settings and exact tools are un
   assert.deepEqual(gervis.agent.speak, base.agent.speak);
   assert.deepEqual(gervis.audio, base.audio);
   assert.deepEqual(gervis.agent.think.functions, base.agent.think.functions);
-  assert.equal(gervis.agent.think.provider.model, base.agent.think.provider.model);
+  assert.equal(base.agent.think.provider.model, "gpt-4o-mini");
+  assert.equal(gervis.agent.think.provider.model, "gpt-4.1-mini");
   assert.notEqual(gervis.agent.think.prompt, base.agent.think.prompt);
   assert.match(gervis.agent.think.prompt, /one intelligent coworker/);
   assert.match(gervis.agent.think.prompt, /DISABLED\. Never call it/);
