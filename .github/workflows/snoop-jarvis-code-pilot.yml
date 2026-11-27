@@ -37,14 +37,16 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "release/jarvis-pilot-safe-20261126"
-          VERIFIED=712bdb20d1c794ad48bc3eb1a8a44793e56848df
-          PREVIOUS=f732ade58970c6a142bb4ba155e0a06c0fe7cb65
+          VERIFIED=6f20d120e18aa59b0dfe4c7d32a7b7dd74e0dc6d
+          PREVIOUS=76c36e4b50aec59ffb1c2d2b1c505c97b2e37e38
           ALLOWED=$(git diff --name-only "$PREVIOUS" "$VERIFIED" -- src apps package.json bun.lock wrangler.json supabase scripts tests | sort)
           EXPECTED=$(printf '%s\n' \
             src/components/DeepgramPilotVoice.tsx \
             src/lib/deepgram-app-gateway.ts \
             src/lib/voice/agent-settings.server.ts \
-            src/lib/voice/navigation-proposal.ts \
+            src/lib/voice/form-proposal.ts \
+            tests/voice-app-coverage.test.ts \
+            tests/voice-execution-registry.test.ts \
             tests/voice-navigation-shortcuts.test.ts | sort)
           test "$ALLOWED" = "$EXPECTED"
           DEPLOYED=3e7487088396cbd21edc99d454d88d9418dad0bb
