@@ -94,6 +94,37 @@ jobs:
           writeFileSync('.output/server/wrangler-gervis-phone-test.json',JSON.stringify(w,null,2));
           console.log('Gervis version only: voice executions OFF, Wallet OFF, learning writes OFF.');
           NODE
+      - name: Enable VERSION URL routing only; do not shift deployed Pilot traffic
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/subdomain';
+          const headers={Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          const read=await fetch(url,{headers,signal:AbortSignal.timeout(25000)});
+          assert.equal(read.status,200);
+          const before=await read.json();assert.equal(before.success,true);
+          assert.equal(before.result?.enabled,true,'Never alter the existing Pilot workers.dev route');
+          if (before.result?.previews_enabled!==true) {
+            const update=await fetch(url,{
+              method:'POST',
+              headers:{...headers,'Content-Type':'application/json'},
+              body:JSON.stringify({enabled:true,previews_enabled:true}),
+              signal:AbortSignal.timeout(25000),
+            });
+            assert.equal(update.status,200);
+            const changed=await update.json();assert.equal(changed.success,true);
+            assert.equal(changed.result?.enabled,true);
+            assert.equal(changed.result?.previews_enabled,true);
+          }
+          const check=await fetch(url,{headers,signal:AbortSignal.timeout(25000)});
+          assert.equal(check.status,200);
+          const after=await check.json();
+          assert.equal(after.result?.enabled,true);
+          assert.equal(after.result?.previews_enabled,true);
+          console.log('Version URL routing enabled; existing deployed Worker route remains enabled.');
+          NODE
       - name: Upload Gervis as a non-deployed version with test URL
         shell: bash
         run: |
@@ -105,7 +136,7 @@ jobs:
           set -euo pipefail
           PREVIEW=https://gervis-snoop-snoop-pilot.dmorra024.workers.dev
           LIVE=https://snoop-pilot.dmorra024.workers.dev
-          curl -fsS --max-time 30 "$PREVIEW/" -o /tmp/gervis-phone-test.html
+          curl -fsS --retry 10 --retry-all-errors --retry-delay 4 --max-time 30 "$PREVIEW/" -o /tmp/gervis-phone-test.html
           grep -qi snoop /tmp/gervis-phone-test.html
           curl -fsS --max-time 30 "$LIVE/" -o /tmp/gervis-live-pilot.html
           grep -qi snoop /tmp/gervis-live-pilot.html
