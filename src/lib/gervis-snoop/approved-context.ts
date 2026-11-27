@@ -4,7 +4,7 @@ import type { GervisLearningRecord } from "./learning.ts";
  * never an instruction from a user or an external page. Workflow preferences
  * require a separate validation and policy before injection into the agent.
  */
-const term = /^[\p{L}\p{N}][\p{L}\p{N}\s&'#.-]{1,89}$/u;
+const term = /^[\p{L}\p{N}][\p{L}\p{N} &'#.-]{1,89}$/u;
 export function gervisApprovedPronunciations(
   entries: readonly GervisLearningRecord[],
   clubId: string,
