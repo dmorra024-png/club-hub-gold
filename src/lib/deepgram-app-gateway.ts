@@ -245,7 +245,10 @@ export async function deepgramAppSocket(
     }
   >();
   const executionEnabled = setting(env, "SNOOP_VOICE_EXECUTION_PILOT_ENABLED") === "true";
-  const gervisMode = setting(env, "GERVIS_SNOOP_EXPERIMENTAL") === "true";
+  // Only the specific uploaded phone-test Version URL may run the new brain.
+  // Even an accidental later deployment on the Pilot hostname cannot enable it.
+  const gervisMode = setting(env, "GERVIS_SNOOP_EXPERIMENTAL") === "true" &&
+    url.hostname === "gervis-snoop-snoop-pilot.dmorra024.workers.dev";
   const walletEnabled = setting(env, "SNOOP_WALLET_OPERATIONS_ENABLED") === "true";
   const execute = async (
     request: Parameters<typeof voiceCommandOperation>[1] & { value?: boolean },
