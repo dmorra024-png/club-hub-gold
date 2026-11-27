@@ -23,12 +23,12 @@ export function disableUnavailableMicrosoftSource(source, file) {
     ).join("\n");
   }
   if (file.endsWith(".sources")) {
-    return source.split(/\n\s*\n/).map((stanza) =>
-      stanza.includes("packages.microsoft.com/ubuntu/24.04/prod") &&
-      !/^\s*Enabled:/m.test(stanza)
-        ? stanza.trimEnd() + "\nEnabled: no"
-        : stanza.replace(/^\s*Enabled:\s*yes\s*$/m, "Enabled: no"),
-    ).join("\n\n");
+    return source.split(/\n\s*\n/).map((stanza) => {
+      if (!stanza.includes("packages.microsoft.com/ubuntu/24.04/prod")) return stanza;
+      return /^\s*Enabled:/m.test(stanza)
+        ? stanza.replace(/^\s*Enabled:\s*\S+\s*$/m, "Enabled: no")
+        : stanza.trimEnd() + "\nEnabled: no";
+    }).join("\n\n");
   }
   return source;
 }
