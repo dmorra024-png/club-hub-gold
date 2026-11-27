@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PcmPlayback, VOICE_OUTPUT_SAMPLE_RATE, resumePlaybackForAssistantText } from "../src/lib/voice/pcm-playback.ts";
+import { canSpeakNavigation } from "../src/lib/voice/spoken-navigation.ts";
 function fixture(state = "running") {
   const buffers: Float32Array[] = [],
     nodes: any[] = [],
@@ -140,5 +141,27 @@ test("real provider sequence: assistant text rearms interrupted PCM without opti
   assert.equal(f.nodes.length, 2);
   assert.equal(f.player.snapshot().decodedSamples, 2);
   assert.equal(f.player.snapshot().scheduledSamples, 2);
+  assert.equal(f.player.snapshot().nonzeroSamples, 2);
+});
+
+test("confirmed screen opening never injects TTS during user speech and rearms fresh PCM playback", () => {
+  const started = 10000;
+  assert.equal(canSpeakNavigation(true, true, started, started + 30), false);
+  assert.equal(canSpeakNavigation(false, false, started, started + 30), false);
+  assert.equal(canSpeakNavigation(false, true, started, started + 30), true);
+  assert.equal(canSpeakNavigation(false, true, started, started + 13000), false);
+  assert.equal(canSpeakNavigation(false, true, started, started - 1), false);
+  const f = fixture();
+  f.player.beginResponse();
+  f.player.push(new Uint8Array([0, 64]).buffer);
+  f.player.interrupt(); // UserStartedSpeaking after previous audible response
+  assert.equal(f.player.suppressed, true);
+  assert.equal(f.nodes.length, 1);
+  // AppVoiceResponseExpected only arrives for a fresh navigation response
+  // after real UI acknowledgement and safe speech boundary.
+  f.player.beginResponse();
+  assert.equal(f.player.suppressed, false);
+  f.player.push(new Uint8Array([0, 64]).buffer);
+  assert.equal(f.nodes.length, 2);
   assert.equal(f.player.snapshot().nonzeroSamples, 2);
 });
