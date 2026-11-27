@@ -1,5 +1,6 @@
 import { useVoiceToolPort } from "@/hooks/useVoiceToolPort";
 import { scopedMemberSearch } from "@/lib/administrative-voice";
+import { spokenMemberQuery } from "@/lib/voice/member-query";
 import { createPortal } from "react-dom";
 import { extractMemberNumber, normalizeAdministrativeSearch } from "@/lib/member-administration";
 import { decodeLegacyMemberQr, matchLegacyMember } from "@/lib/legacy-member-qr";
@@ -80,16 +81,22 @@ function GestisciSoci() {
   }
 
   function runVoiceSearch(query: string) {
-    // Try member number first (QR or dictated digits)
-    const num = extractMemberNumber(query);
+    // The browser must share the same command normalization as the
+    // authenticated agent read: never search for literal "busca socio".
+    const memberQuery = spokenMemberQuery(query);
+    if (!memberQuery) {
+      toast.error("Indica el nombre o número del socio.");
+      return;
+    }
+    const num = extractMemberNumber(memberQuery);
     if (num) {
       openByMemberNumber(num);
       return;
     }
 
-    setQ(query);
+    setQ(memberQuery);
     const norm = normalizeAdministrativeSearch;
-    const tokens = norm(query).split(/\s+/).filter(Boolean);
+    const tokens = norm(memberQuery).split(/\s+/).filter(Boolean);
     const exact = rowsRef.current.filter((r) => {
       const hay = norm(
         `${r.first_name} ${r.last_name} ${r.dni_number} ${r.member_number} ${r.city ?? ""}`,
