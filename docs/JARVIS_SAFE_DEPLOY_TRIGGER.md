@@ -31,3 +31,16 @@ Verified source 6f20d120e18aa59b0dfe4c7d32a7b7dd74e0dc6d (PR #72). Seven-file gu
 ## Immediate voice disconnect after product field dictation — 27 November 2026
 
 Pinned commit 3b53bb3a151d086482679da133aa9026d740e85f. The product form previously emitted acknowledged fields stock, buy_price, sell_price, destination not accepted by the server's strict ActionReceipt enum. This caused INVALID_SEQUENCE and an immediate connection close, independent of inactivity. Fixed only those verified keys, with regression tests, no privileged stock adjustments. Also enabled human-confirmed smokeable-product sativa/indica/hibrida form field without guessing classification. No DB migrations, Caja, inventory ledger, Monedero, Socio or REAL updates. Deepgram client audio/transport and cost limits preserved.
+
+## 27 November 2026 — PR #75 + #76, authorized code-only Pilot release
+
+Verified merged source: `3d6afa3e9cabd58f3f2eb0a47d5771b7ad3f2584`.
+All checks in PR #76 passed, including authorization, typechecking, tests, audio/browser simulation.
+Only the existing guarded `snoop-jarvis-code-pilot.yml` workflow is authorized.
+Release is restricted to `snoop-pilot`, preserving existing Cloudflare bindings,
+the existing `SNOOP_VOICE_EXECUTION_PILOT_ENABLED` value, Monedero state, and
+existing Supabase data. This deployment does not apply or rerun SQL migrations;
+the authorized Fátima/Fatima member-search migration was already applied separately
+to Snoop-pilot. The Worker deploy must fail closed if any existing protected binding
+is absent, if source differs from the verified merge, or if HTTPS checks fail.
+Do not deploy SNOOP Socio or production/REAL.
