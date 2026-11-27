@@ -9,6 +9,7 @@ const executionMode = process.argv.includes("--execution") || registryMode;
 const compiled = process.argv.includes("--compiled");
 const closeRetryOnly = process.argv.includes("--close-retry");
 const noThinking = process.argv.includes("--no-thinking");
+const gervisMode = process.argv.includes("--gervis");
 const conversationTurns = noThinking ? 20 : closeRetryOnly ? 2 : 8;
 const require = createRequire(import.meta.url),
   { Miniflare, convertV4MiniflareOptions } = require(
@@ -44,6 +45,7 @@ const sqlActor = async (sql, args = []) =>
   });
 const bindings = {
   SNOOP_VOICE_EXECUTION_PILOT_ENABLED: executionMode ? "true" : "false",
+  GERVIS_SNOOP_EXPERIMENTAL: gervisMode ? "true" : "false",
   DEEPGRAM_API_KEY: "test-provider-only",
   SNOOP_DEEPGRAM_PILOT_ENABLED: "true",
   SNOOP_DEEPGRAM_PILOT_USER_ID: uid,
