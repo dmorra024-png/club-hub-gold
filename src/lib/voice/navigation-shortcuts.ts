@@ -20,8 +20,8 @@ export function voiceNavigationShortcut(text: string): VoiceDestination | null {
     .replace(/^(?:(?:quiero|quisiera|necesito|me gustaria|vorrei|voglio|devo)\s+(?:que\s+)?(?:me\s+)?)/, "")
     .replace(/^(?:(?:ayudame|aiutami)\s+(?:a\s+)?)/, "")
     .trim();
-  const memberOpen = /^(?:(?:(?:abre|abrir|apri|apre|abrimi|aprir|mostra|mostrar|muestrame|mostrami)\s+(?:(?:el|la|lo|il|un|una)\s+)?(?:(?:formulario|registro|ficha|scheda|modulo)\s+(?:(?:de|del|para|per|di)\s+)?))|(?:(?:crear|crea|creare|registra|registrar|registrare|alta|dar\s+de\s+alta|aggiungi|anadir|hacer\s+el\s+alta)\s+(?:(?:a|un|una|el|la|il|uno|nuovo|nuevo|nueva)\s+)?))(?:nuevo\s+|nuovo\s+)?(?:socio|socia|soci|miembro)(?:\s+nuevo)?$/;
-  const memberFormOpen = /^(?:abre|abrir|apri|apre|mostrar|mostra|muestrame)\s+(?:(?:el|la|il|un|una)\s+)?(?:formulario|registro|ficha|scheda|modulo)\s+(?:(?:para|de|del|per|di)\s+)?(?:(?:crear|registrar|creare|registrare|dar\s+de\s+alta|nuevo|nuovo)\s+(?:(?:a|un|una|el|la|il)\s+)?)?(?:socio|socia|soci|miembro)$/;
+  const memberOpen = /^(?:(?:(?:abre|abras|abrir|apri|apre|abrimi|aprir|mostra|mostrar|muestrame|mostrami)\s+(?:(?:el|la|lo|il|un|una)\s+)?(?:(?:formulario|registro|ficha|scheda|modulo)\s+(?:(?:de|del|para|per|di)\s+)?))|(?:(?:crear|crea|creare|registra|registrar|registrare|alta|dar\s+de\s+alta|aggiungi|anadir|hacer\s+el\s+alta)\s+(?:(?:a|un|una|el|la|il|uno|nuovo|nuevo|nueva)\s+)?))(?:nuevo\s+|nuovo\s+)?(?:socio|socia|soci|miembro)(?:\s+nuevo)?$/;
+  const memberFormOpen = /^(?:abre|abras|abrir|apri|apre|mostrar|mostra|muestrame)\s+(?:(?:el|la|il|un|una)\s+)?(?:formulario|registro|ficha|scheda|modulo)\s+(?:(?:para|de|del|per|di)\s+)?(?:(?:crear|registrar|creare|registrare|dar\s+de\s+alta|nuevo|nuovo)\s+(?:(?:a|un|una|el|la|il)\s+)?)?(?:socio|socia|soci|miembro)$/;
   const directMember = /^(?:crear|crea|creare|registrar|registra|registrare|alta|dar\s+de\s+alta|aggiungi|anadir)\s+(?:(?:un|una|el|la|il|uno|a|nuevo|nuovo)\s+)*(?:socio|socia|soci|miembro)$/;
   if (memberOpen.test(polite) || memberFormOpen.test(polite) || directMember.test(polite))
     return "member_create";
