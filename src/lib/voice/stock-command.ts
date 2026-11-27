@@ -1,6 +1,6 @@
 /** Interpret explicit delta commands, never save stock without a human confirmation. */
 export type VoiceStockMovement = { name: string; delta: number };
-const ADD = "anade|anadir|agrega|agregar|suma|sumar|aumenta|aumentar|incrementa|incrementar|aggiungi|aggiungere|metti|pon|mas|\\+";
+const ADD = "anade|anadir|agrega|agregar|suma|sumar|aumenta|aumentar|incrementa|incrementar|aggiungi|aggiungere|mas|\\+";
 const REMOVE = "quita|quitar|resta|restar|saca|sacar|retira|retirar|disminuye|disminuir|togli|togliere|rimuovi|meno|menos|-";
 const OP = "(?:" + ADD + "|" + REMOVE + ")";
 const NUM = "(\\d{1,7}(?:[.,]\\d{1,2})?)";
@@ -34,7 +34,7 @@ export function parseVoiceStockMovement(raw: string): VoiceStockMovement | null 
     const amount = Number(quantity.replace(",", "."));
     const target = name.replace(/^(?:el|la|lo|il|los|las)\s+/, "")
       .replace(/^(?:stock\s+)?(?:de|del|di)\s+/, "").trim();
-    if (!target || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000)
+    if (!target || target.length < 2 || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000)
       return null;
     return { name: target, delta: (positive.test(operation) ? 1 : -1) * amount };
   }
