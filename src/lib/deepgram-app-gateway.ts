@@ -1279,7 +1279,7 @@ export async function deepgramAppSocket(
             } else if (m.type === "SettingsApplied") {
               providerReady = true;
               lastInteraction = Date.now();
-              send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length });
+              send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length, gervis: gervisMode });
             } else if (m.type === "ConversationText" && ["user", "assistant"].includes(m.role)) {
               lastInteraction = Date.now();
               if (m.role === "user") audioHealth.providerUserMessages++;
