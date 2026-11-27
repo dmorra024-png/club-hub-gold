@@ -61,6 +61,12 @@ export async function applyDeepgramDraft(
     if (!valid()) throw Error("SNOOP_STALE_PROPOSAL");
     return found;
   };
+  // Gervis only: a URL transition is not enough to claim that the member
+  // form is usable. Wait for the REAL registered form port to become ready.
+  // Legacy Pilot retains its previous behavior.
+  if (options.verifyNavigation && p.intent === "navigate" &&
+      p.target === "member_create")
+    await port("member.form");
   let skipped: string[] = [];
   let applied: string[] = [];
   if (
