@@ -351,6 +351,33 @@ try {
       () => s.events.filter((e) => e.type === "AppProposal" && e.result.ok).length === turn + 2,
     );
   }
+  if (gervisMode) {
+    // The isolated Gervis acceptance is deliberately limited to the first
+    // real navigation acknowledgement and the second field-dictation turn.
+    // The remaining cash/genetics/execution scenarios are already covered by
+    // the legacy Worker tests; they must not mask this test's outcome.
+    const proposals = s.events.filter(e => e.type === "AppProposal" && e.result.ok);
+    assert.equal(proposals.length, 2, "one proposal per natural conversation turn");
+    assert.equal(proposals[0].result.proposal.intent, "navigate");
+    assert.equal(proposals[0].result.proposal.target, "member_create");
+    assert.equal(proposals[1].result.proposal.intent, "member");
+    assert.equal(proposals[1].result.proposal.member.city, "Palma");
+    assert(!s.events.some(e => e.type === "AppClosed"), "Gervis stays active after both commands");
+    await until(() => (s.events.filter(e => e.type === "Audio")).length >= 2);
+    assert.equal((await stats()).tools, 2);
+    s.ws.send("STOP");
+    await until(() => s.events.some(e => e.code === "STOPPED"));
+    s.ws.close();
+    const end = Date.now() + 5000;
+    while ((await stats()).closeAttempts < 2 && Date.now() < end)
+      await new Promise(resolve => setTimeout(resolve, 25));
+    const metrics = await stats();
+    assert.equal(metrics.closeAttempts, 2);
+    assert.equal(metrics.providerCalls, 1);
+    assert.equal(metrics.forbiddenCalls, 0);
+    assert.equal(metrics.executionWrites, 0);
+    console.log("PASS isolated Workerd gateway: Gervis natural member form, second field, two audio turns, no competing shortcuts, no writes");
+  } else {
   const cashAudio = new Uint8Array(4800);
   cashAudio[0] = 1;
   s.ws.send(cashAudio.buffer);
@@ -640,6 +667,7 @@ try {
         ? " (provider/authentication simulated; SQL persistence real and isolated)"
         : " (provider/backend simulated)"),
   );
+  }
 } finally {
   await mf.dispose();
   await sqlDb?.close();
