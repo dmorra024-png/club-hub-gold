@@ -68,6 +68,13 @@ export async function applyDeepgramDraft(
     if (!page.open) throw Error("SNOOP_FORM_UNAVAILABLE");
     page.open(p.target, p.query);
   }
+  if (p.intent === "stock_draft") {
+    const page = await port("products.page");
+    if (!page.stageStock || !p.stock_movement ||
+        !page.stageStock(p.stock_movement.name, p.stock_movement.delta))
+      throw Error("SNOOP_STOCK_DRAFT_UNAVAILABLE");
+    // Only the existing inventory panel can confirm. No RPC is executed here.
+  }
   if (p.intent === "cash_draft") {
     const page = await port("cash.page");
     if (!page.open) throw Error("SNOOP_FORM_UNAVAILABLE");
