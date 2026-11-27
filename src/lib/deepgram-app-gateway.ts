@@ -240,6 +240,7 @@ export async function deepgramAppSocket(
     }
   >();
   const executionEnabled = setting(env, "SNOOP_VOICE_EXECUTION_PILOT_ENABLED") === "true";
+  const gervisMode = setting(env, "GERVIS_SNOOP_EXPERIMENTAL") === "true";
   const walletEnabled = setting(env, "SNOOP_WALLET_OPERATIONS_ENABLED") === "true";
   const execute = async (
     request: Parameters<typeof voiceCommandOperation>[1] & { value?: boolean },
@@ -426,7 +427,7 @@ export async function deepgramAppSocket(
           verified.catalog,
           executionEnabled,
           walletEnabled,
-          setting(env, "GERVIS_SNOOP_EXPERIMENTAL") === "true",
+          gervisMode,
         );
         settings.tags = ["snoop-admin-pilot"];
         settings.agent.think.prompt +=
@@ -1266,7 +1267,10 @@ export async function deepgramAppSocket(
               }
               // Read-only shortcuts operate only on fully matched phrases and
               // remain subject to the same club and role permissions.
-              if (m.role === "user") {
+              // Gervis has ONE intent owner: the LLM and its verified tools.
+              // Do not race a second exact-phrase parser against its understanding.
+              // Legacy Pilot retains its existing read-only shortcuts unchanged.
+              if (m.role === "user" && !gervisMode) {
                 const destination = voiceNavigationShortcut(String(m.content || ""));
                 if (destination) {
                   const direct = authorizeProposal(
