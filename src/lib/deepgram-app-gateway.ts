@@ -25,6 +25,7 @@ import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
 import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
+import { normalizeVoiceFormProposal } from "./voice/form-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
   sealVoiceSnapshot,
@@ -1162,7 +1163,7 @@ export async function deepgramAppSocket(
                         : args;
                     result = authorizeProposal(
                       f.name === "snoop_propose"
-                        ? normalizeNavigationProposal(proposal)
+                        ? normalizeVoiceFormProposal(proposal)
                         : proposal,
                       verified.access,
                       verified.catalog,
