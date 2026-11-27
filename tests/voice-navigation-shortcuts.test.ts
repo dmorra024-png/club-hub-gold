@@ -130,3 +130,29 @@ test("partial draft normalization never drops unknown or disallowed fields", () 
     assert.equal(authorizeProposal(normalized, access).ok, false);
   }
 });
+
+test("crear producto and successive Spanish product field dictation use the same validated form route", () => {
+  for (const product of [
+    { name: "Amnesia Haze" },
+    { category: "Flores" },
+    { stock: "0.750" },
+    { buy_price: "10.25" },
+    { sell_price: "22.50" },
+    { destination: "almacen" },
+  ]) {
+    const raw = { intent: "product", target: "product_create", product };
+    const normalized = normalizeVoiceFormProposal(raw);
+    assert.deepEqual(normalized, {
+      intent: "product", target: "product_create", member: {},
+      product, query: null, declined: [], question: "", asking: null,
+    });
+    assert.equal(authorizeProposal(normalized, access).ok, true);
+    assert.equal(authorizeProposal(normalized, {...access, status: "suspended"}).ok, false);
+  }
+  assert.equal(authorizeProposal(normalizeVoiceFormProposal({
+    intent: "product", target: "product_create", product: { sell_price: "22.501" },
+  }), access).ok, false, "Invalid euro precision remains blocked");
+  assert.equal(authorizeProposal(normalizeVoiceFormProposal({
+    intent: "product", target: "product_create", product: { name: "Synthetic Example", unauthorized: "x" },
+  }), access).ok, false, "Unknown fields never bypass schema validation");
+});
