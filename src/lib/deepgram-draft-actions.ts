@@ -31,6 +31,7 @@ export async function applyDeepgramDraft(
     current: () => boolean;
     last: Record<string, Record<string, string>>;
     reportDay?: string;
+    verifyNavigation?: boolean;
   },
 ) {
   const parsed = ConversationProposal.safeParse(value);
@@ -45,6 +46,8 @@ export async function applyDeepgramDraft(
     const until = performance.now() + 2500;
     while (options.current() && options.path() === from && performance.now() < until)
       await new Promise((r) => setTimeout(r, 20));
+    if (options.verifyNavigation && options.path() !== to)
+      throw Error("SNOOP_FORM_UNAVAILABLE");
   }
   const needsMemberCard =
     ["member_edit", "member_section"].includes(p.intent) ||
