@@ -104,7 +104,7 @@ export const ConversationProposal = z
     product: productFields,
     stock_movement: z.object({
       name: z.string().trim().min(2).max(120),
-      delta: z.string().regex(/^-?\d{1,7}(?:\.\d{1,2})?$/)
+      delta: z.string().regex(/^[+-]?\d{1,7}(?:\.\d{1,2})?$/)
         .refine((value) => Number(value) !== 0 && Math.abs(Number(value)) <= 1000000),
     }).strict().optional(),
     query: z.string().max(120).nullable(),
