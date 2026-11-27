@@ -540,9 +540,13 @@ export function DeepgramPilotVoice({
             }
             onPhaseChange?.("recording");
             setStatus(
-              supportsEchoCancellation
-                ? "SNOOP ti ascolta · interruzione vocale attiva"
-                : "SNOOP ti ascolta · per interrompere usa Interrompi",
+              message.gervis === true
+                ? (supportsEchoCancellation
+                    ? "GERVIS SNOOP · prova vocale attiva"
+                    : "GERVIS SNOOP · prova, usa Interrompi per parlare")
+                : (supportsEchoCancellation
+                    ? "SNOOP ti ascolta · interruzione vocale attiva"
+                    : "SNOOP ti ascolta · per interrompere usa Interrompi"),
             );
           } else if (
             message.type === "ConversationText" &&
