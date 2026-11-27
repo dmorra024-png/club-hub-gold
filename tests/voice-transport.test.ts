@@ -115,3 +115,43 @@ test("background and slow-connection buffers never silently apply partial speech
   assert.deepEqual(slow.errors, ["SPEECH_BUFFER_FULL"]);
   assert(slow.sockets[0].closed);
 });
+
+test("paused mic resumes quiet next spoken form field without a manual restart", async () => {
+  const r = rig();
+  await r.t.start();
+  const first = r.sockets[0];
+  first.onopen();
+  first.emit({ type: "AppReady" });
+  first.emit({ type: "AppCheckpoint", token: "member-form-context", sequence: 3 });
+  first.emit({ type: "AppClosed", code: "IDLE_PAUSED" });
+  assert(r.t.diagnostics().paused);
+  // Typical quiet mobile voice PCM: amplitude 450/32768 = ~0.0137.
+  const quiet = new Int16Array(2048).fill(450).buffer;
+  for (let i = 0; i < 5; i++) r.t.capture(quiet);
+  await tick();
+  assert.equal(r.sockets.length, 2, "subsequent field dictation wakes the same voice session");
+  const second = r.sockets[1];
+  second.onopen();
+  assert.equal(JSON.parse(second.sent[0]).resume, "member-form-context");
+  second.emit({ type: "AppReady" });
+  assert.equal(r.t.diagnostics().paused, false);
+  assert.equal(r.t.diagnostics().connected, true);
+  assert.equal(r.errors.length, 0);
+  r.t.stop();
+});
+test("short taps and quiet room noise do not trigger repeated paid voice reconnections", async () => {
+  const r = rig();
+  await r.t.start();
+  const first = r.sockets[0];
+  first.onopen();
+  first.emit({ type: "AppReady" });
+  first.emit({ type: "AppClosed", code: "IDLE_PAUSED" });
+  const soft = new Int16Array(2048).fill(150).buffer;
+  for (let i = 0; i < 20; i++) r.t.capture(soft);
+  assert.equal(r.sockets.length, 1, "ambient noise cannot wake the provider");
+  const loud = new Int16Array(2048).fill(550).buffer;
+  r.t.capture(loud);
+  r.t.capture(new Int16Array(2048).buffer);
+  assert.equal(r.sockets.length, 1, "one short sound cannot wake the provider");
+  r.t.stop();
+});
