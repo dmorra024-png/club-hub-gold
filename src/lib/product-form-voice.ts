@@ -52,6 +52,19 @@ export function productFormVoice(raw: string, categories: Category[]): ProductVo
       strain: parsed.strain,
       ...prices,
     };
+  // Explicit classifications can arrive as separate turns while the form is open.
+  // Never infer a botanical label from a product name.
+  const classification = text.match(
+    /^(?:(?:cambia|modifica|corrige|correggi|pon|poner|metti|imposta|es|è|tipo|variedad|varietà|clasificaci[oó]n)\s+)*(?:(?:a|en|come|como|de|una|un|tipo)\s+)*(sativa|indica|h[ií]brida|h[ií]brido|hybrid)(?:\s*[.!?])?$/i,
+  );
+  if (classification)
+    return {
+      strain: /sativa/i.test(classification[1])
+        ? "sativa"
+        : /indica/i.test(classification[1])
+          ? "indica"
+          : "hibrida",
+    };
   if (/^(?:no\b|cambia\b|modifica\b|correggi\b|corrige\b)/i.test(text)) {
     if (Object.keys(prices).length) return prices;
     if (quantity && number !== null) return { stock: number };
@@ -79,7 +92,19 @@ export function contextualProductDictation(
       /\b(nombre|nome|categor[ií]a|stock|cantidad|quantit[aà]|precio(?: de (?:compra|venta))?|prezzo)\s*:?\s*/gi,
     ),
   ];
-  if (!labels.length || labels[0].index! > 3) return null;
+  // Interpret a one-word strain only when the user explicitly states it.
+  const standalone = text.trim().match(/^(?:(?:es|è|tipo|classificazione|clasificaci[oó]n|variedad|varietà)\s+)*(sativa|indica|h[ií]brida|h[ií]brido|hybrid)[.!?]?$/i);
+  if (!labels.length) {
+    if (!standalone) return null;
+    return {
+      strain: /sativa/i.test(standalone[1])
+        ? "sativa"
+        : /indica/i.test(standalone[1])
+          ? "indica"
+          : "hibrida",
+    };
+  }
+  if (labels[0].index! > 3) return null;
   const fields: ProductVoiceDraft = {};
   for (let i = 0; i < labels.length; i++) {
     const m = labels[i],
