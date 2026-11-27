@@ -158,3 +158,30 @@ test("crear producto and successive Spanish product field dictation use the same
     intent: "product", target: "product_create", product: { name: "Synthetic Example", unauthorized: "x" },
   }), access).ok, false, "Unknown fields never bypass schema validation");
 });
+
+test("dictating product fields separately preserves values and requires the normal club rights", () => {
+  for (const [field, value] of [
+    ["name", "Amnesia Haze"],
+    ["category", "Flores"],
+    ["stock", "0.750"],
+    ["buy_price", "11.25"],
+    ["sell_price", "22.50"],
+    ["destination", "almacen"],
+  ]) {
+    const raw = { intent: "product", target: "product_create", product: { [field]: value } };
+    const normalized = normalizeVoiceFormProposal(raw);
+    assert.deepEqual(normalized, {
+      intent: "product", target: "product_create", member: {},
+      product: { [field]: value }, query: null,
+      declined: [], question: "", asking: null,
+    });
+    assert.equal(authorizeProposal(normalized, access).ok, true, field);
+    assert.equal(authorizeProposal(normalized, { ...access, permissions: ["manage_members"] }).ok, false);
+  }
+  for (const invalid of [
+    { intent: "product", target: "product_create", product: { sell_price: "22.501" } },
+    { intent: "product", target: "product_create", product: { stock: "0.1234" } },
+    { intent: "product", target: "product_create", product: { category_id: "unknown" } },
+    { intent: "product", target: "product_create", product: { name: "Synthetic" }, member: { last_name: "test" } },
+  ]) assert.equal(authorizeProposal(normalizeVoiceFormProposal(invalid), access).ok, false);
+});
