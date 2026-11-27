@@ -675,7 +675,9 @@ export function DeepgramPilotVoice({
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
               const reference =
-                reason === "SNOOP_MEMBERSHIP_FEE_NOT_FOUND"
+                reason === "SNOOP_EMAIL_CORRECTION_UNCLEAR" && message.gervis === true
+                  ? "EMAIL_CORRECTION_UNCLEAR"
+                  : reason === "SNOOP_MEMBERSHIP_FEE_NOT_FOUND"
                   ? "REFERENCE_NOT_FOUND"
                   : reason === "SNOOP_MEMBERSHIP_FEE_AMBIGUOUS"
                     ? "AMBIGUOUS_REFERENCE"
@@ -699,7 +701,9 @@ export function DeepgramPilotVoice({
                   code: reference,
                 });
               setStatus(
-                reference === "REFERENCE_NOT_FOUND"
+                reference === "EMAIL_CORRECTION_UNCLEAR"
+                  ? "Non so quale punto togliere dall’email. Dettala lettera per lettera: il resto del formulario resta invariato."
+                  : reference === "REFERENCE_NOT_FOUND"
                   ? "Quota non trovata nel club. Indica il nome di una quota esistente. Nessun campo modificato."
                   : reference === "AMBIGUOUS_REFERENCE"
                     ? "Più quote hanno questo nome. Seleziona quella corretta nel modulo. Nessun campo modificato."
