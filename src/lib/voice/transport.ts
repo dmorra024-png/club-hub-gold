@@ -209,11 +209,16 @@ export class VoiceTransport {
         energy += v * v;
       }
       const rms = Math.sqrt(energy / Math.max(1, data.byteLength / 2));
+      // When the provider pauses after inactivity, the microphone continues
+      // recording locally. Detect quieter natural speech so a collaborator
+      // dictating the next field does not need to restart JARVIS manually.
+      // Require sustained speech to avoid reconnecting from a single click.
+      const duration = (data.byteLength / (this.options.sampleRate * 2)) * 1000;
       this.speechMs =
-        rms > 0.018
-          ? this.speechMs + (data.byteLength / (this.options.sampleRate * 2)) * 1000
-          : Math.max(0, this.speechMs - 50);
-      if (this.speechMs >= 250) {
+        rms > 0.010
+          ? this.speechMs + duration
+          : Math.max(0, this.speechMs - duration * 1.5);
+      if (this.speechMs >= 170) {
         while (this.queuedBytes > this.options.sampleRate * 2 * 0.6 && this.queue.length > 1)
           this.queuedBytes -= this.queue.shift()!.byteLength;
         void this.connect();
