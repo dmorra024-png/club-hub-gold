@@ -1593,6 +1593,7 @@ function NuevoProducto({
     buy_price: buy.toFixed(2),
     sell_price: sell.toFixed(2),
     destination: initialLocation,
+    strain,
   };
   useEffect(() => {
     const form = (event: Event) => {
@@ -1643,6 +1644,10 @@ function NuevoProducto({
       const selling = decimal("sell_price", 2);
       if (values.destination !== undefined && !["almacen", "dispensario"].includes(values.destination))
         throw Error("SNOOP_INVALID_DESTINATION");
+      const selectedCategory = matches[0] ?? cat;
+      if (values.strain !== undefined &&
+          (!["indica", "sativa", "hibrida"].includes(values.strain) || !selectedCategory?.is_smokeable))
+        throw Error("SNOOP_INVALID_STRAIN");
       if (values.name !== undefined && (!values.name.trim() || values.name.length > 120))
         throw Error("SNOOP_INVALID_PRODUCT");
       if (values.name !== undefined) setName(values.name.trim());
@@ -1651,6 +1656,7 @@ function NuevoProducto({
       if (purchase !== null) setBuy(purchase);
       if (selling !== null) setSell(selling);
       if (values.destination !== undefined) setInitialLocation(values.destination as "almacen"|"dispensario");
+      if (values.strain !== undefined) setStrain(values.strain as Strain);
     },
   });
   const nameDict = useDictation((t) => {
