@@ -473,6 +473,23 @@ function ProductosPage() {
 
   useVoiceToolPort("products.page", {
     refresh:load,
+    ready: () => !loading,
+    stageStock: (name, delta) => {
+      // Only a preview: never run the inventory RPC from this port.
+      const target = name.toLowerCase().normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "").trim();
+      const matches = voiceStockCandidates(prods, target,
+        (value) => value.toLowerCase().normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "").trim());
+      const amount = Number(delta);
+      if (!matches.length || !Number.isFinite(amount) || !amount ||
+          Math.abs(amount) > 1_000_000) return false;
+      if (matches.length === 1 && Number(matches[0].stock) + amount < 0)
+        return false;
+      setTab("stock");
+      setStockCommand({ text: name + " " + (amount > 0 ? "+" : "") + delta, at: Date.now() });
+      return true;
+    },
     open: (target, query) => {
       if (target === "product_create") setTab("nuevo");
       else if (target === "categories") setTab("categoria");
