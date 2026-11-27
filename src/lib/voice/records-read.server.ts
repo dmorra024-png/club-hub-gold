@@ -28,11 +28,25 @@ export const RecordsQuery = z
  * agent's catalog keyterms. Remove only voice-command prefixes, and offer
  * candidates for human selection rather than guessing a member identity. */
 export function spokenMemberQuery(input: string) {
-  return input.trim().replace(
-    /^(?:(?:abre|abrir|apri|apre|busca|buscar|cerca|trova|encuentra|mostrar|mostra)\s+)?(?:(?:la|el|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile)\s+)?(?:(?:del|de|della|di)\s+)?(?:(?:socio|socia|soci|miembro|member)\s+)?(?:(?:llamado|llamada|nombre|di|de)\s+)?/iu,
-    "",
-  ).trim();
+  // Remove spoken commands, not parts of a person's name. Keep the actual
+  // lookup inside the authenticated club-scoped RPC.
+  let value = input.trim().replace(/^[¿¡\s]+|[?.!\s]+$/g, "");
+  const prefixes = [
+    /^(?:puedes|potresti|puoi|por favor|per favore)\s+/iu,
+    /^(?:quiero|necesito|vorrei|voglio)\s+(?:que\s+)?(?:ver|buscar|encontrar|aprire|cercare|trovare)\s+/iu,
+    /^(?:abre|abrir|apri|apre|busca|buscar|búscame|cerca|trova|encuentra|mostrar|mostra|muéstrame)\s+/iu,
+    /^(?:(?:la|el|lo|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile|datos|dati)\s+)?(?:(?:del|de|della|di|al)\s+)?(?:socio|socia|soci|miembro|member)\s+/iu,
+    /^(?:(?:la|el)\s+)?(?:ficha|scheda|perfil|profile)\s+(?:del|de|di)\s+/iu,
+    /^(?:que\s+se\s+llama|che\s+si\s+chiama|llamado|llamada|nombre|di\s+nome|de\s+nombre|di|de)\s+/iu,
+  ];
+  for (let i = 0; i < 6; i++) {
+    const next = prefixes.reduce((v, rx) => v.replace(rx, ""), value);
+    if (next === value) break;
+    value = next.trim();
+  }
+  return value;
 }
+
 function memberFallbackQuery(input: string) {
   // A deliberately broad candidate lookup. The server still enforces the
   // same actor and club permissions and the model receives opaque refs only.
