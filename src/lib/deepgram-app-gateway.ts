@@ -24,6 +24,7 @@ import {
 import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
 import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
+import { canSpeakNavigation } from "./voice/spoken-navigation.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
 import {
@@ -343,9 +344,8 @@ export async function deepgramAppSocket(
   } | null = null;
   const flushNavigationSpeech = () => {
     const queued = deferredNavigationSpeech;
-    if (!queued || speech || !providerReady || !upstream) return;
+    if (!queued || !upstream || !canSpeakNavigation(speech, providerReady, queued.created, Date.now())) return;
     deferredNavigationSpeech = null;
-    if (Date.now() - queued.created > 12000) return;
     // Deepgram may silently refuse InjectAgentMessage while the user is
     // speaking, even with behavior:queue. Only enqueue when the upstream
     // user turn has finished. Signal the PCM player before fresh TTS.
