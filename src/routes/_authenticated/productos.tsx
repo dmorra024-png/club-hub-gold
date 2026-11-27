@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWhisperDictation } from "@/hooks/useWhisperDictation";
 import { transcribeAudio } from "@/lib/voice-agent.functions";
 import { productFormVoice, contextualProductDictation } from "@/lib/product-form-voice";
+import { voiceStockCandidates } from "@/lib/voice/stock-candidates";
 import { createFileRoute } from "@tanstack/react-router";
 import { SnoopLayout } from "@/components/SnoopLayout";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -728,12 +729,7 @@ function Stock({
       });
       // Never pick the first fuzzy match for a stock-changing operation.
       // Exact unique matches are safe; ambiguous names require human selection.
-      const exact = target ? prods.filter((p) => norm(p.name) === target) : [];
-      const candidates = target
-        ? exact.length
-          ? exact
-          : prods.filter((p) => norm(p.name).includes(target))
-        : visible;
+      const candidates = target ? voiceStockCandidates(prods, target, norm) : visible;
       const prod = candidates.length === 1 ? candidates[0] : null;
       if (!prod) {
         const delta = adjSign * adjQty;
