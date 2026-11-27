@@ -11,6 +11,13 @@ const FieldKey = z.enum([
   "phone",
   "name",
   "category",
+  // Product draft fields must match the validated SNOOP product form:
+  // otherwise valid browser confirmations close the entire voice session
+  // with INVALID_SEQUENCE after a single quantity/price/destination command.
+  "stock",
+  "buy_price",
+  "sell_price",
+  "destination",
   "opening_cash",
   "closing_cash",
   "notes",
