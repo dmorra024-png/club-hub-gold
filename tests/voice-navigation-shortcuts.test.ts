@@ -146,8 +146,10 @@ test("crear producto and successive Spanish product field dictation use the same
       intent: "product", target: "product_create", member: {},
       product, query: null, declined: [], question: "", asking: null,
     });
-    assert.equal(authorizeProposal(normalized, access).ok, true);
-    assert.equal(authorizeProposal(normalized, {...access, status: "suspended"}).ok, false);
+    // A named category is accepted only when present in the authenticated club catalog.
+    const clubCatalog = { products: ["Amnesia Haze"], categories: ["Flores"] };
+    assert.equal(authorizeProposal(normalized, access, clubCatalog).ok, true);
+    assert.equal(authorizeProposal(normalized, {...access, status: "suspended"}, clubCatalog).ok, false);
   }
   assert.equal(authorizeProposal(normalizeVoiceFormProposal({
     intent: "product", target: "product_create", product: { sell_price: "22.501" },
