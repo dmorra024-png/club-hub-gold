@@ -76,3 +76,60 @@ test("Gervis recognizes email punctuation and asks when ambiguous instead of inv
   assert.match(prompt,/If the exact character or its position is uncertain/);
   assert.match(prompt,/KEEP the active member-registration form/);
 });
+
+test("Gervis can remove a SINGLE wrongly inserted dot from its own voice email without re-dictating",async()=>{
+  const values:Record<string,string>={
+    first_name:"Fátima",last_name:"García",birth_date:"1995-02-19",email:"",
+  };
+  const last:Record<string,Record<string,string>>={};
+  const remove=applicationPorts.register(owner,"member.form",{
+    ready:()=>true,snapshot:()=>({...values}),
+    patch:(patch)=>{Object.assign(values,patch);},
+  });
+  const execute=async(proposal:unknown)=>applyDeepgramDraft(proposal,{
+    access,owner,path:()=>"/soci/nuovo",navigate:()=>{},
+    current:()=>true,last,verifyNavigation:true,
+  });
+  try {
+    await execute(member({email:"fatima.garcia7@example.com"}));
+    const correction=await execute({
+      intent:"member",target:"member_create",member:{},product:{},query:null,
+      declined:[],question:"",asking:null,email_correction:"remove_single_local_dot",
+    });
+    assert.deepEqual(correction.applied,["email"]);
+    assert.equal(values.email,"fatimagarcia7@example.com");
+    assert.equal(values.first_name,"Fátima");
+    assert.equal(values.last_name,"García");
+    assert.equal(values.birth_date,"1995-02-19");
+  }finally{remove();}
+});
+
+test("Gervis refuses ambiguous dot changes, altered manual emails, and Pilot-mode invocation",async()=>{
+  const values:Record<string,string>={email:""};
+  const last:Record<string,Record<string,string>>={};
+  const remove=applicationPorts.register(owner,"member.form",{
+    ready:()=>true,snapshot:()=>({...values}),
+    patch:(patch)=>{Object.assign(values,patch);},
+  });
+  const execute=async(verifyNavigation:boolean)=>applyDeepgramDraft({
+    intent:"member",target:"member_create",member:{},product:{},query:null,
+    declined:[],question:"",asking:null,email_correction:"remove_single_local_dot",
+  },{
+    access,owner,path:()=>"/soci/nuovo",navigate:()=>{},
+    current:()=>true,last,verifyNavigation,
+  });
+  const dictation=async(email:string)=>applyDeepgramDraft(member({email}),{
+    access,owner,path:()=>"/soci/nuovo",navigate:()=>{},
+    current:()=>true,last,verifyNavigation:true,
+  });
+  try {
+    await dictation("name.with.two.dots@example.com");
+    await assert.rejects(execute(true),/SNOOP_EMAIL_CORRECTION_UNCLEAR/);
+    assert.equal(values.email,"name.with.two.dots@example.com");
+    await dictation("name.one@example.com");
+    values.email="manual.one@example.com";
+    await assert.rejects(execute(true),/SNOOP_EMAIL_CORRECTION_UNCLEAR/);
+    assert.equal(values.email,"manual.one@example.com");
+    await assert.rejects(execute(false),/SNOOP_EMAIL_CORRECTION_UNCLEAR/);
+  }finally{remove();}
+});
