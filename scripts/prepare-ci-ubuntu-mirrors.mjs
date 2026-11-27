@@ -10,6 +10,28 @@ export function officialUbuntuMirror(source) {
     "https://archive.ubuntu.com/ubuntu",
   );
 }
+/** The hosted Ubuntu 24.04 runner may include a nonessential Microsoft
+ * third-party APT source that returns HTTP 403. Disable it for this isolated
+ * Playwright install; never skip Ubuntu signature verification. */
+export function disableUnavailableMicrosoftSource(source, file) {
+  if (!source.includes("packages.microsoft.com/ubuntu/24.04/prod")) return source;
+  if (file.endsWith(".list")) {
+    return source.split("\n").map((line) =>
+      /^\s*deb(?:\s|\[)/.test(line) && line.includes("packages.microsoft.com/ubuntu/24.04/prod")
+        ? "# disabled for GitHub Actions browser dependency installation: " + line
+        : line,
+    ).join("\n");
+  }
+  if (file.endsWith(".sources")) {
+    return source.split(/\n\s*\n/).map((stanza) =>
+      stanza.includes("packages.microsoft.com/ubuntu/24.04/prod") &&
+      !/^\s*Enabled:/m.test(stanza)
+        ? stanza.trimEnd() + "\nEnabled: no"
+        : stanza.replace(/^\s*Enabled:\s*yes\s*$/m, "Enabled: no"),
+    ).join("\n\n");
+  }
+  return source;
+}
 async function main() {
   if (process.env.GITHUB_ACTIONS !== "true" || process.getuid?.() !== 0)
     throw Error("CI_RUNNER_ONLY");
@@ -32,7 +54,7 @@ async function main() {
       if (error.code === "ENOENT") continue;
       throw error;
     }
-    const updated = officialUbuntuMirror(original);
+    const updated = disableUnavailableMicrosoftSource(officialUbuntuMirror(original), file);
     if (updated !== original) {
       await writeFile(file, updated);
       changed++;
