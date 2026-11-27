@@ -44,7 +44,7 @@ jobs:
           mapfile -t CHANGED < <(git diff --name-only origin/release/jarvis-pilot-safe-20261126 HEAD)
           for f in "${CHANGED[@]}"; do
             case "$f" in
-              .github/workflows/gervis-snoop-phone-test.yml|docs/GERVIS_SNOOP.md|docs/GERVIS_PHONE_TEST_TRIGGER.md|docs/gervis-snoop-learning-rls-proposal.sql|scripts/test-deepgram-app-worker.mjs|src/components/DeepgramPilotVoice.tsx|src/lib/deepgram-app-gateway.ts|src/lib/deepgram-draft-actions.ts|src/lib/voice/agent-settings.server.ts|src/lib/gervis-snoop/*|tests/gervis-*.test.ts|tests/gervis-*.test.mjs|tests/gervis-snoop-*.test.ts) ;;
+              .github/workflows/gervis-snoop-phone-test.yml|docs/GERVIS_SNOOP.md|docs/GERVIS_PHONE_TEST_TRIGGER.md|docs/gervis-snoop-learning-rls-proposal.sql|scripts/test-deepgram-app-worker.mjs|src/components/DeepgramPilotVoice.tsx|src/lib/deepgram-app-gateway.ts|src/lib/deepgram-draft-actions.ts|src/lib/voice/agent-settings.server.ts|src/lib/voice/action-protocol.ts|src/lib/snoop-conversation.ts|src/lib/gervis-snoop/*|tests/gervis-*.test.ts|tests/gervis-*.test.mjs|tests/gervis-snoop-*.test.ts) ;;
               *) echo "Unexpected cross-component change: $f" >&2; exit 1 ;;
             esac
           done
