@@ -28,6 +28,7 @@ import { gervisToolFeedback } from "./gervis-snoop/tool-feedback.ts";
 import { createGervisSupabaseLearningStore } from "./gervis-snoop/supabase-learning-store.server.ts";
 import { gervisApprovedPronunciations } from "./gervis-snoop/approved-context.ts";
 import { gervisTaskFeedback } from "./gervis-snoop/task-feedback.ts";
+import { normalizeGervisProposal } from "./gervis-snoop/proposal-envelope.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
 import { normalizeVoiceFormProposal } from "./voice/form-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
@@ -1189,7 +1190,7 @@ export async function deepgramAppSocket(
                         : args;
                     result = authorizeProposal(
                       f.name === "snoop_propose"
-                        ? normalizeVoiceFormProposal(proposal)
+                        ? gervisMode ? normalizeGervisProposal(proposal) : normalizeVoiceFormProposal(proposal)
                         : proposal,
                       verified.access,
                       verified.catalog,
