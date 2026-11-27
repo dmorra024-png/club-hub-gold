@@ -7,6 +7,7 @@ import { vocabularyMatch, canonicalGeneticOrProduct } from "../src/lib/voice/cat
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
 import { applyDeepgramDraft, protectedVoicePatch } from "../src/lib/deepgram-draft-actions.ts";
 import { VoiceCashDay, voiceCashDay } from "../src/lib/voice/cash-read.server.ts";
+import { ActionReceipt, acknowledgedMemory, actionOutcome } from "../src/lib/voice/action-protocol.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 import { normalizedPilotNames } from "../src/lib/deepgram-pilot-policy.ts";
 import { catalogVocabulary } from "../src/lib/voice/catalog-vocabulary.ts";
@@ -405,4 +406,33 @@ test("member registration accumulates successive spoken form fields without over
     assert.equal(fields.last_name, "Rossini");
     assert.equal(fields.city, "Palma");
   } finally { deregister(); }
+});
+
+test("product field receipts do not terminate a voice session as INVALID_SEQUENCE", () => {
+  const product = ConversationProposal.parse({
+    ...proposal("product_create"),
+    intent: "product",
+    product: { name: "Synthetic Haze", category: "Flores", stock: "0.750",
+               buy_price: "10.25", sell_price: "22.50", destination: "almacen" },
+  });
+  const emittedFields = ["name", "category", "stock", "buy_price", "sell_price", "destination"];
+  const receipt = ActionReceipt.parse({
+    type: "AppActionResult", id: "synthetic-receipt", status: "prepared",
+    code: "OK", applied: emittedFields, skipped: [],
+  });
+  const memory = acknowledgedMemory({
+    operation: "none", member: {}, product: {}, declined: [], lastQuestion: "",
+  }, product, receipt);
+  for (const field of emittedFields)
+    assert.equal((memory.product as Record<string, string>)[field], (product.product as Record<string, string>)[field]);
+  assert.equal(actionOutcome(receipt).ok, true);
+  assert.equal(actionOutcome(receipt).persisted, false);
+  assert.equal(ActionReceipt.safeParse({
+    type: "AppActionResult", id: "one-field", status: "prepared",
+    applied: ["sell_price"], skipped: ["stock"], code: "MANUAL_EDIT_PRESERVED",
+  }).success, true);
+  assert.equal(ActionReceipt.safeParse({
+    type: "AppActionResult", id: "unsafe-extra", status: "prepared",
+    applied: ["stock_adjust"], skipped: [], code: "OK",
+  }).success, false);
 });
