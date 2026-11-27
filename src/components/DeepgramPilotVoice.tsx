@@ -94,6 +94,15 @@ export function DeepgramPilotVoice({
   } | null>(null);
   const [status, setStatus] = useState("Pronto");
   const [language, setLanguage] = useState<Language>("es");
+  // The new-member form uses the same voice-language preference; otherwise
+  // selecting Spanish here can silently leave its local dictation in Italian.
+  useEffect(() => {
+    try {
+      const selected = window.localStorage.getItem("snoop:voice-language");
+      if (selected === "es" || selected === "it" || selected === "en")
+        setLanguage(selected);
+    } catch {}
+  }, []);
   const [consent, setConsent] = useState(false);
   const [lines, setLines] = useState<Entry[]>([]);
   const [proposal, setProposal] = useState<ConversationProposalValue | null>(null);
@@ -1104,7 +1113,11 @@ export function DeepgramPilotVoice({
           <select
             value={language}
             disabled={running}
-            onChange={(event) => setLanguage(event.target.value as Language)}
+            onChange={(event) => {
+              const selected = event.target.value as Language;
+              setLanguage(selected);
+              try { window.localStorage.setItem("snoop:voice-language", selected); } catch {}
+            }}
           >
             <option value="es">Español</option>
             <option value="it">Italiano</option>
