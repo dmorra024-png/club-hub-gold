@@ -25,6 +25,7 @@ function draft(name: string, delta: string) {
 }
 test("stock draft is a strict, permissioned, confirmation-only proposal", () => {
   assert(ConversationProposal.safeParse(draft("Amnesia Haze", "50")).success);
+  assert(ConversationProposal.safeParse(draft("Amnesia Haze", "+50")).success);
   assert(ConversationProposal.safeParse(draft("Amnesia Haze", "-1.50")).success);
   for (const invalid of ["0", "nan", "1000001", "1.999", "1e9"])
     assert(!ConversationProposal.safeParse(draft("Amnesia Haze", invalid)).success, invalid);
