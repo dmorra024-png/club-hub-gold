@@ -36,6 +36,7 @@ export const productFields = z
     buy_price: z.string().regex(/^\d{1,8}(?:[.,]\d{1,2})?$/).optional(),
     sell_price: z.string().regex(/^\d{1,8}(?:[.,]\d{1,2})?$/).optional(),
     destination: z.enum(["almacen", "dispensario"]).optional(),
+    strain: z.enum(["indica", "sativa", "hibrida"]).optional(),
   })
   .strict();
 export const cashDraftFields = z
