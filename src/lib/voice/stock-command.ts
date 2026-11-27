@@ -7,7 +7,7 @@ const NUM = "(\\d{1,7}(?:[.,]\\d{1,2})?)";
 const UNIT = "(?:\\s*(?:gramos?|grammi|gr|g|unidades?|unidad|unita|u))?";
 const patterns = [
   new RegExp("^(?:stock\\s+)?(.+?)\\s+(" + OP + ")\\s+" + NUM + UNIT + "$", "i"),
-  new RegExp("^(?:stock\\s+)?(" + OP + ")\\s+" + NUM + UNIT + "\\s+(?:(?:al|a|del|de|en|nel|su)\\s+)?(.+)$", "i"),
+  new RegExp("^(?:stock\\s+)?(" + OP + ")\\s+" + NUM + UNIT + "\\s+(?:(?:al|a|del|de|da|en|nel|su)\\s+)?(.+)$", "i"),
   new RegExp("^(?:stock\\s+)?" + NUM + UNIT + "\\s+(" + OP + ")\\s+(.+)$", "i"),
   new RegExp("^(" + OP + ")\\s+(?:(?:el|lo|il)\\s+)?stock\\s+(?:(?:de|del|di)\\s+)?(.+?)\\s+(?:(?:en|de|por|di)\\s+)?" + NUM + UNIT + "$", "i"),
 ];
