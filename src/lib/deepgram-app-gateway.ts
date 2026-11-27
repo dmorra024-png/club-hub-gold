@@ -1252,6 +1252,7 @@ export async function deepgramAppSocket(
                     type: "AppProposal",
                     id,
                     result,
+                    gervis: gervisMode,
                     ...(pending.get(id)?.cashDay ? { cashDay: pending.get(id)!.cashDay } : {}),
                   });
                 } else {
