@@ -88,7 +88,7 @@ export function privateCatalogCommand(
     const product_name = transcript
       .replace(/^.*?\b(?:prodotto|producto|productos|prodotti)\b\s*/i, "")
       .split(
-        /\s+(?:en|in|categoria|categor[ií]a|stock|costo|coste|compra|precio|prezzo|venta|vendita|indica|sativa|h[ií]brida)\b/i,
+        /\s+(?:tipo\s+(?:indica|sativa|h[ií]brida)|en|in|categoria|categor[ií]a|stock|costo|coste|compra|precio|prezzo|venta|vendita|indica|sativa|h[ií]brida)\b/i,
       )[0]
       .trim();
     const mentioned = categories.filter((c) => text.includes(normalize(c.name)));

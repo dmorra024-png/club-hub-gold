@@ -92,6 +92,7 @@ export const ConversationProposal = z
       "cash_draft",
       "administrative_draft",
       "product",
+      "stock_draft",
       "category",
       "search",
       "clarify",
@@ -101,6 +102,11 @@ export const ConversationProposal = z
     target: ConversationTarget.nullable(),
     member: memberFields,
     product: productFields,
+    stock_movement: z.object({
+      name: z.string().trim().min(2).max(120),
+      delta: z.string().regex(/^[+-]?\d{1,7}(?:\.\d{1,2})?$/)
+        .refine((value) => Number(value) !== 0 && Math.abs(Number(value)) <= 1000000),
+    }).strict().optional(),
     query: z.string().max(120).nullable(),
     cash: cashDraftFields.optional(),
     form: AdministrativeDraft.optional(),
@@ -136,6 +142,13 @@ export const ConversationProposal = z
       ctx.addIssue({ code: "custom", message: "Invalid cash draft" });
     if (v.intent === "navigate" && v.target === null)
       ctx.addIssue({ code: "custom", message: "Missing destination" });
+    if ((v.intent === "stock_draft") !== !!v.stock_movement ||
+        (v.intent === "stock_draft" &&
+         (v.target !== "stock" || Object.keys(v.member).length ||
+          Object.keys(v.product).length || v.query !== null)))
+      ctx.addIssue({ code: "custom", message: "Invalid stock preview" });
+    if (v.stock_movement && v.intent !== "stock_draft")
+      ctx.addIssue({ code: "custom", message: "Unexpected stock movement" });
     if (v.intent === "category" && Object.keys(v.product).some((k) => k !== "name"))
       ctx.addIssue({ code: "custom", message: "Unsupported category patch" });
 
@@ -188,6 +201,7 @@ export function conversationAllowed(access: AccountAccess, p: ConversationPropos
       (!!p.form && administrativeDraftAllowed(access, p.form))) &&
     (!["member_edit", "member_section"].includes(p.intent) ||
       access.permissions.includes("manage_members")) &&
+    (p.intent !== "stock_draft" || access.permissions.includes("manage_products")) &&
     (p.intent !== "member_section" ||
       p.query !== "history" ||
       access.permissions.some(

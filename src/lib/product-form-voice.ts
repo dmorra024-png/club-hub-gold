@@ -42,16 +42,26 @@ export function productFormVoice(raw: string, categories: Category[]): ProductVo
   const number = quantity
     ? voiceDecimal(quantity[1].replace(/\s*(?:gramos?|grammi|gr|g|unidades?|unit[aà])\s*$/i, ""))
     : null;
-  if (parsed.action === "create_product")
-    return {
-      name: parsed.product_name.split(/\s+(?:cantidad|quantit[aà])\b/i)[0].replace(/[\s,;]+$/, ""),
-      category_id: parsed.category_id,
-      stock: number ?? parsed.stock,
-      buy_price: parsed.buy_price,
-      sell_price: parsed.sell_price,
-      strain: parsed.strain,
-      ...prices,
-    };
+  if (parsed.action === "create_product") {
+    // Only patch fields that were explicitly dictated. The legacy parser
+    // returns zeros and empty strings for absent values, which previously
+    // erased fields completed in earlier turns.
+    const draft: ProductVoiceDraft = {};
+    const productName = parsed.product_name
+      .split(/\s+(?:cantidad|quantit[aà])\b/i)[0]
+      .replace(/[\s,;]+$/, "");
+    if (productName) draft.name = productName;
+    if (parsed.category_id) draft.category_id = parsed.category_id;
+    if (quantity && number !== null) draft.stock = number;
+    else if (/\bstock\s+\d/i.test(text)) draft.stock = parsed.stock;
+    if (/\b(?:compra|costo|coste|acquisto)\s+\d/i.test(text))
+      draft.buy_price = parsed.buy_price;
+    if (/\b(?:venta|vendita|precio|prezzo)\s+\d/i.test(text))
+      draft.sell_price = parsed.sell_price;
+    if (parsed.strain) draft.strain = parsed.strain;
+    Object.assign(draft, prices);
+    return Object.keys(draft).length ? draft : null;
+  }
   // Explicit classifications can arrive as separate turns while the form is open.
   // Never infer a botanical label from a product name.
   const classification = text.match(
