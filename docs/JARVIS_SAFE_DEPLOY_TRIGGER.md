@@ -23,3 +23,7 @@ Pinned seven-file source commit ca73fc008363ee003578ea35a94eee84f4e03c85. Distin
 ## JARVIS form navigation reject fix
 
 Pinned source 712bdb20d1c794ad48bc3eb1a8a44793e56848df (five files, PR #70). Authenticated voice requests opening member/product forms now accept missing optional empty JSON keys only for read-only navigation with the original permission gate. Concurrent shortcut and Deepgram snoop_propose use the same verified browser acknowledgement. Malformed commands and authorization denial have separate safe UI labels. This release must not modify database schema, member/product records, Caja, inventory, Monedero, Socio or REAL.
+
+## November 27 — fixed language and sequential member/product voice dictation
+
+Verified source 6f20d120e18aa59b0dfe4c7d32a7b7dd74e0dc6d (PR #72). Seven-file guarded source diff: use only explicitly selected Deepgram language hint and matching Flux speaker, persist language selection for form dictation, recognize sequential member/product fields with omitted empty JSON envelope keys while preserving original Zod validation, the verified club category requirement and manual Save boundary. Tested safe non-invasive member and product field updates, decimal validation, authorization and manual-edit preservation. Do not change data, payments, stock accounting, Monedero, SNOOP Socio or REAL. Real phone test remains required after Pilot deploy.
