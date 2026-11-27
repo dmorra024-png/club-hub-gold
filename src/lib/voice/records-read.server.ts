@@ -28,23 +28,18 @@ export const RecordsQuery = z
  * agent's catalog keyterms. Remove only voice-command prefixes, and offer
  * candidates for human selection rather than guessing a member identity. */
 export function spokenMemberQuery(input: string) {
-  // Remove spoken commands, not parts of a person's name. Keep the actual
-  // lookup inside the authenticated club-scoped RPC.
+  // Voice commands are optional: do not strip a real surname like "De Luca".
+  // Only strip grammatical prefixes once an explicit search/open intent exists.
   let value = input.trim().replace(/^[¿¡\s]+|[?.!\s]+$/g, "");
-  const prefixes = [
-    /^(?:puedes|potresti|puoi|por favor|per favore)\s+/iu,
-    /^(?:quiero|necesito|vorrei|voglio)\s+(?:que\s+)?(?:ver|buscar|encontrar|aprire|cercare|trovare)\s+/iu,
-    /^(?:abre|abrir|apri|apre|busca|buscar|búscame|cerca|trova|encuentra|mostrar|mostra|muéstrame)\s+/iu,
-    /^(?:(?:la|el|lo|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile|datos|dati)\s+)?(?:(?:del|de|della|di|al)\s+)?(?:socio|socia|soci|miembro|member)\s+/iu,
-    /^(?:(?:la|el)\s+)?(?:ficha|scheda|perfil|profile)\s+(?:del|de|di)\s+/iu,
-    /^(?:que\s+se\s+llama|che\s+si\s+chiama|llamado|llamada|nombre|di\s+nome|de\s+nombre|di|de)\s+/iu,
-  ];
-  for (let i = 0; i < 6; i++) {
-    const next = prefixes.reduce((v, rx) => v.replace(rx, ""), value);
-    if (next === value) break;
-    value = next.trim();
-  }
-  return value;
+  value = value.replace(/^(?:(?:por favor|per favore)\s*,?\s*)/iu, "");
+  const intent = /^(?:(?:puedes|potresti|puoi)\s+)?(?:(?:quiero|necesito|vorrei|voglio)\s+(?:que\s+)?)?(?:abre|abrir|apri|apre|busca|buscar|búscame|cerca|trova|encuentra|encontrar|mostrar|mostra|muéstrame|ver|vedere|cercare|trovare)\s+/iu;
+  const started = intent.test(value);
+  if (!started) return value;
+  value = value.replace(intent, "");
+  value = value.replace(/^(?:(?:la|el|lo|una|un)\s+)?(?:(?:ficha|scheda|perfil|profile|datos|dati)\s+)?(?:(?:del|de|della|di|al)\s+)?(?:socio|socia|soci|miembro|member)\s+/iu, "");
+  value = value.replace(/^(?:(?:la|el)\s+)?(?:ficha|scheda|perfil|profile)\s+(?:del|de|di)\s+/iu, "");
+  value = value.replace(/^(?:que\s+se\s+llama|che\s+si\s+chiama|llamado|llamada|de\s+nombre|di\s+nome|nombre)\s+/iu, "");
+  return value.trim();
 }
 
 function memberFallbackQuery(input: string) {
