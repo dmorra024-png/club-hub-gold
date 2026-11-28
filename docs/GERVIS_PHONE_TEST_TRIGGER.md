@@ -46,3 +46,14 @@ This preview update includes two independently tested draft-only fixes:
 2. Narrow `email_correction=remove_single_local_dot` tool parameter: browser can remove exactly one dot BEFORE @ only when its current address is still exactly the last VOICE-OWNED value. Ambiguous/multiple dots and manual changes fail without modifying anything. No member save or personal data disclosure.
 Test on synthetic member details only. Example: dictate `mar.ta@example.test` then explicitly say `Snoop, quita el punto antes de la arroba`; expected `marta@example.test` in the same form, retaining prior name/surname/birth date. If there are multiple possible dots, Gervis must ask to spell the full corrected email and must never guess.
 Only the dedicated version alias is uploaded; the existing Pilot deployed traffic remains unchanged. Full real-voice recognition is still unverified until the human phone retest.
+
+### Existing-member search and stock preview — reported in real phone test (28 November 2026)
+Open issues: tester reports Gervis unable to find existing socios or modify inventory. **Do not treat this as proof of the preview version if the phone shows the normal Pilot hostname/label.** The screenshot received shows a Pilot URL and "SNOOP ti ascolta", not the required dedicated Gervis preview indicator.
+Development branch now:
+- Routes conversational "busca a un socio existente" to the actual existing `/soci/gestisci` authenticated search UI rather than opening a new registration.
+- Waits for the asynchronous search before acknowledging. Distinguishes one verified match (opens existing ficha), multiple matches (operator must select), no match, or unavailable service.
+- Shows privacy-scoped authorized RPC candidates when the initial member list is incomplete; identities are not disclosed to the LLM.
+- Verifies that `snoop_voice_find_members` is installed in Pilot Supabase, executes under `authenticated`, denies anonymous access and checks club/manage_members privileges. No user records inspected.
+- Clearly separates stock reading, staging an explicit signed movement, and final stock modification. **Final inventory write is intentionally disabled** on the shared-resource phone-test Version URL. The preview can only stage an existing product's proposed adjustment; a missing/ambiguous product or invalid delta must never be treated as a completed change.
+- Added real UI-port unit tests and truthful receipts for member-search failures, ambiguities and missing stock previews.
+**Release gate:** do not upload this revision until a full CI run and protected phone-test upload succeed. At the time of this note GitHub Actions is reporting failures before runner steps start; this has not yet been verified as a code failure or success. Preserve the existing phone-test version until verified.
