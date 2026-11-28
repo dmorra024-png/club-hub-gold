@@ -10,7 +10,7 @@ export type VoicePort = {
   baseline?: () => Record<string, string>;
   patch?: (values: Record<string, string>) => void;
   open?: (target: string, query?: string | null) => void;
-  search?: (query: string) => void;
+  search?: (query: string) => void | Promise<void>;
   stageStock?: (name: string, delta: string) => boolean;
 };
 export const voiceOwner = (user: string, club: string) => JSON.stringify([user, club]);
