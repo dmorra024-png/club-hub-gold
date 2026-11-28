@@ -122,6 +122,20 @@ export const proposalSchema = {
         },
       },
     },
+    surname_spelling: {
+      type: "object",
+      additionalProperties: false,
+      required: ["letters"],
+      properties: {
+        letters: {
+          type: "array",
+          items: {type:"string",description:"Exactly one explicitly spoken letter, not a word"},
+          minItems: 2,
+          maxItems: 60,
+        },
+      },
+      description: "GERVIS ONLY: replace the VOICE-OWNED surname on the active new-member form with letters EXPLICITLY spelled by the operator. Example M E C H A D => Mechad. Never invent letters or append to previous surname.",
+    },
     email_correction: {
       type: "string",
       enum: ["remove_single_local_dot"],
