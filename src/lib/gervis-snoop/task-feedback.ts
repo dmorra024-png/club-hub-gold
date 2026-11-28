@@ -12,7 +12,13 @@ export function gervisTaskFeedback(
   if (!outcome.ok || outcome.status === "rejected") {
     return {
       ...outcome,
-      next_step: outcome.code === "SURNAME_SPELLING_UNCLEAR"
+      next_step: outcome.code === "STOCK_DRAFT_UNAVAILABLE"
+        ? "The stock movement was NOT prepared and inventory did NOT change. Ask the operator to check the exact existing product and signed quantity, or open the stock list to choose. Do not claim permission denied."
+        : outcome.code === "MEMBER_NOT_FOUND"
+        ? "No matching existing member was found in the authorized club. Keep the member search open; ask for surname, member number or corrected spelling. Do not open the new member form."
+        : outcome.code === "MEMBER_SEARCH_UNAVAILABLE"
+        ? "The real club member search failed. Do NOT report zero results or permission denied. Offer a retry or the manual member list."
+        : outcome.code === "SURNAME_SPELLING_UNCLEAR"
         ? "The surname was NOT corrected. Keep name, date and other form fields unchanged. Ask for the FULL surname to be spelled letter by letter; never append a sound or suffix to the existing surname."
         : outcome.code === "EMAIL_CORRECTION_UNCLEAR"
         ? "The member email correction was NOT applied. Do not retry blindly or claim success. Ask the operator to spell the complete corrected address with arroba and punto. Preserve all earlier form fields."
@@ -20,6 +26,11 @@ export function gervisTaskFeedback(
         ? "The operator changed screens. Ask if they want to resume this task; never retry a write."
         : "This step was not completed. Explain the real error, retain previous confirmed progress and ask for the next safe step.",
     };
+  }
+  if (proposal.intent === "search" && proposal.target === "members" && outcome.status === "opened") {
+    return {...outcome, next_step: outcome.code === "MEMBER_AMBIGUOUS"
+      ? "Multiple possible members were found. Ask the operator to choose in the existing member list; NEVER select a member by guess."
+      : "The authenticated member search ran in the existing member UI. If one match was verified its ficha was opened. Do not invent personal details or claim any record was changed."};
   }
   if (proposal.intent === "navigate" && outcome.status === "opened") {
     const next_step = proposal.target === "member_create"
