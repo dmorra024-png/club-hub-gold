@@ -85,12 +85,13 @@ function GestisciSoci() {
     const memberQuery = spokenMemberQuery(query);
     if (!memberQuery) {
       toast.error("Indica el nombre o número del socio.");
-      return;
+      return "not_found" as const;
     }
     const num = extractMemberNumber(memberQuery);
     if (num) {
+      const found = rowsRef.current.some(r => r.member_number === num);
       openByMemberNumber(num);
-      return;
+      return found ? "opened" as const : "not_found" as const;
     }
 
     setQ(memberQuery);
@@ -103,11 +104,11 @@ function GestisciSoci() {
     if (local.length === 1) {
       toast.success(`Abriendo ficha de ${local[0].first_name} ${local[0].last_name}`);
       navigate({ to: "/soci/$id", params: { id: local[0].id } });
-      return;
+      return "opened" as const;
     }
     if (local.length > 1) {
       toast.message(`${local.length} coincidencias. Selecciona el socio; no se abre una ficha por aproximación.`);
-      return;
+      return "multiple" as const;
     }
 
     // The local list can be paginated or incomplete. A zero local match is
@@ -121,7 +122,7 @@ function GestisciSoci() {
       });
       if (error || !Array.isArray(data)) {
         toast.error("Búsqueda no disponible. No se ha comprobado si existe el socio.");
-        return;
+        return "unavailable" as const;
       }
       const matches = data.filter(
         (row: unknown): row is { id: string; first_name: string; last_name: string } =>
@@ -133,15 +134,18 @@ function GestisciSoci() {
       );
       if (matches.length === 1) {
         navigate({ to: "/soci/$id", params: { id: matches[0].id } });
-        return;
+        return "opened" as const;
       }
       if (matches.length > 1) {
         toast.message(`${matches.length} coincidencias. Indica el apellido o selecciona la ficha.`);
+        return "multiple" as const;
       } else {
         toast.error("No se encontró el nombre en este club. Comprueba nombre y apellidos.");
+        return "not_found" as const;
       }
     } catch {
       toast.error("Búsqueda no disponible. No se ha comprobado si existe el socio.");
+      return "unavailable" as const;
     }
   }
 
