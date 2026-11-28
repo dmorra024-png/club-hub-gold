@@ -656,7 +656,9 @@ export function DeepgramPilotVoice({
                         : "prepared",
                   applied: applied.applied,
                   skipped: applied.skipped,
-                  code: applied.skipped.length
+                  code: message.gervis === true && applied.searchOutcome === "multiple"
+                    ? "MEMBER_AMBIGUOUS"
+                    : applied.skipped.length
                     ? "MANUAL_EDIT_PRESERVED"
                     : applied.proposal.intent === "review"
                       ? "CONFIRMATION_REQUIRED"
@@ -675,7 +677,11 @@ export function DeepgramPilotVoice({
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
               const reference =
-                reason === "SNOOP_SURNAME_SPELLING_UNCLEAR" && message.gervis === true
+                reason === "SNOOP_MEMBER_NOT_FOUND" && message.gervis === true
+                  ? "MEMBER_NOT_FOUND"
+                  : reason === "SNOOP_MEMBER_SEARCH_UNAVAILABLE" && message.gervis === true
+                  ? "MEMBER_SEARCH_UNAVAILABLE"
+                  : reason === "SNOOP_SURNAME_SPELLING_UNCLEAR" && message.gervis === true
                   ? "SURNAME_SPELLING_UNCLEAR"
                   : reason === "SNOOP_EMAIL_CORRECTION_UNCLEAR" && message.gervis === true
                   ? "EMAIL_CORRECTION_UNCLEAR"
