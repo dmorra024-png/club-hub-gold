@@ -33,7 +33,7 @@ export function useVoiceToolPort(name: string, handlers: VoicePort, registration
       },
       search: (query) => {
         if (!latest.current.search) throw Error("SNOOP_FORM_UNAVAILABLE");
-        latest.current.search(query);
+        return latest.current.search(query);
       },
     };
     return applicationPorts.register(owner, name, port);
