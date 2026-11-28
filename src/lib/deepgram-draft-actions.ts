@@ -141,6 +141,11 @@ export async function applyDeepgramDraft(
             ? p.member
             : p.product),
     } as Record<string, string>;
+    // Government identifiers must not become available in the legacy Pilot
+    // merely because the shared proposal schema now recognizes this field.
+    if (kind === "member" && patch.dni_number !== undefined &&
+        !options.verifyNavigation)
+      throw Error("SNOOP_MEMBER_FIELD_DISABLED");
     if (p.surname_spelling) {
       // Gervis only: exact replacement, not a suffix appended by the model.
       // Only a field still owned by voice can be corrected; never overwrite
