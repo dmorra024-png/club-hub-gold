@@ -23,6 +23,7 @@ const FieldKey = z.enum([
   "closing_cash",
   "notes",
   "email",
+  "dni_number",
   "duration_days",
   "price",
   "percentage",
