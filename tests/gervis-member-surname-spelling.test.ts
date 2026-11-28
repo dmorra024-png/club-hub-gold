@@ -102,3 +102,30 @@ test("Gervis asks for spelling and does not append a corrected surname as a suff
   assert.match(prompt,/surname_spelling/);
   assert.match(prompt,/¿Me deletreas el apellido letra por letra/);
 });
+
+test("An explicit corrected surname overwrites previous voice transcription, never appends",async()=>{
+  const values:Record<string,string>={
+    first_name:"Fátima",last_name:"",birth_date:"1995-07-26",
+  };
+  const last:Record<string,Record<string,string>>={};
+  const remove=applicationPorts.register(owner,"member.form",{
+    ready:()=>true,snapshot:()=>({...values}),
+    patch:(patch)=>{Object.assign(values,patch);},
+  });
+  const execute=async(lastName:string)=>applyDeepgramDraft(
+    ConversationProposal.parse(normalizeGervisProposal({
+      intent:"member",target:"member_create",member:{last_name:lastName},
+    })),
+    {access,owner,path:()=>"/soci/nuovo",navigate:()=>{},
+     current:()=>true,last,verifyNavigation:true},
+  );
+  try{
+    await execute("Mechat");
+    assert.equal(values.last_name,"Mechat");
+    const result=await execute("Mechad");
+    assert.deepEqual(result.applied,["last_name"]);
+    assert.equal(values.last_name,"Mechad");
+    assert.equal(values.first_name,"Fátima");
+    assert.equal(values.birth_date,"1995-07-26");
+  }finally{remove();}
+});
