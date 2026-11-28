@@ -109,6 +109,11 @@ export const ConversationProposal = z
     }).strict().optional(),
     query: z.string().max(120).nullable(),
     email_correction: z.enum(["remove_single_local_dot"]).optional(),
+    // Gervis only: exact letter-by-letter replacement of an existing voice-entered surname.
+    // The browser constructs the text; the model cannot append it to the old value.
+    surname_spelling: z.object({
+      letters: z.array(z.string().regex(/^[\\p{L}]$/u)).min(2).max(60),
+    }).strict().optional(),
     cash: cashDraftFields.optional(),
     form: AdministrativeDraft.optional(),
     declined: z.array(z.literal("phone")).max(1),
@@ -125,6 +130,11 @@ export const ConversationProposal = z
     for (const value of Object.values(v.product))
       if (!value.trim()) ctx.addIssue({ code: "custom", message: "Empty product patch" });
 
+    if (v.surname_spelling && (
+      v.intent !== "member" || v.target !== "member_create" ||
+      Object.keys(v.member).length !== 0 || Object.keys(v.product).length !== 0 ||
+      v.query !== null || v.email_correction !== undefined
+    )) ctx.addIssue({code:"custom",message:"Invalid surname spelling correction scope"});
     // Gervis-only, read-the-current-form operation. No model-supplied address,
     // no arbitrary edits and no effects outside an active creation form.
     if (v.email_correction && (
