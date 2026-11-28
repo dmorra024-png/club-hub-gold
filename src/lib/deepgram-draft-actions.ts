@@ -71,6 +71,7 @@ export async function applyDeepgramDraft(
     await port("member.form");
   let skipped: string[] = [];
   let applied: string[] = [];
+  let searchOutcome: "opened" | "multiple" | undefined;
   if (
     p.target &&
     ["products", "product_create", "categories", "stock", "warehouse"].includes(p.target)
@@ -187,8 +188,12 @@ export async function applyDeepgramDraft(
   if (p.intent === "search" && p.target === "members") {
     const search = await port("members.search");
     if (!search.search) throw Error("SNOOP_FORM_UNAVAILABLE");
-    if (options.verifyNavigation) await search.search(p.query ?? "");
-    else void search.search(p.query ?? "");
+    if (options.verifyNavigation) {
+      const result = await search.search(p.query ?? "");
+      if (result === "unavailable") throw Error("SNOOP_MEMBER_SEARCH_UNAVAILABLE");
+      if (result === "not_found") throw Error("SNOOP_MEMBER_NOT_FOUND");
+      searchOutcome = result === "multiple" ? "multiple" : "opened";
+    } else void search.search(p.query ?? "");
   }
   if (p.target === "cash_report") {
     if (options.reportDay !== undefined && !calendarDate(options.reportDay))
@@ -197,5 +202,5 @@ export async function applyDeepgramDraft(
     if (!cash.open) throw Error("SNOOP_FORM_UNAVAILABLE");
     cash.open("report", options.reportDay);
   }
-  return { proposal: p, skipped, applied };
+  return { proposal: p, skipped, applied, searchOutcome };
 }
