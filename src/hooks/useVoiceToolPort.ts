@@ -17,6 +17,7 @@ export function useVoiceToolPort(name: string, handlers: VoicePort, registration
     if (!owner) return;
     const port: VoicePort = {
       ready: () => latest.current.ready?.() ?? true,
+      fieldCapabilities: handlers.fieldCapabilities ? () => latest.current.fieldCapabilities!() : undefined,
       refresh: handlers.refresh ? () => latest.current.refresh?.() : undefined,
       baseline: handlers.baseline ? () => latest.current.baseline!() : undefined,
       snapshot: () => {
