@@ -12,7 +12,9 @@ export function gervisTaskFeedback(
   if (!outcome.ok || outcome.status === "rejected") {
     return {
       ...outcome,
-      next_step: outcome.code === "EMAIL_CORRECTION_UNCLEAR"
+      next_step: outcome.code === "SURNAME_SPELLING_UNCLEAR"
+        ? "The surname was NOT corrected. Keep name, date and other form fields unchanged. Ask for the FULL surname to be spelled letter by letter; never append a sound or suffix to the existing surname."
+        : outcome.code === "EMAIL_CORRECTION_UNCLEAR"
         ? "The member email correction was NOT applied. Do not retry blindly or claim success. Ask the operator to spell the complete corrected address with arroba and punto. Preserve all earlier form fields."
         : outcome.code === "STALE"
         ? "The operator changed screens. Ask if they want to resume this task; never retry a write."
