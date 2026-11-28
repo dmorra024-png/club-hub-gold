@@ -48,6 +48,7 @@ export const ActionReceipt = z
         "AMBIGUOUS_REFERENCE",
         "FIELD_DISABLED",
         "EMAIL_CORRECTION_UNCLEAR",
+        "SURNAME_SPELLING_UNCLEAR",
         "PERMISSION_DENIED",
         "CONFIRMATION_REQUIRED",
       ])
