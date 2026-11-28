@@ -112,7 +112,7 @@ export const ConversationProposal = z
     // Gervis only: exact letter-by-letter replacement of an existing voice-entered surname.
     // The browser constructs the text; the model cannot append it to the old value.
     surname_spelling: z.object({
-      letters: z.array(z.string().regex(/^[\\p{L}]$/u)).min(2).max(60),
+      letters: z.array(z.string().regex(/^[\p{L}]$/u)).min(2).max(60),
     }).strict().optional(),
     cash: cashDraftFields.optional(),
     form: AdministrativeDraft.optional(),
