@@ -6,6 +6,7 @@ export const memberCreationKeys = [
   "birth_date",
   "city",
   "phone",
+  "dni_number",
   "email",
   "address",
   "postal_code",
