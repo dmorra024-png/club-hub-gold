@@ -249,7 +249,8 @@ export function reduceConversation(
   const base = previous;
   return {
     operation,
-    member: { ...base.member, ...p.member },
+    // Never persist or replay government ID as conversation context.
+    member: (({dni_number: _sensitive, ...safe}) => safe)({ ...base.member, ...p.member }),
     product: { ...base.product, ...p.product },
     declined: p.member.phone ? [] : [...new Set([...base.declined, ...p.declined])],
     lastQuestion: p.question,
