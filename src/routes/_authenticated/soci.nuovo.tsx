@@ -584,6 +584,17 @@ function NewSocio() {
 
   useVoiceToolPort("member.form", {
     ready: () => plansReady.current && fieldConfigReady.current,
+    fieldCapabilities: () => Object.fromEntries(memberCreationKeys.map(key => {
+      const field = key === "plan_name" ? "plan" : key;
+      const visible = key === "first_name" || key === "last_name" || fieldCfg[field].visible;
+      return [key,{
+        visible, editable:visible,
+        required:key === "first_name" || key === "last_name" || fieldCfg[field].required,
+        type:key === "email" ? "email" : key === "phone" ? "phone" :
+          key === "birth_date" ? "date" : key === "dni_number" ? "identifier" :
+          key === "plan_name" ? "choice" : "text",
+      }];
+    })),
     snapshot: () => Object.fromEntries(memberCreationKeys.map(key => [key,
       key === "plan_name" ? plansRef.current.find(plan => plan.id === formRef.current.plan_id)?.name ?? "" : formRef.current[key],
     ])),
