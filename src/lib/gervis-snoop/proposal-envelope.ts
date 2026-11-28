@@ -20,7 +20,7 @@ export function normalizeGervisProposal(value: unknown): unknown {
   if (!intents.has(String(raw.intent))) return value;
   const allowed = new Set([
     "intent","target","member","product","stock_movement","query",
-    "cash","form","email_correction","declined","question","asking",
+    "cash","form","email_correction","surname_spelling","declined","question","asking",
   ]);
   if (Object.keys(raw).some(key => !allowed.has(key))) return value;
   // A destination is ALWAYS explicit (nullable only where the schema allows).
