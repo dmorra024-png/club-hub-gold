@@ -677,7 +677,9 @@ export function DeepgramPilotVoice({
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
               const reference =
-                reason === "SNOOP_MEMBER_NOT_FOUND" && message.gervis === true
+                reason === "SNOOP_STOCK_DRAFT_UNAVAILABLE" && message.gervis === true
+                  ? "STOCK_DRAFT_UNAVAILABLE"
+                  : reason === "SNOOP_MEMBER_NOT_FOUND" && message.gervis === true
                   ? "MEMBER_NOT_FOUND"
                   : reason === "SNOOP_MEMBER_SEARCH_UNAVAILABLE" && message.gervis === true
                   ? "MEMBER_SEARCH_UNAVAILABLE"
@@ -709,7 +711,13 @@ export function DeepgramPilotVoice({
                   code: reference,
                 });
               setStatus(
-                reference === "SURNAME_SPELLING_UNCLEAR"
+                reference === "STOCK_DRAFT_UNAVAILABLE"
+                  ? "No se pudo preparar el movimiento: comprueba el producto, la cantidad y el stock disponible. No se ha modificado nada."
+                  : reference === "MEMBER_NOT_FOUND"
+                  ? "No se encontró ese socio en el club. Comprueba nombre y apellidos."
+                  : reference === "MEMBER_SEARCH_UNAVAILABLE"
+                  ? "La búsqueda de socios no está disponible. No he confirmado ningún resultado."
+                  : reference === "SURNAME_SPELLING_UNCLEAR"
                   ? "Non so ricostruire il cognome in modo sicuro. Dettalo lettera per lettera; mantengo gli altri dati."
                   : reference === "EMAIL_CORRECTION_UNCLEAR"
                   ? "Non so quale punto togliere dall’email. Dettala lettera per lettera: il resto del formulario resta invariato."
