@@ -9,6 +9,7 @@ import type { AccountAccess } from "./access-context.ts";
 import { parseCashCents, calendarDate } from "./member-administration.ts";
 import { removeSingleLocalEmailDot } from "./gervis-snoop/email-correction.ts";
 import { spelledSurname } from "./gervis-snoop/surname-correction.ts";
+import { assertWritableVoiceFields, awaitVoicePatchApplied } from "./voice/form-capabilities.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
@@ -176,11 +177,17 @@ export async function applyDeepgramDraft(
       patch.price = String(cents / 100);
     }
     if (!form.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");
+    // Generic Gervis contract: the mounted form is the source of truth
+    // for currently enabled fields, independent of hardcoded prompt claims.
+    if (options.verifyNavigation && form.fieldCapabilities)
+      assertWritableVoiceFields(patch, form.fieldCapabilities());
     const next = protectedVoicePatch(form.snapshot(), options.last[kind] ?? {}, patch);
     skipped = next.skipped;
     if (Object.keys(next.applied).length) {
       if (!form.patch) throw Error("SNOOP_FORM_UNAVAILABLE");
       form.patch(next.applied);
+      if (options.verifyNavigation)
+        await awaitVoicePatchApplied(form.snapshot, next.applied, valid);
       applied = Object.keys(next.applied);
       options.last[kind] = { ...options.last[kind], ...next.applied };
     }
