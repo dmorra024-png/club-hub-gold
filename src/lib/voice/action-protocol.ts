@@ -110,6 +110,11 @@ export function acknowledgedMemory(
         proposal.product as Record<string, string>
       )[field];
   }
+  // A spelled surname is assembled in the authenticated browser and is not
+  // transmitted back to the model. Once acknowledged, discard the previous
+  // misheard value so the next voice turn cannot reuse it as the real surname.
+  if (proposal.surname_spelling && receipt.applied.includes("last_name"))
+    delete (next.member as Record<string,string>).last_name;
   for (const field of receipt.skipped) {
     delete (next.member as Record<string, string>)[field];
     delete (next.product as Record<string, string>)[field];
