@@ -33,6 +33,7 @@ function GestisciSoci() {
   const routeContext = Route.useRouteContext();
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
+  const [remoteVoiceMatches, setRemoteVoiceMatches] = useState<Array<{id:string;first_name:string;last_name:string}>>([]);
   const [loading, setLoading] = useState(true);
   const [scanOpen, setScanOpen] = useState(false);
   const navigate = useNavigate();
@@ -83,6 +84,7 @@ function GestisciSoci() {
   async function runVoiceSearch(query: string) {
     // Voice UI and server share the same member-name normalizer.
     const memberQuery = spokenMemberQuery(query);
+    setRemoteVoiceMatches([]);
     if (!memberQuery) {
       toast.error("Indica el nombre o número del socio.");
       return "not_found" as const;
@@ -137,6 +139,9 @@ function GestisciSoci() {
         return "opened" as const;
       }
       if (matches.length > 1) {
+        // The authorized RPC can find a member absent from the cached list.
+        // Show its candidates privately to the operator; never guess one.
+        setRemoteVoiceMatches(matches.slice(0,7));
         toast.message(`${matches.length} coincidencias. Indica el apellido o selecciona la ficha.`);
         return "multiple" as const;
       } else {
@@ -196,7 +201,7 @@ function GestisciSoci() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neon-dim" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setRemoteVoiceMatches([]); setQ(e.target.value); }}
             placeholder="Buscar por nº socio, nombre, DNI o ciudad..."
             className="w-full bg-input border border-border rounded-lg pl-10 pr-3 py-2.5 text-sm focus:border-neon focus:ring-2 focus:ring-neon/20 outline-none transition"
           />
@@ -210,6 +215,19 @@ function GestisciSoci() {
         </button>
       </div>
 
+      {remoteVoiceMatches.length > 0 && (
+        <section className="mb-5 rounded-xl border border-neon/40 bg-card/60 p-4" aria-label="Coincidencias verificadas por búsqueda de voz">
+          <p className="text-sm mb-3">Varios socios encontrados en este club. Selecciona la ficha correcta:</p>
+          <div className="flex flex-col gap-2">
+            {remoteVoiceMatches.map(match => (
+              <Link key={match.id} to="/soci/$id" params={{id:match.id}}
+                className="block rounded-lg border border-border p-3 text-sm hover:border-neon">
+                {match.first_name} {match.last_name}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       {loading ? (
         <div className="text-muted-foreground text-sm">Cargando...</div>
       ) : filtered.length === 0 ? (
