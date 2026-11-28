@@ -677,7 +677,9 @@ export function DeepgramPilotVoice({
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
               const reference =
-                reason === "SNOOP_STOCK_DRAFT_UNAVAILABLE" && message.gervis === true
+                reason === "SNOOP_FORM_NOT_APPLIED" && message.gervis === true
+                  ? "FORM_NOT_APPLIED"
+                  : reason === "SNOOP_STOCK_DRAFT_UNAVAILABLE" && message.gervis === true
                   ? "STOCK_DRAFT_UNAVAILABLE"
                   : reason === "SNOOP_MEMBER_NOT_FOUND" && message.gervis === true
                   ? "MEMBER_NOT_FOUND"
@@ -711,7 +713,9 @@ export function DeepgramPilotVoice({
                   code: reference,
                 });
               setStatus(
-                reference === "STOCK_DRAFT_UNAVAILABLE"
+                reference === "FORM_NOT_APPLIED"
+                  ? "El formulario no confirmó el cambio. Comprueba el campo antes de seguir; no se ha guardado nada."
+                  : reference === "STOCK_DRAFT_UNAVAILABLE"
                   ? "No se pudo preparar el movimiento: comprueba el producto, la cantidad y el stock disponible. No se ha modificado nada."
                   : reference === "MEMBER_NOT_FOUND"
                   ? "No se encontró ese socio en el club. Comprueba nombre y apellidos."
