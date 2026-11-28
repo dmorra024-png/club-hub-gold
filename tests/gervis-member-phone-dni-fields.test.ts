@@ -7,6 +7,8 @@ import { memberCreationPatch, memberCreationKeys } from "../src/lib/voice/member
 import { applyDeepgramDraft } from "../src/lib/deepgram-draft-actions.ts";
 import { applicationPorts, voiceOwner } from "../src/lib/voice/application-ports.ts";
 import { gervisBrainPrompt } from "../src/lib/gervis-snoop/brain.ts";
+import { ActionReceipt, acknowledgedMemory } from "../src/lib/voice/action-protocol.ts";
+import { emptyConversation, reduceConversation } from "../src/lib/snoop-conversation.ts";
 import type { AccountAccess } from "../src/lib/access-context.ts";
 
 const clubId="00000000-0000-4000-8000-000000000001";
@@ -65,6 +67,15 @@ test("Gervis prepares phone and DNI on real member form, never writes and never 
     assert.equal(values.last_name,"Mechad");
     assert.equal(values.birth_date,"1995-07-26");
     assert.equal(saved,0);
+    const receipt=ActionReceipt.parse({
+      type:"AppActionResult",id:"draft-dni",status:"prepared",
+      applied:["dni_number"],skipped:[],code:"OK",
+    });
+    const proposed=ConversationProposal.parse(normalizeGervisProposal(draft({dni_number:"12345678Z"})));
+    const remembered=acknowledgedMemory(emptyConversation(),proposed,receipt);
+    assert.equal(remembered.member.dni_number,undefined);
+    assert.equal(reduceConversation(emptyConversation(),proposed).member.dni_number,undefined);
+    assert.equal(values.dni_number,"12345678Z","only the local member form owns the number");
     await assert.rejects(execute({dni_number:"12345678Z"},false),/SNOOP_MEMBER_FIELD_DISABLED/);
   }finally{remove();}
 });
