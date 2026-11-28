@@ -52,6 +52,7 @@ export const ActionReceipt = z
         "MEMBER_NOT_FOUND",
         "MEMBER_AMBIGUOUS",
         "MEMBER_SEARCH_UNAVAILABLE",
+        "STOCK_DRAFT_UNAVAILABLE",
         "PERMISSION_DENIED",
         "CONFIRMATION_REQUIRED",
       ])
