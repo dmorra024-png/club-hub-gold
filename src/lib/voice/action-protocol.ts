@@ -45,6 +45,7 @@ export const ActionReceipt = z
         "MANUAL_EDIT_PRESERVED",
         "STALE",
         "FORM_UNAVAILABLE",
+        "FORM_NOT_APPLIED",
         "REFERENCE_NOT_FOUND",
         "AMBIGUOUS_REFERENCE",
         "FIELD_DISABLED",
