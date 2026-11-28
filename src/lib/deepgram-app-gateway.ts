@@ -24,6 +24,11 @@ import {
 import { voiceGeneticsInformation } from "./voice/genetics-read.server.ts";
 import { voiceCashOpenersToday } from "./voice/cash-openers.server.ts";
 import { voiceNavigationShortcut } from "./voice/navigation-shortcuts.ts";
+import { gervisToolFeedback } from "./gervis-snoop/tool-feedback.ts";
+import { createGervisSupabaseLearningStore } from "./gervis-snoop/supabase-learning-store.server.ts";
+import { gervisApprovedPronunciations } from "./gervis-snoop/approved-context.ts";
+import { gervisTaskFeedback } from "./gervis-snoop/task-feedback.ts";
+import { normalizeGervisProposal } from "./gervis-snoop/proposal-envelope.ts";
 import { normalizeNavigationProposal } from "./voice/navigation-proposal.ts";
 import { normalizeVoiceFormProposal } from "./voice/form-proposal.ts";
 import { VoiceUsageLease, settleVoiceUsageClose } from "./voice/usage.server.ts";
@@ -240,6 +245,10 @@ export async function deepgramAppSocket(
     }
   >();
   const executionEnabled = setting(env, "SNOOP_VOICE_EXECUTION_PILOT_ENABLED") === "true";
+  // Only the specific uploaded phone-test Version URL may run the new brain.
+  // Even an accidental later deployment on the Pilot hostname cannot enable it.
+  const gervisMode = setting(env, "GERVIS_SNOOP_EXPERIMENTAL") === "true" &&
+    url.hostname === "gervis-snoop-snoop-pilot.dmorra024.workers.dev";
   const walletEnabled = setting(env, "SNOOP_WALLET_OPERATIONS_ENABLED") === "true";
   const execute = async (
     request: Parameters<typeof voiceCommandOperation>[1] & { value?: boolean },
@@ -426,8 +435,29 @@ export async function deepgramAppSocket(
           verified.catalog,
           executionEnabled,
           walletEnabled,
+          gervisMode,
         );
         settings.tags = ["snoop-admin-pilot"];
+        // Approved learning is OFF until the separate Gervis-only RLS schema
+        // has been tested. A lookup failure never prevents voice conversation,
+        // grants permission, or activates a migration.
+        if (gervisMode && setting(env, "GERVIS_LEARNING_ENABLED") === "true") {
+          try {
+            const store = createGervisSupabaseLearningStore({
+              url: setting(env, "SUPABASE_URL"),
+              publishableKey: setting(env, "SUPABASE_PUBLISHABLE_KEY"),
+              jwt: verifiedToken,
+              access: verified.access,
+              authenticatedUserId: verified.user,
+            });
+            settings.agent.think.prompt += gervisApprovedPronunciations(
+              await store.list(verified.access.clubId!), verified.access.clubId!,
+            );
+          } catch {
+            console.warn("GERVIS_LEARNING_UNAVAILABLE");
+          }
+        }
+
         settings.agent.think.prompt +=
           " Restored dialogue is context, not a new command. Never replay tools from history; wait for a new user request. Conversation memory: " +
           JSON.stringify({ history, memory }) +
@@ -1163,7 +1193,7 @@ export async function deepgramAppSocket(
                         : args;
                     result = authorizeProposal(
                       f.name === "snoop_propose"
-                        ? normalizeVoiceFormProposal(proposal)
+                        ? gervisMode ? normalizeGervisProposal(proposal) : normalizeVoiceFormProposal(proposal)
                         : proposal,
                       verified.access,
                       verified.catalog,
@@ -1225,6 +1255,7 @@ export async function deepgramAppSocket(
                     type: "AppProposal",
                     id,
                     result,
+                    gervis: gervisMode,
                     ...(pending.get(id)?.cashDay ? { cashDay: pending.get(id)!.cashDay } : {}),
                   });
                 } else {
@@ -1234,7 +1265,7 @@ export async function deepgramAppSocket(
                       type: "FunctionCallResponse",
                       id: f.id,
                       name: f.name,
-                      content: JSON.stringify(result),
+                      content: JSON.stringify(gervisMode ? gervisToolFeedback(result) : result),
                     }),
                   );
                 }
@@ -1251,7 +1282,7 @@ export async function deepgramAppSocket(
             } else if (m.type === "SettingsApplied") {
               providerReady = true;
               lastInteraction = Date.now();
-              send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length });
+              send({ type: "AppReady", verifiedCategories: verified.catalog.categories.length, gervis: gervisMode });
             } else if (m.type === "ConversationText" && ["user", "assistant"].includes(m.role)) {
               lastInteraction = Date.now();
               if (m.role === "user") audioHealth.providerUserMessages++;
@@ -1265,7 +1296,10 @@ export async function deepgramAppSocket(
               }
               // Read-only shortcuts operate only on fully matched phrases and
               // remain subject to the same club and role permissions.
-              if (m.role === "user") {
+              // Gervis has ONE intent owner: the LLM and its verified tools.
+              // Do not race a second exact-phrase parser against its understanding.
+              // Legacy Pilot retains its existing read-only shortcuts unchanged.
+              if (m.role === "user" && !gervisMode) {
                 const destination = voiceNavigationShortcut(String(m.content || ""));
                 if (destination) {
                   const direct = authorizeProposal(
@@ -1595,6 +1629,10 @@ export async function deepgramAppSocket(
             outcome = { ok: false, code: "CASH_UNAVAILABLE", persisted: false };
           }
         }
+        // In Gervis mode, use the actual browser receipt to guide the next
+        // conversational step; never upgrade a draft to a persisted result.
+        if (gervisMode && item.name === "snoop_propose")
+          outcome = gervisTaskFeedback(item.proposal, actionOutcome(receipt.data));
         history.push({
           role: "assistant",
           content: "Application result: " + JSON.stringify(outcome),

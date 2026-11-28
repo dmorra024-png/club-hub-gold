@@ -9,6 +9,7 @@ const executionMode = process.argv.includes("--execution") || registryMode;
 const compiled = process.argv.includes("--compiled");
 const closeRetryOnly = process.argv.includes("--close-retry");
 const noThinking = process.argv.includes("--no-thinking");
+const gervisMode = process.argv.includes("--gervis");
 const conversationTurns = noThinking ? 20 : closeRetryOnly ? 2 : 8;
 const require = createRequire(import.meta.url),
   { Miniflare, convertV4MiniflareOptions } = require(
@@ -44,6 +45,7 @@ const sqlActor = async (sql, args = []) =>
   });
 const bindings = {
   SNOOP_VOICE_EXECUTION_PILOT_ENABLED: executionMode ? "true" : "false",
+  GERVIS_SNOOP_EXPERIMENTAL: gervisMode ? "true" : "false",
   DEEPGRAM_API_KEY: "test-provider-only",
   SNOOP_DEEPGRAM_PILOT_ENABLED: "true",
   SNOOP_DEEPGRAM_PILOT_USER_ID: uid,
@@ -102,7 +104,7 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
   p[1].addEventListener('message',e=>{if(typeof e.data==='string'){
    const m=JSON.parse(e.data);
    if(m.type==='Settings'){
-    const r=m.agent.listen.provider,s=JSON.stringify(m);if(r.eot_threshold!==.85||r.eot_timeout_ms!==5000||!r.keyterms.includes('Amnesia Haze')||!r.keyterms.includes('Flores')||s.includes('${uid}')||s.includes('${club}')||s.includes('synthetic.authorized.token'))throw Error('Provider scope leaked');
+    const r=m.agent.listen.provider,s=JSON.stringify(m);if(m.agent.think.provider.model!=='${gervisMode ? "gpt-4.1-mini" : "gpt-4o-mini"}'||r.eot_threshold!==.85||r.eot_timeout_ms!==5000||!r.keyterms.includes('Amnesia Haze')||!r.keyterms.includes('Flores')||s.includes('${uid}')||s.includes('${club}')||s.includes('synthetic.authorized.token'))throw Error('Provider scope leaked');
     p[1].send(JSON.stringify({type:'SettingsApplied'}));
    }
    if(m.type==='FunctionCallResponse'){const r=JSON.parse(m.content);
@@ -115,7 +117,7 @@ const fake = `let providerCalls=0,authCalls=0,forbiddenCalls=0,tools=0,closeAtte
     if(m.name==='snoop_execute'&&r.action==='product.create')lastProductReference=r.reference;
     if(m.name==='snoop_access_control'||m.name==='snoop_execute'){if(!r.ok||r.status!=='completed'||r.persisted!==true||m.content.includes('${uid}'))throw Error('Unverified execution outcome');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));return;}
     if(m.name==='snoop_catalog_search'){if(!r.ok||r.persisted!==false||r.matches.length!==1||r.matches[0]!=='Flores Especial')throw Error('Catalog lookup result');tools++;p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'product',target:'product_create',member:{},product:{name:'Synthetic',category:'Flores Especial'},query:null,declined:[],question:'',asking:null})}]}));return;}
-if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true)throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
+if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.status,summary:r.summary});if(r.ok!==true||r.persisted!==false)throw Error('Unsafe tool result');if(m.name==='snoop_cash_day'){if(r.status!=='read'||r.summary.day!=='2026-10-25'||r.summary.cents!==0||r.summary.scope!=='club')throw Error('Cash day mismatch');}else if(m.name==='snoop_cash_period'){if(r.from!=='2026-10-24'||r.to!=='2026-10-25'||r.cents!==0||r.measurement!=='recorded_receipts')throw Error('Period result mismatch');}else if(m.name==='snoop_genetics_information'){if(!r.verified||!r.sources.includes('https://www.wikidata.org/wiki/Q123'))throw Error('Botanical source missing');}else if(r.requiresConfirmation!==true&&!(m.name==='snoop_propose'&&count===1&&${gervisMode}))throw Error('Missing manual confirmation');tools++;p[1].send(JSON.stringify({type:'AgentStartedSpeaking'}));p[1].send(new ArrayBuffer(2400));p[1].send(JSON.stringify({type:'AgentAudioDone'}));}
   }else{
    if(e.data.byteLength!==4800)throw Error('Not binary PCM');count++;
    if([11,12,13].includes(new Uint8Array(e.data)[0])){const code=new Uint8Array(e.data)[0];const proposal=code===11?{action:'category.create',arguments:{name:'Synthetic office supplies',unit_type:'unit',is_smokeable:false}}:code===12?{action:'product.create',arguments:{name:'Synthetic Binder',category_id:lastCategoryReference,destination:'almacen',buy_price_cents:420,sell_price_cents:1250,strain:null,notes:'Synthetic test fixture',description:'Office supplies'}}:{action:'product.update',arguments:{id:lastProductReference,sell_price_cents:1350}};p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-execution-'+count,name:'snoop_execute',client_side:true,arguments:JSON.stringify(proposal)}]}));return;}
@@ -127,7 +129,7 @@ if(m.name==='snoop_cash_day')cashResponses.push({ok:r.ok,code:r.code,status:r.st
    if([3,4].includes(new Uint8Array(e.data)[0])){const period=new Uint8Array(e.data)[0]===3;p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'read-'+count,name:period?'snoop_cash_period':'snoop_genetics_information',client_side:true,arguments:JSON.stringify(period?{from:'2026-10-24',to:'2026-10-25'}:{name:'Amnesia Haze'})}]}));return;}
    if(new Uint8Array(e.data)[0]===2){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'catalog-'+count,name:'snoop_catalog_search',client_side:true,arguments:JSON.stringify({kind:'categories',query:'Flores Especial'})}]}));return;}
    if(new Uint8Array(e.data)[0]===1){p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'cash-'+count,name:'snoop_cash_day',client_side:true,arguments:JSON.stringify({day:'2026-10-25'})}]}));return;}
-   p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:'Synthetic administrative draft'}));${noThinking ? "" : "p[1].send(JSON.stringify({type:'AgentThinking'}));"}p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify({intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null})}]}));
+   p[1].send(JSON.stringify({type:'UserStartedSpeaking'}));p[1].send(JSON.stringify({type:'ConversationText',role:'user',content:${gervisMode ? "count===1?'Snoop, quiero crear un socio':'Añade la ciudad Palma al formulario'" : "'Synthetic administrative draft'"}}));${noThinking ? "" : "p[1].send(JSON.stringify({type:'AgentThinking'}));"}p[1].send(JSON.stringify({type:'FunctionCallRequest',functions:[{id:'draft-'+count,name:'snoop_propose',client_side:true,arguments:JSON.stringify(${gervisMode ? "count===1?{intent:'navigate',target:'member_create'}:{intent:'member',target:'member_create',member:{city:'Palma'}}" : "{intent:'member',target:'member_create',member:count===1?{first_name:'Ana',last_name:'Prueba'}:{city:'Palma'},product:{},query:null,declined:[],question:'',asking:null}"})}]}));
   }});return new Response(null,{status:101,webSocket:p[0]});
  }
  forbiddenCalls++;return new Response('unexpected network request',{status:403});
@@ -221,7 +223,9 @@ const mf = new Miniflare(
     ],
   }),
 );
-const base = "https://snoop-pilot.dmorra024.workers.dev";
+const base = gervisMode
+  ? "https://gervis-snoop-snoop-pilot.dmorra024.workers.dev"
+  : "https://snoop-pilot.dmorra024.workers.dev";
 async function socket(token, wrongConfig = false, autoAck = true) {
   const r = await mf.dispatchFetch(base + "/api/snoop-deepgram/socket", {
     headers: {
@@ -311,11 +315,17 @@ try {
     "provider must not hear success before UI acknowledgement",
   );
   const first = s.events.find((e) => e.type === "AppProposal" && e.result.ok);
+  if (gervisMode) {
+    assert.equal(first.result.proposal.intent, "navigate");
+    assert.equal(first.result.proposal.target, "member_create");
+    assert.equal(s.events.filter(e => e.type === "AppProposal").length, 1,
+      "no competing legacy shortcut on a natural Gervis utterance");
+  }
   const receipt = JSON.stringify({
     type: "AppActionResult",
     id: first.id,
-    status: "prepared",
-    applied: ["first_name", "last_name"],
+    status: gervisMode ? "opened" : "prepared",
+    applied: gervisMode ? [] : ["first_name", "last_name"],
     skipped: [],
     code: "OK",
   });
@@ -343,6 +353,33 @@ try {
       () => s.events.filter((e) => e.type === "AppProposal" && e.result.ok).length === turn + 2,
     );
   }
+  if (gervisMode) {
+    // The isolated Gervis acceptance is deliberately limited to the first
+    // real navigation acknowledgement and the second field-dictation turn.
+    // The remaining cash/genetics/execution scenarios are already covered by
+    // the legacy Worker tests; they must not mask this test's outcome.
+    const proposals = s.events.filter(e => e.type === "AppProposal" && e.result.ok);
+    assert.equal(proposals.length, 2, "one proposal per natural conversation turn");
+    assert.equal(proposals[0].result.proposal.intent, "navigate");
+    assert.equal(proposals[0].result.proposal.target, "member_create");
+    assert.equal(proposals[1].result.proposal.intent, "member");
+    assert.equal(proposals[1].result.proposal.member.city, "Palma");
+    assert(!s.events.some(e => e.type === "AppClosed"), "Gervis stays active after both commands");
+    await until(() => (s.events.filter(e => e.type === "Audio")).length >= 2);
+    assert.equal((await stats()).tools, 2);
+    s.ws.send("STOP");
+    await until(() => s.events.some(e => e.code === "STOPPED"));
+    s.ws.close();
+    const end = Date.now() + 5000;
+    while ((await stats()).closeAttempts < 2 && Date.now() < end)
+      await new Promise(resolve => setTimeout(resolve, 25));
+    const metrics = await stats();
+    assert.equal(metrics.closeAttempts, 2);
+    assert.equal(metrics.providerCalls, 1);
+    assert.equal(metrics.forbiddenCalls, 0);
+    assert.equal(metrics.executionWrites, 0);
+    console.log("PASS isolated Workerd gateway: Gervis natural member form, second field, two audio turns, no competing shortcuts, no writes");
+  } else {
   const cashAudio = new Uint8Array(4800);
   cashAudio[0] = 1;
   s.ws.send(cashAudio.buffer);
@@ -632,6 +669,7 @@ try {
         ? " (provider/authentication simulated; SQL persistence real and isolated)"
         : " (provider/backend simulated)"),
   );
+  }
 } finally {
   await mf.dispose();
   await sqlDb?.close();

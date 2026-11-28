@@ -23,6 +23,7 @@ const FieldKey = z.enum([
   "closing_cash",
   "notes",
   "email",
+  "dni_number",
   "duration_days",
   "price",
   "percentage",
@@ -44,9 +45,16 @@ export const ActionReceipt = z
         "MANUAL_EDIT_PRESERVED",
         "STALE",
         "FORM_UNAVAILABLE",
+        "FORM_NOT_APPLIED",
         "REFERENCE_NOT_FOUND",
         "AMBIGUOUS_REFERENCE",
         "FIELD_DISABLED",
+        "EMAIL_CORRECTION_UNCLEAR",
+        "SURNAME_SPELLING_UNCLEAR",
+        "MEMBER_NOT_FOUND",
+        "MEMBER_AMBIGUOUS",
+        "MEMBER_SEARCH_UNAVAILABLE",
+        "STOCK_DRAFT_UNAVAILABLE",
         "PERMISSION_DENIED",
         "CONFIRMATION_REQUIRED",
       ])
@@ -95,7 +103,9 @@ export function acknowledgedMemory(
   else if (["member", "product", "category", "search"].includes(proposal.intent))
     next.operation = proposal.intent as ConversationMemoryValue["operation"];
   for (const field of receipt.applied) {
-    if (Object.hasOwn(proposal.member, field))
+    // DNI/NIE is an identity identifier: never copy its raw value into the
+    // resumable voice memory or server checkpoint. It lives in the form only.
+    if (field !== "dni_number" && Object.hasOwn(proposal.member, field))
       (next.member as Record<string, string>)[field] = (proposal.member as Record<string, string>)[
         field
       ];
@@ -104,6 +114,12 @@ export function acknowledgedMemory(
         proposal.product as Record<string, string>
       )[field];
   }
+  delete (next.member as Record<string,string>).dni_number;
+  // A spelled surname is assembled in the authenticated browser and is not
+  // transmitted back to the model. Once acknowledged, discard the previous
+  // misheard value so the next voice turn cannot reuse it as the real surname.
+  if (proposal.surname_spelling && receipt.applied.includes("last_name"))
+    delete (next.member as Record<string,string>).last_name;
   for (const field of receipt.skipped) {
     delete (next.member as Record<string, string>)[field];
     delete (next.product as Record<string, string>)[field];

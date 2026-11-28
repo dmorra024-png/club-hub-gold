@@ -1,0 +1,145 @@
+name: Gervis Snoop — protected phone-test version (never deploy)
+on:
+  push:
+    branches: [feature/gervis-snoop]
+    paths:
+      - docs/GERVIS_PHONE_TEST_TRIGGER.md
+permissions:
+  contents: read
+concurrency:
+  group: gervis-snoop-phone-test
+  cancel-in-progress: false
+
+jobs:
+  upload-preview-version:
+    if: github.repository == 'dmorra024-png/club-hub-gold' && github.event.head_commit.message == 'gervis-phone-test-upload'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment: snoop-pilot
+    env:
+      CI: "true"
+      CLOUDFLARE_ACCOUNT_ID: 0cc8106f8820d22996af3aed9e081e93
+      CLOUDFLARE_API_TOKEN: ${{ secrets.SNOOP_CLOUDFLARE_API_TOKEN }}
+      SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      VITE_SUPABASE_URL: https://bnwanxbmprbymbutoths.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SNOOP_SUPABASE_PUBLISHABLE_KEY }}
+      SNOOP_SUPABASE_PROJECT_REF: bnwanxbmprbymbutoths
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+      - name: Guard branch, exact scope and existing Pilot settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "feature/gervis-snoop"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$SUPABASE_PUBLISHABLE_KEY"
+          git merge-base --is-ancestor origin/release/jarvis-pilot-safe-20261126 HEAD
+          mapfile -t CHANGED < <(git diff --name-only origin/release/jarvis-pilot-safe-20261126 HEAD)
+          for f in "${CHANGED[@]}"; do
+            case "$f" in
+              .github/workflows/gervis-snoop-phone-test.yml|docs/GERVIS_SNOOP.md|docs/GERVIS_PHONE_TEST_TRIGGER.md|docs/gervis-snoop-learning-rls-proposal.sql|scripts/test-deepgram-app-worker.mjs|src/components/DeepgramPilotVoice.tsx|src/lib/deepgram-app-gateway.ts|src/lib/deepgram-draft-actions.ts|src/lib/voice/agent-settings.server.ts|src/lib/voice/action-protocol.ts|src/lib/voice/application-ports.ts|src/lib/snoop-conversation.ts|src/hooks/useVoiceToolPort.ts|src/routes/_authenticated/soci.gestisci.tsx|src/lib/gervis-snoop/*|tests/gervis-*.test.ts|tests/gervis-*.test.mjs|tests/gervis-snoop-*.test.ts) ;;
+              *) echo "Unexpected cross-component change: $f" >&2; exit 1 ;;
+            esac
+          done
+          test -z "$(git diff --name-only origin/release/jarvis-pilot-safe-20261126 HEAD -- supabase apps package.json bun.lock wrangler.json)"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const api='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/settings';
+          const r=await fetch(api,{headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN},signal:AbortSignal.timeout(25000)});
+          assert.equal(r.status,200);
+          const j=await r.json();assert.equal(j.success,true);
+          const b=j.result?.bindings||[];
+          for(const [name,type] of [['DEEPGRAM_API_KEY','secret_text'],['SUPABASE_SERVICE_ROLE_KEY','secret_text'],['SNOOP_AI','ai'],['ASSETS','assets']])
+            assert.ok(b.some(x=>x.name===name&&x.type===type),'Missing existing Pilot binding: '+name);
+          console.log('Existing Pilot secret types verified; no secret values extracted.');
+          NODE
+      - run: bun install --frozen-lockfile
+      - name: Verify Gervis source, existing boundaries and full Worker build
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun run test
+          bun run typecheck
+          bun run build:worker
+          bun run worker:dry-run
+          node -e 'const w=require("./.output/server/wrangler.json");if(w.name!=="snoop-pilot"||w.assets?.binding!=="ASSETS"||w.ai?.binding!=="SNOOP_AI")process.exit(1)'
+      - name: Prepare upload-only version configuration (existing Pilot untouched)
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const file='.output/server/wrangler.json';
+          const w=JSON.parse(readFileSync(file,'utf8'));
+          assert.equal(w.name,'snoop-pilot');
+          assert.equal(w.workers_dev,true);
+          assert.equal(w.vars?.SNOOP_RESOURCE_NAMESPACE,'snoop-pilot');
+          // This configuration is used for ONE UPLOADED VERSION ONLY.
+          // There is no "wrangler deploy" and no traffic shift to this version.
+          w.preview_urls=true;
+          w.vars={
+            ...w.vars,
+            GERVIS_SNOOP_EXPERIMENTAL:'true',
+            GERVIS_LEARNING_ENABLED:'false',
+            SNOOP_VOICE_EXECUTION_PILOT_ENABLED:'false',
+            SNOOP_WALLET_OPERATIONS_ENABLED:'false',
+          };
+          writeFileSync('.output/server/wrangler-gervis-phone-test.json',JSON.stringify(w,null,2));
+          console.log('Gervis version only: voice executions OFF, Wallet OFF, learning writes OFF.');
+          NODE
+      - name: Enable VERSION URL routing only; do not shift deployed Pilot traffic
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const url='https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/snoop-pilot/subdomain';
+          const headers={Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN};
+          const read=await fetch(url,{headers,signal:AbortSignal.timeout(25000)});
+          assert.equal(read.status,200);
+          const before=await read.json();assert.equal(before.success,true);
+          assert.equal(before.result?.enabled,true,'Never alter the existing Pilot workers.dev route');
+          if (before.result?.previews_enabled!==true) {
+            const update=await fetch(url,{
+              method:'POST',
+              headers:{...headers,'Content-Type':'application/json'},
+              body:JSON.stringify({enabled:true,previews_enabled:true}),
+              signal:AbortSignal.timeout(25000),
+            });
+            assert.equal(update.status,200);
+            const changed=await update.json();assert.equal(changed.success,true);
+            assert.equal(changed.result?.enabled,true);
+            assert.equal(changed.result?.previews_enabled,true);
+          }
+          const check=await fetch(url,{headers,signal:AbortSignal.timeout(25000)});
+          assert.equal(check.status,200);
+          const after=await check.json();
+          assert.equal(after.result?.enabled,true);
+          assert.equal(after.result?.previews_enabled,true);
+          console.log('Version URL routing enabled; existing deployed Worker route remains enabled.');
+          NODE
+      - name: Upload Gervis as a non-deployed version with test URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          WRANGLER_SEND_METRICS=false bunx wrangler versions upload --config .output/server/wrangler-gervis-phone-test.json --keep-vars --preview-alias gervis-snoop
+      - name: Verify phone-test URL works and Pilot stays live
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREVIEW=https://gervis-snoop-snoop-pilot.dmorra024.workers.dev
+          LIVE=https://snoop-pilot.dmorra024.workers.dev
+          curl -fsS --retry 10 --retry-all-errors --retry-delay 4 --max-time 30 "$PREVIEW/" -o /tmp/gervis-phone-test.html
+          grep -qi snoop /tmp/gervis-phone-test.html
+          curl -fsS --max-time 30 "$LIVE/" -o /tmp/gervis-live-pilot.html
+          grep -qi snoop /tmp/gervis-live-pilot.html
+          echo "GERVIS_PHONE_TEST_URL=$PREVIEW"
+          echo "GERVIS_VERSION_UPLOADED_NOT_DEPLOYED=true"
+          echo "NO_LIVE_TRAFFIC_SHIFT=true"

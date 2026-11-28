@@ -540,9 +540,13 @@ export function DeepgramPilotVoice({
             }
             onPhaseChange?.("recording");
             setStatus(
-              supportsEchoCancellation
-                ? "SNOOP ti ascolta · interruzione vocale attiva"
-                : "SNOOP ti ascolta · per interrompere usa Interrompi",
+              message.gervis === true
+                ? (supportsEchoCancellation
+                    ? "GERVIS SNOOP · prova vocale attiva"
+                    : "GERVIS SNOOP · prova, usa Interrompi per parlare")
+                : (supportsEchoCancellation
+                    ? "SNOOP ti ascolta · interruzione vocale attiva"
+                    : "SNOOP ti ascolta · per interrompere usa Interrompi"),
             );
           } else if (
             message.type === "ConversationText" &&
@@ -631,6 +635,7 @@ export function DeepgramPilotVoice({
                 },
                 last: voiceValues.current,
                 reportDay: message.cashDay,
+                verifyNavigation: message.gervis === true,
               });
               if (message.shortcut === true && message.id)
                 state.transport.send({
@@ -651,7 +656,9 @@ export function DeepgramPilotVoice({
                         : "prepared",
                   applied: applied.applied,
                   skipped: applied.skipped,
-                  code: applied.skipped.length
+                  code: message.gervis === true && applied.searchOutcome === "multiple"
+                    ? "MEMBER_AMBIGUOUS"
+                    : applied.skipped.length
                     ? "MANUAL_EDIT_PRESERVED"
                     : applied.proposal.intent === "review"
                       ? "CONFIRMATION_REQUIRED"
@@ -670,7 +677,19 @@ export function DeepgramPilotVoice({
             } catch (error) {
               const reason = error instanceof Error ? error.message : "";
               const reference =
-                reason === "SNOOP_MEMBERSHIP_FEE_NOT_FOUND"
+                reason === "SNOOP_FORM_NOT_APPLIED" && message.gervis === true
+                  ? "FORM_NOT_APPLIED"
+                  : reason === "SNOOP_STOCK_DRAFT_UNAVAILABLE" && message.gervis === true
+                  ? "STOCK_DRAFT_UNAVAILABLE"
+                  : reason === "SNOOP_MEMBER_NOT_FOUND" && message.gervis === true
+                  ? "MEMBER_NOT_FOUND"
+                  : reason === "SNOOP_MEMBER_SEARCH_UNAVAILABLE" && message.gervis === true
+                  ? "MEMBER_SEARCH_UNAVAILABLE"
+                  : reason === "SNOOP_SURNAME_SPELLING_UNCLEAR" && message.gervis === true
+                  ? "SURNAME_SPELLING_UNCLEAR"
+                  : reason === "SNOOP_EMAIL_CORRECTION_UNCLEAR" && message.gervis === true
+                  ? "EMAIL_CORRECTION_UNCLEAR"
+                  : reason === "SNOOP_MEMBERSHIP_FEE_NOT_FOUND"
                   ? "REFERENCE_NOT_FOUND"
                   : reason === "SNOOP_MEMBERSHIP_FEE_AMBIGUOUS"
                     ? "AMBIGUOUS_REFERENCE"
@@ -694,7 +713,19 @@ export function DeepgramPilotVoice({
                   code: reference,
                 });
               setStatus(
-                reference === "REFERENCE_NOT_FOUND"
+                reference === "FORM_NOT_APPLIED"
+                  ? "El formulario no confirmó el cambio. Comprueba el campo antes de seguir; no se ha guardado nada."
+                  : reference === "STOCK_DRAFT_UNAVAILABLE"
+                  ? "No se pudo preparar el movimiento: comprueba el producto, la cantidad y el stock disponible. No se ha modificado nada."
+                  : reference === "MEMBER_NOT_FOUND"
+                  ? "No se encontró ese socio en el club. Comprueba nombre y apellidos."
+                  : reference === "MEMBER_SEARCH_UNAVAILABLE"
+                  ? "La búsqueda de socios no está disponible. No he confirmado ningún resultado."
+                  : reference === "SURNAME_SPELLING_UNCLEAR"
+                  ? "Non so ricostruire il cognome in modo sicuro. Dettalo lettera per lettera; mantengo gli altri dati."
+                  : reference === "EMAIL_CORRECTION_UNCLEAR"
+                  ? "Non so quale punto togliere dall’email. Dettala lettera per lettera: il resto del formulario resta invariato."
+                  : reference === "REFERENCE_NOT_FOUND"
                   ? "Quota non trovata nel club. Indica il nome di una quota esistente. Nessun campo modificato."
                   : reference === "AMBIGUOUS_REFERENCE"
                     ? "Più quote hanno questo nome. Seleziona quella corretta nel modulo. Nessun campo modificato."

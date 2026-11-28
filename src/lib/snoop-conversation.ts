@@ -23,6 +23,8 @@ export const memberFields = z
       .optional(),
     plan_name: z.string().trim().min(1).max(120).optional(),
     phone: z.string().max(24).optional(),
+    // Draft-only government ID text, never a document upload or automatic registration.
+    dni_number: z.string().trim().regex(/^[A-Za-z0-9]{5,20}$/).optional(),
     email: z.string().trim().email().max(254).optional(),
   })
   .strict();
@@ -108,6 +110,12 @@ export const ConversationProposal = z
         .refine((value) => Number(value) !== 0 && Math.abs(Number(value)) <= 1000000),
     }).strict().optional(),
     query: z.string().max(120).nullable(),
+    email_correction: z.enum(["remove_single_local_dot"]).optional(),
+    // Gervis only: exact letter-by-letter replacement of an existing voice-entered surname.
+    // The browser constructs the text; the model cannot append it to the old value.
+    surname_spelling: z.object({
+      letters: z.array(z.string().regex(/^[\p{L}]$/u)).min(2).max(60),
+    }).strict().optional(),
     cash: cashDraftFields.optional(),
     form: AdministrativeDraft.optional(),
     declined: z.array(z.literal("phone")).max(1),
@@ -124,6 +132,19 @@ export const ConversationProposal = z
     for (const value of Object.values(v.product))
       if (!value.trim()) ctx.addIssue({ code: "custom", message: "Empty product patch" });
 
+    if (v.surname_spelling && (
+      v.intent !== "member" || v.target !== "member_create" ||
+      Object.keys(v.member).length !== 0 || Object.keys(v.product).length !== 0 ||
+      v.query !== null || v.email_correction !== undefined
+    )) ctx.addIssue({code:"custom",message:"Invalid surname spelling correction scope"});
+    // Gervis-only, read-the-current-form operation. No model-supplied address,
+    // no arbitrary edits and no effects outside an active creation form.
+    if (v.email_correction && (
+        v.intent !== "member" || v.target !== "member_create" ||
+        Object.keys(v.member).length !== 0 ||
+        Object.keys(v.product).length !== 0 ||
+        v.query !== null
+    )) ctx.addIssue({code:"custom",message:"Invalid email correction scope"});
     if (
       (v.form && v.intent !== "administrative_draft") ||
       (v.intent === "administrative_draft" &&
@@ -228,7 +249,8 @@ export function reduceConversation(
   const base = previous;
   return {
     operation,
-    member: { ...base.member, ...p.member },
+    // Never persist or replay government ID as conversation context.
+    member: (({dni_number: _sensitive, ...safe}) => safe)({ ...base.member, ...p.member }),
     product: { ...base.product, ...p.product },
     declined: p.member.phone ? [] : [...new Set([...base.declined, ...p.declined])],
     lastQuestion: p.question,

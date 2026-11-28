@@ -3,14 +3,24 @@ export function isMemberCardPath(path: string) {
   const match = /^\/soci\/([^/]+)\/?$/.exec(path);
   return !!match && !["nuovo", "gestisci", "importar"].includes(match[1]);
 }
+/** Runtime capabilities originate from the mounted form, never the model prompt.
+ * No private form values are exported by this descriptor.
+ */
+export type VoiceFieldCapability = {
+  visible: boolean;
+  editable: boolean;
+  required: boolean;
+  type: "text" | "phone" | "email" | "date" | "identifier" | "number" | "choice";
+};
 export type VoicePort = {
+  fieldCapabilities?: () => Record<string, VoiceFieldCapability>;
   refresh?: () => void | Promise<void>;
   ready?: () => boolean;
   snapshot?: () => Record<string, string>;
   baseline?: () => Record<string, string>;
   patch?: (values: Record<string, string>) => void;
   open?: (target: string, query?: string | null) => void;
-  search?: (query: string) => void;
+  search?: (query: string) => void | "opened" | "multiple" | "not_found" | "unavailable" | Promise<void | "opened" | "multiple" | "not_found" | "unavailable">;
   stageStock?: (name: string, delta: string) => boolean;
 };
 export const voiceOwner = (user: string, club: string) => JSON.stringify([user, club]);

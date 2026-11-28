@@ -7,6 +7,9 @@ import {
 import { applicationPorts, isMemberCardPath, type VoicePort } from "./voice/application-ports.ts";
 import type { AccountAccess } from "./access-context.ts";
 import { parseCashCents, calendarDate } from "./member-administration.ts";
+import { removeSingleLocalEmailDot } from "./gervis-snoop/email-correction.ts";
+import { spelledSurname } from "./gervis-snoop/surname-correction.ts";
+import { assertWritableVoiceFields, awaitVoicePatchApplied } from "./voice/form-capabilities.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
@@ -31,6 +34,7 @@ export async function applyDeepgramDraft(
     current: () => boolean;
     last: Record<string, Record<string, string>>;
     reportDay?: string;
+    verifyNavigation?: boolean;
   },
 ) {
   const parsed = ConversationProposal.safeParse(value);
@@ -45,6 +49,8 @@ export async function applyDeepgramDraft(
     const until = performance.now() + 2500;
     while (options.current() && options.path() === from && performance.now() < until)
       await new Promise((r) => setTimeout(r, 20));
+    if (options.verifyNavigation && options.path() !== to)
+      throw Error("SNOOP_FORM_UNAVAILABLE");
   }
   const needsMemberCard =
     ["member_edit", "member_section"].includes(p.intent) ||
@@ -58,8 +64,15 @@ export async function applyDeepgramDraft(
     if (!valid()) throw Error("SNOOP_STALE_PROPOSAL");
     return found;
   };
+  // Gervis only: a URL transition is not enough to claim that the member
+  // form is usable. Wait for the REAL registered form port to become ready.
+  // Legacy Pilot retains its previous behavior.
+  if (options.verifyNavigation && p.intent === "navigate" &&
+      p.target === "member_create")
+    await port("member.form");
   let skipped: string[] = [];
   let applied: string[] = [];
+  let searchOutcome: "opened" | "multiple" | undefined;
   if (
     p.target &&
     ["products", "product_create", "categories", "stock", "warehouse"].includes(p.target)
@@ -129,17 +142,52 @@ export async function applyDeepgramDraft(
             ? p.member
             : p.product),
     } as Record<string, string>;
+    // Government identifiers must not become available in the legacy Pilot
+    // merely because the shared proposal schema now recognizes this field.
+    if (kind === "member" && patch.dni_number !== undefined &&
+        !options.verifyNavigation)
+      throw Error("SNOOP_MEMBER_FIELD_DISABLED");
+    if (p.surname_spelling) {
+      // Gervis only: exact replacement, not a suffix appended by the model.
+      // Only a field still owned by voice can be corrected; never overwrite
+      // a surname the operator has since edited manually.
+      if (!options.verifyNavigation || kind !== "member" || !form.snapshot ||
+          Object.keys(patch).length !== 0)
+        throw Error("SNOOP_SURNAME_SPELLING_UNCLEAR");
+      const existing = form.snapshot().last_name;
+      if (!options.last.member?.last_name || options.last.member.last_name !== existing)
+        throw Error("SNOOP_SURNAME_SPELLING_UNCLEAR");
+      patch.last_name = spelledSurname(p.surname_spelling.letters);
+    }
+    if (p.email_correction) {
+      // Only the Gervis phone-test pathway may use this narrow local edit.
+      // Never replace a manually modified email or guess punctuation.
+      if (!options.verifyNavigation || kind !== "member" || !form.snapshot ||
+          Object.keys(patch).length !== 0)
+        throw Error("SNOOP_EMAIL_CORRECTION_UNCLEAR");
+      const currentEmail = form.snapshot().email;
+      const voiceOwnedEmail = options.last.member?.email;
+      if (!voiceOwnedEmail || voiceOwnedEmail !== currentEmail)
+        throw Error("SNOOP_EMAIL_CORRECTION_UNCLEAR");
+      patch.email = removeSingleLocalEmailDot(currentEmail);
+    }
     if (kind === "admin.membership_fee" && patch.price !== undefined) {
       const cents = parseCashCents(patch.price);
       if (cents === null) throw Error("SNOOP_INVALID_AMOUNT");
       patch.price = String(cents / 100);
     }
     if (!form.snapshot) throw Error("SNOOP_FORM_UNAVAILABLE");
+    // Generic Gervis contract: the mounted form is the source of truth
+    // for currently enabled fields, independent of hardcoded prompt claims.
+    if (options.verifyNavigation && form.fieldCapabilities)
+      assertWritableVoiceFields(patch, form.fieldCapabilities());
     const next = protectedVoicePatch(form.snapshot(), options.last[kind] ?? {}, patch);
     skipped = next.skipped;
     if (Object.keys(next.applied).length) {
       if (!form.patch) throw Error("SNOOP_FORM_UNAVAILABLE");
       form.patch(next.applied);
+      if (options.verifyNavigation)
+        await awaitVoicePatchApplied(form.snapshot, next.applied, valid);
       applied = Object.keys(next.applied);
       options.last[kind] = { ...options.last[kind], ...next.applied };
     }
@@ -152,7 +200,12 @@ export async function applyDeepgramDraft(
   if (p.intent === "search" && p.target === "members") {
     const search = await port("members.search");
     if (!search.search) throw Error("SNOOP_FORM_UNAVAILABLE");
-    search.search(p.query ?? "");
+    if (options.verifyNavigation) {
+      const result = await search.search(p.query ?? "");
+      if (result === "unavailable") throw Error("SNOOP_MEMBER_SEARCH_UNAVAILABLE");
+      if (result === "not_found") throw Error("SNOOP_MEMBER_NOT_FOUND");
+      searchOutcome = result === "multiple" ? "multiple" : "opened";
+    } else void search.search(p.query ?? "");
   }
   if (p.target === "cash_report") {
     if (options.reportDay !== undefined && !calendarDate(options.reportDay))
@@ -161,5 +214,5 @@ export async function applyDeepgramDraft(
     if (!cash.open) throw Error("SNOOP_FORM_UNAVAILABLE");
     cash.open("report", options.reportDay);
   }
-  return { proposal: p, skipped, applied };
+  return { proposal: p, skipped, applied, searchOutcome };
 }

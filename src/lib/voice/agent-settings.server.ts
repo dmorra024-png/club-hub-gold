@@ -14,6 +14,7 @@ import type { AccountAccess } from "../access-context.ts";
 import { voiceDestinationNames } from "./destinations.ts";
 import { actionDefinitions } from "./action-protocol.ts";
 import { madridToday } from "../member-administration.ts";
+import { gervisBrainPrompt } from "../gervis-snoop/brain.ts";
 export function authorizeProposal(
   value: unknown,
   access: AccountAccess,
@@ -121,6 +122,25 @@ export const proposalSchema = {
         },
       },
     },
+    surname_spelling: {
+      type: "object",
+      additionalProperties: false,
+      required: ["letters"],
+      properties: {
+        letters: {
+          type: "array",
+          items: {type:"string",description:"Exactly one explicitly spoken letter, not a word"},
+          minItems: 2,
+          maxItems: 60,
+        },
+      },
+      description: "GERVIS ONLY: replace the VOICE-OWNED surname on the active new-member form with letters EXPLICITLY spelled by the operator. Example M E C H A D => Mechad. Never invent letters or append to previous surname.",
+    },
+    email_correction: {
+      type: "string",
+      enum: ["remove_single_local_dot"],
+      description: "GERVIS ONLY: after the operator explicitly asks to remove the erroneous dot BEFORE @ from a previously VOICE-FILLED member email. Never use for domain dots, ambiguous positions, manual edits or without confirmation.",
+    },
     cash: {
       type: "object",
       additionalProperties: false,
@@ -146,6 +166,7 @@ export const proposalSchema = {
           "birth_date",
           "city",
           "phone",
+          "dni_number",
           "email",
           "address",
           "postal_code",
@@ -190,6 +211,7 @@ export function agentSettings(
   vocabulary: CatalogVocabulary = EMPTY_CATALOG,
   executionEnabled = false,
   walletEnabled = false,
+  gervisMode = false,
 ) {
   const settings = {
     type: "Settings",
@@ -564,5 +586,19 @@ export function agentSettings(
   settings.agent.think.prompt =
     `Current Europe/Madrid calendar date: ${madridToday()}. For any day other than today use snoop_cash_day with an explicit ISO calendar day; ask for clarification for ambiguous dates. Available navigation targets: ${voiceDestinationNames.join(", ")}. These targets only open existing screens and never imply that their forms were saved. ` +
     settings.agent.think.prompt;
+  // Gervis is a branch-isolated, opt-in alternative system prompt. It uses
+  // EXACTLY the existing Deepgram voice, provider, tools, authorizer, and
+  // manual confirmation protocol. No runtime change without the flag.
+  if (gervisMode) {
+    // Managed by Deepgram within the Standard tier; the legacy Pilot retains
+    // gpt-4o-mini. Validate actual model tool behavior in separate live tests.
+    settings.agent.think.provider.model = "gpt-4.1-mini";
+    settings.agent.think.prompt = gervisBrainPrompt({
+      language,
+      executionEnabled,
+      walletEnabled,
+      today: madridToday(),
+    });
+  }
   return settings;
 }

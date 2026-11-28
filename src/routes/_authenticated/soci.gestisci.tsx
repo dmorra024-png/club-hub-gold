@@ -33,6 +33,7 @@ function GestisciSoci() {
   const routeContext = Route.useRouteContext();
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
+  const [remoteVoiceMatches, setRemoteVoiceMatches] = useState<Array<{id:string;first_name:string;last_name:string}>>([]);
   const [loading, setLoading] = useState(true);
   const [scanOpen, setScanOpen] = useState(false);
   const navigate = useNavigate();
@@ -83,14 +84,16 @@ function GestisciSoci() {
   async function runVoiceSearch(query: string) {
     // Voice UI and server share the same member-name normalizer.
     const memberQuery = spokenMemberQuery(query);
+    setRemoteVoiceMatches([]);
     if (!memberQuery) {
       toast.error("Indica el nombre o número del socio.");
-      return;
+      return "not_found" as const;
     }
     const num = extractMemberNumber(memberQuery);
     if (num) {
+      const found = rowsRef.current.some(r => r.member_number === num);
       openByMemberNumber(num);
-      return;
+      return found ? "opened" as const : "not_found" as const;
     }
 
     setQ(memberQuery);
@@ -103,11 +106,11 @@ function GestisciSoci() {
     if (local.length === 1) {
       toast.success(`Abriendo ficha de ${local[0].first_name} ${local[0].last_name}`);
       navigate({ to: "/soci/$id", params: { id: local[0].id } });
-      return;
+      return "opened" as const;
     }
     if (local.length > 1) {
       toast.message(`${local.length} coincidencias. Selecciona el socio; no se abre una ficha por aproximación.`);
-      return;
+      return "multiple" as const;
     }
 
     // The local list can be paginated or incomplete. A zero local match is
@@ -121,7 +124,7 @@ function GestisciSoci() {
       });
       if (error || !Array.isArray(data)) {
         toast.error("Búsqueda no disponible. No se ha comprobado si existe el socio.");
-        return;
+        return "unavailable" as const;
       }
       const matches = data.filter(
         (row: unknown): row is { id: string; first_name: string; last_name: string } =>
@@ -133,15 +136,21 @@ function GestisciSoci() {
       );
       if (matches.length === 1) {
         navigate({ to: "/soci/$id", params: { id: matches[0].id } });
-        return;
+        return "opened" as const;
       }
       if (matches.length > 1) {
+        // The authorized RPC can find a member absent from the cached list.
+        // Show its candidates privately to the operator; never guess one.
+        setRemoteVoiceMatches(matches.slice(0,7));
         toast.message(`${matches.length} coincidencias. Indica el apellido o selecciona la ficha.`);
+        return "multiple" as const;
       } else {
         toast.error("No se encontró el nombre en este club. Comprueba nombre y apellidos.");
+        return "not_found" as const;
       }
     } catch {
       toast.error("Búsqueda no disponible. No se ha comprobado si existe el socio.");
+      return "unavailable" as const;
     }
   }
 
@@ -192,7 +201,7 @@ function GestisciSoci() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neon-dim" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setRemoteVoiceMatches([]); setQ(e.target.value); }}
             placeholder="Buscar por nº socio, nombre, DNI o ciudad..."
             className="w-full bg-input border border-border rounded-lg pl-10 pr-3 py-2.5 text-sm focus:border-neon focus:ring-2 focus:ring-neon/20 outline-none transition"
           />
@@ -206,6 +215,19 @@ function GestisciSoci() {
         </button>
       </div>
 
+      {remoteVoiceMatches.length > 0 && (
+        <section className="mb-5 rounded-xl border border-neon/40 bg-card/60 p-4" aria-label="Coincidencias verificadas por búsqueda de voz">
+          <p className="text-sm mb-3">Varios socios encontrados en este club. Selecciona la ficha correcta:</p>
+          <div className="flex flex-col gap-2">
+            {remoteVoiceMatches.map(match => (
+              <Link key={match.id} to="/soci/$id" params={{id:match.id}}
+                className="block rounded-lg border border-border p-3 text-sm hover:border-neon">
+                {match.first_name} {match.last_name}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       {loading ? (
         <div className="text-muted-foreground text-sm">Cargando...</div>
       ) : filtered.length === 0 ? (
