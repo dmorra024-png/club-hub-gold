@@ -8,6 +8,7 @@ import { applicationPorts, isMemberCardPath, type VoicePort } from "./voice/appl
 import type { AccountAccess } from "./access-context.ts";
 import { parseCashCents, calendarDate } from "./member-administration.ts";
 import { removeSingleLocalEmailDot } from "./gervis-snoop/email-correction.ts";
+import { spelledSurname } from "./gervis-snoop/surname-correction.ts";
 const formOwners = new WeakMap<object, Map<string, VoicePort>>();
 export function protectedVoicePatch(
   current: Record<string, string>,
@@ -139,6 +140,18 @@ export async function applyDeepgramDraft(
             ? p.member
             : p.product),
     } as Record<string, string>;
+    if (p.surname_spelling) {
+      // Gervis only: exact replacement, not a suffix appended by the model.
+      // Only a field still owned by voice can be corrected; never overwrite
+      // a surname the operator has since edited manually.
+      if (!options.verifyNavigation || kind !== "member" || !form.snapshot ||
+          Object.keys(patch).length !== 0)
+        throw Error("SNOOP_SURNAME_SPELLING_UNCLEAR");
+      const existing = form.snapshot().last_name;
+      if (!options.last.member?.last_name || options.last.member.last_name !== existing)
+        throw Error("SNOOP_SURNAME_SPELLING_UNCLEAR");
+      patch.last_name = spelledSurname(p.surname_spelling.letters);
+    }
     if (p.email_correction) {
       // Only the Gervis phone-test pathway may use this narrow local edit.
       // Never replace a manually modified email or guess punctuation.
