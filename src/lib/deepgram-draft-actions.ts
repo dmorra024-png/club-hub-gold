@@ -187,7 +187,8 @@ export async function applyDeepgramDraft(
   if (p.intent === "search" && p.target === "members") {
     const search = await port("members.search");
     if (!search.search) throw Error("SNOOP_FORM_UNAVAILABLE");
-    search.search(p.query ?? "");
+    if (options.verifyNavigation) await search.search(p.query ?? "");
+    else void search.search(p.query ?? "");
   }
   if (p.target === "cash_report") {
     if (options.reportDay !== undefined && !calendarDate(options.reportDay))
